@@ -21,6 +21,11 @@ import { handleMsgUpdateBytes } from "./handlers/handleMsgUpdateBytes"
 import { handleMsgUpdateDisallowedTransfers } from "./handlers/handleMsgUpdateDisallowedTransfers"
 import { handleMsgUpdateUris } from "./handlers/handleMsgUpdateUris"
 import { handleMsgUpdatePermissions } from "./handlers/handleMsgUpdatePermissions"
+import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
+import last from 'it-last';
+const cors = require('cors');
+var bodyParser = require('body-parser')
+
 
 config()
 
@@ -49,6 +54,14 @@ export const createIndexer = async () => {
     let client: IndexerStargateClient
 
     const app: Express = express()
+    app.use(cors());
+
+    // parse application/x-www-form-urlencoded
+    app.use(bodyParser.urlencoded({ extended: false }))
+
+    // parse application/json
+    app.use(bodyParser.json())
+
 
     app.get("/", (req: Request, res: Response) => {
         res.send({
@@ -56,13 +69,68 @@ export const createIndexer = async () => {
         })
     })
 
-    app.get("/status", (req: Request, res: Response) => {
+    app.get("/api/status", (req: Request, res: Response) => {
         res.json({
             block: {
                 height: db.status.block.height,
             },
         })
     })
+
+    app.get("/api/collection/:id", (req: Request, res: Response) => {
+        res.json({
+            collection: db.collections[req.params.id],
+        })
+    })
+
+    app.post('/api/addToIpfs', async (req: Request, res: Response) => {
+        console.log("BODY", req.body);
+        const files = [];
+        files.push({
+            path: 'metadata/collection',
+            content: uint8ArrayFromString(JSON.stringify(req.body.collectionMetadata))
+        });
+
+        console.log("req.body for addToIPFS: " + JSON.stringify(req.body));
+        let individualBadgeMetadata = req.body.individualBadgeMetadata;
+        for (let i = 0; i < individualBadgeMetadata.length; i++) {
+            files.push(
+                {
+                    path: 'metadata/' + i,
+                    content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[i]))
+                }
+            );
+        }
+
+        const result = await last(ipfsClient.addAll(files));
+
+        if (!result) {
+            return res.status(400).send({ error: 'No addAll result received' });
+        }
+
+        const { path, cid } = result;
+        return res.status(200).send({ cid: cid.toString(), path });
+    });
+
+    app.post('/api/addMerkleTreeToIpfs', async (req: Request, res: Response) => {
+        const files = [];
+        files.push({
+            path: '',
+            content: uint8ArrayFromString(JSON.stringify(req.body.leaves))
+        });
+
+        const result = await last(ipfsClient.addAll(files));
+
+        if (!result) {
+            return res.status(400).send({ error: 'No addAll result received' });
+        }
+
+        const { path, cid } = result;
+        return res.status(200).send({ cid: cid.toString(), path });
+    });
+
+    //TODO: refresh metadata endpoint
+
 
     const saveDb = async () => {
         await writeFile(dbFile, JSON.stringify(db, null, 4))
@@ -107,9 +175,13 @@ export const createIndexer = async () => {
     }
 
     const handleTx = async (indexed: IndexedTx) => {
-        const rawLog: any = JSON.parse(indexed.rawLog)
-        const events: StringEvent[] = rawLog.flatMap((log: ABCIMessageLog) => log.events)
-        await handleEvents(events)
+        try {
+            const rawLog: any = JSON.parse(indexed.rawLog)
+            const events: StringEvent[] = rawLog.flatMap((log: ABCIMessageLog) => log.events)
+            await handleEvents(events)
+        } catch (e) {
+            // Skipping if the handling failed. Most likely the transaction failed.
+        }
     }
 
     const handleEvents = async (events: StringEvent[]): Promise<void> => {

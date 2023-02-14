@@ -14,6 +14,10 @@ export const handleMsgMintBadge = async (event: StringEvent, db: DbType): Promis
     db.collections[collection.collectionId].unmintedSupplys = collection.unmintedSupplys;
     db.collections[collection.collectionId].maxSupplys = collection.maxSupplys;
     db.collections[collection.collectionId].nextBadgeId = collection.nextBadgeId;
+    for (let i = db.collections[collection.collectionId].originalClaims.length; i < collection.claims.length; i++) {
+        db.collections[collection.collectionId].originalClaims.push(collection.claims[i]);
+    }
+    
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
     if (!transfersString) throw new Error(`New Collection event missing transfers`)

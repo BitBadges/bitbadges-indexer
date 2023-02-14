@@ -12,4 +12,6 @@ export const handleMsgTransferManager = async (event: StringEvent, db: DbType): 
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
 
     db.collections[collection.collectionId].manager = collection.manager;
+    db.collections[collection.collectionId].managerRequests = db.collections[collection.collectionId].managerRequests.filter((address: any) => Number(address) !== Number(collection.manager));
+
 }

@@ -77,14 +77,21 @@ export const handleTransfers = async (collection: BadgeCollection, transfers: Tr
 
             for (const transferBalanceObj of transfer.balances) {
                 db.collections[collection.collectionId].balances[address] = AddBalancesForIdRanges(currBalance, transferBalanceObj.badgeIds, transferBalanceObj.balance);
+
             }
         }
+        db.collections[collection.collectionId].activity.push({
+            from: ['Mint'],
+            to: transfer.toAddresses,
+            balances: transfer.balances,
+            method: 'Mint',
+        });
+
     }
 }
 
 
 export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Promise<void> => {
-    console.log("ENTERED");
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`);
 
@@ -107,7 +114,10 @@ export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Pr
     db.collections[collection.collectionId] = collection;
     db.collections[collection.collectionId].balances = {};
     db.collections[collection.collectionId].usedClaims = [];
-    db.collections[collection.collectionId].maangerRequests = [];
+    db.collections[collection.collectionId].managerRequests = [];
+    db.collections[collection.collectionId].activity = [];
+    db.collections[collection.collectionId].originalClaims = collection.claims;
+
 
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");

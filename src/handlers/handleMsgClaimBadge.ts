@@ -1,6 +1,6 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { getAttributeValueByKey } from "../indexer"
-import { BadgeCollection, DbType } from "../types"
+import { BadgeCollection, Balance, DbType } from "../types"
 import { cleanBadgeCollection, cleanUserBalance } from "../util/dataCleaners"
 import { fetchClaims } from "./handleMsgNewCollection"
 
@@ -17,6 +17,25 @@ export const handleMsgClaimBadge = async (event: StringEvent, db: DbType): Promi
 
     const toAddress = getAttributeValueByKey(event.attributes, "to");
     if (!toAddress) throw new Error(`New Collection event missing to`)
+
+    const claimedBalancesStr: string | undefined = getAttributeValueByKey(event.attributes, "claimed_balances");
+    if (!claimedBalancesStr) throw new Error(`New Collection event missing claimed_balances`)
+    const claimedBalances: Balance[] = JSON.parse(claimedBalancesStr);
+
+    const cleanedBalance = cleanUserBalance({
+        approvals: [],
+        balances: claimedBalances,
+    });
+
+
+    db.collections[collection.collectionId].activity.push({
+        from: ['Mint'],
+        to: [toAddress],
+        balances: cleanedBalance.balances,
+        method: 'Claim',
+    });
+
+
 
     const userBalanceJson: any = cleanUserBalance(JSON.parse(userBalanceString));
     db.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
