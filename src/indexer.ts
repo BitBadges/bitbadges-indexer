@@ -11,6 +11,7 @@ import { handleMsgNewCollection } from "./handlers/handleMsgNewCollection"
 import { IndexerStargateClient } from "./indexer_stargateclient"
 import { DbType } from "./types"
 import _ from "../environment"
+import { handleMsgMintBadge } from "./handlers/handleMsgMintBadge"
 
 config()
 
@@ -117,6 +118,9 @@ export const createIndexer = async () => {
     const handleEvent = async (event: StringEvent): Promise<void> => {
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgNewCollection") {
             await handleMsgNewCollection(event, db);
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgMintBadge") {
+            await handleMsgMintBadge(event, db);
         }
     }
 

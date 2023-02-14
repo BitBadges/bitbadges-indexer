@@ -6,6 +6,7 @@ import { getAttributeValueByKey } from "../indexer"
 import { getFromIpfs } from "../ipfs/getFromIpfs"
 import { BadgeCollection, BadgeMetadata, DbType, DistributionMethod, IdRange, Transfers } from "../types"
 import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
+import { AddBalancesForIdRanges } from "../util/balances-gpt"
 
 
 const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
@@ -30,19 +31,7 @@ const fetchBadgeMetadata = async (badgeIdsToFetch: IdRange, badgeUri: string): P
     return badgeMetadata;
 }
 
-export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Promise<void> => {
-    const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
-    if (!collectionString) throw new Error(`New Collection event missing collection`)
-    const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
-    collection.collectionMetadata = await fetchMetadata(collection.collectionUri);
-    collection.badgeMetadata = await fetchBadgeMetadata(
-        {
-            start: 0,
-            end: Number(collection?.nextBadgeId) - 1
-        },
-        collection.badgeUri
-    );
-
+export const fetchClaims = async (collection: BadgeCollection) => {
     //Handle claim objects
     for (let idx = 0; idx < collection.claims.length; idx++) {
         let claim = collection.claims[idx];
@@ -69,25 +58,51 @@ export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Pr
             }
         }
     }
+
+    return collection.claims;
+}
+
+export const handleTransfers = async (collection: BadgeCollection, transfers: Transfers[], db: DbType) => {
+    for (let idx = 0; idx < transfers.length; idx++) {
+        let transfer = transfers[idx];
+        for (let j = 0; j < transfer.toAddresses.length; j++) {
+            let address = transfer.toAddresses[j];
+
+            let currBalance = db.collections[collection.collectionId].balances[address]
+                ? db.collections[collection.collectionId].balances[address]
+                : {
+                    balances: [],
+                    approvals: [],
+                };
+
+            for (const transferBalanceObj of transfer.balances) {
+                db.collections[collection.collectionId].balances[address] = AddBalancesForIdRanges(currBalance, transferBalanceObj.badgeIds, transferBalanceObj.balance);
+            }
+        }
+    }
+}
+
+
+export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Promise<void> => {
+    const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
+    if (!collectionString) throw new Error(`New Collection event missing collection`)
+    const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
+    collection.collectionMetadata = await fetchMetadata(collection.collectionUri);
+    collection.badgeMetadata = await fetchBadgeMetadata(
+        {
+            start: 0,
+            end: Number(collection?.nextBadgeId) - 1
+        },
+        collection.badgeUri
+    );
+    collection.claims = await fetchClaims(collection);
+
+
     db.collections[collection.collectionId] = collection;
     db.collections[collection.collectionId].balances = {};
-
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
     if (!transfersString) throw new Error(`New Collection event missing transfers`)
     const transfers: Transfers[] = cleanTransfers(JSON.parse(transfersString));
-
-
-    for (let idx = 0; idx < transfers.length; idx++) {
-        let transfer = transfers[idx];
-        for (let j = 0; j < transfer.toAddresses.length; j++) {
-            //TODO: handle duplicate addresses
-            let address = transfer.toAddresses[j];
-
-            db.collections[collection.collectionId].balances[address] = {
-                balances: transfer.balances[j],
-                approvals: [],
-            };
-        }
-    }
+    await handleTransfers(collection, transfers, db);
 }
