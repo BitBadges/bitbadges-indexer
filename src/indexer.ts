@@ -12,6 +12,15 @@ import { IndexerStargateClient } from "./indexer_stargateclient"
 import { DbType } from "./types"
 import _ from "../environment"
 import { handleMsgMintBadge } from "./handlers/handleMsgMintBadge"
+import { handleMsgClaimBadge } from "./handlers/handleMsgClaimBadge"
+import { handleMsgRequestTransferManager } from "./handlers/handleMsgRequestTransferManager"
+import { handleMsgSetApproval } from "./handlers/handleMsgSetApproval"
+import { handleMsgTransferBadge } from "./handlers/handleMsgTransferBadge"
+import { handleMsgTransferManager } from "./handlers/handleMsgTransferManager"
+import { handleMsgUpdateBytes } from "./handlers/handleMsgUpdateBytes"
+import { handleMsgUpdateDisallowedTransfers } from "./handlers/handleMsgUpdateDisallowedTransfers"
+import { handleMsgUpdateUris } from "./handlers/handleMsgUpdateUris"
+import { handleMsgUpdatePermissions } from "./handlers/handleMsgUpdatePermissions"
 
 config()
 
@@ -116,12 +125,42 @@ export const createIndexer = async () => {
     }
 
     const handleEvent = async (event: StringEvent): Promise<void> => {
+        console.log(getAttributeValueByKey(event.attributes, "action"));
+
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgNewCollection") {
-            await handleMsgNewCollection(event, db);
+            await handleMsgNewCollection(event, db).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgMintBadge") {
-            await handleMsgMintBadge(event, db);
+            await handleMsgMintBadge(event, db).catch(err => console.log(err));
         }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgClaimBadge") {
+            await handleMsgClaimBadge(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgRequestTransferManager") {
+            await handleMsgRequestTransferManager(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgSetApproval") {
+            await handleMsgSetApproval(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferBadge") {
+            await handleMsgTransferBadge(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferManager") {
+            await handleMsgTransferManager(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes") {
+            await handleMsgUpdateBytes(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers") {
+            await handleMsgUpdateDisallowedTransfers(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateUris") {
+            await handleMsgUpdateUris(event, db).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions") {
+            await handleMsgUpdatePermissions(event, db).catch(err => console.log(err));
+        }
+
     }
 
     process.on("SIGINT", () => {

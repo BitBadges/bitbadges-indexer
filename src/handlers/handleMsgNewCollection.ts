@@ -84,8 +84,10 @@ export const handleTransfers = async (collection: BadgeCollection, transfers: Tr
 
 
 export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Promise<void> => {
+    console.log("ENTERED");
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
-    if (!collectionString) throw new Error(`New Collection event missing collection`)
+    if (!collectionString) throw new Error(`New Collection event missing collection`);
+
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
     collection.collectionMetadata = await fetchMetadata(collection.collectionUri);
     collection.badgeMetadata = await fetchBadgeMetadata(
@@ -95,11 +97,18 @@ export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Pr
         },
         collection.badgeUri
     );
+
     collection.claims = await fetchClaims(collection);
+
+
+    console.log(collection.collectionId);
 
 
     db.collections[collection.collectionId] = collection;
     db.collections[collection.collectionId].balances = {};
+    db.collections[collection.collectionId].usedClaims = [];
+    db.collections[collection.collectionId].maangerRequests = [];
+
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
     if (!transfersString) throw new Error(`New Collection event missing transfers`)
