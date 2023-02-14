@@ -2,8 +2,12 @@ import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { getAttributeValueByKey } from "../indexer"
 import { DbType, Transfers, UserBalance } from "../types"
 import { cleanTransfers, cleanUserBalance } from "../util/dataCleaners"
+import { IndexerStargateClient } from "../indexer_stargateclient"
+import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgTransferBadge = async (event: StringEvent, db: DbType): Promise<void> => {
+export const handleMsgTransferBadge = async (event: StringEvent, db: DbType, client: IndexerStargateClient): Promise<void> => {
+    //TODO: creator account handling
+    
     const collectionIdString: string | undefined = getAttributeValueByKey(event.attributes, "collection_id");
     if (!collectionIdString) throw new Error(`New Collection event missing collection_id`)
 
@@ -20,6 +24,8 @@ export const handleMsgTransferBadge = async (event: StringEvent, db: DbType): Pr
         const accountNum = newBalancesAccountNums[i];
         const balance = newBalances[i];
         db.collections[collectionIdString].balances[accountNum] = cleanUserBalance(balance);
+
+        await handleNewAccount(Number(accountNum), db, client);
     }
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
@@ -36,4 +42,6 @@ export const handleMsgTransferBadge = async (event: StringEvent, db: DbType): Pr
             method: 'Transfer',
         });
     }
+
+    
 }

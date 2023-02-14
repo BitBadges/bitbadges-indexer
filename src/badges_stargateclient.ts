@@ -1,8 +1,9 @@
-import { StargateClient, StargateClientOptions } from "@cosmjs/stargate"
+import { QueryClient, StargateClient, StargateClientOptions } from "@cosmjs/stargate"
 import { BroadcastTxSyncResponse, Tendermint34Client } from "@cosmjs/tendermint-rpc"
+import { BadgesExtension, setupBadgesExtension } from "./modules/badges/queries"
 
 export class BadgesStargateClient extends StargateClient {
-    // public readonly badgesQueryClient: BadgesExtension | undefined
+    public readonly badgesQueryClient: BadgesExtension | undefined
 
     public static async connect(
         endpoint: string,
@@ -14,6 +15,9 @@ export class BadgesStargateClient extends StargateClient {
 
     protected constructor(tmClient: Tendermint34Client | undefined, options: StargateClientOptions = {}) {
         super(tmClient, options)
+        if (tmClient) {
+            this.badgesQueryClient = QueryClient.withExtensions(tmClient, setupBadgesExtension)
+        }
     }
 
     public async tmBroadcastTxSync(tx: Uint8Array): Promise<BroadcastTxSyncResponse> {

@@ -7,6 +7,8 @@ import { getFromIpfs } from "../ipfs/getFromIpfs"
 import { BadgeCollection, BadgeMetadata, DbType, DistributionMethod, IdRange, Transfers } from "../types"
 import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { AddBalancesForIdRanges } from "../util/balances-gpt"
+import { handleNewAccount } from "./handleNewAccount"
+import { IndexerStargateClient } from "../indexer_stargateclient"
 
 
 const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
@@ -91,7 +93,7 @@ export const handleTransfers = async (collection: BadgeCollection, transfers: Tr
 }
 
 
-export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Promise<void> => {
+export const handleMsgNewCollection = async (event: StringEvent, db: DbType, client: IndexerStargateClient): Promise<void> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`);
 
@@ -106,6 +108,8 @@ export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Pr
     );
 
     collection.claims = await fetchClaims(collection);
+
+    await handleNewAccount(Number(collection.manager), db, client);
 
 
     console.log(collection.collectionId);
@@ -124,4 +128,10 @@ export const handleMsgNewCollection = async (event: StringEvent, db: DbType): Pr
     if (!transfersString) throw new Error(`New Collection event missing transfers`)
     const transfers: Transfers[] = cleanTransfers(JSON.parse(transfersString));
     await handleTransfers(collection, transfers, db);
+
+    for (const transfer of transfers) {
+        for (const address of transfer.toAddresses) {
+            await handleNewAccount(Number(address), db, client);
+        }
+    }
 }

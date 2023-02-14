@@ -3,8 +3,10 @@ import { getAttributeValueByKey } from "../indexer"
 import { BadgeCollection, Balance, DbType } from "../types"
 import { cleanBadgeCollection, cleanUserBalance } from "../util/dataCleaners"
 import { fetchClaims } from "./handleMsgNewCollection"
+import { IndexerStargateClient } from "../indexer_stargateclient"
+import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgClaimBadge = async (event: StringEvent, db: DbType): Promise<void> => {
+export const handleMsgClaimBadge = async (event: StringEvent, db: DbType, client: IndexerStargateClient): Promise<void> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`)
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
@@ -45,4 +47,7 @@ export const handleMsgClaimBadge = async (event: StringEvent, db: DbType): Promi
 
     db.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
     db.collections[collection.collectionId].usedClaims.push(claimDataString);
+
+
+    await handleNewAccount(Number(toAddress), db, client);
 }

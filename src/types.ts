@@ -14,6 +14,7 @@ export interface DbStatus {
 export interface DbType {
     status: DbStatus
     collections: any
+    accounts: any
 }
 
 export interface BadgeCollection {

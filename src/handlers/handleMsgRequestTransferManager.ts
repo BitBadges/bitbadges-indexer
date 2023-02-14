@@ -1,10 +1,14 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { getAttributeValueByKey } from "../indexer"
 import { DbType } from "../types"
+import { IndexerStargateClient } from "src/indexer_stargateclient";
+import { handleNewAccount } from "./handleNewAccount";
 
-export const handleMsgRequestTransferManager = async (event: StringEvent, db: DbType): Promise<void> => {
+export const handleMsgRequestTransferManager = async (event: StringEvent, db: DbType, client: IndexerStargateClient): Promise<void> => {
     const creatorString: string | undefined = getAttributeValueByKey(event.attributes, "creator");
     if (!creatorString) throw new Error(`New Collection event missing creator`)
+
+    await handleNewAccount(Number(creatorString), db, client);
 
     const collectionIdString: string | undefined = getAttributeValueByKey(event.attributes, "collection_id");
     if (!collectionIdString) throw new Error(`New Collection event missing collection_id`)
@@ -17,4 +21,6 @@ export const handleMsgRequestTransferManager = async (event: StringEvent, db: Db
     } else {
         db.collections[collectionIdString].managerRequests = db.collections[collectionIdString].managerRequests.filter((address: any) => address !== creatorString);
     }
+
+
 }
