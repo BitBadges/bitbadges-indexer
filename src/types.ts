@@ -1,6 +1,5 @@
 //TODO: sync with bitbadges-js and the other libraries
 
-import MerkleTree from "merkletreejs";
 import { Permissions } from "./permissions";
 
 export interface LatestBlockStatus {
@@ -113,7 +112,6 @@ export interface Claims {
     uri: string;
     timeRange: IdRange;
     leaves: string[];
-    tree: MerkleTree;
     distributionMethod: DistributionMethod;
 }
 

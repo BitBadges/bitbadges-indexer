@@ -8,7 +8,7 @@ import { Server } from "http"
 import { create } from 'ipfs-http-client'
 import last from 'it-last'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { COLLECTIONS_DB } from "./db/db"
+import { ACCOUNTS_DB, COLLECTIONS_DB } from "./db/db"
 import { getDoc } from "./db/helpers"
 import { getStatus, setStatus } from "./db/status"
 import { handleMsgClaimBadge } from "./handlers/handleMsgClaimBadge"
@@ -86,6 +86,67 @@ export const createIndexer = async () => {
         })
     })
 
+    app.get('/api/collection/:id/:badgeId/owners', async (req: Request, res: Response) => {
+        console.log("OWNES");
+        const balanceField = `balances`;
+
+        const q: any = {};
+        q.selector = {
+            _id: req.params.id
+        }
+        q.fields = [balanceField];
+
+        const response = await COLLECTIONS_DB.find(q);
+
+        //TODO: this should be in Mango query somehow and not on backend
+        //Currently we fetch all balances
+        const ownerNums = [];
+        for (const accountNum of Object.keys(response.docs[0].balances)) {
+            for (const balance of response.docs[0].balances[accountNum].balances) {
+                for (const badgeId of balance.badgeIds) {
+                    if (badgeId.start <= Number(req.params.badgeId) && badgeId.end >= Number(req.params.badgeId)) {
+                        ownerNums.push(accountNum);
+                    }
+                }
+            }
+        }
+
+        const owners = await ACCOUNTS_DB.fetch({ keys: ownerNums });
+        // console.log(owners.rows);
+
+        return res.status(200).send({
+            balances: response.docs[0].balances,
+            owners: owners.rows.map((row: any) => row.doc)
+        });
+    });
+
+    app.get('/api/balance/:collectionId/:accountNum', async (req: Request, res: Response) => {
+        const accountNumIdx = `${Number(req.params.accountNum)}`;
+        const balanceField = `balances.${accountNumIdx}`;
+
+        const q: any = {};
+        q.selector = {
+            _id: req.params.collectionId,
+            balances: {}
+        }
+        q.selector.balances[accountNumIdx] = {
+            "balances": {
+                "$gt": null
+            }
+        }
+        q.fields = [balanceField];
+
+        console.log(q)
+
+        const response = await COLLECTIONS_DB.find(q);
+        console.log(response);
+
+        return res.status(200).send({
+            balance: response.docs[0].balances[accountNumIdx]
+        });
+    });
+
+
     app.post('/api/addToIpfs', async (req: Request, res: Response) => {
         const files = [];
         files.push({
@@ -131,10 +192,17 @@ export const createIndexer = async () => {
         return res.status(200).send({ cid: cid.toString(), path });
     });
 
-    app.get('/api/user/:accountNum', async (req: Request, res: Response) => {
-        let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(Number(req.params.accountNum));
+    app.get('/api/user/id/:accountNum', async (req: Request, res: Response) => {
+        let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
         return res.status(200).send({ accountInfo });
     });
+
+    app.get('/api/user/address/:address', async (req: Request, res: Response) => {
+        let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(req.params.address);
+        return res.status(200).send({ accountInfo });
+    });
+
+
 
 
     //TODO: refresh metadata endpoint

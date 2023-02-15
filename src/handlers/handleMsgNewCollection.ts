@@ -1,15 +1,13 @@
 import axios from "axios"
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { SHA256 } from 'crypto-js'
-import MerkleTree from "merkletreejs"
+import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
+import { IndexerStargateClient } from "../indexer_stargateclient"
 import { getFromIpfs } from "../ipfs/getFromIpfs"
 import { BadgeCollection, BadgeMetadata, DistributionMethod, IdRange, Transfers } from "../types"
-import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { AddBalancesForIdRanges } from "../util/balances-gpt"
+import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { handleNewAccount } from "./handleNewAccount"
-import { IndexerStargateClient } from "../indexer_stargateclient"
-import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
 
 
 const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
@@ -47,15 +45,11 @@ export const fetchClaims = async (collection: BadgeCollection) => {
                 if (fetchedLeaves[0].split('-').length < 5 || (fetchedLeaves[0].split('-').length - 3) % 2 != 0) {
                     //Is a list of hashed codes; do not hash the leaves
                     //Users will enter their code and we check if we have a Merkle proof for it
-                    const tree = new MerkleTree(fetchedLeaves, SHA256);
                     collection.claims[idx].leaves = fetchedLeaves;
-                    collection.claims[idx].tree = tree;
                     collection.claims[idx].distributionMethod = DistributionMethod.Codes;
                 } else {
                     //Is a list of specific codes with addresses
-                    const tree = new MerkleTree(fetchedLeaves.map((x) => SHA256(x)), SHA256);
                     collection.claims[idx].leaves = fetchedLeaves;
-                    collection.claims[idx].tree = tree;
                     collection.claims[idx].distributionMethod = DistributionMethod.Whitelist;
                 }
             }
