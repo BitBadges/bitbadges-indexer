@@ -4,11 +4,12 @@ import { SHA256 } from 'crypto-js'
 import MerkleTree from "merkletreejs"
 import { getAttributeValueByKey } from "../indexer"
 import { getFromIpfs } from "../ipfs/getFromIpfs"
-import { BadgeCollection, BadgeMetadata, DbType, DistributionMethod, IdRange, Transfers } from "../types"
+import { BadgeCollection, BadgeMetadata, DistributionMethod, IdRange, Transfers } from "../types"
 import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { AddBalancesForIdRanges } from "../util/balances-gpt"
 import { handleNewAccount } from "./handleNewAccount"
 import { IndexerStargateClient } from "../indexer_stargateclient"
+import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
 
 
 const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
@@ -64,25 +65,27 @@ export const fetchClaims = async (collection: BadgeCollection) => {
     return collection.claims;
 }
 
-export const handleTransfers = async (collection: BadgeCollection, transfers: Transfers[], db: DbType) => {
+export const handleTransfers = async (collection: BadgeCollection, transfers: Transfers[]) => {
+    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId]);
+
     for (let idx = 0; idx < transfers.length; idx++) {
         let transfer = transfers[idx];
         for (let j = 0; j < transfer.toAddresses.length; j++) {
             let address = transfer.toAddresses[j];
 
-            let currBalance = db.collections[collection.collectionId].balances[address]
-                ? db.collections[collection.collectionId].balances[address]
+            let currBalance = docs.collections[collection.collectionId].balances[address]
+                ? docs.collections[collection.collectionId].balances[address]
                 : {
                     balances: [],
                     approvals: [],
                 };
 
             for (const transferBalanceObj of transfer.balances) {
-                db.collections[collection.collectionId].balances[address] = AddBalancesForIdRanges(currBalance, transferBalanceObj.badgeIds, transferBalanceObj.balance);
+                docs.collections[collection.collectionId].balances[address] = AddBalancesForIdRanges(currBalance, transferBalanceObj.badgeIds, transferBalanceObj.balance);
 
             }
         }
-        db.collections[collection.collectionId].activity.push({
+        docs.collections[collection.collectionId].activity.push({
             from: ['Mint'],
             to: transfer.toAddresses,
             balances: transfer.balances,
@@ -90,14 +93,17 @@ export const handleTransfers = async (collection: BadgeCollection, transfers: Tr
         });
 
     }
+    await finalizeDocsForRequest(docs.accounts, docs.collections);
 }
 
 
-export const handleMsgNewCollection = async (event: StringEvent, db: DbType, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgNewCollection = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`);
 
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
+    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId]);
+
     collection.collectionMetadata = await fetchMetadata(collection.collectionUri);
     collection.badgeMetadata = await fetchBadgeMetadata(
         {
@@ -109,29 +115,34 @@ export const handleMsgNewCollection = async (event: StringEvent, db: DbType, cli
 
     collection.claims = await fetchClaims(collection);
 
-    await handleNewAccount(Number(collection.manager), db, client);
+    await handleNewAccount(Number(collection.manager), client);
 
 
     console.log(collection.collectionId);
 
 
-    db.collections[collection.collectionId] = collection;
-    db.collections[collection.collectionId].balances = {};
-    db.collections[collection.collectionId].usedClaims = [];
-    db.collections[collection.collectionId].managerRequests = [];
-    db.collections[collection.collectionId].activity = [];
-    db.collections[collection.collectionId].originalClaims = collection.claims;
+    docs.collections[collection.collectionId] = {
+        _id: docs.collections[collection.collectionId]._id,
+        ...collection
+    };
 
+    docs.collections[collection.collectionId].balances = {};
+    docs.collections[collection.collectionId].usedClaims = [];
+    docs.collections[collection.collectionId].managerRequests = [];
+    docs.collections[collection.collectionId].activity = [];
+    docs.collections[collection.collectionId].originalClaims = collection.claims;
 
+    await finalizeDocsForRequest(docs.accounts, docs.collections);
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
     if (!transfersString) throw new Error(`New Collection event missing transfers`)
     const transfers: Transfers[] = cleanTransfers(JSON.parse(transfersString));
-    await handleTransfers(collection, transfers, db);
+
+    await handleTransfers(collection, transfers);
 
     for (const transfer of transfers) {
         for (const address of transfer.toAddresses) {
-            await handleNewAccount(Number(address), db, client);
+            await handleNewAccount(Number(address), client);
         }
     }
 }

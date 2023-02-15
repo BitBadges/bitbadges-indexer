@@ -9,8 +9,9 @@ declare global {
             ADDRESS_TEST_BOB: string
             INFURA_ID: string
             INFURA_SECRET_KEY: string
+            DB_URL: string
         }
     }
 }
 
-export {}
+export { }

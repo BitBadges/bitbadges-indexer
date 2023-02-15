@@ -4,27 +4,28 @@ import { Block, IndexedTx } from "@cosmjs/stargate"
 import { ABCIMessageLog, Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { config } from "dotenv"
 import express, { Express, Request, Response } from "express"
-import { writeFile } from "fs/promises"
 import { Server } from "http"
 import { create } from 'ipfs-http-client'
-import { handleMsgNewCollection } from "./handlers/handleMsgNewCollection"
-import { IndexerStargateClient } from "./indexer_stargateclient"
-import { DbType } from "./types"
-import _ from "../environment"
-import { handleMsgMintBadge } from "./handlers/handleMsgMintBadge"
+import last from 'it-last'
+import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
+import { COLLECTIONS_DB } from "./db/db"
+import { getDoc } from "./db/helpers"
+import { getStatus, setStatus } from "./db/status"
 import { handleMsgClaimBadge } from "./handlers/handleMsgClaimBadge"
+import { handleMsgMintBadge } from "./handlers/handleMsgMintBadge"
+import { handleMsgNewCollection } from "./handlers/handleMsgNewCollection"
 import { handleMsgRequestTransferManager } from "./handlers/handleMsgRequestTransferManager"
 import { handleMsgSetApproval } from "./handlers/handleMsgSetApproval"
 import { handleMsgTransferBadge } from "./handlers/handleMsgTransferBadge"
 import { handleMsgTransferManager } from "./handlers/handleMsgTransferManager"
 import { handleMsgUpdateBytes } from "./handlers/handleMsgUpdateBytes"
 import { handleMsgUpdateDisallowedTransfers } from "./handlers/handleMsgUpdateDisallowedTransfers"
-import { handleMsgUpdateUris } from "./handlers/handleMsgUpdateUris"
 import { handleMsgUpdatePermissions } from "./handlers/handleMsgUpdatePermissions"
-import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
-import last from 'it-last';
+import { handleMsgUpdateUris } from "./handlers/handleMsgUpdateUris"
+import { IndexerStargateClient } from "./indexer_stargateclient"
+import _ from "../environment"
+
 const cors = require('cors');
-var bodyParser = require('body-parser')
 
 
 config()
@@ -47,8 +48,6 @@ export const getAttributeValueByKey = (attributes: Attribute[], key: string): st
 
 export const createIndexer = async () => {
     const port = "3001"
-    const dbFile = `${__dirname}/db/db.json`
-    const db: DbType = require(dbFile)
     const pollIntervalMs = 5_000 // 5 seconds
     let timer: NodeJS.Timer | undefined
     let client: IndexerStargateClient
@@ -57,10 +56,10 @@ export const createIndexer = async () => {
     app.use(cors());
 
     // parse application/x-www-form-urlencoded
-    app.use(bodyParser.urlencoded({ extended: false }))
+    app.use(express.urlencoded({ extended: false }))
 
     // parse application/json
-    app.use(bodyParser.json())
+    app.use(express.json())
 
 
     app.get("/", (req: Request, res: Response) => {
@@ -69,22 +68,25 @@ export const createIndexer = async () => {
         })
     })
 
-    app.get("/api/status", (req: Request, res: Response) => {
+    app.get("/api/status", async (req: Request, res: Response) => {
+        const status = await getStatus();
+
         res.json({
             block: {
-                height: db.status.block.height,
+                height: status.block.height,
             },
         })
     })
 
-    app.get("/api/collection/:id", (req: Request, res: Response) => {
+    app.get("/api/collection/:id", async (req: Request, res: Response) => {
+        const collection = await getDoc(COLLECTIONS_DB, req.params.id);
+
         res.json({
-            collection: db.collections[req.params.id],
+            collection,
         })
     })
 
     app.post('/api/addToIpfs', async (req: Request, res: Response) => {
-        console.log("BODY", req.body);
         const files = [];
         files.push({
             path: 'metadata/collection',
@@ -129,13 +131,13 @@ export const createIndexer = async () => {
         return res.status(200).send({ cid: cid.toString(), path });
     });
 
+    app.get('/api/user/:accountNum', async (req: Request, res: Response) => {
+        let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(Number(req.params.accountNum));
+        return res.status(200).send({ accountInfo });
+    });
+
 
     //TODO: refresh metadata endpoint
-
-
-    const saveDb = async () => {
-        await writeFile(dbFile, JSON.stringify(db, null, 4))
-    }
 
     const init = async () => {
         client = await IndexerStargateClient.connect(process.env.RPC_URL)
@@ -145,18 +147,20 @@ export const createIndexer = async () => {
 
     const poll = async () => {
         const currentHeight = await client.getHeight()
-        if (db.status.block.height <= currentHeight - 100)
-            console.log(`Catching up ${db.status.block.height}..${currentHeight}`)
-        while (db.status.block.height < currentHeight) {
-            const processing = db.status.block.height + 1
+        const status = await getStatus();
+
+        if (status.block.height <= currentHeight - 100)
+            console.log(`Catching up ${status.block.height}..${currentHeight}`)
+        while (status.block.height < currentHeight) {
+            const processing = status.block.height + 1
             process.stdout.cursorTo(0)
             // Get the block
             const block: Block = await client.getBlock(processing)
             process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
             await handleBlock(block)
-            db.status.block.height = processing
+            status.block.height = processing
         }
-        await saveDb()
+        await setStatus(status)
         timer = setTimeout(poll, pollIntervalMs)
     }
 
@@ -201,53 +205,46 @@ export const createIndexer = async () => {
         console.log(getAttributeValueByKey(event.attributes, "action"));
 
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgNewCollection") {
-            await handleMsgNewCollection(event, db, client).catch(err => console.log(err));
+            await handleMsgNewCollection(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgMintBadge") {
-            await handleMsgMintBadge(event, db, client).catch(err => console.log(err));
+            await handleMsgMintBadge(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgClaimBadge") {
-            await handleMsgClaimBadge(event, db, client).catch(err => console.log(err));
+            await handleMsgClaimBadge(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgRequestTransferManager") {
-            await handleMsgRequestTransferManager(event, db, client).catch(err => console.log(err));
+            await handleMsgRequestTransferManager(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgSetApproval") {
-            await handleMsgSetApproval(event, db, client).catch(err => console.log(err));
+            await handleMsgSetApproval(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferBadge") {
-            await handleMsgTransferBadge(event, db, client).catch(err => console.log(err));
+            await handleMsgTransferBadge(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferManager") {
-            await handleMsgTransferManager(event, db, client).catch(err => console.log(err));
+            await handleMsgTransferManager(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes") {
-            await handleMsgUpdateBytes(event, db, client).catch(err => console.log(err));
+            await handleMsgUpdateBytes(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers") {
-            await handleMsgUpdateDisallowedTransfers(event, db, client).catch(err => console.log(err));
+            await handleMsgUpdateDisallowedTransfers(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateUris") {
-            await handleMsgUpdateUris(event, db, client).catch(err => console.log(err));
+            await handleMsgUpdateUris(event, client).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions") {
-            await handleMsgUpdatePermissions(event, db, client).catch(err => console.log(err));
+            await handleMsgUpdatePermissions(event, client).catch(err => console.log(err));
         }
     }
 
     process.on("SIGINT", () => {
         if (timer) clearTimeout(timer)
-        saveDb()
-            .then(() => {
-                console.log(`${dbFile} saved`)
-            })
-            .catch(console.error)
-            .finally(() => {
-                server.close(() => {
-                    console.log("server closed")
-                    process.exit(0)
-                })
-            })
+        server.close(() => {
+            console.log("server closed")
+            process.exit(0)
+        })
     })
 
     const server: Server = app.listen(port, () => {

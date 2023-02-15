@@ -1,13 +1,20 @@
-import { IndexerStargateClient } from "../indexer_stargateclient"
-import { DbType } from "../types"
+import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db";
+import { IndexerStargateClient } from "../indexer_stargateclient";
 
 
-export const handleNewAccount = async (accountNum: number, db: DbType, client: IndexerStargateClient): Promise<void> => {
-    if (!db.accounts[accountNum] || !db.accounts[accountNum].pub_key.length) {
+export const handleNewAccount = async (accountNum: number, client: IndexerStargateClient): Promise<void> => {
+    const docs: Docs = await fetchDocsForRequest([accountNum], []);
+
+    if (!docs.accounts[accountNum]) {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(Number(accountNum))
 
         if (accountInfo) {
-            db.accounts[accountNum] = accountInfo
+            docs.accounts[accountNum] = {
+                _id: docs.accounts[accountNum]._id,
+                ...accountInfo,
+            }
         }
     }
+
+    await finalizeDocsForRequest(docs.accounts, docs.collections);
 }

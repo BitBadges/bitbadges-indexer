@@ -1,15 +1,18 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
-import { DbType, Transfers, UserBalance } from "../types"
-import { cleanTransfers, cleanUserBalance } from "../util/dataCleaners"
 import { IndexerStargateClient } from "../indexer_stargateclient"
+import { Transfers, UserBalance } from "../types"
+import { cleanTransfers, cleanUserBalance } from "../util/dataCleaners"
 import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgTransferBadge = async (event: StringEvent, db: DbType, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgTransferBadge = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
     //TODO: creator account handling
-    
+
     const collectionIdString: string | undefined = getAttributeValueByKey(event.attributes, "collection_id");
     if (!collectionIdString) throw new Error(`New Collection event missing collection_id`)
+
+    const docs: Docs = await fetchDocsForRequest([], [Number(collectionIdString)]);
 
     const newBalancesString: string | undefined = getAttributeValueByKey(event.attributes, "new_balances");
     if (!newBalancesString) throw new Error(`New Collection event missing new_balance`)
@@ -23,9 +26,9 @@ export const handleMsgTransferBadge = async (event: StringEvent, db: DbType, cli
     for (let i = 0; i < newBalances.length; i++) {
         const accountNum = newBalancesAccountNums[i];
         const balance = newBalances[i];
-        db.collections[collectionIdString].balances[accountNum] = cleanUserBalance(balance);
+        docs.collections[collectionIdString].balances[accountNum] = cleanUserBalance(balance);
 
-        await handleNewAccount(Number(accountNum), db, client);
+        await handleNewAccount(Number(accountNum), client);
     }
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
@@ -35,7 +38,7 @@ export const handleMsgTransferBadge = async (event: StringEvent, db: DbType, cli
     for (let i = 0; i < transfers.length; i++) {
         const transfer = transfers[i];
 
-        db.collections[collectionIdString].activity.push({
+        docs.collections[collectionIdString].activity.push({
             from: newBalancesAccountNums.slice(-1),
             to: transfer.toAddresses,
             balances: transfer.balances,
@@ -43,5 +46,5 @@ export const handleMsgTransferBadge = async (event: StringEvent, db: DbType, cli
         });
     }
 
-    
+    await finalizeDocsForRequest(docs.accounts, docs.collections);
 }

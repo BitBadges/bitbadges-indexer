@@ -1,18 +1,24 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
-import { BadgeCollection, Balance, DbType } from "../types"
+import { IndexerStargateClient } from "../indexer_stargateclient"
+import { BadgeCollection, Balance } from "../types"
 import { cleanBadgeCollection, cleanUserBalance } from "../util/dataCleaners"
 import { fetchClaims } from "./handleMsgNewCollection"
-import { IndexerStargateClient } from "../indexer_stargateclient"
 import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgClaimBadge = async (event: StringEvent, db: DbType, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`)
+
+
+
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
     collection.claims = await fetchClaims(collection);
 
-    db.collections[collection.collectionId].claims = collection.claims;
+    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId]);
+
+    docs.collections[collection.collectionId].claims = collection.claims;
 
     const userBalanceString: string | undefined = getAttributeValueByKey(event.attributes, "user_balance");
     if (!userBalanceString) throw new Error(`New Collection event missing user_balance`)
@@ -30,7 +36,7 @@ export const handleMsgClaimBadge = async (event: StringEvent, db: DbType, client
     });
 
 
-    db.collections[collection.collectionId].activity.push({
+    docs.collections[collection.collectionId].activity.push({
         from: ['Mint'],
         to: [toAddress],
         balances: cleanedBalance.balances,
@@ -40,14 +46,15 @@ export const handleMsgClaimBadge = async (event: StringEvent, db: DbType, client
 
 
     const userBalanceJson: any = cleanUserBalance(JSON.parse(userBalanceString));
-    db.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
+    docs.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
 
     const claimDataString: string | undefined = getAttributeValueByKey(event.attributes, "claim_data");
     if (!claimDataString) throw new Error(`New Collection event missing claim_data`)
 
-    db.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
-    db.collections[collection.collectionId].usedClaims.push(claimDataString);
+    docs.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
+    docs.collections[collection.collectionId].usedClaims.push(claimDataString);
 
+    await finalizeDocsForRequest(docs.accounts, docs.collections);
 
-    await handleNewAccount(Number(toAddress), db, client);
+    await handleNewAccount(Number(toAddress), client);
 }
