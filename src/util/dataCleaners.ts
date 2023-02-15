@@ -1,5 +1,3 @@
-import { SHA256 } from "crypto-js";
-import { MerkleTree } from "merkletreejs";
 import { BadgeCollection, DistributionMethod, Transfers, UserBalance } from "../types";
 
 export function cleanBadgeCollection(collection: BadgeCollection) {
@@ -92,8 +90,8 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
                 end: claim.timeRange.end ? Number(claim.timeRange.end) : 0
             },
             leaves: [],
-            tree: new MerkleTree([], SHA256),
-            distributionMethod: DistributionMethod.None
+            distributionMethod: DistributionMethod.None,
+            tree: null
         }
     });
 
