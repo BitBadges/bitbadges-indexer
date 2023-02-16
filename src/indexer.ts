@@ -30,6 +30,8 @@ const cors = require('cors');
 
 config()
 
+//TODO: try/catch everything
+
 const auth =
     'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
 
