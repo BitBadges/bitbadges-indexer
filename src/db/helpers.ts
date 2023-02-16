@@ -53,7 +53,7 @@ export async function getDocAndReturnTemplateIfEmpty(db: any, docId: string) {
             data = {};
             data._id = docId;
         } else {
-            throw `Error in getDocAndAddIfEmpty(): Couldn't get doc or insert blank template: ${error}`;
+            throw `Error in getDocAndaReturnTemplateIfEmpty(): Couldn't get doc or insert blank template: ${error}`;
         }
     }
 
@@ -69,7 +69,7 @@ export async function getDoc(db: any, docId: string) {
     try {
         data = await db.get(docId);
     } catch (error) {
-        throw `Error in getDocAndAddIfEmpty(): Couldn't get doc or insert blank template: ${error}`;
+        throw `Error in getDic(): Couldn't get doc or insert blank template: ${error}`;
     }
 
     return data;

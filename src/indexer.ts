@@ -210,6 +210,40 @@ export const createIndexer = async () => {
         return res.status(200).send({ accountInfo });
     });
 
+    app.get('/api/user/portfolio/:accountNum', async (req: Request, res: Response) => {
+        // let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
+
+        const accountNumIdx = `${Number(req.params.accountNum)}`;
+        // const balanceField = `balances.${accountNumIdx}`;
+
+        const q: any = {};
+        q.selector = {
+            balances: {}
+        }
+        q.selector.balances[accountNumIdx] = {
+            "balances": {
+                "$gt": null
+            }
+        }
+
+        const response = await COLLECTIONS_DB.find(q);
+
+        const managingQuery: any = {};
+        managingQuery.selector = {
+            manager: {
+                "$eq": Number(req.params.accountNum)
+            }
+        }
+
+        const managingResponse = await COLLECTIONS_DB.find(q);
+
+
+        return res.status(200).send({
+            collected: response.docs,
+            managing: managingResponse.docs,
+        });
+    });
+
 
 
 
@@ -241,18 +275,22 @@ export const createIndexer = async () => {
     }
 
     const handleBlock = async (block: Block) => {
-        if (0 < block.txs.length) console.log("")
-        let txIndex = 0
-        while (txIndex < block.txs.length) {
-            const txHash: string = toHex(sha256(block.txs[txIndex])).toUpperCase()
-            const indexed: IndexedTx | null = await client.getTx(txHash)
-            if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
-            await handleTx(indexed)
-            txIndex++
+        try {
+            if (0 < block.txs.length) console.log("")
+            let txIndex = 0
+            while (txIndex < block.txs.length) {
+                const txHash: string = toHex(sha256(block.txs[txIndex])).toUpperCase()
+                const indexed: IndexedTx | null = await client.getTx(txHash)
+                if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
+                await handleTx(indexed)
+                txIndex++
+            }
+            const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
+            if (0 < events.length) console.log("")
+            await handleEvents(events)
+        } catch (err) {
+            console.error("Failed with error:", err)
         }
-        const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
-        if (0 < events.length) console.log("")
-        await handleEvents(events)
     }
 
     const handleTx = async (indexed: IndexedTx) => {
