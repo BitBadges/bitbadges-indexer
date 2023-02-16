@@ -40,7 +40,7 @@ export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerSta
         from: ['Mint'],
         to: [toAddress],
         balances: cleanedBalance.balances,
-        method: 'Claim',
+        method: 'Mint',
     });
 
 

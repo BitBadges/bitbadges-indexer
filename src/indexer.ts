@@ -110,6 +110,12 @@ export const createIndexer = async () => {
                 }
             }
         }
+        if (ownerNums.length === 0) {
+            return res.status(200).send({
+                owners: [],
+                balances: response.docs[0].balances,
+            });
+        }
 
         const owners = await ACCOUNTS_DB.fetch({ keys: ownerNums });
         // console.log(owners.rows);
@@ -142,7 +148,7 @@ export const createIndexer = async () => {
         console.log(response);
 
         return res.status(200).send({
-            balance: response.docs[0].balances[accountNumIdx]
+            balance: response.docs[0]?.balances[accountNumIdx]
         });
     });
 
