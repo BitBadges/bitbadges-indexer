@@ -10,7 +10,7 @@ import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { handleNewAccount } from "./handleNewAccount"
 
 
-const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
+export const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
     if (uri.startsWith('ipfs://')) {
         const res = await getFromIpfs(uri.replace('ipfs://', ''));
         return JSON.parse(res.file);
@@ -20,13 +20,13 @@ const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
     }
 }
 
-const fetchBadgeMetadata = async (badgeIdsToFetch: IdRange, badgeUri: string): Promise<BadgeMetadata[]> => {
+export const fetchBadgeMetadata = async (badgeIdsToFetch: IdRange, badgeUri: string): Promise<BadgeMetadata[]> => {
     //Create empty array for all unique badges if it does not exist on the current badge object
     //Get the individual badge metadata
     let badgeMetadata: BadgeMetadata[] = [];
-    for (let i = badgeIdsToFetch.start; i < Number(badgeIdsToFetch.end); i++) {
+    for (let i = badgeIdsToFetch.start; i <= Number(badgeIdsToFetch.end); i++) {
         badgeMetadata.push({} as BadgeMetadata);
-        badgeMetadata[i] = await fetchMetadata(badgeUri.replace('{id}', i.toString()));
+        badgeMetadata[i - 1] = await fetchMetadata(badgeUri.replace('{id}', i.toString())); //TODO: dynamic
     }
 
     return badgeMetadata;
@@ -101,7 +101,7 @@ export const handleMsgNewCollection = async (event: StringEvent, client: Indexer
     collection.collectionMetadata = await fetchMetadata(collection.collectionUri);
     collection.badgeMetadata = await fetchBadgeMetadata(
         {
-            start: 0,
+            start: 1,
             end: Number(collection?.nextBadgeId) - 1
         },
         collection.badgeUri

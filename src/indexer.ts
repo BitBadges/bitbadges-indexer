@@ -50,7 +50,7 @@ export const getAttributeValueByKey = (attributes: Attribute[], key: string): st
 
 export const createIndexer = async () => {
     const port = "3001"
-    const pollIntervalMs = 5_000 // 5 seconds
+    const pollIntervalMs = 1_000
     let timer: NodeJS.Timer | undefined
     let client: IndexerStargateClient
 
@@ -164,11 +164,11 @@ export const createIndexer = async () => {
 
         console.log("req.body for addToIPFS: " + JSON.stringify(req.body));
         let individualBadgeMetadata = req.body.individualBadgeMetadata;
-        for (let i = 0; i < individualBadgeMetadata.length; i++) {
+        for (let i = 1; i <= individualBadgeMetadata.length; i++) {
             files.push(
                 {
                     path: 'metadata/' + i,
-                    content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[i]))
+                    content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[i - 1]))
                 }
             );
         }
