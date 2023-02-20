@@ -14,6 +14,7 @@ export interface DbType {
     status: DbStatus
     collections: any
     accounts: any
+    metadata: any
 }
 
 export interface BadgeCollection {
@@ -31,7 +32,7 @@ export interface BadgeCollection {
     claims: Claims[];
     standard: number;
     collectionMetadata: BadgeMetadata,
-    badgeMetadata: BadgeMetadata[],
+    badgeMetadata: { [badgeId: string]: BadgeMetadata }
 }
 
 

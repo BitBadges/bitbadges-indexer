@@ -6,7 +6,7 @@ import { BadgeCollection } from "../types"
 import { cleanBadgeCollection } from "../util/dataCleaners"
 
 
-export const handleMsgTransferManager = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgTransferManager = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
     //TODO: handle new manager account
 
 
@@ -15,10 +15,10 @@ export const handleMsgTransferManager = async (event: StringEvent, client: Index
 
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
 
-    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId]);
+    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId], []);
 
     docs.collections[collection.collectionId].manager = collection.manager;
     docs.collections[collection.collectionId].managerRequests = docs.collections[collection.collectionId].managerRequests.filter((address: any) => Number(address) !== Number(collection.manager));
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections);
+    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 }

@@ -7,7 +7,7 @@ import { cleanBadgeCollection, cleanUserBalance } from "../util/dataCleaners"
 import { fetchClaims } from "./handleMsgNewCollection"
 import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`)
 
@@ -16,7 +16,7 @@ export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerSta
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
     collection.claims = await fetchClaims(collection);
 
-    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId]);
+    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId], []);
 
     docs.collections[collection.collectionId].claims = collection.claims;
 
@@ -54,7 +54,7 @@ export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerSta
     docs.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
     docs.collections[collection.collectionId].usedClaims.push(claimDataString);
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections);
+    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 
     await handleNewAccount(Number(toAddress), client);
 }

@@ -7,12 +7,12 @@ import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { fetchClaims, handleTransfers } from "./handleMsgNewCollection"
 import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgMintBadge = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgMintBadge = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`)
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
 
-    const docs: Docs = await fetchDocsForRequest( [], [collection.collectionId]);
+    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId], []);
 
     collection.claims = await fetchClaims(collection);
 
@@ -24,7 +24,7 @@ export const handleMsgMintBadge = async (event: StringEvent, client: IndexerStar
         docs.collections[collection.collectionId].originalClaims.push(collection.claims[i]);
     }
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections);
+    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");

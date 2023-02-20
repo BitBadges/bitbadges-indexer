@@ -8,6 +8,7 @@ const nano = require('nano')(`${process.env.DB_URL}`);
 export const ACCOUNTS_DB = nano.db.use('accounts');
 export const COLLECTIONS_DB = nano.db.use('collections');
 export const STATUS_DB = nano.db.use('status');
+export const METADATA_DB = nano.db.use('metadata'); //partitioned
 
 /**
  * Default blanks templates for empty or newly created DB documents.
@@ -21,13 +22,15 @@ export const blankTemplates = {
 export interface Docs {
     accounts: any;
     collections: any;
+    metadata: any;
 }
 
 
-export async function fetchDocsForRequest(_accountNums: number[], _collectionIds: number[]) {
+export async function fetchDocsForRequest(_accountNums: number[], _collectionIds: number[], _metadataIds: string[]) {
     try {
         const collectionIds = [...new Set(_collectionIds)];
         const accountNums = [...new Set(_accountNums)];
+        const metadataIds = [...new Set(_metadataIds)];
 
 
 
@@ -46,6 +49,7 @@ export async function fetchDocsForRequest(_accountNums: number[], _collectionIds
 
         const accountData: any = {};
         const collectionData: any = {};
+        const metadataData: any = {};
 
 
 
@@ -61,18 +65,25 @@ export async function fetchDocsForRequest(_accountNums: number[], _collectionIds
             }
         }
 
-        return { accounts: accountData, collections: collectionData };
+        if (metadataIds.length) {
+            for (const metadataId of metadataIds) {
+                metadataData[metadataId] = await getDocAndReturnTemplateIfEmpty(METADATA_DB, metadataId);
+            }
+        }
+
+        return { accounts: accountData, collections: collectionData, metadata: metadataData };
     } catch (error) {
         throw `Error in fetchDocsForRequest(): ${error}`;
     }
 }
 
-export async function finalizeDocsForRequest(userData: any, collectionData: any) {
+export async function finalizeDocsForRequest(userData: any, collectionData: any, metadataData: any) {
     try {
         await Promise.all(
             [
                 ACCOUNTS_DB.bulk({ docs: Object.values(userData) }),
                 COLLECTIONS_DB.bulk({ docs: Object.values(collectionData) }),
+                METADATA_DB.bulk({ docs: Object.values(metadataData) }),
             ]
         );
     } catch (error) {

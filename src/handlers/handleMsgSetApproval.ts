@@ -5,7 +5,7 @@ import { IndexerStargateClient } from "../indexer_stargateclient"
 import { cleanUserBalance } from "../util/dataCleaners"
 import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgSetApproval = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgSetApproval = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
     const creatorString: string | undefined = getAttributeValueByKey(event.attributes, "creator");
     if (!creatorString) throw new Error(`New Collection event missing creator`)
 
@@ -14,7 +14,7 @@ export const handleMsgSetApproval = async (event: StringEvent, client: IndexerSt
     const collectionIdString: string | undefined = getAttributeValueByKey(event.attributes, "collection_id");
     if (!collectionIdString) throw new Error(`New Collection event missing collection_id`)
 
-    const docs: Docs = await fetchDocsForRequest([], [Number(collectionIdString)]);
+    const docs: Docs = await fetchDocsForRequest([], [Number(collectionIdString)], []);
 
     const userBalanceString: string | undefined = getAttributeValueByKey(event.attributes, "user_balance");
     if (!userBalanceString) throw new Error(`New Collection event missing user_balance`)
@@ -23,5 +23,5 @@ export const handleMsgSetApproval = async (event: StringEvent, client: IndexerSt
     const userBalanceJson: any = cleanUserBalance(JSON.parse(userBalanceString));
     docs.collections[collectionIdString].balances[creatorString] = userBalanceJson;
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections);
+    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 }

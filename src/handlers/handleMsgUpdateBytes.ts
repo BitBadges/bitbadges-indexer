@@ -6,15 +6,15 @@ import { BadgeCollection } from "../types"
 import { cleanBadgeCollection } from "../util/dataCleaners"
 
 
-export const handleMsgUpdateBytes = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgUpdateBytes = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`);
 
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
 
-    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId]);
+    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId], []);
 
     docs.collections[collection.collectionId].bytes = collection.bytes;
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections);
+    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 }

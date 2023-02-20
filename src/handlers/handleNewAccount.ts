@@ -3,7 +3,7 @@ import { IndexerStargateClient } from "../indexer_stargateclient";
 
 
 export const handleNewAccount = async (accountNum: number, client: IndexerStargateClient): Promise<void> => {
-    const docs: Docs = await fetchDocsForRequest([accountNum], []);
+    const docs: Docs = await fetchDocsForRequest([accountNum], [], []);
 
     let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(accountNum))
     console.log("ACCOUNT INFO", accountInfo)
@@ -15,5 +15,5 @@ export const handleNewAccount = async (accountNum: number, client: IndexerStarga
         }
     }
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections);
+    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 }

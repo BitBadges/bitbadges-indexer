@@ -6,13 +6,13 @@ import { Transfers, UserBalance } from "../types"
 import { cleanTransfers, cleanUserBalance } from "../util/dataCleaners"
 import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgTransferBadge = async (event: StringEvent, client: IndexerStargateClient): Promise<void> => {
+export const handleMsgTransferBadge = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
     //TODO: creator account handling
 
     const collectionIdString: string | undefined = getAttributeValueByKey(event.attributes, "collection_id");
     if (!collectionIdString) throw new Error(`New Collection event missing collection_id`)
 
-    const docs: Docs = await fetchDocsForRequest([], [Number(collectionIdString)]);
+    const docs: Docs = await fetchDocsForRequest([], [Number(collectionIdString)], []);
 
     const newBalancesString: string | undefined = getAttributeValueByKey(event.attributes, "new_balances");
     if (!newBalancesString) throw new Error(`New Collection event missing new_balance`)
@@ -46,5 +46,5 @@ export const handleMsgTransferBadge = async (event: StringEvent, client: Indexer
         });
     }
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections);
+    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 }

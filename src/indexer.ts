@@ -8,12 +8,12 @@ import { Server } from "http"
 import { create } from 'ipfs-http-client'
 import last from 'it-last'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { ACCOUNTS_DB, COLLECTIONS_DB } from "./db/db"
+import { ACCOUNTS_DB, COLLECTIONS_DB, Docs, METADATA_DB, fetchDocsForRequest, finalizeDocsForRequest } from "./db/db"
 import { getDoc } from "./db/helpers"
 import { getStatus, setStatus } from "./db/status"
 import { handleMsgClaimBadge } from "./handlers/handleMsgClaimBadge"
 import { handleMsgMintBadge } from "./handlers/handleMsgMintBadge"
-import { handleMsgNewCollection } from "./handlers/handleMsgNewCollection"
+import { fetchBadgeMetadata, fetchMetadata, handleMsgNewCollection } from "./handlers/handleMsgNewCollection"
 import { handleMsgRequestTransferManager } from "./handlers/handleMsgRequestTransferManager"
 import { handleMsgSetApproval } from "./handlers/handleMsgSetApproval"
 import { handleMsgTransferBadge } from "./handlers/handleMsgTransferBadge"
@@ -24,6 +24,7 @@ import { handleMsgUpdatePermissions } from "./handlers/handleMsgUpdatePermission
 import { handleMsgUpdateUris } from "./handlers/handleMsgUpdateUris"
 import { IndexerStargateClient } from "./indexer_stargateclient"
 import _ from "../environment"
+import { BadgeMetadata } from "./types"
 
 const cors = require('cors');
 
@@ -84,12 +85,44 @@ export const createIndexer = async () => {
         const collection = await getDoc(COLLECTIONS_DB, req.params.id);
 
         res.json({
-            collection,
+            ...collection,
+        })
+    })
+
+    app.post("/api/metadata/:collectionId", async (req: Request, res: Response) => {
+        const collectionMetadata = await getDoc(METADATA_DB, `${req.params.collectionId}:collection`);
+        const LIMIT = 100;
+        const startId = Number(req.body.startBadgeId);
+        console.log("Handling Badge Ids", startId, startId + LIMIT - 1)
+
+        const response = await METADATA_DB.partitionedFind(`${req.params.collectionId}`, {
+            selector: {
+                "id": {
+                    "$and": [
+                        {
+                            "$gte": startId && !isNaN(startId) ? startId : 1,
+                        },
+                        {
+                            "$lte": startId && !isNaN(startId) ? startId + LIMIT - 1 : LIMIT,
+                        }
+                    ]
+                }
+            }, limit: LIMIT
+        })
+
+        let badgeMetadata: { [badgeId: string]: BadgeMetadata } = {};
+        for (const doc of response.docs) {
+            const badgeId = doc._id.split(':')[1];
+            badgeMetadata[badgeId] = doc;
+        }
+
+        res.json({
+            collectionMetadata: { ...collectionMetadata },
+            badgeMetadata
         })
     })
 
     app.get('/api/collection/:id/:badgeId/owners', async (req: Request, res: Response) => {
-        console.log("OWNES");
         const balanceField = `balances`;
 
         const q: any = {};
@@ -112,6 +145,7 @@ export const createIndexer = async () => {
                 }
             }
         }
+
         if (ownerNums.length === 0) {
             return res.status(200).send({
                 owners: [],
@@ -119,12 +153,9 @@ export const createIndexer = async () => {
             });
         }
 
-        const owners = await ACCOUNTS_DB.fetch({ keys: ownerNums });
-        // console.log(owners.rows);
-
         return res.status(200).send({
             balances: response.docs[0].balances,
-            owners: owners.rows.map((row: any) => row.doc)
+            owners: ownerNums,
         });
     });
 
@@ -164,11 +195,12 @@ export const createIndexer = async () => {
 
         console.log("req.body for addToIPFS: " + JSON.stringify(req.body));
         let individualBadgeMetadata = req.body.individualBadgeMetadata;
-        for (let i = 1; i <= individualBadgeMetadata.length; i++) {
+
+        for (const id of Object.keys(individualBadgeMetadata)) {
             files.push(
                 {
-                    path: 'metadata/' + i,
-                    content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[i - 1]))
+                    path: 'metadata/' + id,
+                    content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[Number(id)]))
                 }
             );
         }
@@ -202,12 +234,36 @@ export const createIndexer = async () => {
 
     app.get('/api/user/id/:accountNum', async (req: Request, res: Response) => {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
-        return res.status(200).send({ accountInfo });
+        return res.status(200).send({ ...accountInfo });
     });
 
     app.get('/api/user/address/:address', async (req: Request, res: Response) => {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(req.params.address);
-        return res.status(200).send({ accountInfo });
+        return res.status(200).send({ ...accountInfo });
+    });
+
+    app.post('/api/user/id/batch', async (req: Request, res: Response) => {
+        if (!req.body.accountNums || req.body.accountNums.length === 0) {
+            return res.status(200).send({ accounts: [] });
+        }
+        const response = await ACCOUNTS_DB.fetch({ keys: req.body.accountNums.map((num: number) => `${num}`) });
+
+        return res.status(200).send({ accounts: response.rows.map((row: any) => row.doc) });
+    });
+
+    app.post('/api/user/address/batchByAddresses', async (req: Request, res: Response) => {
+        //TODO: 
+
+        return res.status(200).send({ message: 'Not Implemented' });
+    });
+
+    app.post('/api/collection/refreshMetadata/:collectionId', async (req: Request, res: Response) => {
+        // const collectionId = req.params.collectionId;
+        // const collection = await COLLECTIONS_DB.get(collectionId);
+
+        // pushToMetadataQueue(collection); TODO: we need status here
+
+        return res.status(200).send({ message: 'Refreshed' });
     });
 
     app.get('/api/user/portfolio/:accountNum', async (req: Request, res: Response) => {
@@ -244,11 +300,6 @@ export const createIndexer = async () => {
         });
     });
 
-
-
-
-    //TODO: refresh metadata endpoint
-
     const init = async () => {
         client = await IndexerStargateClient.connect(process.env.RPC_URL)
         console.log("Connected to chain-id:", await client.getChainId())
@@ -267,14 +318,80 @@ export const createIndexer = async () => {
             // Get the block
             const block: Block = await client.getBlock(processing)
             process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
-            await handleBlock(block)
+            await handleBlock(block, status)
             status.block.height = processing
         }
+
+        const NUM_METADATA_FETCHES = 10;
+
+        //TODO: don't refresh if IPFS and frozen and Promise.all it
+        // we also have redundances with addToIpfs and this
+        // redundancies with duplicate metadata
+
+        let numFetchesLeft = NUM_METADATA_FETCHES;
+
+        while (numFetchesLeft > 0 && status.queue.length > 0) {
+            const metadataIdsToFetch = [];
+            const queueObj = status.queue[0];
+            if (queueObj.collection) {
+                metadataIdsToFetch.push(`${queueObj.collectionId}:collection`);
+                numFetchesLeft--;
+                queueObj.collection = false;
+            }
+
+            if (queueObj.badgeIds) {
+                while (numFetchesLeft > 0 && queueObj.badgeIds.start <= queueObj.badgeIds.end) {
+                    metadataIdsToFetch.push(`${queueObj.collectionId}:${queueObj.badgeIds.start}`);
+                    queueObj.badgeIds.start++;
+                    numFetchesLeft--;
+                }
+            }
+
+            const docs: Docs = await fetchDocsForRequest([], [], metadataIdsToFetch);
+
+            for (const metadataId of metadataIdsToFetch) {
+                try {
+                    if (metadataId.includes('collection')) {
+                        const collectionMetadata = await fetchMetadata(queueObj.collectionUri);
+                        docs.metadata[`${queueObj.collectionId}:collection`] = {
+                            ...collectionMetadata,
+                            _id: `${queueObj.collectionId}:collection`,
+                            _rev: docs.metadata[`${queueObj.collectionId}:collection`]._rev
+                        };
+                    } else {
+                        const badgeId = Number(metadataId.split(':')[1]);
+                        const badgeMetadata = await fetchBadgeMetadata({
+                            start: badgeId,
+                            end: badgeId
+                        }, queueObj.badgeUri);
+
+                        docs.metadata[`${queueObj.collectionId}:${badgeId}`] = {
+                            ...badgeMetadata[badgeId],
+                            id: badgeId,
+                            _id: `${queueObj.collectionId}:${badgeId}`,
+                            _rev: docs.metadata[`${queueObj.collectionId}:${badgeId}`]._rev
+                        };
+                    }
+                } catch (e) {
+                    console.error(`Error fetching metadata for ${metadataId}`, e);
+                }
+            }
+
+            await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
+
+            if (queueObj.badgeIds.start > queueObj.badgeIds.end) {
+                status.queue.shift();
+            } else {
+                //place the queue object at the end
+                status.queue.push(status.queue.shift());
+            }
+        }
+
         await setStatus(status)
         timer = setTimeout(poll, pollIntervalMs)
     }
 
-    const handleBlock = async (block: Block) => {
+    const handleBlock = async (block: Block, status: any) => {
         try {
             if (0 < block.txs.length) console.log("")
             let txIndex = 0
@@ -282,32 +399,33 @@ export const createIndexer = async () => {
                 const txHash: string = toHex(sha256(block.txs[txIndex])).toUpperCase()
                 const indexed: IndexedTx | null = await client.getTx(txHash)
                 if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
-                await handleTx(indexed)
+                await handleTx(indexed, status)
                 txIndex++
             }
+
             const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
             if (0 < events.length) console.log("")
-            await handleEvents(events)
+            await handleEvents(events, status)
         } catch (err) {
             console.error("Failed with error:", err)
         }
     }
 
-    const handleTx = async (indexed: IndexedTx) => {
+    const handleTx = async (indexed: IndexedTx, status: any) => {
         try {
             const rawLog: any = JSON.parse(indexed.rawLog)
             const events: StringEvent[] = rawLog.flatMap((log: ABCIMessageLog) => log.events)
-            await handleEvents(events)
+            await handleEvents(events, status)
         } catch (e) {
             // Skipping if the handling failed. Most likely the transaction failed.
         }
     }
 
-    const handleEvents = async (events: StringEvent[]): Promise<void> => {
+    const handleEvents = async (events: StringEvent[], status: any): Promise<void> => {
         try {
             let eventIndex = 0
             while (eventIndex < events.length) {
-                await handleEvent(events[eventIndex])
+                await handleEvent(events[eventIndex], status)
                 eventIndex++
             }
         } catch (e) {
@@ -315,41 +433,41 @@ export const createIndexer = async () => {
         }
     }
 
-    const handleEvent = async (event: StringEvent): Promise<void> => {
+    const handleEvent = async (event: StringEvent, status: any): Promise<void> => {
         console.log(getAttributeValueByKey(event.attributes, "action"));
 
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgNewCollection") {
-            await handleMsgNewCollection(event, client).catch(err => console.log(err));
+            await handleMsgNewCollection(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgMintBadge") {
-            await handleMsgMintBadge(event, client).catch(err => console.log(err));
+            await handleMsgMintBadge(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgClaimBadge") {
-            await handleMsgClaimBadge(event, client).catch(err => console.log(err));
+            await handleMsgClaimBadge(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgRequestTransferManager") {
-            await handleMsgRequestTransferManager(event, client).catch(err => console.log(err));
+            await handleMsgRequestTransferManager(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgSetApproval") {
-            await handleMsgSetApproval(event, client).catch(err => console.log(err));
+            await handleMsgSetApproval(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferBadge") {
-            await handleMsgTransferBadge(event, client).catch(err => console.log(err));
+            await handleMsgTransferBadge(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferManager") {
-            await handleMsgTransferManager(event, client).catch(err => console.log(err));
+            await handleMsgTransferManager(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes") {
-            await handleMsgUpdateBytes(event, client).catch(err => console.log(err));
+            await handleMsgUpdateBytes(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers") {
-            await handleMsgUpdateDisallowedTransfers(event, client).catch(err => console.log(err));
+            await handleMsgUpdateDisallowedTransfers(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateUris") {
-            await handleMsgUpdateUris(event, client).catch(err => console.log(err));
+            await handleMsgUpdateUris(event, client, status).catch(err => console.log(err));
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions") {
-            await handleMsgUpdatePermissions(event, client).catch(err => console.log(err));
+            await handleMsgUpdatePermissions(event, client, status).catch(err => console.log(err));
         }
     }
 
