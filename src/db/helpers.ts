@@ -69,7 +69,7 @@ export async function getDoc(db: any, docId: string) {
     try {
         data = await db.get(docId);
     } catch (error) {
-        throw `Error in getDic(): Couldn't get doc or insert blank template: ${error}`;
+        throw `Error in getDoc(): Couldn't get doc or insert blank template: ${error}`;
     }
 
     return data;

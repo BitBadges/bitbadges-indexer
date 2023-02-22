@@ -25,6 +25,7 @@ import { handleMsgUpdateUris } from "./handlers/handleMsgUpdateUris"
 import { IndexerStargateClient } from "./indexer_stargateclient"
 import _ from "../environment"
 import { BadgeMetadata } from "./types"
+import { handleMsgRegisterAddresses } from "./handlers/handleMsgRegisterAddresses"
 
 const cors = require('cors');
 
@@ -81,11 +82,72 @@ export const createIndexer = async () => {
         })
     })
 
+    app.get("/api/search/:searchValue", async (req: Request, res: Response) => {
+        const searchValue = req.params.searchValue;
+
+        console.log(searchValue);
+        console.log(`(?i)${searchValue}`);
+
+        const response = await METADATA_DB.find(
+            {
+                selector: {
+                    "_id": { "$regex": `(?i)collection` },
+                    "$or": [
+                        { "name": { "$regex": `(?i)${searchValue}` } },
+                        { "_id": { "$regex": `(?i)${searchValue}:collection` } },
+                    ]
+                },
+                limit: 3,
+            }
+        )
+
+        const accountsResponse = await ACCOUNTS_DB.find(
+            {
+                selector: {
+                    "$or": [
+                        { "address": { "$regex": `(?i)${searchValue}` } },
+                        { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
+                    ]
+                },
+                limit: 3,
+            }
+        )
+
+        return res.json({
+            collections: response.docs,
+            accounts: accountsResponse.docs,
+        })
+    })
+
+
     app.get("/api/collection/:id", async (req: Request, res: Response) => {
         const collection = await getDoc(COLLECTIONS_DB, req.params.id);
 
         res.json({
             ...collection,
+        })
+    })
+
+    app.post("/api/collection/batch", async (req: Request, res: Response) => {
+        let collectionNumsResponse;
+
+        if (req.body.collections && req.body.collections.length !== 0) {
+            const response = await COLLECTIONS_DB.fetch({ keys: req.body.collections.map((num: number) => `${num}`) });
+            collectionNumsResponse = response.rows.map((row: any) => row.doc);
+        } else {
+            collectionNumsResponse = [];
+        }
+
+        return res.status(200).send({ collections: [...collectionNumsResponse] });
+    })
+
+    app.get("/api/collection/query", async (req: Request, res: Response) => {
+        const response = await COLLECTIONS_DB.find({
+            selector: req.body.selector
+        });
+
+        res.json({
+            collections: response.docs,
         })
     })
 
@@ -242,20 +304,45 @@ export const createIndexer = async () => {
         return res.status(200).send({ ...accountInfo });
     });
 
-    app.post('/api/user/id/batch', async (req: Request, res: Response) => {
-        if (!req.body.accountNums || req.body.accountNums.length === 0) {
-            return res.status(200).send({ accounts: [] });
+    app.post('/api/user/batch', async (req: Request, res: Response) => {
+        let accountNumsResponse;
+        let addressesResponse;
+        console.log(req.body);
+        if (req.body.accountNums && req.body.accountNums.length !== 0) {
+            const response = await ACCOUNTS_DB.fetch({ keys: req.body.accountNums.map((num: number) => `${num}`) });
+            accountNumsResponse = response.rows.map((row: any) => row.doc);
+        } else {
+            accountNumsResponse = [];
         }
-        const response = await ACCOUNTS_DB.fetch({ keys: req.body.accountNums.map((num: number) => `${num}`) });
 
-        return res.status(200).send({ accounts: response.rows.map((row: any) => row.doc) });
+        if (req.body.addresses && req.body.addresses.length !== 0) {
+            const response = await ACCOUNTS_DB.find(
+                {
+                    selector: {
+                        $or: [
+                            {
+                                address: {
+                                    $in: req.body.addresses
+                                }
+                            },
+                            {
+                                cosmosAddress: {
+                                    $in: req.body.addresses
+                                }
+                            }
+                        ]
+                    }
+                }
+            );
+            addressesResponse = response.docs;
+        } else {
+            addressesResponse = [];
+        }
+
+
+        return res.status(200).send({ accounts: [...accountNumsResponse, ...addressesResponse] });
     });
 
-    app.post('/api/user/address/batchByAddresses', async (req: Request, res: Response) => {
-        //TODO: 
-
-        return res.status(200).send({ message: 'Not Implemented' });
-    });
 
     app.post('/api/collection/refreshMetadata/:collectionId', async (req: Request, res: Response) => {
         // const collectionId = req.params.collectionId;
@@ -468,6 +555,9 @@ export const createIndexer = async () => {
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions") {
             await handleMsgUpdatePermissions(event, client, status).catch(err => console.log(err));
+        }
+        if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgRegisterAddresses") {
+            await handleMsgRegisterAddresses(event, client, status).catch(err => console.log(err));
         }
     }
 
