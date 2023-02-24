@@ -30,9 +30,9 @@ import { getBatchUsers, getPortfolioInfo } from "./routes/users"
 import { DbStatus } from "./types"
 import _ from "../environment"
 import { fetchBadgeMetadata, fetchMetadata } from "./handlers/metadata"
-// import { getChainDriver } from "./blockin/blockin"
-// import { setChainDriver, verifyChallenge, createChallenge } from 'blockin';
-// import { parse } from "./util/preserveJson"
+import expressSession from 'express-session';
+import { AuthenticatedRequest, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/authorizeRequest"
+import cookieParser from 'cookie-parser';
 
 const cors = require('cors');
 
@@ -60,8 +60,21 @@ export const createIndexer = async () => {
     let client: IndexerStargateClient
 
     const app: Express = express()
-    app.use(cors());
+    // app.use(cors());
+    //TODO: secure these
+    app.use(cors({
+        origin: 'http://localhost:3000',
+        credentials: true,
+    }));
 
+    app.use(expressSession({
+        name: 'blockin',
+        secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
+        resave: true,
+        saveUninitialized: true,
+        cookie: { secure: false, sameSite: false }
+    }));
+    app.use(cookieParser());
     // parse application/x-www-form-urlencoded
     app.use(express.urlencoded({ extended: false }))
 
@@ -100,91 +113,22 @@ export const createIndexer = async () => {
         return res.status(200).send({ ...accountInfo });
     });
 
-    // app.get('/api/getChallenge', async (req: Request, res: Response) => {
-    //     const chainDriver = getChainDriver(req.body.chain);
-    //     setChainDriver(chainDriver);
 
-    //     const message = await createChallenge(
-    //         {
-    //             domain: 'https://blockin.com',
-    //             statement: 'Sign in to this website via Blockin. You will remain signed in until you terminate your browser session.',
-    //             address: req.body.address,
-    //             uri: 'https://blockin.com/login',
-    //             nonce: '0x12345',
-    //             expirationDate: '2022-12-22T18:19:55.901Z',
-    //             notBefore: undefined,
-    //             resources: []
-    //         },
-    //         req.body.chain
-    //     );
+    app.post('/api/getChallengeParams', getChallenge);
+    app.post('/api/verifyChallenge', verifyBlockinAndGrantSessionCookie);
+    app.post('/api/logout', removeBlockinSessionCookie);
 
-    //     return res.status(200).json({ message });
-    // });
+    app.post('/auth/test', function (expressReq, res) {
+        const req = expressReq as AuthenticatedRequest;
+        if (!req.session.blockin) {
+            return res.status(401).send({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
+        }
+        return res.status(200).send({ address: req.session.blockin, authenticated: true, message: `You are authenticated and your address is: ${req.session.blockinParams?.address}` });
+    });
 
-    // app.get('/api/getChallengeParams', async (req: Request, res: Response) => {
-    //     const chainDriver = getChainDriver(req.body.chain);
-    //     setChainDriver(chainDriver);
 
-    //     return res.status(200).json({
-    //         domain: 'https://blockin.com',
-    //         statement: 'Sign in to this website via Blockin. You will remain signed in until you terminate your browser session.',
-    //         address: req.body.address,
-    //         uri: 'https://blockin.com/login',
-    //         nonce: '0x12345',
-    //         expirationDate: '2022-12-22T18:19:55.901Z',
-    //         notBefore: undefined,
-    //         resources: []
-    //     });
-    // });
-
-    // app.get('api/verifyChallenge', async (req: Request, res: Response) => {
-    //     const chainDriver = getChainDriver(req.body.chain);
-    //     setChainDriver(chainDriver);
-
-    //     const body = parse(JSON.stringify(req.body)); //little hack to preserve Uint8Arrays
-
-    //     try {
-    //         const verificationResponse = await verifyChallenge(
-    //             body.originalBytes,
-    //             body.signatureBytes,
-    //             // {
-    //             //     verifyNonceUsingBlockTimestamps: true
-    //             // }
-    //         );
-
-    //         /**
-    //          * Here, Blockin has successfully verified the following five things:
-    //          * 1) Challenge is well-formed
-    //          * 2) Challenge is valid at present time
-    //          * 3) Challenge was signed correctly by user
-    //          * 4) User owns all requested assets at time of signing in
-    //          * 5) Any additional verification checks specified in the verifyChallenge options
-    //          * 
-    //          * Below, you can add any other validity checks that you wish to add.
-    //          *      -You can use chainDriver.functionName where functionName is in the ChainDriver interface.
-    //          *      -You can also use the helper functions exported from Blockin to manipulate and parse challenges
-    //          * For both of the above, check out the Blockin documentation.
-    //          * 
-    //          * Once everything is validated and verified, you can add the logic below to grant the user access to your
-    //          * resource. This can be via any method of your choice, such as:
-    //          *      -JWTs
-    //          *      -Session Tokens
-    //          *      -HTTP Only Cookies
-    //          *      -Just granting the user access
-    //          *      -Or anything else
-    //          */
-
-    //         //TODO: cookies
-
-    //         return res.status(200).json({ verified: true, message: verificationResponse.message });
-    //     } catch (err) {
-    //         return res.status(200).json({ verified: false, message: `${err}` });
-    //     }
-    // });
 
     app.post('/api/user/batch', getBatchUsers);
-
-
     app.post('/api/collection/refreshMetadata/:collectionId', async (req: Request, res: Response) => {
         //TODO:
 
@@ -245,7 +189,6 @@ export const createIndexer = async () => {
         // we also have redundances with addToIpfs and this
         // redundancies with duplicate metadata
         try {
-
             let numFetchesLeft = NUM_METADATA_FETCHES;
 
             while (numFetchesLeft > 0 && status.queue.length > 0) {
@@ -312,7 +255,6 @@ export const createIndexer = async () => {
                     _id: `metadata-${Date.now()}`,
                     error: e,
                     status,
-
                 }]
             });
 
