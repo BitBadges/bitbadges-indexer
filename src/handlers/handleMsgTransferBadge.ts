@@ -1,18 +1,18 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
+import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
 import { IndexerStargateClient } from "../indexer_stargateclient"
 import { Transfers, UserBalance } from "../types"
 import { cleanTransfers, cleanUserBalance } from "../util/dataCleaners"
 import { handleNewAccount } from "./handleNewAccount"
 
-export const handleMsgTransferBadge = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
+export const handleMsgTransferBadge = async (event: StringEvent, client: IndexerStargateClient, status: any, docs: Docs): Promise<Docs> => {
     //TODO: creator account handling
 
     const collectionIdString: string | undefined = getAttributeValueByKey(event.attributes, "collection_id");
     if (!collectionIdString) throw new Error(`New Collection event missing collection_id`)
 
-    const docs: Docs = await fetchDocsForRequest([], [Number(collectionIdString)], []);
+    docs = await fetchDocsForRequestIfEmpty(docs, [], [Number(collectionIdString)], []);
 
     const newBalancesString: string | undefined = getAttributeValueByKey(event.attributes, "new_balances");
     if (!newBalancesString) throw new Error(`New Collection event missing new_balance`)
@@ -28,7 +28,7 @@ export const handleMsgTransferBadge = async (event: StringEvent, client: Indexer
         const balance = newBalances[i];
         docs.collections[collectionIdString].balances[accountNum] = cleanUserBalance(balance);
 
-        await handleNewAccount(Number(accountNum), client);
+        docs = await handleNewAccount(Number(accountNum), client, docs);
     }
 
     const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
@@ -46,5 +46,5 @@ export const handleMsgTransferBadge = async (event: StringEvent, client: Indexer
         });
     }
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
+    return docs;
 }

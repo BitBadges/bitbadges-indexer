@@ -6,14 +6,12 @@ import { config } from "dotenv"
 import express, { Express, Request, Response } from "express"
 import { Server } from "http"
 import { create } from 'ipfs-http-client'
-import last from 'it-last'
-import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
-import { ACCOUNTS_DB, COLLECTIONS_DB, Docs, METADATA_DB, fetchDocsForRequest, finalizeDocsForRequest } from "./db/db"
-import { getDoc } from "./db/helpers"
+import { Docs, ERRORS_DB, fetchDocsForRequest, finalizeDocsForRequest } from "./db/db"
 import { getStatus, setStatus } from "./db/status"
 import { handleMsgClaimBadge } from "./handlers/handleMsgClaimBadge"
 import { handleMsgMintBadge } from "./handlers/handleMsgMintBadge"
-import { fetchBadgeMetadata, fetchMetadata, handleMsgNewCollection } from "./handlers/handleMsgNewCollection"
+import { handleMsgNewCollection } from "./handlers/handleMsgNewCollection"
+import { handleMsgRegisterAddresses } from "./handlers/handleMsgRegisterAddresses"
 import { handleMsgRequestTransferManager } from "./handlers/handleMsgRequestTransferManager"
 import { handleMsgSetApproval } from "./handlers/handleMsgSetApproval"
 import { handleMsgTransferBadge } from "./handlers/handleMsgTransferBadge"
@@ -23,19 +21,24 @@ import { handleMsgUpdateDisallowedTransfers } from "./handlers/handleMsgUpdateDi
 import { handleMsgUpdatePermissions } from "./handlers/handleMsgUpdatePermissions"
 import { handleMsgUpdateUris } from "./handlers/handleMsgUpdateUris"
 import { IndexerStargateClient } from "./indexer_stargateclient"
+import { getBadgeBalance } from "./routes/balances"
+import { getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
+import { addMerkleTreeToIpfsHandler, addToIpfsHandler } from "./routes/ipfs"
+import { searchHandler } from "./routes/search"
+import { getStatusHandler } from "./routes/status"
+import { getBatchUsers, getPortfolioInfo } from "./routes/users"
+import { DbStatus } from "./types"
 import _ from "../environment"
-import { BadgeMetadata } from "./types"
-import { handleMsgRegisterAddresses } from "./handlers/handleMsgRegisterAddresses"
+import { fetchBadgeMetadata, fetchMetadata } from "./handlers/metadata"
+// import { getChainDriver } from "./blockin/blockin"
+// import { setChainDriver, verifyChallenge, createChallenge } from 'blockin';
+// import { parse } from "./util/preserveJson"
 
 const cors = require('cors');
 
-
 config()
 
-//TODO: try/catch everything
-
-const auth =
-    'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
+const auth = 'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
 
 export const ipfsClient = create({
     host: 'ipfs.infura.io',
@@ -65,234 +68,27 @@ export const createIndexer = async () => {
     // parse application/json
     app.use(express.json())
 
-
     app.get("/", (req: Request, res: Response) => {
         res.send({
             error: "Not implemented",
         })
     })
 
-    app.get("/api/status", async (req: Request, res: Response) => {
-        const status = await getStatus();
+    //TODO: clean route names and methods
+    app.get("/api/status", getStatusHandler);
 
-        res.json({
-            block: {
-                height: status.block.height,
-            },
-        })
-    })
+    app.get("/api/search/:searchValue", searchHandler);
 
-    app.get("/api/search/:searchValue", async (req: Request, res: Response) => {
-        const searchValue = req.params.searchValue;
+    app.get("/api/collection/:id", getCollectionById)
+    app.post("/api/collection/batch", getCollections)
+    app.get("/api/collection/query", queryCollections)
+    app.post("/api/metadata/:collectionId", getMetadataForCollection)
+    app.get('/api/collection/:id/:badgeId/owners', getOwnersForCollection);
 
-        console.log(searchValue);
-        console.log(`(?i)${searchValue}`);
+    app.get('/api/balance/:collectionId/:accountNum', getBadgeBalance);
 
-        const response = await METADATA_DB.find(
-            {
-                selector: {
-                    "_id": { "$regex": `(?i)collection` },
-                    "$or": [
-                        { "name": { "$regex": `(?i)${searchValue}` } },
-                        { "_id": { "$regex": `(?i)${searchValue}:collection` } },
-                    ]
-                },
-                limit: 3,
-            }
-        )
-
-        const accountsResponse = await ACCOUNTS_DB.find(
-            {
-                selector: {
-                    "$or": [
-                        { "address": { "$regex": `(?i)${searchValue}` } },
-                        { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
-                    ]
-                },
-                limit: 3,
-            }
-        )
-
-        return res.json({
-            collections: response.docs,
-            accounts: accountsResponse.docs,
-        })
-    })
-
-
-    app.get("/api/collection/:id", async (req: Request, res: Response) => {
-        const collection = await getDoc(COLLECTIONS_DB, req.params.id);
-
-        res.json({
-            ...collection,
-        })
-    })
-
-    app.post("/api/collection/batch", async (req: Request, res: Response) => {
-        let collectionNumsResponse;
-
-        if (req.body.collections && req.body.collections.length !== 0) {
-            const response = await COLLECTIONS_DB.fetch({ keys: req.body.collections.map((num: number) => `${num}`) });
-            collectionNumsResponse = response.rows.map((row: any) => row.doc);
-        } else {
-            collectionNumsResponse = [];
-        }
-
-        return res.status(200).send({ collections: [...collectionNumsResponse] });
-    })
-
-    app.get("/api/collection/query", async (req: Request, res: Response) => {
-        const response = await COLLECTIONS_DB.find({
-            selector: req.body.selector
-        });
-
-        res.json({
-            collections: response.docs,
-        })
-    })
-
-    app.post("/api/metadata/:collectionId", async (req: Request, res: Response) => {
-        const collectionMetadata = await getDoc(METADATA_DB, `${req.params.collectionId}:collection`);
-        const LIMIT = 100;
-        const startId = Number(req.body.startBadgeId);
-        console.log("Handling Badge Ids", startId, startId + LIMIT - 1)
-
-        const response = await METADATA_DB.partitionedFind(`${req.params.collectionId}`, {
-            selector: {
-                "id": {
-                    "$and": [
-                        {
-                            "$gte": startId && !isNaN(startId) ? startId : 1,
-                        },
-                        {
-                            "$lte": startId && !isNaN(startId) ? startId + LIMIT - 1 : LIMIT,
-                        }
-                    ]
-                }
-            }, limit: LIMIT
-        })
-
-        let badgeMetadata: { [badgeId: string]: BadgeMetadata } = {};
-        for (const doc of response.docs) {
-            const badgeId = doc._id.split(':')[1];
-            badgeMetadata[badgeId] = doc;
-        }
-
-        res.json({
-            collectionMetadata: { ...collectionMetadata },
-            badgeMetadata
-        })
-    })
-
-    app.get('/api/collection/:id/:badgeId/owners', async (req: Request, res: Response) => {
-        const balanceField = `balances`;
-
-        const q: any = {};
-        q.selector = {
-            _id: req.params.id
-        }
-        q.fields = [balanceField];
-
-        const response = await COLLECTIONS_DB.find(q);
-
-        //TODO: this should be in Mango query somehow and not on backend
-        //Currently we fetch all balances
-        const ownerNums = [];
-        for (const accountNum of Object.keys(response.docs[0].balances)) {
-            for (const balance of response.docs[0].balances[accountNum].balances) {
-                for (const badgeId of balance.badgeIds) {
-                    if (badgeId.start <= Number(req.params.badgeId) && badgeId.end >= Number(req.params.badgeId)) {
-                        ownerNums.push(accountNum);
-                    }
-                }
-            }
-        }
-
-        if (ownerNums.length === 0) {
-            return res.status(200).send({
-                owners: [],
-                balances: response.docs[0].balances,
-            });
-        }
-
-        return res.status(200).send({
-            balances: response.docs[0].balances,
-            owners: ownerNums,
-        });
-    });
-
-    app.get('/api/balance/:collectionId/:accountNum', async (req: Request, res: Response) => {
-        const accountNumIdx = `${Number(req.params.accountNum)}`;
-        const balanceField = `balances.${accountNumIdx}`;
-
-        const q: any = {};
-        q.selector = {
-            _id: req.params.collectionId,
-            balances: {}
-        }
-        q.selector.balances[accountNumIdx] = {
-            "balances": {
-                "$gt": null
-            }
-        }
-        q.fields = [balanceField];
-
-        console.log(q)
-
-        const response = await COLLECTIONS_DB.find(q);
-        console.log(response);
-
-        return res.status(200).send({
-            balance: response.docs[0]?.balances[accountNumIdx]
-        });
-    });
-
-
-    app.post('/api/addToIpfs', async (req: Request, res: Response) => {
-        const files = [];
-        files.push({
-            path: 'metadata/collection',
-            content: uint8ArrayFromString(JSON.stringify(req.body.collectionMetadata))
-        });
-
-        console.log("req.body for addToIPFS: " + JSON.stringify(req.body));
-        let individualBadgeMetadata = req.body.individualBadgeMetadata;
-
-        for (const id of Object.keys(individualBadgeMetadata)) {
-            files.push(
-                {
-                    path: 'metadata/' + id,
-                    content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[Number(id)]))
-                }
-            );
-        }
-
-        const result = await last(ipfsClient.addAll(files));
-
-        if (!result) {
-            return res.status(400).send({ error: 'No addAll result received' });
-        }
-
-        const { path, cid } = result;
-        return res.status(200).send({ cid: cid.toString(), path });
-    });
-
-    app.post('/api/addMerkleTreeToIpfs', async (req: Request, res: Response) => {
-        const files = [];
-        files.push({
-            path: '',
-            content: uint8ArrayFromString(JSON.stringify(req.body.leaves))
-        });
-
-        const result = await last(ipfsClient.addAll(files));
-
-        if (!result) {
-            return res.status(400).send({ error: 'No addAll result received' });
-        }
-
-        const { path, cid } = result;
-        return res.status(200).send({ cid: cid.toString(), path });
-    });
+    app.post('/api/addToIpfs', addToIpfsHandler);
+    app.post('/api/addMerkleTreeToIpfs', addMerkleTreeToIpfsHandler);
 
     app.get('/api/user/id/:accountNum', async (req: Request, res: Response) => {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
@@ -304,88 +100,98 @@ export const createIndexer = async () => {
         return res.status(200).send({ ...accountInfo });
     });
 
-    app.post('/api/user/batch', async (req: Request, res: Response) => {
-        let accountNumsResponse;
-        let addressesResponse;
-        console.log(req.body);
-        if (req.body.accountNums && req.body.accountNums.length !== 0) {
-            const response = await ACCOUNTS_DB.fetch({ keys: req.body.accountNums.map((num: number) => `${num}`) });
-            accountNumsResponse = response.rows.map((row: any) => row.doc);
-        } else {
-            accountNumsResponse = [];
-        }
+    // app.get('/api/getChallenge', async (req: Request, res: Response) => {
+    //     const chainDriver = getChainDriver(req.body.chain);
+    //     setChainDriver(chainDriver);
 
-        if (req.body.addresses && req.body.addresses.length !== 0) {
-            const response = await ACCOUNTS_DB.find(
-                {
-                    selector: {
-                        $or: [
-                            {
-                                address: {
-                                    $in: req.body.addresses
-                                }
-                            },
-                            {
-                                cosmosAddress: {
-                                    $in: req.body.addresses
-                                }
-                            }
-                        ]
-                    }
-                }
-            );
-            addressesResponse = response.docs;
-        } else {
-            addressesResponse = [];
-        }
+    //     const message = await createChallenge(
+    //         {
+    //             domain: 'https://blockin.com',
+    //             statement: 'Sign in to this website via Blockin. You will remain signed in until you terminate your browser session.',
+    //             address: req.body.address,
+    //             uri: 'https://blockin.com/login',
+    //             nonce: '0x12345',
+    //             expirationDate: '2022-12-22T18:19:55.901Z',
+    //             notBefore: undefined,
+    //             resources: []
+    //         },
+    //         req.body.chain
+    //     );
 
+    //     return res.status(200).json({ message });
+    // });
 
-        return res.status(200).send({ accounts: [...accountNumsResponse, ...addressesResponse] });
-    });
+    // app.get('/api/getChallengeParams', async (req: Request, res: Response) => {
+    //     const chainDriver = getChainDriver(req.body.chain);
+    //     setChainDriver(chainDriver);
+
+    //     return res.status(200).json({
+    //         domain: 'https://blockin.com',
+    //         statement: 'Sign in to this website via Blockin. You will remain signed in until you terminate your browser session.',
+    //         address: req.body.address,
+    //         uri: 'https://blockin.com/login',
+    //         nonce: '0x12345',
+    //         expirationDate: '2022-12-22T18:19:55.901Z',
+    //         notBefore: undefined,
+    //         resources: []
+    //     });
+    // });
+
+    // app.get('api/verifyChallenge', async (req: Request, res: Response) => {
+    //     const chainDriver = getChainDriver(req.body.chain);
+    //     setChainDriver(chainDriver);
+
+    //     const body = parse(JSON.stringify(req.body)); //little hack to preserve Uint8Arrays
+
+    //     try {
+    //         const verificationResponse = await verifyChallenge(
+    //             body.originalBytes,
+    //             body.signatureBytes,
+    //             // {
+    //             //     verifyNonceUsingBlockTimestamps: true
+    //             // }
+    //         );
+
+    //         /**
+    //          * Here, Blockin has successfully verified the following five things:
+    //          * 1) Challenge is well-formed
+    //          * 2) Challenge is valid at present time
+    //          * 3) Challenge was signed correctly by user
+    //          * 4) User owns all requested assets at time of signing in
+    //          * 5) Any additional verification checks specified in the verifyChallenge options
+    //          * 
+    //          * Below, you can add any other validity checks that you wish to add.
+    //          *      -You can use chainDriver.functionName where functionName is in the ChainDriver interface.
+    //          *      -You can also use the helper functions exported from Blockin to manipulate and parse challenges
+    //          * For both of the above, check out the Blockin documentation.
+    //          * 
+    //          * Once everything is validated and verified, you can add the logic below to grant the user access to your
+    //          * resource. This can be via any method of your choice, such as:
+    //          *      -JWTs
+    //          *      -Session Tokens
+    //          *      -HTTP Only Cookies
+    //          *      -Just granting the user access
+    //          *      -Or anything else
+    //          */
+
+    //         //TODO: cookies
+
+    //         return res.status(200).json({ verified: true, message: verificationResponse.message });
+    //     } catch (err) {
+    //         return res.status(200).json({ verified: false, message: `${err}` });
+    //     }
+    // });
+
+    app.post('/api/user/batch', getBatchUsers);
 
 
     app.post('/api/collection/refreshMetadata/:collectionId', async (req: Request, res: Response) => {
-        // const collectionId = req.params.collectionId;
-        // const collection = await COLLECTIONS_DB.get(collectionId);
+        //TODO:
 
-        // pushToMetadataQueue(collection); TODO: we need status here
-
-        return res.status(200).send({ message: 'Refreshed' });
+        return res.status(200).send({ message: 'Not implemented' });
     });
 
-    app.get('/api/user/portfolio/:accountNum', async (req: Request, res: Response) => {
-        // let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
-
-        const accountNumIdx = `${Number(req.params.accountNum)}`;
-        // const balanceField = `balances.${accountNumIdx}`;
-
-        const q: any = {};
-        q.selector = {
-            balances: {}
-        }
-        q.selector.balances[accountNumIdx] = {
-            "balances": {
-                "$gt": null
-            }
-        }
-
-        const response = await COLLECTIONS_DB.find(q);
-
-        const managingQuery: any = {};
-        managingQuery.selector = {
-            manager: {
-                "$eq": Number(req.params.accountNum)
-            }
-        }
-
-        const managingResponse = await COLLECTIONS_DB.find(q);
-
-
-        return res.status(200).send({
-            collected: response.docs,
-            managing: managingResponse.docs,
-        });
-    });
+    app.get('/api/user/portfolio/:accountNum', getPortfolioInfo);
 
     const init = async () => {
         client = await IndexerStargateClient.connect(process.env.RPC_URL)
@@ -396,169 +202,213 @@ export const createIndexer = async () => {
     const poll = async () => {
         const currentHeight = await client.getHeight()
         const status = await getStatus();
+        status.block.txIndex = 0;
+
 
         if (status.block.height <= currentHeight - 100)
             console.log(`Catching up ${status.block.height}..${currentHeight}`)
         while (status.block.height < currentHeight) {
             const processing = status.block.height + 1
             process.stdout.cursorTo(0)
+
             // Get the block
-            const block: Block = await client.getBlock(processing)
-            process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
-            await handleBlock(block, status)
-            status.block.height = processing
+            try {
+                const block: Block = await client.getBlock(processing)
+                process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
+                await handleBlock(block, status)
+                status.block.height = processing
+            } catch (e) {
+                console.log(e)
+                console.log(`Error processing block ${processing}. Retrying...`)
+                await ERRORS_DB.bulk({
+                    docs: [{
+                        _id: `${processing}-${Date.now()}`,
+                        block: processing,
+                        error: e,
+                        status
+                    }]
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 5000))
+            }
         }
 
+        await fetchMetadataInQueue(status);
+        await setStatus(status)
+        timer = setTimeout(poll, pollIntervalMs)
+    }
+
+    const fetchMetadataInQueue = async (status: DbStatus) => {
         const NUM_METADATA_FETCHES = 10;
 
         //TODO: don't refresh if IPFS and frozen and Promise.all it
         // we also have redundances with addToIpfs and this
         // redundancies with duplicate metadata
+        try {
 
-        let numFetchesLeft = NUM_METADATA_FETCHES;
+            let numFetchesLeft = NUM_METADATA_FETCHES;
 
-        while (numFetchesLeft > 0 && status.queue.length > 0) {
-            const metadataIdsToFetch = [];
-            const queueObj = status.queue[0];
-            if (queueObj.collection) {
-                metadataIdsToFetch.push(`${queueObj.collectionId}:collection`);
-                numFetchesLeft--;
-                queueObj.collection = false;
-            }
-
-            if (queueObj.badgeIds) {
-                while (numFetchesLeft > 0 && queueObj.badgeIds.start <= queueObj.badgeIds.end) {
-                    metadataIdsToFetch.push(`${queueObj.collectionId}:${queueObj.badgeIds.start}`);
-                    queueObj.badgeIds.start++;
+            while (numFetchesLeft > 0 && status.queue.length > 0) {
+                const metadataIdsToFetch = [];
+                const queueObj = status.queue[0];
+                if (queueObj.collection) {
+                    metadataIdsToFetch.push(`${queueObj.collectionId}:collection`);
                     numFetchesLeft--;
+                    queueObj.collection = false;
                 }
-            }
 
-            const docs: Docs = await fetchDocsForRequest([], [], metadataIdsToFetch);
-
-            for (const metadataId of metadataIdsToFetch) {
-                try {
-                    if (metadataId.includes('collection')) {
-                        const collectionMetadata = await fetchMetadata(queueObj.collectionUri);
-                        docs.metadata[`${queueObj.collectionId}:collection`] = {
-                            ...collectionMetadata,
-                            _id: `${queueObj.collectionId}:collection`,
-                            _rev: docs.metadata[`${queueObj.collectionId}:collection`]._rev
-                        };
-                    } else {
-                        const badgeId = Number(metadataId.split(':')[1]);
-                        const badgeMetadata = await fetchBadgeMetadata({
-                            start: badgeId,
-                            end: badgeId
-                        }, queueObj.badgeUri);
-
-                        docs.metadata[`${queueObj.collectionId}:${badgeId}`] = {
-                            ...badgeMetadata[badgeId],
-                            id: badgeId,
-                            _id: `${queueObj.collectionId}:${badgeId}`,
-                            _rev: docs.metadata[`${queueObj.collectionId}:${badgeId}`]._rev
-                        };
+                if (queueObj.badgeIds) {
+                    while (numFetchesLeft > 0 && queueObj.badgeIds.start <= queueObj.badgeIds.end) {
+                        metadataIdsToFetch.push(`${queueObj.collectionId}:${queueObj.badgeIds.start}`);
+                        queueObj.badgeIds.start++;
+                        numFetchesLeft--;
                     }
-                } catch (e) {
-                    console.error(`Error fetching metadata for ${metadataId}`, e);
+                }
+
+                const docs: Docs = await fetchDocsForRequest([], [], metadataIdsToFetch);
+
+                for (const metadataId of metadataIdsToFetch) {
+                    try {
+                        if (metadataId.includes('collection')) {
+                            const collectionMetadata = await fetchMetadata(queueObj.collectionUri);
+                            docs.metadata[`${queueObj.collectionId}:collection`] = {
+                                ...collectionMetadata,
+                                _id: `${queueObj.collectionId}:collection`,
+                                _rev: docs.metadata[`${queueObj.collectionId}:collection`]._rev
+                            };
+                        } else {
+                            const badgeId = Number(metadataId.split(':')[1]);
+                            const badgeMetadata = await fetchBadgeMetadata({
+                                start: badgeId,
+                                end: badgeId
+                            }, queueObj.badgeUri);
+
+                            docs.metadata[`${queueObj.collectionId}:${badgeId}`] = {
+                                ...badgeMetadata[badgeId],
+                                id: badgeId,
+                                _id: `${queueObj.collectionId}:${badgeId}`,
+                                _rev: docs.metadata[`${queueObj.collectionId}:${badgeId}`]._rev
+                            };
+                        }
+                    } catch (e) {
+                        console.error(`Error fetching metadata for ${metadataId}`, e);
+                    }
+                }
+
+                await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
+
+                if (queueObj.badgeIds.start > queueObj.badgeIds.end) {
+                    status.queue.shift();
+                } else {
+                    //place the queue object at the end
+                    const firstElem = status.queue.shift()
+                    if (firstElem) status.queue.push(firstElem);
                 }
             }
+        } catch (e) {
+            console.error('Error fetching metadata', e);
+            await ERRORS_DB.bulk({
+                docs: [{
+                    _id: `metadata-${Date.now()}`,
+                    error: e,
+                    status,
 
-            await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
+                }]
+            });
 
-            if (queueObj.badgeIds.start > queueObj.badgeIds.end) {
-                status.queue.shift();
-            } else {
-                //place the queue object at the end
-                status.queue.push(status.queue.shift());
-            }
+            await new Promise(resolve => setTimeout(resolve, 5000))
         }
-
-        await setStatus(status)
-        timer = setTimeout(poll, pollIntervalMs)
     }
 
     const handleBlock = async (block: Block, status: any) => {
-        try {
-            if (0 < block.txs.length) console.log("")
-            let txIndex = 0
-            while (txIndex < block.txs.length) {
-                const txHash: string = toHex(sha256(block.txs[txIndex])).toUpperCase()
-                const indexed: IndexedTx | null = await client.getTx(txHash)
-                if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
-                await handleTx(indexed, status)
-                txIndex++
-            }
+        let docs: Docs = {
+            accounts: {},
+            collections: {},
+            metadata: {},
+        };
 
-            const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
-            if (0 < events.length) console.log("")
-            await handleEvents(events, status)
-        } catch (err) {
-            console.error("Failed with error:", err)
+        if (0 < block.txs.length) console.log("")
+        let txIndex = 0
+        while (txIndex < block.txs.length) {
+            const txHash: string = toHex(sha256(block.txs[txIndex])).toUpperCase()
+            const indexed: IndexedTx | null = await client.getTx(txHash)
+            if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
+            docs = await handleTx(indexed, status, docs)
+            txIndex++
         }
+
+        const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
+        if (0 < events.length) console.log("")
+        docs = await handleEvents(events, status, docs)
+
+        await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
     }
 
-    const handleTx = async (indexed: IndexedTx, status: any) => {
+    const handleTx = async (indexed: IndexedTx, status: any, docs: Docs) => {
+        let rawLog: any;
         try {
-            const rawLog: any = JSON.parse(indexed.rawLog)
-            const events: StringEvent[] = rawLog.flatMap((log: ABCIMessageLog) => log.events)
-            await handleEvents(events, status)
+            rawLog = JSON.parse(indexed.rawLog)
         } catch (e) {
-            // Skipping if the handling failed. Most likely the transaction failed.
+            console.log(`Error parsing rawLog for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
+            console.log(`Current status: ${JSON.stringify(status)}`);
+            return docs;
         }
+        const events: StringEvent[] = rawLog.flatMap((log: ABCIMessageLog) => log.events)
+        docs = await handleEvents(events, status, docs)
+        return docs;
     }
 
-    const handleEvents = async (events: StringEvent[], status: any): Promise<void> => {
-        try {
-            let eventIndex = 0
-            while (eventIndex < events.length) {
-                await handleEvent(events[eventIndex], status)
-                eventIndex++
-            }
-        } catch (e) {
-            // Skipping if the handling failed. Most likely the transaction failed.
+    const handleEvents = async (events: StringEvent[], status: any, docs: Docs): Promise<Docs> => {
+        let eventIndex = 0
+        while (eventIndex < events.length) {
+            docs = await handleEvent(events[eventIndex], status, docs)
+            eventIndex++
         }
+
+        return docs;
     }
 
-    const handleEvent = async (event: StringEvent, status: any): Promise<void> => {
+    const handleEvent = async (event: StringEvent, status: any, docs: Docs): Promise<Docs> => {
         console.log(getAttributeValueByKey(event.attributes, "action"));
 
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgNewCollection") {
-            await handleMsgNewCollection(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgNewCollection(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgMintBadge") {
-            await handleMsgMintBadge(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgMintBadge(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgClaimBadge") {
-            await handleMsgClaimBadge(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgClaimBadge(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgRequestTransferManager") {
-            await handleMsgRequestTransferManager(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgRequestTransferManager(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgSetApproval") {
-            await handleMsgSetApproval(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgSetApproval(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferBadge") {
-            await handleMsgTransferBadge(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgTransferBadge(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgTransferManager") {
-            await handleMsgTransferManager(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgTransferManager(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes") {
-            await handleMsgUpdateBytes(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgUpdateBytes(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers") {
-            await handleMsgUpdateDisallowedTransfers(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgUpdateDisallowedTransfers(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdateUris") {
-            await handleMsgUpdateUris(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgUpdateUris(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions") {
-            await handleMsgUpdatePermissions(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgUpdatePermissions(event, client, status, docs);
         }
         if (getAttributeValueByKey(event.attributes, "action") == "/bitbadges.bitbadgeschain.badges.MsgRegisterAddresses") {
-            await handleMsgRegisterAddresses(event, client, status).catch(err => console.log(err));
+            docs = await handleMsgRegisterAddresses(event, client, status, docs);
         }
+
+        return docs;
     }
 
     process.on("SIGINT", () => {
@@ -570,10 +420,8 @@ export const createIndexer = async () => {
     })
 
     const server: Server = app.listen(port, () => {
-        init()
-            .catch(console.error)
-            .then(() => {
-                console.log(`\nserver started at http://localhost:${port}`)
-            })
+        init().catch(console.error).then(() => {
+            console.log(`\nserver started at http://localhost:${port}`)
+        })
     })
 }

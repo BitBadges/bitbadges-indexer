@@ -1,17 +1,17 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
+import { Docs, fetchDocsForRequest } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
 import { IndexerStargateClient } from "../indexer_stargateclient"
 import { BadgeCollection } from "../types"
 import { cleanBadgeCollection } from "../util/dataCleaners"
-import { pushToMetadataQueue } from "./handleMsgNewCollection"
+import { pushToMetadataQueue } from "./metadata"
 
-export const handleMsgUpdateUris = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
+export const handleMsgUpdateUris = async (event: StringEvent, client: IndexerStargateClient, status: any, docs: Docs): Promise<Docs> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`);
 
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
-    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId], []);
+    docs = await fetchDocsForRequest([], [collection.collectionId], []);
 
     docs.collections[collection.collectionId].collectionUri = collection.collectionUri;
     docs.collections[collection.collectionId].badgeUri = collection.badgeUri;
@@ -20,5 +20,5 @@ export const handleMsgUpdateUris = async (event: StringEvent, client: IndexerSta
 
     pushToMetadataQueue(collection, status);
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
+    return docs;
 }

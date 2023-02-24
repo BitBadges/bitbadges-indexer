@@ -8,6 +8,7 @@ const nano = require('nano')(`${process.env.DB_URL}`);
 export const ACCOUNTS_DB = nano.db.use('accounts');
 export const COLLECTIONS_DB = nano.db.use('collections');
 export const STATUS_DB = nano.db.use('status');
+export const ERRORS_DB = nano.db.use('errors');
 export const METADATA_DB = nano.db.use('metadata'); //partitioned
 
 /**
@@ -23,6 +24,37 @@ export interface Docs {
     accounts: any;
     collections: any;
     metadata: any;
+}
+
+export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: number[], collectionIds: number[], metadataIds: string[]) {
+    try {
+        const newCollectionIds = collectionIds.filter((id) => !currDocs.collections[id]);
+        const newAccountNums = accountNums.filter((id) => !currDocs.accounts[id]);
+        const newMetadataIds = metadataIds.filter((id) => !currDocs.metadata[id]);
+
+        if (newCollectionIds.length || newAccountNums.length || newMetadataIds.length) {
+            const newDocs = await fetchDocsForRequest(newAccountNums, newCollectionIds, newMetadataIds);
+            
+            return {
+                accounts: {
+                    ...currDocs.accounts,
+                    ...newDocs.accounts
+                },
+                collections: {
+                    ...currDocs.collections,
+                    ...newDocs.collections
+                },
+                metadata: {
+                    ...currDocs.metadata,
+                    ...newDocs.metadata
+                }
+            };
+        } else {
+            return currDocs;
+        }
+    } catch (error) {
+        throw `Error in fetchDocsForRequestIfEmpty(): ${error}`;
+    }
 }
 
 

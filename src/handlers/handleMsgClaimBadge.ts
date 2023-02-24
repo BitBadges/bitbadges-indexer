@@ -1,13 +1,13 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db"
+import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
 import { IndexerStargateClient } from "../indexer_stargateclient"
 import { BadgeCollection, Balance } from "../types"
 import { cleanBadgeCollection, cleanUserBalance } from "../util/dataCleaners"
-import { fetchClaims } from "./handleMsgNewCollection"
 import { handleNewAccount } from "./handleNewAccount"
+import { fetchClaims } from "./claims"
 
-export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerStargateClient, status: any): Promise<void> => {
+export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerStargateClient, status: any, docs: Docs): Promise<Docs> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
     if (!collectionString) throw new Error(`New Collection event missing collection`)
 
@@ -16,7 +16,7 @@ export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerSta
     const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
     collection.claims = await fetchClaims(collection);
 
-    const docs: Docs = await fetchDocsForRequest([], [collection.collectionId], []);
+    docs = await fetchDocsForRequestIfEmpty(docs, [], [collection.collectionId], []);
 
     docs.collections[collection.collectionId].claims = collection.claims;
 
@@ -54,7 +54,7 @@ export const handleMsgClaimBadge = async (event: StringEvent, client: IndexerSta
     docs.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
     docs.collections[collection.collectionId].usedClaims.push(claimDataString);
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
+    docs = await handleNewAccount(Number(toAddress), client, docs);
 
-    await handleNewAccount(Number(toAddress), client);
+    return docs;
 }

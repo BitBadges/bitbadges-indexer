@@ -8,6 +8,16 @@ export interface LatestBlockStatus {
 
 export interface DbStatus {
     block: LatestBlockStatus
+    queue: {
+        collectionUri: string,
+        badgeUri: string,
+        collection: boolean,
+        collectionId: number,
+        badgeIds: {
+            start: number
+            end: number
+        }
+    }[]
 }
 
 export interface DbType {

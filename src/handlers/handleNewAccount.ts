@@ -1,12 +1,11 @@
-import { Docs, fetchDocsForRequest, finalizeDocsForRequest } from "../db/db";
+import { Docs, fetchDocsForRequestIfEmpty } from "../db/db";
 import { IndexerStargateClient } from "../indexer_stargateclient";
 
 
-export const handleNewAccount = async (accountNum: number, client: IndexerStargateClient): Promise<void> => {
-    const docs: Docs = await fetchDocsForRequest([accountNum], [], []);
+export const handleNewAccount = async (accountNum: number, client: IndexerStargateClient, docs: Docs): Promise<Docs> => {
+    docs = await fetchDocsForRequestIfEmpty(docs, [accountNum], [], []);
 
     let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(accountNum))
-    console.log("ACCOUNT INFO", accountInfo)
     if (accountInfo) {
         docs.accounts[accountNum] = {
             _id: docs.accounts[accountNum]._id,
@@ -15,5 +14,5 @@ export const handleNewAccount = async (accountNum: number, client: IndexerStarga
         }
     }
 
-    await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
+    return docs;
 }
