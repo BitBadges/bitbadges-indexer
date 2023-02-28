@@ -6,11 +6,16 @@ export interface LatestBlockStatus {
     height: number
 }
 
+export interface BadgeUri {
+    uri: string
+    badgeIds: IdRange[];
+}
+
 export interface DbStatus {
     block: LatestBlockStatus
     queue: {
         collectionUri: string,
-        badgeUri: string,
+        badgeUris: BadgeUri[],
         collection: boolean,
         collectionId: number,
         badgeIds: {
@@ -30,7 +35,7 @@ export interface DbType {
 export interface BadgeCollection {
     collectionId: number;
     collectionUri: string;
-    badgeUri: string;
+    badgeUris: BadgeUri[];
     bytes: string;
     manager: number;
     permissions: number;
@@ -42,9 +47,15 @@ export interface BadgeCollection {
     claims: Claims[];
     standard: number;
     collectionMetadata: BadgeMetadata,
-    badgeMetadata: { [badgeId: string]: BadgeMetadata }
+    badgeMetadata: BadgeMetadataMap
 }
 
+export interface BadgeMetadataMap {
+    [batchId: string]: {
+        badgeIds: IdRange[],
+        metadata: BadgeMetadata
+    }
+}
 
 
 
@@ -55,6 +66,7 @@ export interface BadgeCollection {
 export enum SupportedChain {
     ETH = 'Ethereum',
     COSMOS = 'Cosmos',
+    UNKNOWN = 'Unknown'
 }
 
 export enum TransactionStatus {
@@ -227,5 +239,6 @@ export interface BitBadgesUserInfo {
     accountNumber: number,
     chain: string,
     address: string,
+    name?: string
 }
 

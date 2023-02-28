@@ -26,7 +26,7 @@ export const addToIpfs = async (collectionMetadata: BadgeMetadata, individualBad
     for (const id of Object.keys(individualBadgeMetadata)) {
         files.push(
             {
-                path: 'metadata/' + id,
+                path: 'metadata/batch/' + id,
                 content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[Number(id)]))
             }
         );

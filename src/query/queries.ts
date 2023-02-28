@@ -24,6 +24,10 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
                     if (address === '') return {
                         address: '',
                         account_number: -1,
+                        sequence: 0,
+                        cosmosAddress: '',
+                        chain: 'Unknown',
+                        accountNumber: -1,
                     }
 
                     const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address }).serialize();
@@ -72,7 +76,9 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
                         sequence: 0,
                         cosmosAddress: address,
                         chain: 'Unknown',
+                        accountNumber: -1,
                     }
+
                 }
             },
             getAccountInfoByNumber: async (accountNum: number): Promise<any> => {
@@ -90,6 +96,9 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
                         address: '',
                         account_number: -1,
                         sequence: 0,
+                        cosmosAddress: '',
+                        chain: 'Unknown',
+                        accountNumber: -1,
                     }
 
                     const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address: returnedAddress }).serialize();
@@ -140,6 +149,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
                         sequence: 0,
                         cosmosAddress: '',
                         chain: 'Unknown',
+                        accountNumber: -1,
                     }
                 }
             },

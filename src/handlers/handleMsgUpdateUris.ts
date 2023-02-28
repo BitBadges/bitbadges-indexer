@@ -14,7 +14,7 @@ export const handleMsgUpdateUris = async (event: StringEvent, client: IndexerSta
     docs = await fetchDocsForRequest([], [collection.collectionId], []);
 
     docs.collections[collection.collectionId].collectionUri = collection.collectionUri;
-    docs.collections[collection.collectionId].badgeUri = collection.badgeUri;
+    docs.collections[collection.collectionId].badgeUris = collection.badgeUris;
     docs.collections[collection.collectionId].collectionMetadata = collection.collectionMetadata;
     docs.collections[collection.collectionId].badgeMetadata = collection.badgeMetadata;
 

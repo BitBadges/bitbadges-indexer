@@ -1,7 +1,7 @@
+import { Request, Response } from "express";
+import { BadgeMetadataMap } from "src/types";
 import { COLLECTIONS_DB, METADATA_DB } from "../db/db";
 import { getDoc } from "../db/helpers";
-import { Request, Response } from "express";
-import { BadgeMetadata } from "src/types";
 
 export const getCollectionById = async (req: Request, res: Response) => {
     const collection = await getDoc(COLLECTIONS_DB, req.params.id);
@@ -37,14 +37,14 @@ export const queryCollections = async (req: Request, res: Response) => {
 export const getMetadataForCollection = async (req: Request, res: Response) => {
     const collectionMetadata = await getDoc(METADATA_DB, `${req.params.collectionId}:collection`);
     const LIMIT = 100;
-    const startId = Number(req.body.startBadgeId);
+    const startId = Number(req.body.startBatchId);
 
     const response = await METADATA_DB.partitionedFind(`${req.params.collectionId}`, {
         selector: {
             "id": {
                 "$and": [
                     {
-                        "$gte": startId && !isNaN(startId) ? startId : 1,
+                        "$gte": startId && !isNaN(startId) ? startId : 0,
                     },
                     {
                         "$lte": startId && !isNaN(startId) ? startId + LIMIT - 1 : LIMIT,
@@ -54,12 +54,16 @@ export const getMetadataForCollection = async (req: Request, res: Response) => {
         }, limit: LIMIT
     })
 
-    let badgeMetadata: { [badgeId: string]: BadgeMetadata } = {};
+    let badgeMetadata: BadgeMetadataMap = {};
     for (const doc of response.docs) {
-        const badgeId = doc._id.split(':')[1];
-        badgeMetadata[badgeId] = doc;
+        const metadataBatchId = doc._id.split(':')[1];
+        badgeMetadata[metadataBatchId] = doc;
     }
 
+    console.log({
+        collectionMetadata: { ...collectionMetadata },
+        badgeMetadata
+    })
     return res.json({
         collectionMetadata: { ...collectionMetadata },
         badgeMetadata
@@ -78,7 +82,6 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
     const response = await COLLECTIONS_DB.find(q);
 
     //TODO: this should be in Mango query somehow and not on backend
-
     const ownerNums = [];
     if (response.docs[0]) {
         for (const accountNum of Object.keys(response.docs[0].balances)) {
@@ -95,12 +98,12 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
     if (ownerNums.length === 0) {
         return res.status(200).send({
             owners: [],
-            balances: response.docs[0].balances,
+            balances: response.docs[0]?.balances ? response.docs[0].balances : [],
         });
     }
 
     return res.status(200).send({
-        balances: response.docs[0].balances,
+        balances: response.docs[0]?.balances ? response.docs[0].balances : [],
         owners: ownerNums,
     });
 }

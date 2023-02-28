@@ -1,8 +1,8 @@
 import axios from "axios";
 import { getFromIpfs } from "../ipfs/ipfs";
-import { BadgeCollection, BadgeMetadata, IdRange } from "../types";
+import { BadgeCollection, BadgeMetadataMap, BadgeUri, IdRange } from "../types";
 
-export const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
+export const fetchMetadata = async (uri: string): Promise<any> => {
     if (uri.startsWith('ipfs://')) {
         const res = await getFromIpfs(uri.replace('ipfs://', ''));
         return JSON.parse(res.file);
@@ -12,12 +12,13 @@ export const fetchMetadata = async (uri: string): Promise<BadgeMetadata> => {
     }
 }
 
-export const fetchBadgeMetadata = async (badgeIdsToFetch: IdRange, badgeUri: string): Promise<{ [badgeId: string]: BadgeMetadata }> => {
+export const fetchBadgeMetadata = async (badgeIdsToFetch: IdRange, badgeUris: BadgeUri[]): Promise<BadgeMetadataMap> => {
     //Create empty array for all unique badges if it does not exist on the current badge object
     //Get the individual badge metadata
-    let badgeMetadata: { [badgeId: string]: BadgeMetadata } = {};
+    let badgeMetadata: BadgeMetadataMap = {};
     for (let i = badgeIdsToFetch.start; i <= Number(badgeIdsToFetch.end); i++) {
-        badgeMetadata[i] = await fetchMetadata(badgeUri.replace('{id}', i.toString())); //TODO: dynamic
+        const badgeUri = badgeUris[i];
+        badgeMetadata[i] = await fetchMetadata(badgeUri.uri.replace('{id}', i.toString()));  //TODO: dynamic
     }
 
     return badgeMetadata;
@@ -26,7 +27,7 @@ export const fetchBadgeMetadata = async (badgeIdsToFetch: IdRange, badgeUri: str
 export const pushToMetadataQueue = async (collection: BadgeCollection, status: any) => {
     status.queue.push({
         collectionUri: collection.collectionUri,
-        badgeUri: collection.badgeUri,
+        badgeUris: collection.badgeUris,
         collection: true,
         collectionId: collection.collectionId,
         badgeIds: {

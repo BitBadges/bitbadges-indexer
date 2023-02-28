@@ -18,6 +18,7 @@ export const handleMsgMintBadge = async (event: StringEvent, client: IndexerStar
 
     await pushToMetadataQueue(collection, status);
 
+    console.log(collection);
     collection.claims = await fetchClaims(collection);
 
     docs.collections[collection.collectionId].claims = collection.claims;

@@ -10,7 +10,8 @@ declare global {
             INFURA_ID: string
             INFURA_SECRET_KEY: string
             DB_URL: string
-            SESSION_SECRET: string
+            SESSION_SECRET: string,
+            INFURA_API_KEY: string
         }
     }
 }

@@ -26,7 +26,7 @@ import { getCollectionById, getCollections, getMetadataForCollection, getOwnersF
 import { addMerkleTreeToIpfsHandler, addToIpfsHandler } from "./routes/ipfs"
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { getBatchUsers, getPortfolioInfo } from "./routes/users"
+import { appendNameForAccount, getBatchUsers, getPortfolioInfo } from "./routes/users"
 import { DbStatus } from "./types"
 import _ from "../environment"
 import { fetchBadgeMetadata, fetchMetadata } from "./handlers/metadata"
@@ -76,10 +76,16 @@ export const createIndexer = async () => {
     }));
     app.use(cookieParser());
     // parse application/x-www-form-urlencoded
-    app.use(express.urlencoded({ extended: false }))
+    app.use(express.urlencoded({ limit: '1mb', extended: true }))
 
     // parse application/json
-    app.use(express.json())
+    app.use(express.json({ limit: '1mb' }))
+
+    app.use((req, res, next) => {
+        console.log();
+        console.log(req.method, req.url, req.body);
+        next();
+    });
 
     app.get("/", (req: Request, res: Response) => {
         res.send({
@@ -105,11 +111,14 @@ export const createIndexer = async () => {
 
     app.get('/api/user/id/:accountNum', async (req: Request, res: Response) => {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
+        accountInfo = await appendNameForAccount(accountInfo);
+
         return res.status(200).send({ ...accountInfo });
     });
 
     app.get('/api/user/address/:address', async (req: Request, res: Response) => {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(req.params.address);
+        accountInfo = await appendNameForAccount(accountInfo);
         return res.status(200).send({ ...accountInfo });
     });
 
@@ -200,10 +209,11 @@ export const createIndexer = async () => {
                     queueObj.collection = false;
                 }
 
-                if (queueObj.badgeIds) {
-                    while (numFetchesLeft > 0 && queueObj.badgeIds.start <= queueObj.badgeIds.end) {
-                        metadataIdsToFetch.push(`${queueObj.collectionId}:${queueObj.badgeIds.start}`);
-                        queueObj.badgeIds.start++;
+                if (queueObj.badgeUris) {
+                    let idx = queueObj.badgeUris.length - 1;
+                    while (numFetchesLeft > 0 && idx >= 0) {
+                        metadataIdsToFetch.push(`${queueObj.collectionId}:${idx}`);
+                        idx--;
                         numFetchesLeft--;
                     }
                 }
@@ -220,17 +230,18 @@ export const createIndexer = async () => {
                                 _rev: docs.metadata[`${queueObj.collectionId}:collection`]._rev
                             };
                         } else {
-                            const badgeId = Number(metadataId.split(':')[1]);
+                            const badgeUriIdx = Number(metadataId.split(':')[1]);
                             const badgeMetadata = await fetchBadgeMetadata({
-                                start: badgeId,
-                                end: badgeId
-                            }, queueObj.badgeUri);
+                                start: badgeUriIdx,
+                                end: badgeUriIdx
+                            }, queueObj.badgeUris);
+                            queueObj.badgeUris.pop();
 
-                            docs.metadata[`${queueObj.collectionId}:${badgeId}`] = {
-                                ...badgeMetadata[badgeId],
-                                id: badgeId,
-                                _id: `${queueObj.collectionId}:${badgeId}`,
-                                _rev: docs.metadata[`${queueObj.collectionId}:${badgeId}`]._rev
+                            docs.metadata[`${queueObj.collectionId}:${badgeUriIdx}`] = {
+                                ...badgeMetadata[badgeUriIdx],
+                                id: badgeUriIdx,
+                                _id: `${queueObj.collectionId}:${badgeUriIdx}`,
+                                _rev: docs.metadata[`${queueObj.collectionId}:${badgeUriIdx}`]._rev
                             };
                         }
                     } catch (e) {
@@ -240,7 +251,7 @@ export const createIndexer = async () => {
 
                 await finalizeDocsForRequest(docs.accounts, docs.collections, docs.metadata);
 
-                if (queueObj.badgeIds.start > queueObj.badgeIds.end) {
+                if (queueObj.badgeUris.length === 0) {
                     status.queue.shift();
                 } else {
                     //place the queue object at the end

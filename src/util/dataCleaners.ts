@@ -11,7 +11,7 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
     collection.disallowedTransfers = collection.disallowedTransfers ? collection.disallowedTransfers : [];
     collection.managerApprovedTransfers = collection.managerApprovedTransfers ? collection.managerApprovedTransfers : [];
     collection.collectionUri = collection.collectionUri ? collection.collectionUri : ""
-    collection.badgeUri = collection.badgeUri ? collection.badgeUri : ""
+    collection.badgeUris = collection.badgeUris ? collection.badgeUris : [];
     collection.bytes = collection.bytes ? collection.bytes : ""
     collection.manager = collection.manager ? Number(collection.manager) : 0;
 

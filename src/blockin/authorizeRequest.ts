@@ -31,10 +31,10 @@ export async function getChallenge(expressReq: Request, res: Response) {
 
 
     const challengeParams = {
-        domain: 'https://blockin.com',
-        statement: 'BitBadges uses Blockin to authenticate users. Please sign this message to continue. You will stay signed in for 24 hours.',
+        domain: 'https://bitbadges.xyz',
+        statement: 'BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet. You will stay signed in for 24 hours.',
         address: req.body.address,
-        uri: 'https://blockin.com/login',
+        uri: 'https://bitbadges.xyz',
         nonce: req.session.nonce,
         expirationDate: iso8601,
         notBefore: undefined,
@@ -42,9 +42,6 @@ export async function getChallenge(expressReq: Request, res: Response) {
     }
 
     const blockinMessage = await createChallenge(challengeParams, req.body.chain);
-
-    console.log(req.session);
-
 
     res.setHeader('Content-Type', 'text/plain');
     return res.status(200).json({
@@ -71,14 +68,8 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     const chainDriver = getChainDriver(body.chain);
     setChainDriver(chainDriver);
 
-    async function getChallengeStringFromBytes(txnBytes: Uint8Array): Promise<string> {
-        return chainDriver.parseChallengeStringFromBytesToSign(txnBytes);
-    }
-
-    console.log("VERIFY", req.session);
-
     try {
-        const generatedEIP4361ChallengeStr: string = await getChallengeStringFromBytes(body.originalBytes);
+        const generatedEIP4361ChallengeStr: string = await chainDriver.parseChallengeStringFromBytesToSign(body.originalBytes);
         const challenge: ChallengeParams = constructChallengeObjectFromString(generatedEIP4361ChallengeStr);
 
         const verificationResponse = await verifyChallenge(
@@ -97,7 +88,6 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
         req.session.blockin = generatedEIP4361ChallengeStr;
         if (challenge.expirationDate) {
             req.session.cookie.expires = new Date(challenge.expirationDate);
-            console.log("Expires at: ", req.session.cookie.expires);
         }
         req.session.save();
 
