@@ -1,29 +1,68 @@
 import { config } from "dotenv";
-import { getDocAndReturnTemplateIfEmpty } from "./helpers";
+import Nano from "nano";
+import { BadgeCollection, BadgeMetadata, DbStatus, IdRange } from "../types";
 
 config();
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const nano = require('nano')(`${process.env.DB_URL}`);
-export const ACCOUNTS_DB = nano.db.use('accounts');
-export const COLLECTIONS_DB = nano.db.use('collections');
-export const STATUS_DB = nano.db.use('status');
-export const ERRORS_DB = nano.db.use('errors');
-export const METADATA_DB = nano.db.use('metadata'); //partitioned
+const nano = Nano(`${process.env.DB_URL}`);
 
-/**
- * Default blanks templates for empty or newly created DB documents.
- *
- * Currently only supports 'users' because badges can't be blank and don't have a default.
- */
-export const blankTemplates = {
 
-};
+export const ACCOUNTS_DB = nano.db.use<AccountDocument>('accounts');
+export const COLLECTIONS_DB = nano.db.use<BadgeCollection>('collections');
+export const STATUS_DB = nano.db.use<DbStatus>('status');
+export const ERRORS_DB = nano.db.use<any>('errors');
+export const METADATA_DB = nano.db.use<MetadataDocument>('metadata'); //partitioned
+export const PASSWORDS_DB = nano.db.use<PasswordDocument>('passwords');
+
+export interface AccountDocument {
+    address: string,
+    cosmosAddress: string,
+    account_number: number,
+    pub_key: string,
+    sequence: number,
+    chain: string,
+}
+
+export interface MetadataDocument {
+    metadata: BadgeMetadata
+    badgeIds: IdRange[]
+    isCollection: boolean
+    id: number | 'collection'
+    uri: string
+}
+
+export interface PasswordDocument {
+    password: string
+    codes: string[]
+    currCode: number
+    claimedUsers: {
+        [cosmosAddress: string]: number
+    }
+    cid: string
+    docClaimedByCollection: boolean
+    claimId: number
+    collectionId: number
+}
+
+export interface AccountDocs {
+    [id: string]: AccountDocument & Nano.DocumentGetResponse;
+}
+
+export interface CollectionDocs {
+    [id: string]: BadgeCollection & Nano.DocumentGetResponse;
+}
+
+export interface MetadataDocs {
+    [partitionedId: string]: MetadataDocument & Nano.DocumentGetResponse;
+}
 
 export interface Docs {
-    accounts: any;
-    collections: any;
-    metadata: any;
+    accounts: AccountDocs;
+    collections: CollectionDocs;
+    metadata: MetadataDocs;
+    accountNumbersMap: {
+        [cosmosAddress: string]: number;
+    }
 }
 
 export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: number[], collectionIds: number[], metadataIds: string[]) {
@@ -34,12 +73,18 @@ export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: nu
 
         if (newCollectionIds.length || newAccountNums.length || newMetadataIds.length) {
             const newDocs = await fetchDocsForRequest(newAccountNums, newCollectionIds, newMetadataIds);
-            
+            const newAccounts = {
+                ...currDocs.accounts,
+                ...newDocs.accounts
+            }
+
+            const accountNumbersMap = {};
+            for (const account of Object.values(newAccounts)) {
+                accountNumbersMap[account.cosmosAddress] = account.account_number;
+            }
+
             return {
-                accounts: {
-                    ...currDocs.accounts,
-                    ...newDocs.accounts
-                },
+                accounts: newAccounts,
                 collections: {
                     ...currDocs.collections,
                     ...newDocs.collections
@@ -47,7 +92,8 @@ export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: nu
                 metadata: {
                     ...currDocs.metadata,
                     ...newDocs.metadata
-                }
+                },
+                accountNumbersMap
             };
         } else {
             return currDocs;
@@ -57,49 +103,64 @@ export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: nu
     }
 }
 
-
+//Fetch docs at start of handling block(s)
 export async function fetchDocsForRequest(_accountNums: number[], _collectionIds: number[], _metadataIds: string[]) {
     try {
-        const collectionIds = [...new Set(_collectionIds)];
-        const accountNums = [...new Set(_accountNums)];
-        const metadataIds = [...new Set(_metadataIds)];
+        const collectionIds = [...new Set(_collectionIds)].filter((id) => id >= 0);
+        const accountNums = [...new Set(_accountNums)].filter((id) => id >= 0);
+        const metadataIds = [...new Set(_metadataIds)].filter((id) => id.length > 0);
 
+        const accountData: AccountDocs = {};
+        const collectionData: CollectionDocs = {};
+        const metadataData: MetadataDocs = {};
 
+        const promises = [];
 
-        //TODO: validation of accountNums and collectionIds (positive number)
+        for (const collectionId of collectionIds) {
+            promises.push(COLLECTIONS_DB.get(collectionId.toString(10)));
+        }
 
-        // const invalidAccountNum = userIds.find((id) => {
-        //     const { chain, address } = parseId(id);
+        for (const accountNum of accountNums) {
+            promises.push(ACCOUNTS_DB.get(accountNum.toString(10)));
+        }
 
-        //     const isValidAddress = getChain(chain).validateAddress(address);
-        //     return !isValidAddress;
-        // });
+        for (const metadataId of metadataIds) {
+            promises.push(METADATA_DB.get(metadataId));
+        }
 
-        // if (invalidUserAddress) {
-        //     throw `${invalidUserAddress} is not a valid address.`;
-        // }
+        const results = await Promise.allSettled(promises);
 
-        const accountData: any = {};
-        const collectionData: any = {};
-        const metadataData: any = {};
-
-
-
-        if (collectionIds.length) {
-            for (const collectionId of collectionIds) {
-                collectionData[collectionId] = await getDocAndReturnTemplateIfEmpty(COLLECTIONS_DB, collectionId.toString(10));
+        let idx = 0;
+        for (const collectionId of collectionIds) {
+            const result = results[idx++];
+            if (result.status === 'fulfilled') {
+                collectionData[collectionId] = result.value as Nano.DocumentGetResponse & BadgeCollection;
+            } else {
+                collectionData[collectionId] = {
+                    _id: collectionId.toString(10)
+                } as Nano.DocumentGetResponse & BadgeCollection;
             }
         }
 
-        if (accountNums.length) {
-            for (const accountNum of accountNums) {
-                accountData[accountNum] = await getDocAndReturnTemplateIfEmpty(ACCOUNTS_DB, accountNum.toString(10));
+        for (const accountNum of accountNums) {
+            const result = results[idx++];
+            if (result.status === 'fulfilled') {
+                accountData[accountNum] = result.value as Nano.DocumentGetResponse & AccountDocument;
+            } else {
+                accountData[accountNum] = {
+                    _id: accountNum.toString(10)
+                } as Nano.DocumentGetResponse & AccountDocument;
             }
         }
 
-        if (metadataIds.length) {
-            for (const metadataId of metadataIds) {
-                metadataData[metadataId] = await getDocAndReturnTemplateIfEmpty(METADATA_DB, metadataId);
+        for (const metadataId of metadataIds) {
+            const result = results[idx++];
+            if (result.status === 'fulfilled') {
+                metadataData[metadataId] = result.value as Nano.DocumentGetResponse & MetadataDocument;
+            } else {
+                metadataData[metadataId] = {
+                    _id: metadataId
+                } as Nano.DocumentGetResponse & MetadataDocument;
             }
         }
 
@@ -109,13 +170,14 @@ export async function fetchDocsForRequest(_accountNums: number[], _collectionIds
     }
 }
 
-export async function finalizeDocsForRequest(userData: any, collectionData: any, metadataData: any) {
+//Finalize docs at end of handling block(s)
+export async function finalizeDocsForRequest(docs: Docs) {
     try {
         await Promise.all(
             [
-                ACCOUNTS_DB.bulk({ docs: Object.values(userData) }),
-                COLLECTIONS_DB.bulk({ docs: Object.values(collectionData) }),
-                METADATA_DB.bulk({ docs: Object.values(metadataData) }),
+                ACCOUNTS_DB.bulk({ docs: Object.values(docs.accounts) }),
+                COLLECTIONS_DB.bulk({ docs: Object.values(docs.collections) }),
+                METADATA_DB.bulk({ docs: Object.values(docs.metadata) }),
             ]
         );
     } catch (error) {

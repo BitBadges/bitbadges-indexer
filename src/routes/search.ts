@@ -1,93 +1,133 @@
 
-import { Request, Response } from "express";
-import { ACCOUNTS_DB, METADATA_DB } from "../db/db";
-import { convertToCosmosAddress, getChainForAddress, isAddressValid } from "../bitbadges-api/chains";
 import { ethers } from "ethers";
-import { appendNameForAccount } from "./users";
+import { Request, Response } from "express";
+import nano from "nano";
+import { convertToCosmosAddress, getChainForAddress, isAddressValid } from "../bitbadges-api/chains";
+import { ACCOUNTS_DB, METADATA_DB } from "../db/db";
+import { AccountResponse } from "./users";
+import { getNameForAddress } from "../util/ensResolvers";
 
 export const searchHandler = async (req: Request, res: Response) => {
-    const searchValue = req.params.searchValue;
-    if (!searchValue || searchValue.length == 0) {
-        return res.json({
-            collections: [],
-            accounts: [],
-        })
-    }
-
-    let address = searchValue;
-    if (!isAddressValid(searchValue) && searchValue.includes('.eth')) {
-        try {
-            //Attempt to resolve name
-            const provider = new ethers.InfuraProvider(
-                'homestead',
-                process.env.INFURA_API_KEY
-            );
-            const resolvedAddress = await provider.resolveName(address);
-            if (resolvedAddress) {
-                address = resolvedAddress;
-            }
-        } catch (e) {
-            // console.log(e);
+    try {
+        const searchValue = req.params.searchValue;
+        if (!searchValue || searchValue.length == 0) {
+            return res.json({
+                collections: [],
+                accounts: [],
+            })
         }
-    }
 
-    //TODO: Error when regex is bad
-    const response = await METADATA_DB.find(
-        {
+        //Attempt to resolve ENS
+        let address = searchValue;
+        let resolvedEnsAddress: string | undefined = undefined;
+        const tryEns = searchValue.includes('.eth') ? searchValue : `${searchValue}.eth`;
+        if (!isAddressValid(searchValue)) {
+            try {
+                //Attempt to resolve name
+                const provider = new ethers.InfuraProvider(
+                    'homestead',
+                    process.env.INFURA_API_KEY
+                );
+                const resolvedAddress = await provider.resolveName(tryEns);
+                if (resolvedAddress) {
+                    resolvedEnsAddress = resolvedAddress;
+                }
+            } catch (e) {
+
+            }
+        }
+
+
+        const searchQuery: nano.MangoQuery = {
             selector: {
-                "_id": { "$regex": `(?i)collection` },
+                "isCollection": true,
                 "$or": [
                     { "name": { "$regex": `(?i)${searchValue}` } },
-                    { "_id": { "$regex": `(?i)${searchValue}:collection` } },
+                    { "_id": { "$regex": `(?i)${searchValue}:` } },
                 ]
             },
             limit: 3,
         }
-    )
 
-    const accountsResponse = await ACCOUNTS_DB.find(
-        {
+        const accountQuery = {
             selector: {
                 "$or": [
                     { "address": { "$regex": `(?i)${address}` } },
                     { "cosmosAddress": { "$regex": `(?i)${address}` } },
+                    { "address": { "$regex": `(?i)${resolvedEnsAddress}` } },
+                    { "cosmosAddress": { "$regex": `(?i)${resolvedEnsAddress}` } },
                 ]
             },
             limit: 3,
         }
-    )
 
-    if (isAddressValid(address) && !accountsResponse.docs.find((account: any) => account.address === address)) {
-        accountsResponse.docs.push({
-            accountNumber: -1,
-            chain: getChainForAddress(address),
-            address: address,
-            cosmosAddress: convertToCosmosAddress(address),
-            name: '',
-        });
-    }
+        const results = await Promise.all([
+            METADATA_DB.find(searchQuery),
+            ACCOUNTS_DB.find(accountQuery),
+        ]);
 
-    if (searchValue !== address) {
-        for (const account of accountsResponse.docs) {
-            account.name = searchValue;
+        const response = results[0];
+        const accountsResponse = results[1];
+
+        const returnDocs: (
+            AccountResponse & {
+                _id: string;
+                _rev: string;
+            }
+        )[] = accountsResponse.docs.map((doc) => { return { ...doc, name: '' } });
+
+        //If the address is valid, but not found in the database, add it to the return list (create fake return entry)
+        if (isAddressValid(address) && !returnDocs.find((account: any) => account.address === address || account.cosmosAddress === address)) {
+            returnDocs.push({
+                _id: '-1',
+                _rev: '',
+                account_number: -1,
+                chain: getChainForAddress(address),
+                address: address,
+                cosmosAddress: convertToCosmosAddress(address),
+                name: '',
+                sequence: 0,
+                pub_key: '',
+            });
         }
-    }
 
-    const accounts = [];
-    for (let account of accountsResponse.docs) {
-        if (!account.name) {
-            account = await appendNameForAccount(account);
-            account.chain = getChainForAddress(account.address);
+        //Update matching document with previously fetched ENS name
+        if (resolvedEnsAddress) {
+            const matchingDoc = returnDocs.find((doc) => doc.address === resolvedEnsAddress);
+            if (matchingDoc) {
+                matchingDoc.name = tryEns;
+            }
         }
 
-        accounts.push(account);
+        //For all accounts, fetch the name and chain, then return it
+        const accounts = [];
+        const promises = [];
+        
+        for (let account of returnDocs) {
+            if (!account.name) {
+                promises.push(getNameForAddress(account.address));
+                account.chain = getChainForAddress(account.address);
+            } else {
+                promises.push(Promise.resolve(account.name));
+            }
+        }
+
+
+        const nameResults = await Promise.all(promises);
+        for (let i = 0; i < returnDocs.length; i++) {
+            const account = returnDocs[i];
+            account.name = nameResults[i];
+            accounts.push(account);
+        }
+
+        return res.json({
+            collections: response.docs,
+            accounts: accounts,
+        })
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({
+            error: e,
+        })
     }
-
-    console.log(accounts);
-
-
-    return res.json({
-        collections: response.docs,
-        accounts: accounts,
-    })
 }

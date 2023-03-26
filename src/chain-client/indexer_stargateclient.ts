@@ -12,7 +12,7 @@ export class IndexerStargateClient extends BadgesStargateClient {
         options: StargateClientOptions = {},
     ): Promise<IndexerStargateClient> {
         const tmClient = await Tendermint34Client.connect(endpoint)
-        console.log("Tendermint client connected");
+        // console.log("Tendermint client connected");
         return new IndexerStargateClient(tmClient, options)
     }
 

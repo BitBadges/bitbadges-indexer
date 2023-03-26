@@ -1,151 +1,204 @@
 import { Request, Response } from "express";
-import { ACCOUNTS_DB, COLLECTIONS_DB } from "../db/db";
-import { ethers } from "ethers";
+import nano from "nano";
 import { convertToCosmosAddress, getChainForAddress, isAddressValid } from "../bitbadges-api/chains";
+import { ACCOUNTS_DB, AccountDocument, COLLECTIONS_DB } from "../db/db";
+import { client } from "../indexer";
+import { ActivityItem } from "../types";
+import { getAddressesForNames, getNameForAddress, getNamesForAddresses } from "../util/ensResolvers";
+
+export interface AccountResponse extends AccountDocument {
+    name?: string
+}
+
+export const getAccountByAddress = async (req: Request, res: Response) => {
+    try {
+        let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(req.params.address);
+        accountInfo = await appendNameForAccount(accountInfo);
+        return res.status(200).send({ ...accountInfo });
+    } catch (e) {
+        return res.status(500).send({
+            error: 'Error fetching account. Please try again later.'
+        })
+    }
+};
+
+export const getAccountById = async (req: Request, res: Response) => {
+    try {
+        let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
+        accountInfo = await appendNameForAccount(accountInfo);
+
+        return res.status(200).send({ ...accountInfo });
+    } catch (e) {
+        return res.status(500).send({
+            error: 'Error fetching account. Please try again later.'
+        })
+    }
+}
 
 export async function appendNameForAccount(account: any) {
-    const newAccount = {
-        ...account
-    };
-    const provider = new ethers.InfuraProvider(
-        'homestead',
-        process.env.INFURA_API_KEY
-    );
-
-    if (ethers.isAddress(account.address)) {
-        const ensAddress = await provider.lookupAddress(account.address);
-        if (ensAddress) newAccount.name = ensAddress;
+    try {
+        const ensAddress = await getNameForAddress(account.address);
+        return { ...account, name: ensAddress };
+    } catch (e) {
+        return account;
     }
-
-
-    return newAccount;
 }
 
 export const getBatchUsers = async (req: Request, res: Response) => {
-    let accountNumsResponse;
-    let addressesResponse;
-    req.body.accountNums = req.body.accountNums.filter((num: number) => num >= 0);
-    console.log(req.body.accountNums);
-    if (req.body.accountNums && req.body.accountNums.length !== 0) {
+    try {
+        let accountsResponse: (AccountResponse & nano.DocumentGetResponse)[] = [];
+        req.body.accountNums = req.body.accountNums.filter((num: number) => num >= 0);
 
-        const response = await ACCOUNTS_DB.fetch({ keys: req.body.accountNums.map((num: number) => `${num}`) });
-        accountNumsResponse = response.rows.map((row: any) => row.doc);
-    } else {
-        accountNumsResponse = [];
-    }
+        if (req.body.accountNums && req.body.accountNums.length !== 0) {
+            const response = await ACCOUNTS_DB.fetch({ keys: req.body.accountNums.map((num: number) => `${num}`) });
+            accountsResponse = response.rows.map((row: any) => row.doc);
 
-    const nameMap: { [address: string]: string } = {};
+            const names = await getNamesForAddresses(accountsResponse.map((account) => account.address));
+            for (let i = 0; i < accountsResponse.length; i++) {
+                const account = accountsResponse[i];
+                account.name = names[account.address];
+            }
 
-    const resolvedAddresses = [];
-    for (const address of req.body.addresses) {
-        if (isAddressValid(address)) {
-            resolvedAddresses.push(address);
-        } else if (address.includes('.eth')) {
-            try {
-                //Attempt to resolve name
-                const provider = new ethers.InfuraProvider(
-                    'homestead',
-                    process.env.INFURA_API_KEY
-                );
-                const resolvedAddress = await provider.resolveName(address);
-                if (resolvedAddress) {
-                    resolvedAddresses.push(resolvedAddress);
-                    nameMap[resolvedAddress] = address;
-                }
-            } catch (e) {
-                console.log(e);
+            if (response.rows.find(row => row.error)) {
+                return res.status(500).send({
+                    error: 'Error fetching account. Please try again later.'
+                })
             }
         }
-    }
 
-    if (resolvedAddresses && resolvedAddresses.length !== 0) {
-        const response = await ACCOUNTS_DB.find(
-            {
-                selector: {
-                    $or: [
-                        {
-                            address: {
-                                $in: resolvedAddresses
+
+        const nameMap: { [address: string]: string } = {};
+        const nonDuplicates = req.body.addresses.filter((address: string) => !accountsResponse.find((account) => account.address === address || account.cosmosAddress === address));
+        const resolvedAddresses = [];
+        const nonValidAddresses = nonDuplicates.filter((address: string) => !isAddressValid(address));
+        const validAddresses = nonDuplicates.filter((address: string) => isAddressValid(address));
+        const resolvedAddressesForENSNames = (await getAddressesForNames(nonValidAddresses)).filter((address: string) => isAddressValid(address));
+        resolvedAddresses.push(...resolvedAddressesForENSNames, ...validAddresses);
+        for (const address of resolvedAddressesForENSNames) {
+            nameMap[address] = nonValidAddresses[resolvedAddressesForENSNames.indexOf(address)];
+        }
+
+        if (resolvedAddresses && resolvedAddresses.length !== 0) {
+            const response = await ACCOUNTS_DB.find(
+                {
+                    selector: {
+                        $or: [
+                            {
+                                address: {
+                                    $in: resolvedAddresses
+                                }
+                            },
+                            {
+                                cosmosAddress: {
+                                    $in: resolvedAddresses
+                                }
                             }
-                        },
-                        {
-                            cosmosAddress: {
-                                $in: resolvedAddresses
-                            }
-                        }
-                    ]
+                        ]
+                    }
+                }
+            );
+            accountsResponse = [...accountsResponse, ...response.docs];
+
+            //If a valid address but not in the db, add it to the response
+            for (const address of resolvedAddresses) {
+                if (isAddressValid(address) && !accountsResponse.find((account) => account.address === address || account.cosmosAddress === address)) {
+                    accountsResponse.push({
+                        _id: '-1',
+                        _rev: '',
+                        account_number: -1,
+                        chain: getChainForAddress(address),
+                        address: address,
+                        cosmosAddress: convertToCosmosAddress(address),
+                        name: '',
+                        sequence: -1,
+                        pub_key: ''
+                    });
                 }
             }
-        );
-        addressesResponse = response.docs;
-        for (const address of resolvedAddresses) {
-            if (isAddressValid(address) && !addressesResponse.find((account: any) => account.address === address)) {
-                addressesResponse.push({
-                    accountNumber: -1,
-                    chain: getChainForAddress(address),
-                    address: address,
-                    cosmosAddress: convertToCosmosAddress(address),
-                    name: '',
-                });
+        }
+
+        for (const account of accountsResponse) {
+            if (nameMap[account.address]) {
+                account.name = nameMap[account.address];
             }
         }
-    } else {
-        addressesResponse = [];
+
+        return res.status(200).send({ accounts: accountsResponse });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).send({
+            error: 'Error fetching accounts. Please try again later.'
+        })
     }
-
-    console.log(addressesResponse);
-
-
-    const returnedAccounts = [];
-    for (const account of [...accountNumsResponse, ...addressesResponse]) {
-        if (nameMap[account.address]) {
-            returnedAccounts.push({
-                ...account,
-                name: nameMap[account.address]
-            });
-        }
-        else {
-            const x = await appendNameForAccount(account);
-            returnedAccounts.push(x);
-        }
-    }
-
-    console.log(returnedAccounts);
-
-
-    return res.status(200).send({ accounts: returnedAccounts });
 }
 
 export const getPortfolioInfo = async (req: Request, res: Response) => {
-    // let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
+    try {
+        const accountNumIdx = `${Number(req.params.accountNum)}`;
+        const q: nano.MangoQuery = {
+            selector: {
+                "$or": [
+                    {
+                        "balances": {
+                            [accountNumIdx]: {
+                                "$gt": null
+                            }
+                        }
+                    },
+                    {
+                        "manager": {
+                            "$eq": Number(req.params.accountNum)
+                        }
+                    },
+                    {
+                        "activity": {
+                            "$elemMatch": {
+                                "$or": [
+                                    {
+                                        "to": {
+                                            "$elemMatch": {
+                                                "$eq": Number(req.params.accountNum)
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "from": {
+                                            "$elemMatch": {
+                                                "$eq": Number(req.params.accountNum)
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ]
+            }
+        };
 
-    const accountNumIdx = `${Number(req.params.accountNum)}`;
-    // const balanceField = `balances.${accountNumIdx}`;
+        const response = await COLLECTIONS_DB.find(q);
 
-    const q: any = {};
-    q.selector = {
-        balances: {}
-    }
-    q.selector.balances[accountNumIdx] = {
-        "balances": {
-            "$gt": null
+        const activity: (ActivityItem & { collectionId: number })[] = [];
+        for (const doc of response.docs) {
+            for (const activityItem of doc.activity) {
+                if (activityItem.to.includes(Number(req.params.accountNum)) || activityItem.from.includes(Number(req.params.accountNum))) {
+                    activity.push({
+                        ...activityItem,
+                        collectionId: Number(doc._id),
+                    });
+                }
+            }
         }
+
+        return res.status(200).send({
+            collected: response.docs.filter((x) => !!x.balances[accountNumIdx]),
+            activity: activity,
+            managing: response.docs.filter((x) => x.manager === Number(req.params.accountNum)),
+        });
+    } catch (e) {
+        console.log(e);
+        return res.status(500).send({
+            error: 'Error fetching portfolio. Please try again later.'
+        })
     }
-
-    const response = await COLLECTIONS_DB.find(q);
-
-    const managingQuery: any = {};
-    managingQuery.selector = {
-        manager: {
-            "$eq": Number(req.params.accountNum)
-        }
-    }
-
-    const managingResponse = await COLLECTIONS_DB.find(q);
-
-
-    return res.status(200).send({
-        collected: response.docs,
-        managing: managingResponse.docs,
-    });
 }

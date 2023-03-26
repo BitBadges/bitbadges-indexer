@@ -1,4 +1,4 @@
-import { BadgeCollection, DistributionMethod, Transfers, UserBalance } from "../types";
+import { BadgeCollection, Transfers, UserBalance } from "../types";
 
 export function cleanBadgeCollection(collection: BadgeCollection) {
     collection.collectionId = collection.collectionId ? Number(collection.collectionId) : 0;
@@ -74,6 +74,15 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
                     })
                 }
             }) : [],
+            codeRoot: claim.codeRoot ? claim.codeRoot : "",
+            whitelistRoot: claim.whitelistRoot ? claim.whitelistRoot : "",
+            uri: claim.uri ? claim.uri : "",
+            timeRange: {
+                start: claim.timeRange.start ? Number(claim.timeRange.start) : 0,
+                end: claim.timeRange.end ? Number(claim.timeRange.end) : 0
+            },
+            limitPerAccount: claim.limitPerAccount ? Number(claim.limitPerAccount) : 0,
+            amount: claim.amount ? Number(claim.amount) : 0,
             badgeIds: claim.badgeIds ? claim.badgeIds.map((id) => {
                 return {
                     start: id.start ? Number(id.start) : 0,
@@ -81,17 +90,6 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
                 }
             }) : [],
             incrementIdsBy: claim.incrementIdsBy ? Number(claim.incrementIdsBy) : 0,
-            amountPerClaim: claim.amountPerClaim ? Number(claim.amountPerClaim) : 0,
-            type: claim.type ? Number(claim.type) : 0,
-            data: claim.data ? claim.data : "",
-            uri: claim.uri ? claim.uri : "",
-            timeRange: {
-                start: claim.timeRange.start ? Number(claim.timeRange.start) : 0,
-                end: claim.timeRange.end ? Number(claim.timeRange.end) : 0
-            },
-            leaves: [],
-            distributionMethod: DistributionMethod.None,
-            tree: null
         }
     });
 

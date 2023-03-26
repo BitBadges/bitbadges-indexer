@@ -1,26 +1,33 @@
 import { Request, Response } from "express";
 import { COLLECTIONS_DB } from "../db/db";
+import nano from "nano";
 
 export const getBadgeBalance = async (req: Request, res: Response) => {
-    const accountNumIdx = `${Number(req.params.accountNum)}`;
-    const balanceField = `balances.${accountNumIdx}`;
+    try {
+        const accountNumIdx = `${Number(req.params.accountNum)}`;
+        const balanceField = `balances.${accountNumIdx}`;
 
-    const q: any = {};
-    q.selector = {
-        _id: req.params.collectionId,
-        balances: {}
+        const balanceQuery: nano.MangoQuery = {
+            selector: {
+                _id: req.params.collectionId,
+                balances: {
+                    [accountNumIdx]: {
+                        balances: {
+                            "$gt": null
+                        }
+                    }
+                }
+            },
+            fields: [balanceField]
+        };
+
+        const response = await COLLECTIONS_DB.find(balanceQuery);
+
+        return res.status(200).send({
+            balance: response.docs[0]?.balances[accountNumIdx]
+        });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).send({ error: e });
     }
-    q.selector.balances[accountNumIdx] = {
-        "balances": {
-            "$gt": null
-        }
-    }
-    q.fields = [balanceField];
-
-
-    const response = await COLLECTIONS_DB.find(q);
-
-    return res.status(200).send({
-        balance: response.docs[0]?.balances[accountNumIdx]
-    });
 }

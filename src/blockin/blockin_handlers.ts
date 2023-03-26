@@ -2,13 +2,15 @@ import { ChallengeParams, constructChallengeObjectFromString, setChainDriver, ve
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { generateNonce } from 'siwe';
-import { getChainDriver } from '../blockin/blockin';
+import { getChainDriver } from './blockin';
 import { parse } from '../util/preserveJson';
+import { convertToCosmosAddress } from '../bitbadges-api/chains';
 
 export interface BlockinSession extends Session {
     nonce: string | null;
     blockin: string | null;
     blockinParams: ChallengeParams | null;
+    cosmosAddress: string | null;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -22,6 +24,12 @@ export async function getChallenge(expressReq: Request, res: Response) {
     setChainDriver(chainDriver);
 
     req.session.nonce = generateNonce();
+    const cosmosAddress = convertToCosmosAddress(req.body.address);
+    if (!cosmosAddress) {
+        return res.status(400).json({ error: 'Invalid address' });
+    }
+
+    req.session.cosmosAddress = cosmosAddress;
     req.session.save();
 
     // Get the current time
@@ -56,6 +64,9 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
 
     req.session.blockin = null;
     req.session.nonce = null;
+    req.session.blockinParams = null;
+    req.session.cosmosAddress = null;
+
 
     return res.status(200).send({ message: 'Successfully removed session cookie!' });
 }
@@ -99,7 +110,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     }
 }
 
-export async function authorizeRequest(expressReq: Request, res: Response, next: NextFunction) {
+export async function authorizeBlockinRequest(expressReq: Request, res: Response, next: NextFunction) {
     const req = expressReq as AuthenticatedRequest;
 
     try {

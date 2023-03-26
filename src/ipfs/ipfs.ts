@@ -1,22 +1,71 @@
 import last from 'it-last';
-import { BadgeMetadata } from "src/types";
+import { BadgeMetadata } from "../types";
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { ipfsClient } from "../indexer";
+import axios from 'axios';
+
 
 export const getFromIpfs = async (path: string) => {
+    if (!path) return { file: '{}' }
+
     const getRes = ipfsClient.cat(path);
 
     const decoder = new TextDecoder();
-    let fileJson = '';
+    let fileContents = '';
     for await (const file of getRes) {
         let chunk = decoder.decode(file);
-        fileJson += chunk;
+        fileContents += chunk;
     }
 
-    return { file: fileJson };
+    return { file: fileContents };
 }
 
+export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
+    const res = await axios.get(dataUrl, { responseType: 'arraybuffer' });
+    const blob = res.data;
+    return blob
+}
+
+
+
 export const addToIpfs = async (collectionMetadata: BadgeMetadata, individualBadgeMetadata: BadgeMetadata[]) => {
+    const imageFiles = [];
+    if (collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
+        const blob = await dataUrlToFile(collectionMetadata.image);
+        imageFiles.push({
+            content: new Uint8Array(blob)
+        });
+    }
+
+    for (const badge of individualBadgeMetadata) {
+        if (badge.image && badge.image.startsWith('data:image')) {
+            const blob = await dataUrlToFile(badge.image);
+            imageFiles.push({
+                content: new Uint8Array(blob)
+            });
+        }
+    }
+
+    if (imageFiles.length > 0) {
+        const imageResults = ipfsClient.addAll(imageFiles);
+        const cids = [];
+        for await (const imageResult of imageResults) {
+            cids.push(imageResult.cid.toString());
+        }
+
+        if (collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
+            const result = cids.shift();
+            if (result) collectionMetadata.image = 'ipfs://' + result;
+        }
+
+        for (const badge of individualBadgeMetadata) {
+            if (badge.image && badge.image.startsWith('data:image')) {
+                const result = cids.shift();
+                if (result) badge.image = 'ipfs://' + result;
+            }
+        }
+    }
+
     const files = [];
     files.push({
         path: 'metadata/collection',
@@ -37,11 +86,11 @@ export const addToIpfs = async (collectionMetadata: BadgeMetadata, individualBad
     return result;
 }
 
-export const addMerkleTreeToIpfs = async (leaves: string[]) => {
+export const addMerkleTreeToIpfs = async (leaves: string[], addresses: string[], codes: string[], hasPassword: boolean) => {
     const files = [];
     files.push({
         path: '',
-        content: uint8ArrayFromString(JSON.stringify(leaves))
+        content: uint8ArrayFromString(JSON.stringify({ leaves, addresses, codes, hasPassword }))
     });
 
     const result = await last(ipfsClient.addAll(files));

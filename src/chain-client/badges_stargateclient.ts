@@ -1,6 +1,6 @@
 import { QueryClient, StargateClient, StargateClientOptions } from "@cosmjs/stargate"
 import { BroadcastTxSyncResponse, Tendermint34Client } from "@cosmjs/tendermint-rpc"
-import { BadgesExtension, setupBadgesExtension } from "./query/queries"
+import { BadgesExtension, setupBadgesExtension } from "./queries"
 
 export class BadgesStargateClient extends StargateClient {
     public readonly badgesQueryClient: BadgesExtension | undefined

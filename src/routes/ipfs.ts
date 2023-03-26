@@ -1,23 +1,38 @@
 import { Request, Response } from "express";
 import { addMerkleTreeToIpfs, addToIpfs } from "../ipfs/ipfs";
+import { PASSWORDS_DB } from "../db/db";
 
 export const addToIpfsHandler = async (req: Request, res: Response) => {
-    const result = await addToIpfs(req.body.collectionMetadata, req.body.individualBadgeMetadata);
+    try {
+        const result = await addToIpfs(req.body.collectionMetadata, req.body.individualBadgeMetadata);
 
-    if (!result) {
-        return res.status(400).send({ error: 'No addAll result received' });
+        if (!result) {
+            return res.status(400).send({ error: 'No addAll result received' });
+        }
+
+        const { path, cid } = result;
+        return res.status(200).send({ cid: cid.toString(), path });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).send({ error: e });
     }
-
-    const { path, cid } = result;
-    return res.status(200).send({ cid: cid.toString(), path });
 }
 
 export const addMerkleTreeToIpfsHandler = async (req: Request, res: Response) => {
-    const result = await addMerkleTreeToIpfs(req.body.leaves);
-    if (!result) {
-        return res.status(400).send({ error: 'No addAll result received' });
-    }
+    try {
+        //Initial sanity check
+        const result = await addMerkleTreeToIpfs(req.body.leaves, req.body.addresses, req.body.hashedCodes, req.body.password ? true : false);
+        if (!result) {
+            return res.status(400).send({ error: 'No addAll result received' });
+        }
 
-    const { path, cid } = result;
-    return res.status(200).send({ cid: cid.toString(), path });
+        const { path, cid } = result;
+        const password = req.body.password;
+        await PASSWORDS_DB.insert({ collectionId: -1, claimId: -1, docClaimedByCollection: false, cid: cid.toString(), password, codes: req.body.codes, currCode: 0, claimedUsers: {} });
+
+        return res.status(200).send({ cid: cid.toString(), path });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).send({ error: e });
+    }
 }

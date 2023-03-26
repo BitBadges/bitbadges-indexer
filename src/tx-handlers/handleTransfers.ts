@@ -1,9 +1,8 @@
 import { BadgeCollection, Transfers } from "../types";
-import { AddBalancesForIdRanges } from "../util/balances-gpt";
+import { AddBalancesForIdRanges } from "../bitbadges-api/balances-gpt";
 import { Docs } from "../db/db";
 
 export const handleTransfers = async (collection: BadgeCollection, transfers: Transfers[], docs: Docs) => {
-
     for (let idx = 0; idx < transfers.length; idx++) {
         let transfer = transfers[idx];
         for (let j = 0; j < transfer.toAddresses.length; j++) {
@@ -18,7 +17,6 @@ export const handleTransfers = async (collection: BadgeCollection, transfers: Tr
 
             for (const transferBalanceObj of transfer.balances) {
                 docs.collections[collection.collectionId].balances[address] = AddBalancesForIdRanges(currBalance, transferBalanceObj.badgeIds, transferBalanceObj.balance);
-
             }
         }
 

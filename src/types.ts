@@ -1,7 +1,7 @@
 //TODO: sync with bitbadges-js and the other libraries
 
-import { Permissions } from "./permissions";
-
+import { Permissions } from "./bitbadges-api/permissions";
+import { MerkleTree } from "merkletreejs"
 export interface LatestBlockStatus {
     height: number
 }
@@ -14,22 +14,16 @@ export interface BadgeUri {
 export interface DbStatus {
     block: LatestBlockStatus
     queue: {
-        collectionUri: string,
-        badgeUris: BadgeUri[],
-        collection: boolean,
+        startingBatchId: number,
+        uri: string,
         collectionId: number,
-        badgeIds: {
-            start: number
-            end: number
-        }
+        collection: boolean,
+        badgeIds: IdRange[],
+        batchId: number | 'collection',
+        numCalls: number,
+        specificId?: number,
+        purge?: boolean
     }[]
-}
-
-export interface DbType {
-    status: DbStatus
-    collections: any
-    accounts: any
-    metadata: any
 }
 
 export interface BadgeCollection {
@@ -47,7 +41,41 @@ export interface BadgeCollection {
     claims: Claims[];
     standard: number;
     collectionMetadata: BadgeMetadata,
-    badgeMetadata: BadgeMetadataMap
+    badgeMetadata: BadgeMetadataMap,
+    activity: ActivityItem[];
+    usedClaims: {
+        [claimId: string]: {
+            codes: {
+                [code: string]: number;
+            },
+            numUsed: number,
+            addresses: {
+                [cosmosAddress: string]: number;
+            }
+        }
+    };
+    originalClaims: Claims[];
+    managerRequests: number[];
+    balances: BalancesMap;
+}
+
+export interface ActivityItem {
+    method: string;
+    to: number[];
+    from: (number | 'Mint')[];
+    balances: Balance[];
+}
+
+export interface CollectionMap {
+    [collectionId: string]: BitBadgeCollection
+}
+
+export interface AccountMap {
+    [cosmosAddress: string]: BitBadgesUserInfo;
+}
+
+export interface BalancesMap {
+    [accountNumber: number]: UserBalance;
 }
 
 export interface BadgeMetadataMap {
@@ -100,14 +128,14 @@ export interface Transfers {
     balances: Balance[];
 }
 
-export interface ClaimItem {
-    address: string;
-    accountNum: number;
-    code: string;
-    amount: number;
-    badgeIds: IdRange[];
-    fullCode: string;
-    userInfo: BitBadgesUserInfo;
+export interface ClaimItem extends Claims {
+    addresses: string[]; //with max uses
+    addressesTree?: MerkleTree;
+
+    codes: string[]; //with max uses
+    codeTree?: MerkleTree;
+
+    hasPassword: boolean;
 }
 
 export enum DistributionMethod {
@@ -127,15 +155,14 @@ export enum MetadataAddMethod {
 
 export interface Claims {
     balances: Balance[];
-    badgeIds: IdRange[];
-    incrementIdsBy: number;
-    amountPerClaim: number;
-    type: number;
-    data: string;
+    codeRoot: string;
+    whitelistRoot: string;
     uri: string;
     timeRange: IdRange;
-    leaves: string[];
-    distributionMethod: DistributionMethod;
+    limitPerAccount: number;
+    amount: number;
+    badgeIds: IdRange[];
+    incrementIdsBy: number;
 }
 
 export interface Proof {
@@ -158,7 +185,7 @@ export interface BitBadgeCollection {
     nextBadgeId: number;
     unmintedSupplys: Balance[];
     maxSupplys: Balance[];
-    claims: Claims[];
+    claims: ClaimItem[];
     standard: number;
     collectionMetadata: BadgeMetadata,
     badgeMetadata: BadgeMetadata[],

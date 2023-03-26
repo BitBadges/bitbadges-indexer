@@ -39,10 +39,6 @@ export function GetBalancesForIdRanges(badgeIds: IdRange[], currentUserBalances:
     badgeIds = SortIdRangesAndMergeIfNecessary(badgeIds)
     let idRangesNotFound = badgeIds
 
-    console.log("badgeIds: ", badgeIds);
-    console.log("currentUserBalances: ", currentUserBalances);
-
-
     for (let userBalanceObj of currentUserBalances) {
         userBalanceObj.badgeIds = GetIdRangesWithOmitEmptyCaseHandled(userBalanceObj.badgeIds)
 
