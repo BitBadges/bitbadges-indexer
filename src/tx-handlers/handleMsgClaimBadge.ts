@@ -1,10 +1,10 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
-import { BadgeCollection, Balance, DbStatus } from "../types"
 import { cleanBadgeCollection, cleanUserBalance } from "../util/dataCleaners"
 import { fetchClaims } from "./claims"
 import { handleNewAccount } from "./handleNewAccount"
+import { BadgeCollection, Balance, DbStatus, Docs } from "bitbadges-sdk"
 
 export const handleMsgClaimBadge = async (event: StringEvent, status: DbStatus, docs: Docs): Promise<Docs> => {
     //Fetch events

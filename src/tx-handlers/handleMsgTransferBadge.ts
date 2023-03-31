@@ -1,9 +1,9 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
-import { DbStatus, Transfers, UserBalance } from "../types"
 import { cleanTransfers, cleanUserBalance } from "../util/dataCleaners"
 import { handleNewAccount } from "./handleNewAccount"
+import { DbStatus, Docs, Transfers, UserBalance } from "bitbadges-sdk"
 
 export const handleMsgTransferBadge = async (event: StringEvent, status: DbStatus, docs: Docs): Promise<Docs> => {
     //TODO: creator account handling

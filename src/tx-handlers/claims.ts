@@ -1,6 +1,6 @@
+import { BadgeCollection, ClaimItem } from "bitbadges-sdk";
 import { PASSWORDS_DB } from "../db/db";
 import { fetchUri } from "../metadata-queue";
-import { BadgeCollection, ClaimItem } from "../types";
 import nano from "nano";
 
 
@@ -18,31 +18,35 @@ export const fetchClaims = async (collection: BadgeCollection) => {
                     //If the collection was created through our API, we previously made a document in PASSWORDS_DB with docClaimedByCollection = false
                     //To prevent duplicates, we "claim" the document by setting docClaimedByCollection = true
                     //We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
-                    const ipfsRegex = /^https?:\/\/(?:www\.)?ipfs\.io\/ipfs\/([a-zA-Z0-9]+)/;
-                    const match = claim.uri.match(ipfsRegex);
 
-                    if (match) {
-                        const cid = match[1];
 
-                        if (claim.uri.startsWith('ipfs://')) {
-                            const docQuery: nano.MangoQuery = {
-                                selector: {
-                                    docClaimedByCollection: false,
-                                    cid: cid
+
+                    if (claim.uri.startsWith('ipfs://')) {
+                        const cid = claim.uri.replace('ipfs://', '').split('/')[0];
+                        console.log(cid);
+                        const docQuery: nano.MangoQuery = {
+                            selector: {
+                                docClaimedByCollection: {
+                                    "$eq": false
+                                },
+                                cid: {
+                                    "$eq": cid
                                 }
                             }
+                        }
 
-                            const docResult = await PASSWORDS_DB.find(docQuery);
-                            if (docResult.docs.length) {
-                                const doc = docResult.docs[0];
+                        const docResult = await PASSWORDS_DB.find(docQuery);
 
-                                await PASSWORDS_DB.insert({
-                                    ...doc,
-                                    docClaimedByCollection: true,
-                                    collectionId: collection.collectionId,
-                                    claimId: idx
-                                });
-                            }
+                        console.log(docResult);
+                        if (docResult.docs.length) {
+                            const doc = docResult.docs[0];
+
+                            await PASSWORDS_DB.insert({
+                                ...doc,
+                                docClaimedByCollection: true,
+                                collectionId: collection.collectionId,
+                                claimId: idx
+                            });
                         }
                     }
 
@@ -51,7 +55,8 @@ export const fetchClaims = async (collection: BadgeCollection) => {
 
                     const claimItems: ClaimItem = {
                         ...claim,
-                        codes: fetchedCodes,
+                        hashedCodes: fetchedCodes,
+                        codes: [],
                         addresses: fetchedAddresses,
                         hasPassword: fetchedFile.hasPassword
                     };
@@ -62,6 +67,7 @@ export const fetchClaims = async (collection: BadgeCollection) => {
                     collection.claims[idx] = {
                         ...claim,
                         codes: [],
+                        hashedCodes: [],
                         addresses: [],
                         hasPassword: false,
                         failedToFetch: true
@@ -71,6 +77,7 @@ export const fetchClaims = async (collection: BadgeCollection) => {
                 const claimItems: ClaimItem = {
                     ...claim,
                     codes: [],
+                    hashedCodes: [],
                     addresses: [],
                     hasPassword: false
                 };

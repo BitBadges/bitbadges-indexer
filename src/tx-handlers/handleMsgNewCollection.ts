@@ -1,12 +1,12 @@
 import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { getAttributeValueByKey } from "../indexer"
 import { pushToMetadataQueue } from "../metadata-queue"
-import { BadgeCollection, DbStatus, Transfers } from "../types"
 import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { fetchClaims } from "./claims"
 import { handleNewAccount } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
+import { BadgeCollection, DbStatus, Docs, Transfers } from "bitbadges-sdk"
 
 export const handleMsgNewCollection = async (event: StringEvent, status: DbStatus, docs: Docs): Promise<Docs> => {
     const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");

@@ -1,4 +1,5 @@
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db";
+import { Docs } from "bitbadges-sdk";
+import { fetchDocsForRequestIfEmpty } from "../db/db";
 import { client } from "../indexer";
 
 export const handleNewAccount = async (accountNum: number, docs: Docs): Promise<Docs> => {

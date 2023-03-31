@@ -1,7 +1,7 @@
 import { MessageMsgTransferManager } from "bitbadgesjs-transactions"
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
-import { DbStatus } from "../types"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccount, handleNewAccountByAddress } from "./handleNewAccount"
+import { DbStatus, Docs } from "bitbadges-sdk";
 
 export const handleMsgTransferManager = async (msg: MessageMsgTransferManager, status: DbStatus, docs: Docs): Promise<Docs> => {
     docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);

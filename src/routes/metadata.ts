@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { COLLECTIONS_DB } from "../db/db";
 import { getStatus, setStatus } from "../db/status";
 import { refreshQueueMutex } from "../indexer";
-import { pushToMetadataQueue } from "../metadata-queue";
+import { fetchUri, pushToMetadataQueue } from "../metadata-queue";
 
 export const refreshMetadata = async (req: Request, res: Response) => {
     try {
@@ -15,6 +15,15 @@ export const refreshMetadata = async (req: Request, res: Response) => {
         });
 
         return res.status(200).send({ message: 'Added to queue' });
+    } catch (e) {
+        return res.status(500).send({ message: e.message });
+    }
+}
+
+export const fetchMetadata = async (req: Request, res: Response) => {
+    try {
+        const metadataRes = await fetchUri(req.body.uri);
+        return res.status(200).send({ metadata: metadataRes });
     } catch (e) {
         return res.status(500).send({ message: e.message });
     }

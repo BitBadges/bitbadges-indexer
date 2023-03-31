@@ -1,14 +1,10 @@
 import { Request, Response } from "express";
 import nano from "nano";
-import { convertToCosmosAddress, getChainForAddress, isAddressValid } from "../bitbadges-api/chains";
-import { ACCOUNTS_DB, AccountDocument, COLLECTIONS_DB } from "../db/db";
+import { ACCOUNTS_DB, COLLECTIONS_DB } from "../db/db";
 import { client } from "../indexer";
-import { ActivityItem } from "../types";
 import { getAddressesForNames, getNameForAddress, getNamesForAddresses } from "../util/ensResolvers";
+import { AccountResponse, isAddressValid, getChainForAddress, convertToCosmosAddress, ActivityItem } from "bitbadges-sdk";
 
-export interface AccountResponse extends AccountDocument {
-    name?: string
-}
 
 export const getAccountByAddress = async (req: Request, res: Response) => {
     try {

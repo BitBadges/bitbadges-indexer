@@ -3,6 +3,7 @@
     "compilerOptions": {
         "target": "ESNext",
         "isolatedModules": false,
-        "module": "CommonJS"
+        "module": "CommonJS",
+        "esModuleInterop": true,
     }
 }

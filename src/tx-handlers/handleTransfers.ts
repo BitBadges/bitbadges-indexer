@@ -1,6 +1,4 @@
-import { BadgeCollection, Transfers } from "../types";
-import { AddBalancesForIdRanges } from "../bitbadges-api/balances-gpt";
-import { Docs } from "../db/db";
+import { BadgeCollection, Transfers, Docs, AddBalancesForIdRanges } from "bitbadges-sdk";
 
 export const handleTransfers = async (collection: BadgeCollection, transfers: Transfers[], docs: Docs) => {
     for (let idx = 0; idx < transfers.length; idx++) {

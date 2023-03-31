@@ -53,7 +53,7 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
             const cid = req.params.cid;
             const password = req.params.password;
 
-            //TODO: sprune once the code have actually been used or expired
+            //TODO: prune once all codes have actually been used or expired
 
             const passwordDoc = await PASSWORDS_DB.get(cid);
             const currCode = passwordDoc.currCode;

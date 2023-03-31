@@ -1,4 +1,4 @@
-import { BadgeCollection, Transfers, UserBalance } from "../types";
+import { BadgeCollection, Transfers, UserBalance } from "bitbadges-sdk";
 
 export function cleanBadgeCollection(collection: BadgeCollection) {
     collection.collectionId = collection.collectionId ? Number(collection.collectionId) : 0;
@@ -90,6 +90,7 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
                 }
             }) : [],
             incrementIdsBy: claim.incrementIdsBy ? Number(claim.incrementIdsBy) : 0,
+            expectedMerkleProofLength: claim.expectedMerkleProofLength ? Number(claim.expectedMerkleProofLength) : 0,
         }
     });
 

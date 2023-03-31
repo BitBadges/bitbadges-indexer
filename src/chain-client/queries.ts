@@ -4,9 +4,8 @@ import * as query from "bitbadgesjs-proto/dist/proto/badges/query";
 import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth";
 import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query";
 import * as ethermint from 'bitbadgesjs-proto/dist/proto/ethermint/crypto/v1/ethsecp256k1/keys';
-import { AccountDocument, ERRORS_DB } from "../db/db";
-import { convertToCosmosAddress } from "../bitbadges-api/chains";
-
+import { ERRORS_DB } from "../db/db";
+import { AccountDocument, convertToCosmosAddress } from "bitbadges-sdk";
 export interface BadgesExtension {
     readonly badges: {
         readonly getAccountInfo: (address: string) => Promise<AccountDocument>

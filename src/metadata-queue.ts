@@ -1,7 +1,7 @@
-import { Docs, METADATA_DB, fetchDocsForRequestIfEmpty } from "./db/db";
-import { BadgeMetadata, DbStatus, BadgeCollection } from "./types";
+import { METADATA_DB, fetchDocsForRequestIfEmpty } from "./db/db";
 import axios from "axios";
 import { getFromIpfs } from "./ipfs/ipfs";
+import { BadgeCollection, DbStatus, Docs, BadgeMetadata } from "bitbadges-sdk";
 
 export const fetchUri = async (uri: string): Promise<any> => {
     if (uri.startsWith('ipfs://')) {
@@ -13,7 +13,9 @@ export const fetchUri = async (uri: string): Promise<any> => {
     }
 }
 
-export const pushToMetadataQueue = async (collection: BadgeCollection, status: DbStatus, specificId?: number | 'collection') => {
+export const pushToMetadataQueue = async (_collection: BadgeCollection, status: DbStatus, specificId?: number | 'collection') => {
+    const collection: BadgeCollection = JSON.parse(JSON.stringify(_collection));
+
     let batchId = 0;
 
     let pushed = false;
@@ -208,7 +210,7 @@ export const fetchUriInQueue = async (status: DbStatus, docs: Docs) => {
             //If we are attempting to fetch the same URI from IPFS, this is redundant (IPFS is permanent storage). Just use the existing metadata.    
             promises.push(Promise.resolve(currMetadata.metadata));
         } else {
-            const uriToFetch = queueObj.uri.includes('{id}') ? queueObj.uri.replace('{id}', queueObj.badgeIds[0].start.toString()) : queueObj.uri;
+            const uriToFetch = queueObj.uri.includes('{id}') && queueObj.badgeIds.length > 0 ? queueObj.uri.replace('{id}', queueObj.badgeIds[0].start.toString()) : queueObj.uri;
             promises.push(fetchUri(uriToFetch));
         }
     }

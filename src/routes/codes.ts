@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { ACCOUNTS_DB, COLLECTIONS_DB, PASSWORDS_DB } from "../db/db";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
+import nano from "nano";
 
 export const getCodes = async (expressReq: Request, res: Response) => {
     try {
@@ -11,7 +12,7 @@ export const getCodes = async (expressReq: Request, res: Response) => {
         const collection = await COLLECTIONS_DB.get(`${collectionId}`);
         const manager = collection.manager;
 
-        
+
         const managerAccountInfo = await ACCOUNTS_DB.get(`${manager}`);
         if (managerAccountInfo.cosmosAddress !== req.session.cosmosAddress) {
             return res.status(401).send({ error: 'Unauthorized. Must be manager of this collection.' });
@@ -21,9 +22,21 @@ export const getCodes = async (expressReq: Request, res: Response) => {
         const codes: string[][] = [];
         const passwords: string[] = [];
         for (let i = 0; i < collection.claims.length; i++) {
-            const ipfsURI = collection.claims[i].uri.replace('ipfs://', '');
+            // const ipfsURI = collection.claims[i].uri.replace('ipfs://', '');
             try {
-                const codesDoc = await PASSWORDS_DB.get(ipfsURI);
+                const docQuery: nano.MangoQuery = {
+                    selector: {
+                        collectionId: {
+                            "$eq": collectionId
+                        },
+                        claimId: {
+                            "$eq": i
+                        }
+                    }
+                }
+
+                const codesDocsArr = await PASSWORDS_DB.find(docQuery);
+                const codesDoc = codesDocsArr.docs[0];
                 codes.push(codesDoc.codes);
                 passwords.push(codesDoc.password);
             } catch {

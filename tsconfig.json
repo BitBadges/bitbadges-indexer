@@ -30,6 +30,10 @@
         "suppressImplicitAnyIndexErrors": true,
         "noUnusedLocals": true,
         "allowSyntheticDefaultImports": true,
-        "downlevelIteration": true
+        "downlevelIteration": true,
+    },
+    "ts-node": {
+        "esm": true,
+        "experimentalSpecifierResolution": "node",
     }
 }

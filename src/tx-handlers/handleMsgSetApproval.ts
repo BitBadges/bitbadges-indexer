@@ -1,7 +1,7 @@
 import { MessageMsgSetApproval } from "bitbadgesjs-transactions"
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
-import { Approval, DbStatus } from "../types"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { Approval, DbStatus, Docs } from "bitbadges-sdk";
 
 export const handleMsgSetApproval = async (msg: MessageMsgSetApproval, status: DbStatus, docs: Docs): Promise<Docs> => {
     docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);

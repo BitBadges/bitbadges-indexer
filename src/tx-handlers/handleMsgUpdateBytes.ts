@@ -1,7 +1,7 @@
 import { MessageMsgUpdateBytes } from "bitbadgesjs-transactions"
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
-import { DbStatus } from "../types"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { DbStatus, Docs } from "bitbadges-sdk";
 
 
 export const handleMsgUpdateBytes = async (msg: MessageMsgUpdateBytes, status: DbStatus, docs: Docs): Promise<Docs> => {

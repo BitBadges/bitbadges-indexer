@@ -14,7 +14,7 @@ import { getCodes } from "./routes/codes"
 import { getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
 import { addMerkleTreeToIpfsHandler, addToIpfsHandler } from "./routes/ipfs"
 import { getPasswordsAndCodes } from "./routes/passwords"
-import { refreshMetadata } from "./routes/refreshMetadata"
+import { fetchMetadata, refreshMetadata } from "./routes/metadata"
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccountByAddress, getAccountById, getBatchUsers, getPortfolioInfo } from "./routes/users"
@@ -114,6 +114,8 @@ app.post('/api/user/batch', getBatchUsers);
 
 app.get('/api/user/portfolio/:accountNum', getPortfolioInfo);
 app.get('/api/collection/codes/:collectionId', authorizeBlockinRequest, getCodes);
+
+app.post('/api/metadata', fetchMetadata);
 
 //IMPORTANT: These routes actually update documents and require control of a mutex (see implementations).
 app.post('/api/collection/refreshMetadata', refreshMetadata);

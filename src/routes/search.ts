@@ -2,10 +2,9 @@
 import { ethers } from "ethers";
 import { Request, Response } from "express";
 import nano from "nano";
-import { convertToCosmosAddress, getChainForAddress, isAddressValid } from "../bitbadges-api/chains";
 import { ACCOUNTS_DB, METADATA_DB } from "../db/db";
-import { AccountResponse } from "./users";
 import { getNameForAddress } from "../util/ensResolvers";
+import { isAddressValid, AccountResponse, getChainForAddress, convertToCosmosAddress } from "bitbadges-sdk";
 
 export const searchHandler = async (req: Request, res: Response) => {
     try {
@@ -102,7 +101,7 @@ export const searchHandler = async (req: Request, res: Response) => {
         //For all accounts, fetch the name and chain, then return it
         const accounts = [];
         const promises = [];
-        
+
         for (let account of returnDocs) {
             if (!account.name) {
                 promises.push(getNameForAddress(account.address));

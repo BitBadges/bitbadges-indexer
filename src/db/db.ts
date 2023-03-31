@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { BadgeCollection, BadgeMetadata, DbStatus, IdRange } from "../types";
+import { AccountDocument, DbStatus, MetadataDocument, PasswordDocument, BadgeCollection, AccountDocs, CollectionDocs, Docs, MetadataDocs } from 'bitbadges-sdk';
 
 config();
 
@@ -13,57 +13,6 @@ export const STATUS_DB = nano.db.use<DbStatus>('status');
 export const ERRORS_DB = nano.db.use<any>('errors');
 export const METADATA_DB = nano.db.use<MetadataDocument>('metadata'); //partitioned
 export const PASSWORDS_DB = nano.db.use<PasswordDocument>('passwords');
-
-export interface AccountDocument {
-    address: string,
-    cosmosAddress: string,
-    account_number: number,
-    pub_key: string,
-    sequence: number,
-    chain: string,
-}
-
-export interface MetadataDocument {
-    metadata: BadgeMetadata
-    badgeIds: IdRange[]
-    isCollection: boolean
-    id: number | 'collection'
-    uri: string
-}
-
-export interface PasswordDocument {
-    password: string
-    codes: string[]
-    currCode: number
-    claimedUsers: {
-        [cosmosAddress: string]: number
-    }
-    cid: string
-    docClaimedByCollection: boolean
-    claimId: number
-    collectionId: number
-}
-
-export interface AccountDocs {
-    [id: string]: AccountDocument & Nano.DocumentGetResponse;
-}
-
-export interface CollectionDocs {
-    [id: string]: BadgeCollection & Nano.DocumentGetResponse;
-}
-
-export interface MetadataDocs {
-    [partitionedId: string]: MetadataDocument & Nano.DocumentGetResponse;
-}
-
-export interface Docs {
-    accounts: AccountDocs;
-    collections: CollectionDocs;
-    metadata: MetadataDocs;
-    accountNumbersMap: {
-        [cosmosAddress: string]: number;
-    }
-}
 
 export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: number[], collectionIds: number[], metadataIds: string[]) {
     try {

@@ -4,7 +4,7 @@ import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import { ABCIMessageLog, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { Docs, ERRORS_DB, finalizeDocsForRequest } from "./db/db"
+import { ERRORS_DB, finalizeDocsForRequest } from "./db/db"
 import { getStatus, setStatus } from "./db/status"
 import { handleMsgClaimBadge } from "./tx-handlers/handleMsgClaimBadge"
 import { handleMsgMintBadge } from "./tx-handlers/handleMsgMintBadge"
@@ -20,9 +20,9 @@ import { handleMsgUpdatePermissions } from "./tx-handlers/handleMsgUpdatePermiss
 import { handleMsgUpdateUris } from "./tx-handlers/handleMsgUpdateUris"
 import { client, getAttributeValueByKey, refreshQueueMutex, setClient, setTimer } from "./indexer"
 import { fetchUriInQueue } from "./metadata-queue"
-import { DbStatus } from "./types"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
 import { MessageMsgRegisterAddresses, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateDisallowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
+import { DbStatus, Docs } from "bitbadges-sdk"
 
 
 const pollIntervalMs = 1_000
@@ -57,7 +57,6 @@ export const poll = async () => {
             while (status.block.height < currentHeight) {
                 const processing = status.block.height + 1
                 process.stdout.cursorTo(0);
-                // process.stdout.clearLine(1);
 
                 const block: Block = await client.getBlock(processing)
                 process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
@@ -146,7 +145,7 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
     }
 
     decodedTx = decodeTxRaw(indexed.tx);
-    decodedTx.body.messages.forEach(async (message) => {
+    for (const message of decodedTx.body.messages) {
         const typeUrl = message.typeUrl;
         const value = message.value;
         switch (typeUrl) {
@@ -185,7 +184,7 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
             default:
                 break;
         }
-    });
+    }
 
     const events: StringEvent[] = rawLog.flatMap((log: ABCIMessageLog) => log.events)
     docs = await handleEvents(events, status, docs)

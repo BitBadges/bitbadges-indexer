@@ -1,11 +1,22 @@
 import { Request, Response } from "express";
-import { BadgeMetadata, BadgeMetadataMap } from "../types";
-import { COLLECTIONS_DB, METADATA_DB } from "../db/db";
 import nano from "nano";
+import { ACCOUNTS_DB, COLLECTIONS_DB, METADATA_DB } from "../db/db";
+import { BadgeCollection, BadgeMetadata, BadgeMetadataMap, AccountDocument, convertToBitBadgesUserInfo } from "bitbadges-sdk";
 
 export const getCollectionById = async (req: Request, res: Response) => {
     try {
-        const collection = await COLLECTIONS_DB.get(req.params.collectionId);
+        const promises = [];
+        promises.push(COLLECTIONS_DB.get(req.params.id));
+        promises.push(getMetadata(Number(req.params.id), 0));
+
+        const results = await Promise.all(promises);
+        const collection = results[0] as nano.DocumentGetResponse & BadgeCollection;
+
+        const metadataRes: { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap } = results[1] as { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap };
+
+        const appendedCollection = appendMetadataResToCollection(metadataRes, collection);
+        collection.badgeMetadata = appendedCollection.badgeMetadata;
+        collection.collectionMetadata = appendedCollection.collectionMetadata;
 
         return res.json({
             ...collection,
@@ -18,13 +29,63 @@ export const getCollectionById = async (req: Request, res: Response) => {
 
 export const getCollections = async (req: Request, res: Response) => {
     try {
-        let collectionNumsResponse;
+        let collectionNumsResponse: BadgeCollection[];
 
+        //Here, we fetch the collections from the database and initial metadata if startBatchId is defined
         if (req.body.collections && req.body.collections.length !== 0) {
-            const response = await COLLECTIONS_DB.fetch({ keys: req.body.collections.map((num: number) => `${num}`) });
-            collectionNumsResponse = response.rows.map((row: any) => row.doc);
+            const keys = [];
+            const metadataFetches: { collectionId: number, startBatchId: number }[] = [];
+            for (let i = 0; i < req.body.collections.length; i++) {
+                keys.push(`${req.body.collections[i]}`);
+                if (req.body.startBatchIds && req.body.startBatchIds[i] >= 0) {
+                    metadataFetches.push({ collectionId: req.body.collections[i], startBatchId: req.body.startBatchIds[i] });
+                }
+            }
+
+            //promises[0] will be the collection fetch
+            //promises[1...] will be the metadata fetches
+            const promises = [];
+            promises.push(COLLECTIONS_DB.fetch({ keys }));
+            for (const metadataFetch of metadataFetches) {
+                promises.push(getMetadata(metadataFetch.collectionId, metadataFetch.startBatchId));
+            }
+
+            const responses = await Promise.all(promises);
+            const collectionResponse: nano.DocumentFetchResponse<BadgeCollection> = responses[0] as nano.DocumentFetchResponse<BadgeCollection>;
+            collectionNumsResponse = collectionResponse.rows.map((row: any) => row.doc);
+
+            //Append the metadata responses to each collection
+            for (let i = 1; i < responses.length; i++) {
+                const metadataRes: { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap } = responses[i] as { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap };
+
+                let collectionIdx = collectionNumsResponse.findIndex((collection) => collection.collectionId === metadataFetches[i - 1].collectionId);
+                if (collectionIdx == -1) continue;
+
+                const appendedCollection = appendMetadataResToCollection(metadataRes, collectionNumsResponse[collectionIdx]);
+                collectionNumsResponse[collectionIdx].badgeMetadata = appendedCollection.badgeMetadata;
+                collectionNumsResponse[collectionIdx].collectionMetadata = appendedCollection.collectionMetadata;
+            }
         } else {
             collectionNumsResponse = [];
+        }
+
+        //Fetch the managers' account information
+        let keys = [];
+        for (const collection of collectionNumsResponse) {
+            const managerAccountNumber: any = collection.manager;
+            keys.push(`${managerAccountNumber}`);
+        }
+        keys = [...new Set(keys)];
+
+        const accountsResponseDocs = await ACCOUNTS_DB.fetch({ keys }).then((response) => {
+            return response.rows.map((row: any) => row.doc);
+        });
+
+        //Append fetched account information to the collection
+        for (let i = 0; i < collectionNumsResponse.length; i++) {
+            const managerAccountNumber: any = collectionNumsResponse[i].manager;
+            const managerInfo = accountsResponseDocs.find((account: AccountDocument) => account.account_number === managerAccountNumber);
+            collectionNumsResponse[i].manager = convertToBitBadgesUserInfo(managerInfo) as any;
         }
 
         return res.status(200).send({ collections: [...collectionNumsResponse] });
@@ -54,48 +115,63 @@ export const queryCollections = async (req: Request, res: Response) => {
     }
 }
 
-export const getMetadataForCollection = async (req: Request, res: Response) => {
-    try {
-        const LIMIT = 100;
-        const startId = Number(req.body.startBatchId);
+const getMetadata = async (collectionId: number, startBatchId: number) => {
+    const LIMIT = 100;
+    const startId = Number(startBatchId);
 
-        //Fetch 100 at a time
-        const response = await METADATA_DB.partitionedFind(`${req.params.collectionId}`, {
-            selector: {
-                "id": {
-                    "$and": [
-                        {
-                            "$gte": startId && !isNaN(startId) ? startId : 0,
-                        },
-                        {
-                            "$lte": startId && !isNaN(startId) ? startId + LIMIT : LIMIT,
-                        }
-                    ]
-                }
-            },
-            limit: LIMIT + 1,
-        })
+    //Fetch 100 at a time
+    const response = await METADATA_DB.partitionedFind(`${collectionId}`, {
+        selector: {
+            "id": {
+                "$and": [
+                    {
+                        "$gte": startId && !isNaN(startId) ? startId : 0,
+                    },
+                    {
+                        "$lte": startId && !isNaN(startId) ? startId + LIMIT : LIMIT,
+                    }
+                ]
+            }
+        },
+        limit: LIMIT + 1,
+    })
 
-        let badgeMetadata: BadgeMetadataMap = {};
-        let collectionMetadata: BadgeMetadata | undefined = undefined;
-        for (const doc of response.docs) {
-            const metadataBatchId = doc._id.split(':')[1];
-            if (doc.isCollection) {
-                collectionMetadata = doc.metadata;
-            } else {
-                badgeMetadata[metadataBatchId] = {
-                    metadata: doc.metadata,
-                    badgeIds: doc.badgeIds,
-                }
+    let badgeMetadata: BadgeMetadataMap = {};
+    let collectionMetadata: BadgeMetadata | undefined = undefined;
+    for (const doc of response.docs) {
+        const metadataBatchId = doc._id.split(':')[1];
+        if (doc.isCollection) {
+            collectionMetadata = doc.metadata;
+        } else {
+            badgeMetadata[metadataBatchId] = {
+                metadata: doc.metadata,
+                badgeIds: doc.badgeIds,
+                uri: doc.uri
             }
         }
+    }
 
-        // console.log(badgeMetadata);
+    return {
+        collectionMetadata: { ...collectionMetadata },
+        badgeMetadata
+    }
+}
 
-        return res.json({
-            collectionMetadata: { ...collectionMetadata },
-            badgeMetadata
-        })
+const appendMetadataResToCollection = (metadataRes: { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap }, collection: BadgeCollection) => {
+    const isCollectionMetadataResEmpty = Object.keys(metadataRes.collectionMetadata).length === 0;
+    collection.collectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.collectionMetadata;
+    collection.badgeMetadata = {
+        ...collection.badgeMetadata,
+        ...metadataRes.badgeMetadata
+    };
+
+    return collection;
+}
+
+export const getMetadataForCollection = async (req: Request, res: Response) => {
+    try {
+        const metadata = await getMetadata(Number(req.params.collectionId), Number(req.body.startBatchId));
+        return res.json(metadata)
     } catch (e) {
         console.error(e);
         return res.status(500).send({

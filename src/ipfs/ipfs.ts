@@ -1,8 +1,8 @@
 import last from 'it-last';
-import { BadgeMetadata } from "../types";
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { ipfsClient } from "../indexer";
 import axios from 'axios';
+import { BadgeMetadata } from 'bitbadges-sdk';
 
 
 export const getFromIpfs = async (path: string) => {

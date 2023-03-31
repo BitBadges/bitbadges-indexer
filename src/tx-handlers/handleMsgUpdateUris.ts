@@ -1,8 +1,8 @@
 import { MessageMsgUpdateUris } from "bitbadgesjs-transactions"
-import { Docs, fetchDocsForRequestIfEmpty } from "../db/db"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
-import { DbStatus } from "../types"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { DbStatus, Docs } from "bitbadges-sdk"
 
 export const handleMsgUpdateUris = async (msg: MessageMsgUpdateUris, status: DbStatus, docs: Docs): Promise<Docs> => {
     docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
