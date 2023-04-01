@@ -45,7 +45,7 @@ export const fetchClaims = async (collection: BadgeCollection) => {
                                 ...doc,
                                 docClaimedByCollection: true,
                                 collectionId: collection.collectionId,
-                                claimId: idx
+                                claimId: idx + 1
                             });
                         }
                     }

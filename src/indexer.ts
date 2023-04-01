@@ -119,7 +119,7 @@ app.post('/api/metadata', fetchMetadata);
 
 //IMPORTANT: These routes actually update documents and require control of a mutex (see implementations).
 app.post('/api/collection/refreshMetadata', refreshMetadata);
-app.get('/api/password/:cid/:password', authorizeBlockinRequest, getPasswordsAndCodes);
+app.get('/api/password/:collectionId/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes);
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

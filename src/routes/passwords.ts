@@ -1,7 +1,8 @@
+import { Mutex } from "async-mutex";
 import { Request, Response } from "express";
+import nano from "nano";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
 import { PASSWORDS_DB } from "../db/db";
-import { Mutex } from "async-mutex";
 
 // create a map to store the document-specific mutexes
 const documentMutexes = new Map();
@@ -44,31 +45,45 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
         }
 
 
-        await documentMutex.runExclusive(async () => {
+        const returnValue = await documentMutex.runExclusive(async () => {
             const req = expressReq as AuthenticatedRequest;
             if (!req.session.blockin || !req.session.cosmosAddress) {
-                return res.status(401).send({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
+                return Promise.reject({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
             }
 
-            const cid = req.params.cid;
+            const collectionId = req.params.collectionId;
+            const claimId = req.params.claimId;
             const password = req.params.password;
 
             //TODO: prune once all codes have actually been used or expired
 
-            const passwordDoc = await PASSWORDS_DB.get(cid);
+            const query: nano.MangoQuery = {
+                selector: {
+                    collectionId: {
+                        "$eq": Number(collectionId)
+                    },
+                    claimId: {
+                        "$eq": Number(claimId)
+                    }
+                }
+            }
+            const passwordDocResponse = await PASSWORDS_DB.find(query);
+
+            if (passwordDocResponse.docs.length === 0) {
+                return Promise.reject({ message: 'Doc not found' });
+            }
+
+            const passwordDoc = passwordDocResponse.docs[0];
+
             const currCode = passwordDoc.currCode;
             const claimedUsers = passwordDoc.claimedUsers ? passwordDoc.claimedUsers : {};
 
-            if (claimedUsers[req.session.cosmosAddress]) {
-                return res.status(200).send({ code: passwordDoc.codes[claimedUsers[req.session.cosmosAddress]] });
-            }
-
-            if (!passwordDoc) {
-                return res.status(404).send({ message: 'Doc not found' });
+            if (claimedUsers[req.session.cosmosAddress] >= 0) {
+                return { code: passwordDoc.codes[claimedUsers[req.session.cosmosAddress]] };
             }
 
             if (passwordDoc.password !== password) {
-                return res.status(401).send({ message: 'Incorrect password' });
+                return Promise.reject({ message: 'Incorrect password' });
             }
 
             await PASSWORDS_DB.insert({
@@ -80,12 +95,16 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
                 }
             });
 
-            return res.status(200).send({ code: passwordDoc.codes[currCode] });
+            return { code: passwordDoc.codes[currCode] };
         });
 
-        throw new Error('Should not reach here');
+        console.log(returnValue);
+
+        return res.status(200).send(returnValue);
     } catch (e) {
         console.error(e);
-        return res.status(500).send({ error: e });
+        return res.status(500).send({ error: 'Internal server error handling passwords.' });
     }
+
+
 }

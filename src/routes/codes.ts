@@ -30,7 +30,7 @@ export const getCodes = async (expressReq: Request, res: Response) => {
                             "$eq": collectionId
                         },
                         claimId: {
-                            "$eq": i
+                            "$eq": i + 1
                         }
                     }
                 }
