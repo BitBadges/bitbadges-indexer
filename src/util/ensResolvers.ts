@@ -46,3 +46,33 @@ export async function getAddressForName(name: string) {
     }
 }
 
+export async function getEnsAvatar(name: string) {
+    try {
+        const provider = new ethers.InfuraProvider(
+            'homestead',
+            process.env.INFURA_API_KEY
+        );
+
+        console.log("name: ", name);
+        const ensAvatar = await provider.getAvatar(name);
+        console.log("ensAvatar: ", ensAvatar);
+        if (ensAvatar) return ensAvatar;
+        return '';
+    } catch (e) {
+        return '';
+    }
+}
+
+
+export async function getAvatarsForNames(names: string[]) {
+    const promises = [];
+    for (const name of names) {
+        if (name) {
+            promises.push(getEnsAvatar(name));
+        } else {
+            promises.push(Promise.resolve(''));
+        }
+    }
+    const avatars = await Promise.all(promises);
+    return avatars;
+}

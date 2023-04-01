@@ -3,8 +3,10 @@ import { ethers } from "ethers";
 import { Request, Response } from "express";
 import nano from "nano";
 import { ACCOUNTS_DB, METADATA_DB } from "../db/db";
-import { getNameForAddress } from "../util/ensResolvers";
+import { getEnsAvatar, getNameForAddress } from "../util/ensResolvers";
 import { isAddressValid, AccountResponse, getChainForAddress, convertToCosmosAddress } from "bitbadges-sdk";
+//TODO: Do not redundantly fetch ENS names and avatars (both here and in users.ts)
+
 
 export const searchHandler = async (req: Request, res: Response) => {
     try {
@@ -18,7 +20,8 @@ export const searchHandler = async (req: Request, res: Response) => {
 
         //Attempt to resolve ENS
         let address = searchValue;
-        let resolvedEnsAddress: string | undefined = undefined;
+        let ensName = '';
+        let avatar = '';
         const tryEns = searchValue.includes('.eth') ? searchValue : `${searchValue}.eth`;
         if (!isAddressValid(searchValue)) {
             try {
@@ -29,8 +32,17 @@ export const searchHandler = async (req: Request, res: Response) => {
                 );
                 const resolvedAddress = await provider.resolveName(tryEns);
                 if (resolvedAddress) {
-                    resolvedEnsAddress = resolvedAddress;
+                    address = resolvedAddress;
+                    ensName = tryEns;
+
+                    //Attempt to get avatar
+                    const ensAvatar = await provider.getAvatar(tryEns);
+                    console.log(ensAvatar);
+                    if (ensAvatar) {
+                        avatar = ensAvatar;
+                    }
                 }
+
             } catch (e) {
 
             }
@@ -53,8 +65,6 @@ export const searchHandler = async (req: Request, res: Response) => {
                 "$or": [
                     { "address": { "$regex": `(?i)${address}` } },
                     { "cosmosAddress": { "$regex": `(?i)${address}` } },
-                    { "address": { "$regex": `(?i)${resolvedEnsAddress}` } },
-                    { "cosmosAddress": { "$regex": `(?i)${resolvedEnsAddress}` } },
                 ]
             },
             limit: 3,
@@ -85,18 +95,26 @@ export const searchHandler = async (req: Request, res: Response) => {
                 address: address,
                 cosmosAddress: convertToCosmosAddress(address),
                 name: '',
+                avatar: '',
                 sequence: 0,
                 pub_key: '',
             });
         }
 
         //Update matching document with previously fetched ENS name
-        if (resolvedEnsAddress) {
-            const matchingDoc = returnDocs.find((doc) => doc.address === resolvedEnsAddress);
+        if (ensName) {
+
+            const matchingDoc = returnDocs.find((doc) => doc.address === address);
+            console.log(matchingDoc)
             if (matchingDoc) {
                 matchingDoc.name = tryEns;
+                matchingDoc.avatar = avatar;
             }
         }
+
+        console.log(returnDocs);
+
+
 
         //For all accounts, fetch the name and chain, then return it
         const accounts = [];
@@ -113,11 +131,32 @@ export const searchHandler = async (req: Request, res: Response) => {
 
 
         const nameResults = await Promise.all(promises);
+
         for (let i = 0; i < returnDocs.length; i++) {
             const account = returnDocs[i];
             account.name = nameResults[i];
             accounts.push(account);
         }
+
+        const avatarPromises = [];
+        for (let account of accounts) {
+            if (account.name) {
+                avatarPromises.push(getEnsAvatar(account.name));
+            } else {
+                avatarPromises.push(Promise.resolve(''));
+            }
+        }
+
+
+        const avatarResults = await Promise.all(avatarPromises);
+        const accounts2 = [];
+        for (let i = 0; i < returnDocs.length; i++) {
+            const account = returnDocs[i];
+            account.avatar = avatarResults[i];
+            accounts2.push(account);
+        }
+
+        console.log(accounts);
 
         return res.json({
             collections: response.docs,

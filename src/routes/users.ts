@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import nano from "nano";
 import { ACCOUNTS_DB, COLLECTIONS_DB } from "../db/db";
 import { client } from "../indexer";
-import { getAddressesForNames, getNameForAddress, getNamesForAddresses } from "../util/ensResolvers";
+import { getAddressesForNames, getAvatarsForNames, getEnsAvatar, getNameForAddress, getNamesForAddresses } from "../util/ensResolvers";
 import { AccountResponse, isAddressValid, getChainForAddress, convertToCosmosAddress, ActivityItem } from "bitbadges-sdk";
 
 
@@ -33,8 +33,12 @@ export const getAccountById = async (req: Request, res: Response) => {
 
 export async function appendNameForAccount(account: any) {
     try {
-        const ensAddress = await getNameForAddress(account.address);
-        return { ...account, name: ensAddress };
+        const ensName = await getNameForAddress(account.address);
+        let avatar = '';
+        if (ensName) {
+            avatar = await getEnsAvatar(ensName);
+        }
+        return { ...account, name: ensName, avatar };
     } catch (e) {
         return account;
     }
@@ -52,7 +56,13 @@ export const getBatchUsers = async (req: Request, res: Response) => {
             const names = await getNamesForAddresses(accountsResponse.map((account) => account.address));
             for (let i = 0; i < accountsResponse.length; i++) {
                 const account = accountsResponse[i];
-                account.name = names[account.address];
+                account.name = names[i];
+            }
+
+            const avatars = await getAvatarsForNames(accountsResponse.map((account) => account.name ? account.name : ''));
+            for (let i = 0; i < accountsResponse.length; i++) {
+                const account = accountsResponse[i];
+                account.avatar = avatars[i];
             }
 
             if (response.rows.find(row => row.error)) {
@@ -192,7 +202,6 @@ export const getPortfolioInfo = async (req: Request, res: Response) => {
             managing: response.docs.filter((x) => x.manager === Number(req.params.accountNum)),
         });
     } catch (e) {
-        console.log(e);
         return res.status(500).send({
             error: 'Error fetching portfolio. Please try again later.'
         })
