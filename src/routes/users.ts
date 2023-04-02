@@ -123,10 +123,37 @@ export const getBatchUsers = async (req: Request, res: Response) => {
             }
         }
 
+        const namePromises = [];
         for (const account of accountsResponse) {
             if (nameMap[account.address]) {
-                account.name = nameMap[account.address];
+                namePromises.push(Promise.resolve(nameMap[account.address]));
+            } else {
+                namePromises.push(getNameForAddress(account.address));
             }
+
+
+
+            //     account.name = nameMap[account.address];
+            //     account.avatar = await getEnsAvatar(account.name);
+            // } else {
+            //     account.name = await getNameForAddress(account.address);
+            //     account.avatar = await getEnsAvatar(account.name);
+            // }
+        }
+
+        const names = await Promise.all(namePromises);
+        const avatarPromises = [];
+        for (let i = 0; i < accountsResponse.length; i++) {
+            const account = accountsResponse[i];
+            account.name = names[i];
+
+            avatarPromises.push(getEnsAvatar(account.name));
+        }
+
+        const avatars = await Promise.all(avatarPromises);
+        for (let i = 0; i < accountsResponse.length; i++) {
+            const account = accountsResponse[i];
+            account.avatar = avatars[i];
         }
 
         return res.status(200).send({ accounts: accountsResponse });

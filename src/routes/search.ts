@@ -65,6 +65,8 @@ export const searchHandler = async (req: Request, res: Response) => {
                 "$or": [
                     { "address": { "$regex": `(?i)${address}` } },
                     { "cosmosAddress": { "$regex": `(?i)${address}` } },
+                    { "address": { "$regex": `(?i)${searchValue}` } },
+                    { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
                 ]
             },
             limit: 3,

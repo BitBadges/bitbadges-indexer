@@ -199,7 +199,10 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
                 for (const balance of response.docs[0].balances[accountNum].balances) {
                     for (const badgeId of balance.badgeIds) {
                         if (badgeId.start <= Number(req.params.badgeId) && badgeId.end >= Number(req.params.badgeId)) {
-                            ownerNums.push(accountNum);
+                            ownerNums.push({
+                                accountNum,
+                                balance: balance.balance
+                            });
                         }
                     }
                 }
@@ -208,7 +211,7 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
 
         return res.status(200).send({
             balances: response.docs[0]?.balances ? response.docs[0].balances : [],
-            owners: ownerNums,
+            owners: ownerNums.sort((a, b) => b.balance - a.balance).map(x => x.accountNum)
         });
     } catch (e) {
         return res.status(500).send({ error: e });

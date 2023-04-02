@@ -19,6 +19,7 @@ import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccountByAddress, getAccountById, getBatchUsers, getPortfolioInfo } from "./routes/users"
 import _ from "../environment"
+import { getBrowseCollections } from './routes/browse'
 
 const cors = require('cors');
 
@@ -116,6 +117,7 @@ app.get('/api/user/portfolio/:accountNum', getPortfolioInfo);
 app.get('/api/collection/codes/:collectionId', authorizeBlockinRequest, getCodes);
 
 app.post('/api/metadata', fetchMetadata);
+app.get('/api/browse', getBrowseCollections);
 
 //IMPORTANT: These routes actually update documents and require control of a mutex (see implementations).
 app.post('/api/collection/refreshMetadata', refreshMetadata);

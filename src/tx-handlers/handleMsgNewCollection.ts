@@ -43,6 +43,8 @@ export const handleMsgNewCollection = async (event: StringEvent, status: DbStatu
     docs.collections[collection.collectionId].managerRequests = [];
     docs.collections[collection.collectionId].activity = [];
     docs.collections[collection.collectionId].originalClaims = collection.claims;
+    docs.collections[collection.collectionId].createdBlock = status.block.height;
+
 
 
 
