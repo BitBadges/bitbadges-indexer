@@ -154,31 +154,31 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
                 docs = await handleMsgUpdateUris(urisMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions":
-                const permissionsMsg: MessageMsgUpdatePermissions = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgUpdatePermissions;
+                const permissionsMsg: MessageMsgUpdatePermissions = tx.bitbadges.bitbadgeschain.badges.MsgUpdatePermissions.deserialize(value).toObject() as MessageMsgUpdatePermissions;
                 docs = await handleMsgUpdatePermissions(permissionsMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers":
-                const disallowedMsg: MessageMsgUpdateDisallowedTransfers = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgUpdateDisallowedTransfers;
+                const disallowedMsg: MessageMsgUpdateDisallowedTransfers = tx.bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers.deserialize(value).toObject() as MessageMsgUpdateDisallowedTransfers;
                 docs = await handleMsgUpdateDisallowedTransfers(disallowedMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes":
-                const bytesMsg: MessageMsgUpdateBytes = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgUpdateBytes;
+                const bytesMsg: MessageMsgUpdateBytes = tx.bitbadges.bitbadgeschain.badges.MsgUpdateBytes.deserialize(value).toObject() as MessageMsgUpdateBytes;
                 docs = await handleMsgUpdateBytes(bytesMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgRegisterAddresses":
-                const registerMsg: MessageMsgRegisterAddresses = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgRegisterAddresses;
+                const registerMsg: MessageMsgRegisterAddresses = tx.bitbadges.bitbadgeschain.badges.MsgRegisterAddresses.deserialize(value).toObject() as MessageMsgRegisterAddresses;
                 docs = await handleMsgRegisterAddresses(registerMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgTransferManager":
-                const transferManagerMsg: MessageMsgTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgTransferManager;
+                const transferManagerMsg: MessageMsgTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgTransferManager.deserialize(value).toObject() as MessageMsgTransferManager;
                 docs = await handleMsgTransferManager(transferManagerMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgSetApproval":
-                const setApprovalMsg: MessageMsgSetApproval = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgSetApproval;
+                const setApprovalMsg: MessageMsgSetApproval = tx.bitbadges.bitbadgeschain.badges.MsgSetApproval.deserialize(value).toObject() as MessageMsgSetApproval;
                 docs = await handleMsgSetApproval(setApprovalMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgRequestTransferManager":
-                const requestTransferManagerMsg: MessageMsgRequestTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgRequestTransferManager;
+                const requestTransferManagerMsg: MessageMsgRequestTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgRequestTransferManager.deserialize(value).toObject() as MessageMsgRequestTransferManager;
                 docs = await handleMsgRequestTransferManager(requestTransferManagerMsg, status, docs);
                 break;
             default:
