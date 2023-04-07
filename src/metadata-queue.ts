@@ -1,7 +1,7 @@
 import { METADATA_DB, fetchDocsForRequestIfEmpty } from "./db/db";
 import axios from "axios";
 import { getFromIpfs } from "./ipfs/ipfs";
-import { BadgeCollection, DbStatus, Docs, BadgeMetadata } from "bitbadges-sdk";
+import { StoredBadgeCollection, DbStatus, Docs, BadgeMetadata } from "bitbadges-sdk";
 
 export const fetchUri = async (uri: string): Promise<any> => {
     if (uri.startsWith('ipfs://')) {
@@ -13,8 +13,8 @@ export const fetchUri = async (uri: string): Promise<any> => {
     }
 }
 
-export const pushToMetadataQueue = async (_collection: BadgeCollection, status: DbStatus, specificId?: number | 'collection') => {
-    const collection: BadgeCollection = JSON.parse(JSON.stringify(_collection));
+export const pushToMetadataQueue = async (_collection: StoredBadgeCollection, status: DbStatus, specificId?: number | 'collection') => {
+    const collection: StoredBadgeCollection = JSON.parse(JSON.stringify(_collection));
 
     let batchId = 0;
 
@@ -100,7 +100,7 @@ export const pushToMetadataQueue = async (_collection: BadgeCollection, status: 
 
 //Assumes the metadata queue mutex is already obtained
 export const fetchUriInQueue = async (status: DbStatus, docs: Docs) => {
-    const NUM_METADATA_FETCHES_PER_BLOCK = 10;
+    const NUM_METADATA_FETCHES_PER_BLOCK = 25;
     const MAX_NUM_CALLS_PER_URI = 1000;
 
     //TODO: we have redundances with addToIpfs (we can save resources by storing the metadata when adding it and never having to re-fetch it)
@@ -144,15 +144,10 @@ export const fetchUriInQueue = async (status: DbStatus, docs: Docs) => {
                 if (status.queue[0].purge) {
                     // const res = await METADATA_DB.partitionedList(`${status.queue[0].collectionId}`);
                     const info = await METADATA_DB.partitionInfo(`${status.queue[0].collectionId}`);
-                    console.log(info);
 
-                    // console.log(res.rows);
-                    // console.log(res);
                     const lastBatchIdToPurge = info.doc_count + info.doc_del_count - 1;
                     const startBatchIdToPurge = status.queue[0].batchId !== 'collection' ? status.queue[0].batchId : 1;
 
-
-                    console.log('PURGING', startBatchIdToPurge, lastBatchIdToPurge);
                     for (let i = startBatchIdToPurge; i <= lastBatchIdToPurge; i++) { //This was already incremented
                         metadataIdsToFetch.push(`${status.queue[0].collectionId}:${i}`);
                     }
@@ -168,16 +163,11 @@ export const fetchUriInQueue = async (status: DbStatus, docs: Docs) => {
             if (status.queue[0].purge) {
                 // const res = await METADATA_DB.partitionedList(`${status.queue[0].collectionId}`);
                 const info = await METADATA_DB.partitionInfo(`${status.queue[0].collectionId}`);
-                console.log(info);
 
                 // console.log(res.rows);
                 // console.log(res);
                 const lastBatchIdToPurge = info.doc_count + info.doc_del_count - 1;
                 const startBatchIdToPurge = status.queue[0].batchId !== 'collection' ? status.queue[0].batchId + 1 : 1;
-
-                console.log('PURGING', `${status.queue[0].collectionId}`);
-                console.log("TOTAL_ROWS", info.doc_count + info.doc_del_count);
-                console.log('PURGING', startBatchIdToPurge, lastBatchIdToPurge);
 
                 for (let i = startBatchIdToPurge; i <= lastBatchIdToPurge; i++) {
                     metadataIdsToFetch.push(`${status.queue[0].collectionId}:${i}`);

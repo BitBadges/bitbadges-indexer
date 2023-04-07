@@ -46,33 +46,75 @@ export async function getAddressForName(name: string) {
     }
 }
 
-export async function getEnsAvatar(name: string) {
+export async function getEnsResolver(name: string) {
     try {
         const provider = new ethers.InfuraProvider(
             'homestead',
             process.env.INFURA_API_KEY
         );
 
-        console.log("name: ", name);
-        const ensAvatar = await provider.getAvatar(name);
-        console.log("ensAvatar: ", ensAvatar);
-        if (ensAvatar) return ensAvatar;
-        return '';
+        const ensResolver = await provider.getResolver(name);
+        if (ensResolver) return ensResolver;
+        return null;
     } catch (e) {
-        return '';
+        return null;
     }
 }
 
 
-export async function getAvatarsForNames(names: string[]) {
+export async function getEnsResolversForNames(names: string[]) {
+    try {
+        const promises = [];
+
+        for (const name of names) {
+            promises.push(getEnsResolver(name));
+        }
+        const results = await Promise.all(promises);
+        return results;
+    } catch (e) {
+        return names.map(() => null);
+    }
+}
+
+export async function getEnsDetails(resolver: ethers.EnsResolver) {
+    try {
+        
+        const ensAvatar = await resolver.getAvatar();
+        // const twitter = await resolver.getText('com.twitter');
+        // const github = await resolver.getText('com.github');
+        // const discord = await resolver.getText('com.discord');
+        // const telegram = await resolver.getText('org.telegram');
+
+        // console.log(ensAvatar, twitter, github, discord, telegram);
+
+        return {
+            avatar: ensAvatar ? ensAvatar : '',
+            // twitter: twitter ? twitter : '',
+            // github: github ? github : '',
+            // discord: discord ? discord : '',
+            // telegram: telegram ? telegram : '',
+        };
+    } catch (e) {
+
+        return {
+            avatar: '',
+            twitter: '',
+            github: '',
+            discord: '',
+            telegram: '',
+        };
+    }
+}
+
+export async function getDetailsForNames(resolvers: ethers.EnsResolver[]) {
     const promises = [];
-    for (const name of names) {
-        if (name) {
-            promises.push(getEnsAvatar(name));
+    for (const resolver of resolvers) {
+        if (resolver) {
+            promises.push(getEnsDetails(resolver));
         } else {
-            promises.push(Promise.resolve(''));
+            promises.push(Promise.resolve({}));
         }
     }
-    const avatars = await Promise.all(promises);
-    return avatars;
+    const details = await Promise.all(promises);
+    return details;
 }

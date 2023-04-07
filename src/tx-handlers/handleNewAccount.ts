@@ -9,8 +9,7 @@ export const handleNewAccount = async (accountNum: number, docs: Docs): Promise<
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(accountNum))
         if (accountInfo) {
             docs.accounts[accountNum] = {
-                _id: docs.accounts[accountNum]._id,
-                _rev: docs.accounts[accountNum]._rev,
+                ...docs.accounts[accountNum],
                 ...accountInfo,
             }
             docs.accountNumbersMap[accountInfo.cosmosAddress] = accountNum;

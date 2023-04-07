@@ -1,14 +1,14 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { AccountDocument, DbStatus, MetadataDocument, PasswordDocument, BadgeCollection, AccountDocs, CollectionDocs, Docs, MetadataDocs } from 'bitbadges-sdk';
+import { ActivityItem, AccountDocument, DbStatus, MetadataDocument, PasswordDocument, StoredBadgeCollection, AccountDocs, CollectionDocs, Docs, MetadataDocs } from 'bitbadges-sdk';
 
 config();
 
 const nano = Nano(`${process.env.DB_URL}`);
 
-
+export const ACTIVITY_DB = nano.db.use<ActivityItem>('activity');
 export const ACCOUNTS_DB = nano.db.use<AccountDocument>('accounts');
-export const COLLECTIONS_DB = nano.db.use<BadgeCollection>('collections');
+export const COLLECTIONS_DB = nano.db.use<StoredBadgeCollection>('collections');
 export const STATUS_DB = nano.db.use<DbStatus>('status');
 export const ERRORS_DB = nano.db.use<any>('errors');
 export const METADATA_DB = nano.db.use<MetadataDocument>('metadata'); //partitioned
@@ -42,7 +42,8 @@ export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: nu
                     ...currDocs.metadata,
                     ...newDocs.metadata
                 },
-                accountNumbersMap
+                accountNumbersMap,
+                activityToAdd: currDocs.activityToAdd
             };
         } else {
             return currDocs;
@@ -83,11 +84,11 @@ export async function fetchDocsForRequest(_accountNums: number[], _collectionIds
         for (const collectionId of collectionIds) {
             const result = results[idx++];
             if (result.status === 'fulfilled') {
-                collectionData[collectionId] = result.value as Nano.DocumentGetResponse & BadgeCollection;
+                collectionData[collectionId] = result.value as Nano.DocumentGetResponse & StoredBadgeCollection;
             } else {
                 collectionData[collectionId] = {
                     _id: collectionId.toString(10)
-                } as Nano.DocumentGetResponse & BadgeCollection;
+                } as Nano.DocumentGetResponse & StoredBadgeCollection;
             }
         }
 
@@ -127,6 +128,7 @@ export async function finalizeDocsForRequest(docs: Docs) {
                 ACCOUNTS_DB.bulk({ docs: Object.values(docs.accounts) }),
                 COLLECTIONS_DB.bulk({ docs: Object.values(docs.collections) }),
                 METADATA_DB.bulk({ docs: Object.values(docs.metadata) }),
+                ACTIVITY_DB.bulk({ docs: docs.activityToAdd }),
             ]
         );
     } catch (error) {

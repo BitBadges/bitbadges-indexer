@@ -1,13 +1,13 @@
-import { BadgeCollection, ClaimItem } from "bitbadges-sdk";
+import { StoredBadgeCollection, ClaimItem } from "bitbadges-sdk";
 import { PASSWORDS_DB } from "../db/db";
 import { fetchUri } from "../metadata-queue";
 import nano from "nano";
 
 
-export const fetchClaims = async (collection: BadgeCollection) => {
+export const fetchClaims = async (collection: StoredBadgeCollection, startAt = 0) => {
     try {
         //Handle claim objects
-        for (let idx = 0; idx < collection.claims.length; idx++) {
+        for (let idx = startAt; idx < collection.claims.length; idx++) {
             let claim = collection.claims[idx];
 
             if (claim.uri) {
@@ -18,9 +18,6 @@ export const fetchClaims = async (collection: BadgeCollection) => {
                     //If the collection was created through our API, we previously made a document in PASSWORDS_DB with docClaimedByCollection = false
                     //To prevent duplicates, we "claim" the document by setting docClaimedByCollection = true
                     //We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
-
-
-
                     if (claim.uri.startsWith('ipfs://')) {
                         const cid = claim.uri.replace('ipfs://', '').split('/')[0];
                         console.log(cid);
@@ -58,7 +55,7 @@ export const fetchClaims = async (collection: BadgeCollection) => {
                         hashedCodes: fetchedCodes,
                         codes: [],
                         addresses: fetchedAddresses,
-                        hasPassword: fetchedFile.hasPassword
+                        hasPassword: fetchedFile.hasPassword,
                     };
 
                     collection.claims[idx] = claimItems;

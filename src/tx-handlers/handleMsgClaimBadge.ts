@@ -1,61 +1,127 @@
-import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
-import { fetchDocsForRequestIfEmpty } from "../db/db"
-import { getAttributeValueByKey } from "../indexer"
-import { cleanBadgeCollection, cleanUserBalance } from "../util/dataCleaners"
-import { fetchClaims } from "./claims"
-import { handleNewAccount } from "./handleNewAccount"
-import { BadgeCollection, Balance, DbStatus, Docs } from "bitbadges-sdk"
+import { ActivityItem, AddBalancesForIdRanges, ClaimItem, DbStatus, Docs, getBalanceAfterTransfers } from "bitbadges-sdk"
+import { MessageMsgClaimBadge } from "bitbadgesjs-transactions"
+import nano from "nano"
+import { PASSWORDS_DB, fetchDocsForRequestIfEmpty } from "../db/db"
+import { handleNewAccountByAddress } from "./handleNewAccount"
 
-export const handleMsgClaimBadge = async (event: StringEvent, status: DbStatus, docs: Docs): Promise<Docs> => {
-    //Fetch events
-    const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
-    const userBalanceString: string | undefined = getAttributeValueByKey(event.attributes, "user_balance");
-    const toAddress = getAttributeValueByKey(event.attributes, "to");
-    const claimedBalancesStr: string | undefined = getAttributeValueByKey(event.attributes, "claimed_balances");
-    const claimIdString: string | undefined = getAttributeValueByKey(event.attributes, "claim_id");
-    let codeString = getAttributeValueByKey(event.attributes, "code");
-    let addressString = getAttributeValueByKey(event.attributes, "address");
+export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbStatus, docs: Docs): Promise<Docs> => {
+    let codeString = msg.codeProof.leaf;
+    let addressString = msg.creator;
+    let claimIdString = msg.claimId.toString();
 
-    if (!claimIdString) throw new Error(`New Collection event missing claim_id`)
-    if (!collectionString) throw new Error(`New Collection event missing collection`)
-    if (!userBalanceString) throw new Error(`New Collection event missing user_balance`)
-    if (!toAddress) throw new Error(`New Collection event missing to`)
-    if (!claimedBalancesStr) throw new Error(`New Collection event missing claimed_balances`)
     if (!codeString) codeString = ''
     if (!addressString) addressString = ''
 
-    //Clean if needed
-    const claimedBalances: Balance[] = JSON.parse(claimedBalancesStr);
-    const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
-    const cleanedBalance = cleanUserBalance({ approvals: [], balances: claimedBalances, });
-    const userBalanceJson: any = cleanUserBalance(JSON.parse(userBalanceString));
-
     //Fetch docs if needed
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [collection.collectionId], []);
-    docs = await handleNewAccount(Number(toAddress), docs);
+    docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
+    docs = await handleNewAccountByAddress(msg.creator, docs);
 
-    //Update docs with new data from the claim
-    collection.claims = await fetchClaims(collection);
-    docs.collections[collection.collectionId].claims = collection.claims;
-    docs.collections[collection.collectionId].activity.push({
+    const toAddress = docs.accountNumbersMap[msg.creator];
+
+    const currClaimObj = docs.collections[msg.collectionId].claims[msg.claimId - 1]
+
+    const balanceTransferred = {
+        approvals: [],
+        balances: [{
+            balance: currClaimObj.amount,
+            badgeIds: JSON.parse(JSON.stringify(currClaimObj.badgeIds)),
+        }]
+    };
+
+    const newClaimBalance = getBalanceAfterTransfers(
+        {
+            balances: currClaimObj.balances,
+            approvals: [],
+        },
+        [{
+            toAddresses: [toAddress],
+            balances: [{
+                balance: currClaimObj.amount,
+                badgeIds: currClaimObj.badgeIds,
+            }],
+        }]
+    );
+
+    currClaimObj.balances = newClaimBalance.balances;
+
+    //Increment badgeIDS
+    if (currClaimObj.incrementIdsBy) {
+        for (let i = 0; i < currClaimObj.badgeIds.length; i++) {
+            currClaimObj.badgeIds[i].start += currClaimObj.incrementIdsBy;
+            currClaimObj.badgeIds[i].end += currClaimObj.incrementIdsBy;
+        }
+    }
+
+    docs.collections[msg.collectionId].claims[msg.claimId - 1] = currClaimObj;
+
+    const newClaims = docs.collections[msg.collectionId].claims;
+    for (let i = 0; i < newClaims.length; i++) {
+        const claimItem = newClaims[i] as ClaimItem;
+        if (claimItem.balances.length == 0) {
+            claimItem.codes = [];
+            claimItem.hashedCodes = [];
+            claimItem.addresses = [];
+
+            try {
+                const query: nano.MangoQuery = {
+                    selector: {
+                        collectionId: {
+                            "$eq": msg.collectionId
+                        },
+                        claimId: {
+                            "$eq": i + 1
+                        }
+                    }
+                }
+
+                const result = await PASSWORDS_DB.find(query);
+
+                if (result.docs.length > 0) {
+                    const doc = result.docs[0];
+                    await PASSWORDS_DB.destroy(doc._id, doc._rev);
+                }
+            } catch (e) {
+
+            }
+        }
+    }
+
+    docs.collections[msg.collectionId].claims = newClaims;
+
+    docs.activityToAdd.push({
+        _id: `${docs.collections[msg.collectionId].collectionId}:${Date.now()}`,
         from: ['Mint'],
         to: [Number(toAddress)],
-        balances: cleanedBalance.balances,
+        balances: balanceTransferred.balances,
+        collectionId: docs.collections[msg.collectionId].collectionId,
         method: 'Mint',
-    });
-    docs.collections[collection.collectionId].balances[toAddress] = userBalanceJson;
-    docs.collections[collection.collectionId].usedClaims[claimIdString] = {
-        numUsed: docs.collections[collection.collectionId].usedClaims[claimIdString]
-            ? docs.collections[collection.collectionId].usedClaims[claimIdString].numUsed + 1 : 1,
+        block: status.block.height,
+        timestamp: Date.now(),
+        users: [Number(toAddress)].map((address) => {
+            return { start: address, end: address }
+        }),
+    } as ActivityItem);
+
+    if (docs.collections[msg.collectionId].balances[toAddress]) {
+        for (const balance of balanceTransferred.balances) {
+            docs.collections[msg.collectionId].balances[toAddress] = AddBalancesForIdRanges(docs.collections[msg.collectionId].balances[toAddress], balance.badgeIds, balance.balance)
+        }
+    } else {
+        docs.collections[msg.collectionId].balances[toAddress] = balanceTransferred
+    }
+
+    docs.collections[msg.collectionId].usedClaims[claimIdString] = {
+        numUsed: docs.collections[msg.collectionId].usedClaims[claimIdString]
+            ? docs.collections[msg.collectionId].usedClaims[claimIdString].numUsed + 1 : 1,
         addresses: {
-            ...docs.collections[collection.collectionId].usedClaims[claimIdString]?.addresses,
-            [addressString]: docs.collections[collection.collectionId].usedClaims[claimIdString]?.addresses[addressString]
-                ? docs.collections[collection.collectionId].usedClaims[claimIdString]?.addresses[addressString] + 1 : 1,
+            ...docs.collections[msg.collectionId].usedClaims[claimIdString]?.addresses,
+            [addressString]: docs.collections[msg.collectionId].usedClaims[claimIdString]?.addresses[addressString]
+                ? docs.collections[msg.collectionId].usedClaims[claimIdString]?.addresses[addressString] + 1 : 1,
         },
         codes: {
-            ...docs.collections[collection.collectionId].usedClaims[claimIdString]?.codes,
-            [codeString]: docs.collections[collection.collectionId].usedClaims[claimIdString]?.addresses[codeString]
-                ? docs.collections[collection.collectionId].usedClaims[claimIdString]?.addresses[codeString] + 1 : 1,
+            ...docs.collections[msg.collectionId].usedClaims[claimIdString]?.codes,
+            [codeString]: docs.collections[msg.collectionId].usedClaims[claimIdString]?.addresses[codeString]
+                ? docs.collections[msg.collectionId].usedClaims[claimIdString]?.addresses[codeString] + 1 : 1,
         }
     };
 

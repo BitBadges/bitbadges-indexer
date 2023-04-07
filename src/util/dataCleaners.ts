@@ -1,6 +1,6 @@
-import { BadgeCollection, Transfers, UserBalance } from "bitbadges-sdk";
+import { StoredBadgeCollection, Transfers, UserBalance } from "bitbadges-sdk";
 
-export function cleanBadgeCollection(collection: BadgeCollection) {
+export function cleanStoredBadgeCollection(collection: StoredBadgeCollection) {
     collection.collectionId = collection.collectionId ? Number(collection.collectionId) : 0;
     collection.nextBadgeId = collection.nextBadgeId ? Number(collection.nextBadgeId) : 0;
     collection.standard = collection.standard ? Number(collection.standard) : 0;
@@ -18,7 +18,7 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
     collection.disallowedTransfers = collection.disallowedTransfers.map((transfer) => {
         return {
             to: {
-                accountNums: transfer.to.accountNums ? transfer.to.accountNums.map((accountNum) => {
+                accountIds: transfer.to.accountIds ? transfer.to.accountIds.map((accountNum) => {
                     return {
                         start: accountNum.start ? Number(accountNum.start) : 0,
                         end: accountNum.end ? Number(accountNum.end) : 0
@@ -27,7 +27,7 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
                 options: transfer.to.options ? Number(transfer.to.options) : 0
             },
             from: {
-                accountNums: transfer.from.accountNums ? transfer.from.accountNums.map((accountNum) => {
+                accountIds: transfer.from.accountIds ? transfer.from.accountIds.map((accountNum) => {
                     return {
                         start: accountNum.start ? Number(accountNum.start) : 0,
                         end: accountNum.end ? Number(accountNum.end) : 0
@@ -41,7 +41,7 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
     collection.managerApprovedTransfers = collection.managerApprovedTransfers.map((transfer) => {
         return {
             to: {
-                accountNums: transfer.to.accountNums ? transfer.to.accountNums.map((accountNum) => {
+                accountIds: transfer.to.accountIds ? transfer.to.accountIds.map((accountNum) => {
                     return {
                         start: accountNum.start ? Number(accountNum.start) : 0,
                         end: accountNum.end ? Number(accountNum.end) : 0
@@ -50,7 +50,7 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
                 options: transfer.to.options ? Number(transfer.to.options) : 0
             },
             from: {
-                accountNums: transfer.from.accountNums ? transfer.from.accountNums.map((accountNum) => {
+                accountIds: transfer.from.accountIds ? transfer.from.accountIds.map((accountNum) => {
                     return {
                         start: accountNum.start ? Number(accountNum.start) : 0,
                         end: accountNum.end ? Number(accountNum.end) : 0
@@ -81,7 +81,7 @@ export function cleanBadgeCollection(collection: BadgeCollection) {
                 start: claim.timeRange.start ? Number(claim.timeRange.start) : 0,
                 end: claim.timeRange.end ? Number(claim.timeRange.end) : 0
             },
-            limitPerAccount: claim.limitPerAccount ? Number(claim.limitPerAccount) : 0,
+            restrictOptions: claim.restrictOptions ? Number(claim.restrictOptions) : 0,
             amount: claim.amount ? Number(claim.amount) : 0,
             badgeIds: claim.badgeIds ? claim.badgeIds.map((id) => {
                 return {

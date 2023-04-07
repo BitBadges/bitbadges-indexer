@@ -2,10 +2,15 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
+import { DbStatus, Docs } from "bitbadges-sdk"
+import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
+import { MessageMsgClaimBadge, MessageMsgMintBadge, MessageMsgNewCollection, MessageMsgRegisterAddresses, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateDisallowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
 import { ABCIMessageLog, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { ERRORS_DB, finalizeDocsForRequest } from "./db/db"
 import { getStatus, setStatus } from "./db/status"
+import { client, refreshQueueMutex, setClient, setTimer } from "./indexer"
+import { fetchUriInQueue } from "./metadata-queue"
 import { handleMsgClaimBadge } from "./tx-handlers/handleMsgClaimBadge"
 import { handleMsgMintBadge } from "./tx-handlers/handleMsgMintBadge"
 import { handleMsgNewCollection } from "./tx-handlers/handleMsgNewCollection"
@@ -18,11 +23,6 @@ import { handleMsgUpdateBytes } from "./tx-handlers/handleMsgUpdateBytes"
 import { handleMsgUpdateDisallowedTransfers } from "./tx-handlers/handleMsgUpdateDisallowedTransfers"
 import { handleMsgUpdatePermissions } from "./tx-handlers/handleMsgUpdatePermissions"
 import { handleMsgUpdateUris } from "./tx-handlers/handleMsgUpdateUris"
-import { client, getAttributeValueByKey, refreshQueueMutex, setClient, setTimer } from "./indexer"
-import { fetchUriInQueue } from "./metadata-queue"
-import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import { MessageMsgRegisterAddresses, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateDisallowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
-import { DbStatus, Docs } from "bitbadges-sdk"
 
 
 const pollIntervalMs = 1_000
@@ -48,6 +48,7 @@ export const poll = async () => {
                 collections: {},
                 metadata: {},
                 accountNumbersMap: {},
+                activityToAdd: []
             };
             if (status.block.height <= currentHeight - 100) {
                 console.log(`Catching up ${status.block.height}..${currentHeight}`)
@@ -181,6 +182,22 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
                 const requestTransferManagerMsg: MessageMsgRequestTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgRequestTransferManager.deserialize(value).toObject() as MessageMsgRequestTransferManager;
                 docs = await handleMsgRequestTransferManager(requestTransferManagerMsg, status, docs);
                 break;
+            case "/bitbadges.bitbadgeschain.badges.MsgClaimBadge":
+                const claimMsg: MessageMsgClaimBadge = tx.bitbadges.bitbadgeschain.badges.MsgClaimBadge.deserialize(value).toObject() as MessageMsgClaimBadge;
+                docs = await handleMsgClaimBadge(claimMsg, status, docs);
+                break;
+            case "/bitbadges.bitbadgeschain.badges.MsgTransferBadge":
+                const transferMsg: MessageMsgTransferBadge = tx.bitbadges.bitbadgeschain.badges.MsgTransferBadge.deserialize(value).toObject() as MessageMsgTransferBadge;
+                docs = await handleMsgTransferBadge(transferMsg, status, docs);
+                break;
+            case "/bitbadges.bitbadgeschain.badges.MsgNewCollection":
+                const newCollectionMsg: MessageMsgNewCollection = tx.bitbadges.bitbadgeschain.badges.MsgNewCollection.deserialize(value).toObject() as MessageMsgNewCollection;
+                docs = await handleMsgNewCollection(newCollectionMsg, status, docs);
+                break;
+            case "/bitbadges.bitbadgeschain.badges.MsgMintBadge":
+                const newMintMsg: MessageMsgMintBadge = tx.bitbadges.bitbadgeschain.badges.MsgMintBadge.deserialize(value).toObject() as MessageMsgMintBadge;
+                docs = await handleMsgMintBadge(newMintMsg, status, docs);
+                break;
             default:
                 break;
         }
@@ -192,37 +209,13 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
 }
 
 const handleEvents = async (events: StringEvent[], status: DbStatus, docs: Docs): Promise<Docs> => {
-    let eventIndex = 0
-    while (eventIndex < events.length) {
-        docs = await handleEvent(events[eventIndex], status, docs)
-        eventIndex++
-    }
+    // let eventIndex = 0
+    // while (eventIndex < events.length) {
+    //     docs = await handleEvent(events[eventIndex], status, docs)
+    //     eventIndex++
+    // }
 
     return docs;
 }
-const handleEvent = async (event: StringEvent, status: DbStatus, docs: Docs): Promise<Docs> => {
-    const action = getAttributeValueByKey(event.attributes, "action");
-    //get last element in array
-    console.log("Handling Tx: ", action?.split(".").pop());
-    try {
-        //TODO: Handle these by TX type instead of events
-        switch (action) {
-            case "/bitbadges.bitbadgeschain.badges.MsgNewCollection": //Will need collectionId but msg doesn't have it
-                docs = await handleMsgNewCollection(event, status, docs);
-                break;
-            case "/bitbadges.bitbadgeschain.badges.MsgMintBadge":
-                docs = await handleMsgMintBadge(event, status, docs);
-                break;
-            case "/bitbadges.bitbadgeschain.badges.MsgClaimBadge":
-                docs = await handleMsgClaimBadge(event, status, docs);
-                break;
-            case "/bitbadges.bitbadgeschain.badges.MsgTransferBadge":
-                docs = await handleMsgTransferBadge(event, status, docs);
-                break;
-        }
 
-        return docs;
-    } catch (e) {
-        throw `Error in handleEvent: TxType: ${action?.split('.').pop()}: ${e}`
-    }
-}
+// const handleEvent = async (event: StringEvent, status: DbStatus, docs: Docs): Promise<Docs> => { }

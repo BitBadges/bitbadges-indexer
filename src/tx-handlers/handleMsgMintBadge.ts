@@ -1,34 +1,70 @@
-import { StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import { BadgeMetadata, BadgeMetadataMap, BitBadgesUserInfo, ClaimItem, DbStatus, Docs, GetPermissions, StoredBadgeCollection, createCollectionFromMsgNewCollection } from "bitbadges-sdk"
+import { MessageMsgMintBadge } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
-import { getAttributeValueByKey } from "../indexer"
 import { pushToMetadataQueue } from "../metadata-queue"
-import { cleanBadgeCollection, cleanTransfers } from "../util/dataCleaners"
 import { fetchClaims } from "./claims"
-import { handleNewAccount } from "./handleNewAccount"
+import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
-import { DbStatus, Docs, Transfers, BadgeCollection } from "bitbadges-sdk"
 
-export const handleMsgMintBadge = async (event: StringEvent, status: DbStatus, docs: Docs): Promise<Docs> => {
-    //Fetch events
-    const collectionString: string | undefined = getAttributeValueByKey(event.attributes, "collection");
-    const transfersString: string | undefined = getAttributeValueByKey(event.attributes, "transfers");
+export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbStatus, docs: Docs): Promise<Docs> => {
+    docs = await handleNewAccountByAddress(msg.creator, docs);
+    docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
 
-    //Validate
-    if (!transfersString) throw new Error(`New Collection event missing transfers`)
-    if (!collectionString) throw new Error(`New Collection event missing collection`)
+    const createdCollection = createCollectionFromMsgNewCollection(
+        {
+            ...msg,
+            standard: docs.collections[msg.collectionId].standard,
+            bytes: docs.collections[msg.collectionId].bytes,
+            permissions: docs.collections[msg.collectionId].permissions,
+            disallowedTransfers: docs.collections[msg.collectionId].disallowedTransfers,
+            managerApprovedTransfers: docs.collections[msg.collectionId].managerApprovedTransfers,
+        },
+        {} as BadgeMetadata,
+        {} as BadgeMetadataMap,
+        {} as BitBadgesUserInfo,
+        [],
+        {
+            ...docs.collections[msg.collectionId],
+            manager: {} as BitBadgesUserInfo,
+            permissions: GetPermissions(0),
+            claims: docs.collections[msg.collectionId].claims as ClaimItem[],
+            originalClaims: docs.collections[msg.collectionId].originalClaims as ClaimItem[],
+            activity: [],
+            announcements: [],
+        },
+    );
 
-    //Clean if needed
-    const transfers: Transfers[] = cleanTransfers(JSON.parse(transfersString));
-    const collection: BadgeCollection = cleanBadgeCollection(JSON.parse(collectionString));
+    for (const claim of msg.claims) {
+        const claimItem = claim as ClaimItem;
+        createdCollection.claims.push(claimItem);
+        createdCollection.originalClaims.push(claimItem);
+    }
+
+    const collection: StoredBadgeCollection = {
+        ...createdCollection,
+        manager: docs.accountNumbersMap[msg.creator],
+        permissions: docs.collections[msg.collectionId].permissions
+    }
 
     //Handle mint transaction and update docs accordingly
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [collection.collectionId], []);
     await pushToMetadataQueue(collection, status);
 
-    collection.claims = await fetchClaims(collection);
+    //Only update the collection if the collectionUri or badgeUris have changed
+    let newCollectionUri = collection.collectionUri;
+    let newBadgeUris = collection.badgeUris;
 
-    docs.collections[collection.collectionId].collectionUri = collection.collectionUri;
-    docs.collections[collection.collectionId].badgeUris = collection.badgeUris;
+    if (msg.collectionUri != "" && msg.collectionUri != collection.collectionUri) {
+        newCollectionUri = msg.collectionUri;
+    }
+
+    if (msg.badgeUris.length > 0) {
+        newBadgeUris = msg.badgeUris;
+    }
+
+    collection.claims = await fetchClaims(collection, docs.collections[collection.collectionId].claims.length);
+
+    docs.collections[collection.collectionId].collectionUri = newCollectionUri;
+    docs.collections[collection.collectionId].badgeUris = newBadgeUris;
     docs.collections[collection.collectionId].claims = collection.claims;
     docs.collections[collection.collectionId].unmintedSupplys = collection.unmintedSupplys;
     docs.collections[collection.collectionId].maxSupplys = collection.maxSupplys;
@@ -37,13 +73,7 @@ export const handleMsgMintBadge = async (event: StringEvent, status: DbStatus, d
         docs.collections[collection.collectionId].originalClaims.push(collection.claims[i]);
     }
 
-    docs = await handleTransfers(collection, transfers, docs);
-
-    for (const transfer of transfers) {
-        for (const address of transfer.toAddresses) {
-            docs = await handleNewAccount(Number(address), docs);
-        }
-    }
+    docs = await handleTransfers(collection, ['Mint'], msg.transfers, docs, status);
 
     return docs;
 }

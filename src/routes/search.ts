@@ -1,13 +1,9 @@
 
-import { ethers } from "ethers";
+import { AccountResponse, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadges-sdk";
 import { Request, Response } from "express";
 import nano from "nano";
 import { ACCOUNTS_DB, METADATA_DB } from "../db/db";
-import { getEnsAvatar, getNameForAddress } from "../util/ensResolvers";
-import { isAddressValid, AccountResponse, getChainForAddress, convertToCosmosAddress } from "bitbadges-sdk";
-//TODO: Do not redundantly fetch ENS names and avatars (both here and in users.ts)
-
-
+import { getAddressForName, getEnsDetails, getEnsResolver, getNameForAddress } from "../util/ensResolvers";
 export const searchHandler = async (req: Request, res: Response) => {
     try {
         const searchValue = req.params.searchValue;
@@ -21,28 +17,22 @@ export const searchHandler = async (req: Request, res: Response) => {
         //Attempt to resolve ENS
         let address = searchValue;
         let ensName = '';
-        let avatar = '';
+        let ensDetails = {};
+        let resolver = null;
         const tryEns = searchValue.includes('.eth') ? searchValue : `${searchValue}.eth`;
         if (!isAddressValid(searchValue)) {
             try {
-                //Attempt to resolve name
-                const provider = new ethers.InfuraProvider(
-                    'homestead',
-                    process.env.INFURA_API_KEY
-                );
-                const resolvedAddress = await provider.resolveName(tryEns);
-                if (resolvedAddress) {
-                    address = resolvedAddress;
-                    ensName = tryEns;
+                resolver = await getEnsResolver(tryEns)
+                if (resolver?.name) {
+                    address = await getAddressForName(resolver.name);
+                    ensName = resolver.name;
 
-                    //Attempt to get avatar
-                    const ensAvatar = await provider.getAvatar(tryEns);
-                    console.log(ensAvatar);
-                    if (ensAvatar) {
-                        avatar = ensAvatar;
+                    //Attempt to get other details
+                    const details = await getEnsDetails(resolver);
+                    if (details) {
+                        ensDetails = details;
                     }
                 }
-
             } catch (e) {
 
             }
@@ -98,6 +88,10 @@ export const searchHandler = async (req: Request, res: Response) => {
                 cosmosAddress: convertToCosmosAddress(address),
                 name: '',
                 avatar: '',
+                github: '',
+                twitter: '',
+                telegram: '',
+                discord: '',
                 sequence: 0,
                 pub_key: '',
             });
@@ -105,60 +99,64 @@ export const searchHandler = async (req: Request, res: Response) => {
 
         //Update matching document with previously fetched ENS name
         if (ensName) {
-
-            const matchingDoc = returnDocs.find((doc) => doc.address === address);
-            console.log(matchingDoc)
-            if (matchingDoc) {
-                matchingDoc.name = tryEns;
-                matchingDoc.avatar = avatar;
+            let idx = returnDocs.findIndex((doc) => doc.address === address);
+            if (idx >= 0) {
+                returnDocs[idx].name = tryEns;
+                returnDocs[idx] = {
+                    ...returnDocs[idx],
+                    ...ensDetails,
+                }
             }
         }
-
-        console.log(returnDocs);
-
-
 
         //For all accounts, fetch the name and chain, then return it
         const accounts = [];
-        const promises = [];
+        const namePromises = [];
 
-        for (let account of returnDocs) {
+        for (const account of returnDocs) {
             if (!account.name) {
-                promises.push(getNameForAddress(account.address));
+                namePromises.push(getNameForAddress(account.address));
                 account.chain = getChainForAddress(account.address);
             } else {
-                promises.push(Promise.resolve(account.name));
+                namePromises.push(Promise.resolve(account.name));
             }
         }
 
-
-        const nameResults = await Promise.all(promises);
-
+        const nameResults = await Promise.all(namePromises);
+        const resolversPromises = [];
         for (let i = 0; i < returnDocs.length; i++) {
             const account = returnDocs[i];
             account.name = nameResults[i];
-            accounts.push(account);
-        }
+            account.chain = getChainForAddress(account.address);
 
-        const avatarPromises = [];
-        for (let account of accounts) {
             if (account.name) {
-                avatarPromises.push(getEnsAvatar(account.name));
+                resolversPromises.push(getEnsResolver(account.name));
             } else {
-                avatarPromises.push(Promise.resolve(''));
+                resolversPromises.push(Promise.resolve(null));
             }
         }
 
-
-        const avatarResults = await Promise.all(avatarPromises);
-        const accounts2 = [];
+        const resolversResults = await Promise.all(resolversPromises);
+        const detailsPromises = [];
         for (let i = 0; i < returnDocs.length; i++) {
-            const account = returnDocs[i];
-            account.avatar = avatarResults[i];
-            accounts2.push(account);
+            const resolver = resolversResults[i];
+            if (resolver) {
+                detailsPromises.push(getEnsDetails(resolver));
+            } else {
+                detailsPromises.push(Promise.resolve({}));
+            }
         }
 
-        console.log(accounts);
+        const detailsResults = await Promise.all(detailsPromises);
+        for (let i = 0; i < returnDocs.length; i++) {
+            let account = returnDocs[i];
+            account = {
+                ...account,
+                ...detailsResults[i],
+            }
+            accounts.push(account);
+        }
+
 
         return res.json({
             collections: response.docs,

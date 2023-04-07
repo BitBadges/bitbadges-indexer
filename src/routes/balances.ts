@@ -24,7 +24,7 @@ export const getBadgeBalance = async (req: Request, res: Response) => {
         const response = await COLLECTIONS_DB.find(balanceQuery);
 
         return res.status(200).send({
-            balance: response.docs[0]?.balances[accountNumIdx]
+            balance: response.docs[0] && response.docs[0].balances[accountNumIdx] ? response.docs[0].balances[accountNumIdx] : { balances: [], approvals: [] }
         });
     } catch (e) {
         console.error(e);

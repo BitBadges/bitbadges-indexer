@@ -11,13 +11,13 @@ import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { poll } from "./poll"
 import { getBadgeBalance } from "./routes/balances"
 import { getCodes } from "./routes/codes"
-import { getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
+import { addAnnouncement, getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
 import { addMerkleTreeToIpfsHandler, addToIpfsHandler } from "./routes/ipfs"
 import { getPasswordsAndCodes } from "./routes/passwords"
 import { fetchMetadata, refreshMetadata } from "./routes/metadata"
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { getAccountByAddress, getAccountById, getBatchUsers, getPortfolioInfo } from "./routes/users"
+import { getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPortfolioInfo, updateAccountInfo } from "./routes/users"
 import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 
@@ -97,8 +97,8 @@ app.get("/", (req: Request, res: Response) => {
 //TODO: clean route names and methods
 app.get("/api/status", getStatusHandler);
 app.get("/api/search/:searchValue", searchHandler);
-app.get("/api/collection/:id", getCollectionById)
 app.post("/api/collection/batch", getCollections)
+app.post("/api/collection/:id", getCollectionById)
 app.get("/api/collection/query", queryCollections)
 app.post("/api/metadata/:collectionId", getMetadataForCollection)
 app.get('/api/collection/:id/:badgeId/owners', getOwnersForCollection);
@@ -113,15 +113,19 @@ app.post('/api/logout', removeBlockinSessionCookie);
 app.post('/auth/test', authorizeBlockinRequest);
 app.post('/api/user/batch', getBatchUsers);
 
-app.get('/api/user/portfolio/:accountNum', getPortfolioInfo);
+app.post('/api/user/portfolio/:accountNum', getPortfolioInfo);
+app.get('/api/user/activity/:accountNum', getActivity);
+app.post('/api/collection/activity/:id/:badgeId', getBadgeActivity);
 app.get('/api/collection/codes/:collectionId', authorizeBlockinRequest, getCodes);
 
 app.post('/api/metadata', fetchMetadata);
 app.get('/api/browse', getBrowseCollections);
 
-//IMPORTANT: These routes actually update documents and require control of a mutex (see implementations).
+//IMPORTANT: These routes actually update documents and may require control of a mutex (see implementations). Need to be careful with conflicts
 app.post('/api/collection/refreshMetadata', refreshMetadata);
 app.get('/api/password/:collectionId/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes);
+app.post('/api/user/updateAccount', authorizeBlockinRequest, updateAccountInfo);
+app.post('/api/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement);
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {
