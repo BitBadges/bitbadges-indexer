@@ -20,6 +20,7 @@ import { getStatusHandler } from "./routes/status"
 import { getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPortfolioInfo, updateAccountInfo } from "./routes/users"
 import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
+import { sendTokensFromFaucet } from './routes/faucet'
 
 const cors = require('cors');
 
@@ -120,6 +121,7 @@ app.get('/api/collection/codes/:collectionId', authorizeBlockinRequest, getCodes
 
 app.post('/api/metadata', fetchMetadata);
 app.get('/api/browse', getBrowseCollections);
+app.post('/api/faucet', authorizeBlockinRequest, sendTokensFromFaucet);
 
 //IMPORTANT: These routes actually update documents and may require control of a mutex (see implementations). Need to be careful with conflicts
 app.post('/api/collection/refreshMetadata', refreshMetadata);

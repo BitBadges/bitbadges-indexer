@@ -5,19 +5,32 @@ import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
 import { ACCOUNTS_DB, ACTIVITY_DB, COLLECTIONS_DB } from "../db/db";
 import { client } from "../indexer";
 import { getAddressesForNames, getEnsDetails, getEnsResolver, getEnsResolversForNames, getNameForAddress, getNamesForAddresses } from "../util/ensResolvers";
+import { Coin } from "@cosmjs/stargate";
 
 
 export const getAccountByAddress = async (req: Request, res: Response) => {
     try {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(req.params.address);
+        let balanceInfo: Coin = {
+            denom: 'badge',
+            amount: '0'
+        };
+
+        if (accountInfo?.cosmosAddress) {
+            balanceInfo = await client.getBalance(accountInfo.cosmosAddress, 'badge');
+        }
+
+
         accountInfo = await appendNameForAccount(accountInfo);
         if (accountInfo && accountInfo.account_number >= 0) {
-            const accountDoc = await ACCOUNTS_DB.get(`${accountInfo.account_number}`);
-            if (accountDoc) {
-                return res.status(200).send({ ...accountDoc, ...accountInfo, });
-            }
+            try {
+                const accountDoc = await ACCOUNTS_DB.get(`${accountInfo.account_number}`);
+                if (accountDoc) {
+                    return res.status(200).send({ ...accountDoc, ...accountInfo, balance: balanceInfo });
+                }
+            } catch (e) { }
         }
-        return res.status(200).send({ ...accountInfo });
+        return res.status(200).send({ ...accountInfo, balance: balanceInfo });
     } catch (e) {
         return res.status(500).send({
             error: 'Error fetching account. Please try again later.'
@@ -28,15 +41,26 @@ export const getAccountByAddress = async (req: Request, res: Response) => {
 export const getAccountById = async (req: Request, res: Response) => {
     try {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
-        accountInfo = await appendNameForAccount(accountInfo);
-        if (accountInfo && accountInfo.account_number >= 0) {
-            const accountDoc = await ACCOUNTS_DB.get(`${accountInfo.account_number}`);
-            if (accountDoc) {
-                return res.status(200).send({ ...accountDoc, ...accountInfo, });
-            }
+        let balanceInfo: Coin = {
+            denom: 'badge',
+            amount: '0'
+        };
+
+        if (accountInfo?.cosmosAddress) {
+            balanceInfo = await client.getBalance(accountInfo.cosmosAddress, 'bb');
         }
 
-        return res.status(200).send({ ...accountInfo });
+        accountInfo = await appendNameForAccount(accountInfo);
+        if (accountInfo && accountInfo.account_number >= 0) {
+            try {
+                const accountDoc = await ACCOUNTS_DB.get(`${accountInfo.account_number}`);
+                if (accountDoc) {
+                    return res.status(200).send({ ...accountDoc, ...accountInfo, balance: balanceInfo });
+                }
+            } catch (e) { }
+        }
+
+        return res.status(200).send({ ...accountInfo, balance: balanceInfo });
     } catch (e) {
         return res.status(500).send({
             error: 'Error fetching account. Please try again later.'

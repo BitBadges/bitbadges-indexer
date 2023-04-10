@@ -12,6 +12,8 @@ declare global {
             DB_URL: string
             SESSION_SECRET: string,
             INFURA_API_KEY: string
+            FAUCET_MNEMONIC: string
+            FAUCET_ADDRESS: string
         }
     }
 }

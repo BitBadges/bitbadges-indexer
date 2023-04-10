@@ -80,7 +80,9 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     setChainDriver(chainDriver);
 
     try {
+        
         const generatedEIP4361ChallengeStr: string = await chainDriver.parseChallengeStringFromBytesToSign(body.originalBytes);
+
         const challenge: ChallengeParams = constructChallengeObjectFromString(generatedEIP4361ChallengeStr);
 
         const verificationResponse = await verifyChallenge(
@@ -104,6 +106,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 
         return res.status(200).json({ verified: true, message: verificationResponse.message });
     } catch (err) {
+        console.log(err);
         req.session.blockin = null;
         req.session.nonce = null;
         return res.status(401).json({ verified: false, message: `${err}` });

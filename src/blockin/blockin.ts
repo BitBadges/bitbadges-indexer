@@ -1,9 +1,11 @@
 // import AlgoDriver from 'blockin-algo-driver';
+import CosmosDriver from './CosmosDriver';
 import EthDriver from './EthDriver'; //TODO: get from npm module
 
 export const getChainDriver = (chain: string) => {
 
     const ethDriver = new EthDriver('eth');
+    const cosmosDriver = new CosmosDriver('bitbadges_1-1');
     // {
     //     serverUrl: process.env.MORALIS_SERVER_URL ? process.env.MORALIS_SERVER_URL : '',
     //     appId: process.env.MORALIS_APP_ID ? process.env.MORALIS_APP_ID : '',
@@ -36,6 +38,8 @@ export const getChainDriver = (chain: string) => {
         //     return algoTestnetDriver;
         // case 'Algorand Mainnet':
         //     return algoMainnetDriver;
+        case 'Cosmos':
+            return cosmosDriver;
         case 'Ethereum':
             return ethDriver;
         // case 'Polygon':

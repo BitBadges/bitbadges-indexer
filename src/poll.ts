@@ -4,7 +4,7 @@ import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import { DbStatus, Docs } from "bitbadges-sdk"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import { MessageMsgClaimBadge, MessageMsgMintBadge, MessageMsgNewCollection, MessageMsgRegisterAddresses, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateDisallowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
+import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintBadge, MessageMsgNewCollection, MessageMsgRegisterAddresses, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateDisallowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
 import { ABCIMessageLog, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { ERRORS_DB, finalizeDocsForRequest } from "./db/db"
@@ -12,6 +12,7 @@ import { getStatus, setStatus } from "./db/status"
 import { client, refreshQueueMutex, setClient, setTimer } from "./indexer"
 import { fetchUriInQueue } from "./metadata-queue"
 import { handleMsgClaimBadge } from "./tx-handlers/handleMsgClaimBadge"
+import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgMintBadge } from "./tx-handlers/handleMsgMintBadge"
 import { handleMsgNewCollection } from "./tx-handlers/handleMsgNewCollection"
 import { handleMsgRegisterAddresses } from "./tx-handlers/handleMsgRegisterAddresses"
@@ -38,9 +39,11 @@ export const poll = async () => {
             setClient(newClient)
         }
 
+
         // We fetch initial status at beginning and do not write anything in DB until caught up to current block
         // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
         const currentHeight = await client.getHeight();
+
         await refreshQueueMutex.runExclusive(async () => {
             const status = await getStatus();
             let docs: Docs = {
@@ -50,6 +53,7 @@ export const poll = async () => {
                 accountNumbersMap: {},
                 activityToAdd: []
             };
+
             if (status.block.height <= currentHeight - 100) {
                 console.log(`Catching up ${status.block.height}..${currentHeight}`)
             }
@@ -70,6 +74,8 @@ export const poll = async () => {
             //Right now, we are banking on all these DB updates succeeding together every time. 
             //If there is a failure in the middle, it could be bad. //TODO in the future.
             await finalizeDocsForRequest(docs);
+
+
             await setStatus(status)
 
             //Handle printing of status if there was an outage
@@ -126,10 +132,10 @@ const handleBlock = async (block: Block, status: DbStatus, docs: Docs) => {
         txIndex++
     }
 
-    //Handle end block events
-    const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
-    if (0 < events.length) console.log("")
-    docs = await handleEvents(events, status, docs)
+    // Handle end block events
+    // const events: StringEvent[] = await client.getEndBlockEvents(status.block.height)
+    // if (0 < events.length) console.log("")
+    // docs = await handleEvents(events, status, docs)
 
     return docs;
 }
@@ -145,7 +151,32 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
         return docs;
     }
 
+
+
     decodedTx = decodeTxRaw(indexed.tx);
+
+    const NUM_TXS_TO_AVERAGE = 1000;
+    if (decodedTx.authInfo.fee) {
+        const gasLimit = decodedTx.authInfo.fee.gasLimit;
+        // console.log(decodedTx.authInfo.fee);
+        for (const coin of decodedTx.authInfo.fee.amount) {
+            const feeAmount = coin.amount;
+            const feeDenom = coin.denom;
+
+            if (feeDenom === "badge") {
+                const gasPrice = Number(feeAmount) / gasLimit.toNumber();
+
+                status.lastXGasPrices.push(gasPrice);
+                if (status.lastXGasPrices.length > NUM_TXS_TO_AVERAGE) {
+                    status.lastXGasPrices.shift();
+                }
+
+                status.gasPrice = status.lastXGasPrices.reduce((a, b) => a + b, 0) / status.lastXGasPrices.length;
+            }
+        }
+    }
+
+
     for (const message of decodedTx.body.messages) {
         const typeUrl = message.typeUrl;
         const value = message.value;
@@ -172,6 +203,7 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgTransferManager":
                 const transferManagerMsg: MessageMsgTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgTransferManager.deserialize(value).toObject() as MessageMsgTransferManager;
+
                 docs = await handleMsgTransferManager(transferManagerMsg, status, docs);
                 break;
             case "/bitbadges.bitbadgeschain.badges.MsgSetApproval":
@@ -197,6 +229,10 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: Docs) => {
             case "/bitbadges.bitbadgeschain.badges.MsgMintBadge":
                 const newMintMsg: MessageMsgMintBadge = tx.bitbadges.bitbadgeschain.badges.MsgMintBadge.deserialize(value).toObject() as MessageMsgMintBadge;
                 docs = await handleMsgMintBadge(newMintMsg, status, docs);
+                break;
+            case "/bitbadges.bitbadgeschain.badges.MsgDeleteCollection":
+                const newDeleteMsg: MessageMsgDeleteCollection = tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value).toObject() as MessageMsgDeleteCollection;
+                docs = await handleMsgDeleteCollection(newDeleteMsg, status, docs);
                 break;
             default:
                 break;

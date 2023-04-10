@@ -1,5 +1,8 @@
 import { ActivityItem, AddBalancesForIdRanges, DbStatus, Docs, StoredBadgeCollection, Transfers, getBalanceAfterTransfers } from "bitbadges-sdk";
 import { handleNewAccount } from "./handleNewAccount";
+import { nanoid } from "nanoid";
+
+
 
 export const handleTransfers = async (collection: StoredBadgeCollection, from: (number | 'Mint')[], transfers: Transfers[], docs: Docs, status: DbStatus) => {
     //Handle new acocunts, if empty 
@@ -33,7 +36,7 @@ export const handleTransfers = async (collection: StoredBadgeCollection, from: (
         }
 
         docs.activityToAdd.push({
-            _id: `${docs.collections[collection.collectionId].collectionId}:${crypto.getRandomValues(new Uint32Array(8)).join('')}`,
+            _id: `${docs.collections[collection.collectionId].collectionId}:${nanoid(64)}`,
             from: from,
             to: transfer.toAddresses,
             balances: transfer.balances,
@@ -62,3 +65,5 @@ export const handleTransfers = async (collection: StoredBadgeCollection, from: (
 
     return docs;
 }
+
+  
