@@ -6,13 +6,14 @@ config();
 
 const nano = Nano(`${process.env.DB_URL}`);
 
-export const ACTIVITY_DB = nano.db.use<ActivityItem>('activity');
+export const ACTIVITY_DB = nano.db.use<ActivityItem>('activity'); //partitioned
 export const ACCOUNTS_DB = nano.db.use<AccountDocument>('accounts');
 export const COLLECTIONS_DB = nano.db.use<StoredBadgeCollection>('collections');
 export const STATUS_DB = nano.db.use<DbStatus>('status');
 export const ERRORS_DB = nano.db.use<any>('errors');
 export const METADATA_DB = nano.db.use<MetadataDocument>('metadata'); //partitioned
 export const PASSWORDS_DB = nano.db.use<PasswordDocument>('passwords');
+export const AIRDROP_DB = nano.db.use<any>('airdrop');
 
 export async function fetchDocsForRequestIfEmpty(currDocs: Docs, accountNums: number[], collectionIds: number[], metadataIds: string[]) {
     try {

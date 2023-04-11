@@ -2,7 +2,7 @@ import { AccountResponse, ActivityItem, StoredBadgeCollection, convertToCosmosAd
 import { Request, Response } from "express";
 import nano from "nano";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
-import { ACCOUNTS_DB, ACTIVITY_DB, COLLECTIONS_DB } from "../db/db";
+import { ACCOUNTS_DB, ACTIVITY_DB, AIRDROP_DB, COLLECTIONS_DB } from "../db/db";
 import { client } from "../indexer";
 import { getAddressesForNames, getEnsDetails, getEnsResolver, getEnsResolversForNames, getNameForAddress, getNamesForAddresses } from "../util/ensResolvers";
 import { Coin } from "@cosmjs/stargate";
@@ -16,8 +16,20 @@ export const getAccountByAddress = async (req: Request, res: Response) => {
             amount: '0'
         };
 
+        let alreadyAirdropped = true;
+
         if (accountInfo?.cosmosAddress) {
             balanceInfo = await client.getBalance(accountInfo.cosmosAddress, 'badge');
+
+
+            //if no error, already has doc which means we have airdropped
+            alreadyAirdropped = await AIRDROP_DB.head(accountInfo.cosmosAddress).then(() => true).catch((e) => {
+                //Only if missing error
+                if (e.statusCode === 404) {
+                    return false;
+                }
+                return true;
+            });
         }
 
 
@@ -26,11 +38,11 @@ export const getAccountByAddress = async (req: Request, res: Response) => {
             try {
                 const accountDoc = await ACCOUNTS_DB.get(`${accountInfo.account_number}`);
                 if (accountDoc) {
-                    return res.status(200).send({ ...accountDoc, ...accountInfo, balance: balanceInfo });
+                    return res.status(200).send({ ...accountDoc, ...accountInfo, balance: balanceInfo, airdropped: alreadyAirdropped });
                 }
             } catch (e) { }
         }
-        return res.status(200).send({ ...accountInfo, balance: balanceInfo });
+        return res.status(200).send({ ...accountInfo, balance: balanceInfo, airdropped: alreadyAirdropped });
     } catch (e) {
         return res.status(500).send({
             error: 'Error fetching account. Please try again later.'
@@ -46,21 +58,35 @@ export const getAccountById = async (req: Request, res: Response) => {
             amount: '0'
         };
 
+        let alreadyAirdropped = true;
+
+
         if (accountInfo?.cosmosAddress) {
-            balanceInfo = await client.getBalance(accountInfo.cosmosAddress, 'bb');
+            balanceInfo = await client.getBalance(accountInfo.cosmosAddress, 'badge');
+
+            //if no error, already has doc which means we have airdropped
+            alreadyAirdropped = await AIRDROP_DB.head(accountInfo.cosmosAddress).then(() => true).catch((e) => {
+                //Only if missing error
+                if (e.statusCode === 404) {
+                    return false;
+                }
+                return true;
+            });
         }
+
+
 
         accountInfo = await appendNameForAccount(accountInfo);
         if (accountInfo && accountInfo.account_number >= 0) {
             try {
                 const accountDoc = await ACCOUNTS_DB.get(`${accountInfo.account_number}`);
                 if (accountDoc) {
-                    return res.status(200).send({ ...accountDoc, ...accountInfo, balance: balanceInfo });
+                    return res.status(200).send({ ...accountDoc, ...accountInfo, balance: balanceInfo, airdropped: alreadyAirdropped });
                 }
             } catch (e) { }
         }
 
-        return res.status(200).send({ ...accountInfo, balance: balanceInfo });
+        return res.status(200).send({ ...accountInfo, balance: balanceInfo, airdropped: alreadyAirdropped });
     } catch (e) {
         return res.status(500).send({
             error: 'Error fetching account. Please try again later.'
