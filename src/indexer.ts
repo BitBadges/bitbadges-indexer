@@ -22,6 +22,9 @@ import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
 
+var fs = require("fs");
+var https = require("https");
+
 const cors = require('cors');
 
 // create a mutex for synchronizing access to the queue
@@ -63,7 +66,7 @@ const port = "3001"
 //TODO: secure these / API keys? + rate-limit
 //nano-cookies?
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: true,
     credentials: true,
 }));
 
@@ -72,7 +75,7 @@ app.use(expressSession({
     secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
     resave: true,
     saveUninitialized: true,
-    cookie: { secure: false, sameSite: false }
+    cookie: { secure: true, sameSite: 'none' }
 }));
 
 app.use(cookieParser());
@@ -142,8 +145,18 @@ process.on("SIGINT", () => {
     })
 })
 
-const server: Server = app.listen(port, () => {
-    init().catch(console.error).then(() => {
-        console.log(`\nserver started at http://localhost:${port}`)
-    })
-})
+const server: Server =
+    https
+        .createServer(
+            // Provide the private and public key to the server by reading each
+            // file's content with the readFileSync() method.
+            {
+                key: fs.readFileSync("server.key"),
+                cert: fs.readFileSync("server.cert"),
+            },
+            app
+        ).listen(port, () => {
+            init().catch(console.error).then(() => {
+                console.log(`\nserver started at http://localhost:${port}`)
+            })
+        })
