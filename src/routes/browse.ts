@@ -28,6 +28,6 @@ export const getBrowseCollections = async (req: Request, res: Response) => {
         });
     } catch (e) {
         console.error(e);
-        return res.status(500).send({ error: e });
+        return res.status(500).send({ error: 'Error fetching collections' });
     }
 }
