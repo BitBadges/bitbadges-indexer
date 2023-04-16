@@ -112,10 +112,13 @@ app.post('/api/v0/collection/:id/:badgeId/owners', getOwnersForCollection);
 app.post("/api/v0/collection/:id/metadata", getMetadataForCollection)
 app.post('/api/v0/collection/:id/balance/:accountNum', getBadgeBalance);
 app.post('/api/v0/collection/:id/:badgeId/activity', getBadgeActivity);
-app.post('/api/v0/collection/:id/codes', authorizeBlockinRequest, getCodes);
+
 app.post('/api/v0/collection/:id/refreshMetadata', refreshMetadata); //Write route
 app.post('/api/v0/collection/:id/:badgeId/refreshMetadata', refreshMetadata); //Write route
+
+app.post('/api/v0/collection/:id/codes', authorizeBlockinRequest, getCodes);
 app.post('/api/v0/collection/:id/password/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes); //Write route
+
 app.post('/api/v0/collection/:id/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
 
 
