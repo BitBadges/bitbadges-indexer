@@ -11,7 +11,9 @@
         "eject": "react-scripts eject",
         "deploy": "ren .\\build\\index.html 200.html & surge .\\build",
         "indexer-dev": "npx ts-node src/indexer.ts",
-        "indexer": "node build/dist/indexer.js"
+        "indexer": "node build/dist/indexer.js",
+        "reset": "npx ts-node src/reset.ts",
+        "setup": "npx ts-node src/setup.ts"
     },
     "repository": {
         "type": "git",
