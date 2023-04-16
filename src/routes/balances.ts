@@ -9,7 +9,7 @@ export const getBadgeBalance = async (req: Request, res: Response) => {
 
         const balanceQuery: nano.MangoQuery = {
             selector: {
-                _id: req.params.collectionId,
+                _id: req.params.id,
                 balances: {
                     [accountNumIdx]: {
                         balances: {

@@ -8,8 +8,8 @@ export const refreshMetadata = async (req: Request, res: Response) => {
     try {
         await refreshQueueMutex.runExclusive(async () => {
             const status = await getStatus();
-            const collection = await COLLECTIONS_DB.get(req.body.collectionId);
-            const specificId = req.body.badgeId ? Number(req.body.badgeId) : req.body.onlyCollectionMetadata ? 'collection' : undefined;
+            const collection = await COLLECTIONS_DB.get(req.params.id);
+            const specificId = req.params.badgeId ? Number(req.params.badgeId) : req.body.onlyCollectionMetadata ? 'collection' : undefined;
             await pushToMetadataQueue(collection, status, specificId);
             await setStatus(status);
         });

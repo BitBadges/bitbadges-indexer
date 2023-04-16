@@ -95,39 +95,53 @@ app.get("/", (req: Request, res: Response) => {
     })
 })
 
-//TODO: clean route names and methods
-app.get("/api/status", getStatusHandler);
-app.get("/api/search/:searchValue", searchHandler);
-app.post("/api/collection/batch", getCollections)
-app.post("/api/collection/:id", getCollectionById)
-app.get("/api/collection/query", queryCollections)
-app.post("/api/metadata/:collectionId", getMetadataForCollection)
-app.get('/api/collection/:id/:badgeId/owners', getOwnersForCollection);
-app.get('/api/balance/:collectionId/:accountNum', getBadgeBalance);
-app.post('/api/addToIpfs', addToIpfsHandler);
-app.post('/api/addMerkleTreeToIpfs', addMerkleTreeToIpfsHandler);
-app.get('/api/user/id/:accountNum', getAccountById);
-app.get('/api/user/address/:address', getAccountByAddress);
-app.post('/api/getChallengeParams', getChallenge);
-app.post('/api/verifyChallenge', verifyBlockinAndGrantSessionCookie);
-app.post('/api/logout', removeBlockinSessionCookie);
-app.post('/auth/test', authorizeBlockinRequest);
-app.post('/api/user/batch', getBatchUsers);
+//Status
+app.post("/api/v0/status", getStatusHandler);
 
-app.post('/api/user/portfolio/:accountNum', getPortfolioInfo);
-app.get('/api/user/activity/:accountNum', getActivity);
-app.post('/api/collection/activity/:id/:badgeId', getBadgeActivity);
-app.get('/api/collection/codes/:collectionId', authorizeBlockinRequest, getCodes);
+//Search
+app.post("/api/v0/search/:searchValue", searchHandler);
 
-app.post('/api/metadata', fetchMetadata);
-app.get('/api/browse', getBrowseCollections);
-app.post('/api/faucet', authorizeBlockinRequest, sendTokensFromFaucet);
+//Collections
+app.post("/api/v0/collection/batch", getCollections)
+app.post("/api/v0/collection/query", queryCollections)
+app.post("/api/v0/collection/:id", getCollectionById)
+app.post('/api/v0/collection/:id/:badgeId/owners', getOwnersForCollection);
+app.post("/api/v0/collection/:id/metadata", getMetadataForCollection)
+app.post('/api/v0/collection/:id/balance/:accountNum', getBadgeBalance);
+app.post('/api/v0/collection/:id/:badgeId/activity', getBadgeActivity);
+app.post('/api/v0/collection/:id/codes', authorizeBlockinRequest, getCodes);
+app.post('/api/v0/collection/:id/refreshMetadata', refreshMetadata); //Write route
+app.post('/api/v0/collection/:id/:badgeId/refreshMetadata', refreshMetadata); //Write route
+app.post('/api/v0/collection/:id/password/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes); //Write route
+app.post('/api/v0/collection/:id/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
 
-//IMPORTANT: These routes actually update documents and may require control of a mutex (see implementations). Need to be careful with conflicts
-app.post('/api/collection/refreshMetadata', refreshMetadata);
-app.get('/api/password/:collectionId/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes);
-app.post('/api/user/updateAccount', authorizeBlockinRequest, updateAccountInfo);
-app.post('/api/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement);
+
+//User
+app.post('/api/v0/user/batch', getBatchUsers);
+app.post('/api/v0/user/:accountNum/id', getAccountById); //TODO: Combine getById and getByAddress
+app.post('/api/v0/user/:address/address', getAccountByAddress);
+app.post('/api/v0/user/:accountNum/portfolio', getPortfolioInfo);
+app.post('/api/v0/user/:accountNum/activity', getActivity);
+app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
+
+//IPFS
+app.post('/api/v0/addToIpfs', addToIpfsHandler); //
+app.post('/api/v0/addMerkleTreeToIpfs', addMerkleTreeToIpfsHandler); //
+
+//Blockin Auth
+app.post('/api/v0/auth/getChallenge', getChallenge);
+app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
+app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
+
+//Browse
+app.post('/api/v0/browse', getBrowseCollections);
+
+//Fetch arbitrary metadata
+app.post('/api/v0/metadata', fetchMetadata);
+
+//Faucet
+app.post('/api/v0/faucet', authorizeBlockinRequest, sendTokensFromFaucet);
+
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

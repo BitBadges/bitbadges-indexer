@@ -330,7 +330,7 @@ const appendMetadataResToCollection = (metadataRes: { collectionMetadata: BadgeM
 
 export const getMetadataForCollection = async (req: Request, res: Response) => {
     try {
-        const metadata = await getMetadata(Number(req.params.collectionId), Number(req.body.startBatchId));
+        const metadata = await getMetadata(Number(req.params.id), Number(req.body.startBatchId));
         return res.json(metadata)
     } catch (e) {
         console.error(e);
@@ -386,7 +386,7 @@ export const addAnnouncement = async (expressReq: Request, res: Response) => {
             return res.status(400).send({ error: 'Announcement must be 1 to 2048 characters long.' });
         }
 
-        const collectionId = Number(req.params.collectionId);
+        const collectionId = Number(req.params.id);
 
         const collection = await COLLECTIONS_DB.get(`${collectionId}`);
         const manager = collection.manager;

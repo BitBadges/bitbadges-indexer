@@ -7,7 +7,7 @@ export const getCodes = async (expressReq: Request, res: Response) => {
     try {
         const req = expressReq as AuthenticatedRequest
 
-        const collectionId = Number(req.params.collectionId);
+        const collectionId = Number(req.params.id);
 
         const collection = await COLLECTIONS_DB.get(`${collectionId}`);
         const manager = collection.manager;

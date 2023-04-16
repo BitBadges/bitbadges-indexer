@@ -51,7 +51,7 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
                 return Promise.reject({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
             }
 
-            const collectionId = req.params.collectionId;
+            const collectionId = req.params.id;
             const claimId = req.params.claimId;
             const password = req.params.password;
 
