@@ -1,6 +1,6 @@
 import { config } from "dotenv"
 import Nano from "nano";
-import { ACTIVITY_DB, STATUS_DB } from "./db/db";
+import { ACTIVITY_DB, STATUS_DB, COLLECTIONS_DB } from "./db/db";
 import { DbStatus } from "bitbadges-sdk";
 
 config()
@@ -83,6 +83,14 @@ export async function createIndexes() {
             },
             partitioned: false
         })
+
+        await COLLECTIONS_DB.createIndex({
+            index: {
+                fields: ['createdBlock']
+            },
+            partitioned: false
+        })
+
     } catch (error) {
         console.log(error)
     }
