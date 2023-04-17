@@ -124,14 +124,30 @@ export async function fetchDocsForRequest(_accountNums: number[], _collectionIds
 //Finalize docs at end of handling block(s)
 export async function finalizeDocsForRequest(docs: Docs) {
     try {
-        await Promise.all(
-            [
-                ACCOUNTS_DB.bulk({ docs: Object.values(docs.accounts) }),
-                COLLECTIONS_DB.bulk({ docs: Object.values(docs.collections) }),
-                METADATA_DB.bulk({ docs: Object.values(docs.metadata) }),
-                ACTIVITY_DB.bulk({ docs: docs.activityToAdd }),
-            ]
-        );
+        const promises = [];
+        const accountDocs = Object.values(docs.accounts);
+        const collectionDocs = Object.values(docs.collections);
+        const metadataDocs = Object.values(docs.metadata);
+
+        if (docs.activityToAdd.length) {
+            promises.push(ACTIVITY_DB.bulk({ docs: docs.activityToAdd }));
+        }
+
+        if (accountDocs.length) {
+            promises.push(ACCOUNTS_DB.bulk({ docs: accountDocs }));
+        }
+
+        if (collectionDocs.length) {
+            promises.push(COLLECTIONS_DB.bulk({ docs: collectionDocs }));
+        }
+
+        if (metadataDocs.length) {
+            promises.push(METADATA_DB.bulk({ docs: metadataDocs }));
+        }
+
+        if (promises.length) {
+            await Promise.all(promises);
+        }
     } catch (error) {
         throw `Error in finalizeDocsForRequest(): ${error}`;
     }
