@@ -17,6 +17,12 @@ export async function deleteDatabases() {
         await nano.db.destroy('metadata');
         await nano.db.destroy('passwords');
         await nano.db.destroy('airdrop');
+
+        //_utils, _replicator, _global_changes, _metadata
+        await nano.db.create('_users');
+        await nano.db.create('_replicator');
+        await nano.db.create('_global_changes');
+        await nano.db.create('_metadata');
     } catch (error) {
         console.log(error)
     }
