@@ -22,8 +22,8 @@ import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
 
-var fs = require("fs");
-var https = require("https");
+// var fs = require("fs");
+// var https = require("https");
 
 const cors = require('cors');
 
@@ -163,17 +163,8 @@ process.on("SIGINT", () => {
 })
 
 const server: Server =
-    https
-        .createServer(
-            // Provide the private and public key to the server by reading each
-            // file's content with the readFileSync() method.
-            {
-                key: fs.readFileSync("server.key"),
-                cert: fs.readFileSync("server.cert"),
-            },
-            app
-        ).listen(port, () => {
-            init().catch(console.error).then(() => {
-                console.log(`\nserver started at http://localhost:${port}`)
-            })
+    app.listen(port, () => {
+        init().catch(console.error).then(() => {
+            console.log(`\nserver started at http://localhost:${port}`)
         })
+    })
