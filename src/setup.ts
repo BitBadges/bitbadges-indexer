@@ -1,7 +1,7 @@
-import { createDatabases, initStatus, createIndexes } from "./setup-helpers"
+import { createDatabases, initStatus, createIndexes, deleteDatabases } from "./setup-helpers"
 
 async function main() {
-    // await deleteDatabases();
+    await deleteDatabases();
     await createDatabases();
     await initStatus();
     await createIndexes();
