@@ -25,6 +25,8 @@ export async function deleteDatabases() {
         await nano.db.create('_metadata');
     } catch (error) {
         console.log(error)
+
+        throw "Couldn't create databases"
     }
 }
 
