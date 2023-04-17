@@ -1,4 +1,4 @@
-import { createDatabases, initStatus, createIndexes } from "./reset"
+import { createDatabases, initStatus, createIndexes } from "./setup-helpers"
 
 async function main() {
     await createDatabases()
