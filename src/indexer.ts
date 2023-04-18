@@ -21,6 +21,7 @@ import { getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPor
 import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
+import { broadcastTx } from './routes/broadcast'
 
 var fs = require("fs");
 var https = require("https");
@@ -142,6 +143,9 @@ app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
 //Browse
 app.post('/api/v0/browse', getBrowseCollections);
 
+//Browse
+app.post('/api/v0/broadcast', broadcastTx);
+
 //Fetch arbitrary metadata
 app.post('/api/v0/metadata', fetchMetadata);
 
@@ -163,10 +167,13 @@ process.on("SIGINT", () => {
 })
 
 const server: Server =
-    https.createServer({
-        key: fs.readFileSync("server.key"),
-        cert: fs.readFileSync("server.cert"),
-    }, app)
+    https.createServer(
+        {
+            key: fs.readFileSync("server.key"),
+            cert: fs.readFileSync("server.cert"),
+        },
+        app
+    )
         .listen(port, () => {
             init().catch(console.error).then(() => {
                 console.log(`\nserver started at http://localhost:${port}`)
