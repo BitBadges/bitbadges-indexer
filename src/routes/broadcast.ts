@@ -5,7 +5,7 @@ import { Request, Response } from "express";
 export const broadcastTx = async (req: Request, res: Response) => {
     try {
         const broadcastPost = await axios.post(
-            `${process.env.RPC_URL}${generateEndpointBroadcast()}`,
+            `${process.env.API_URL}${generateEndpointBroadcast()}`,
             req.body,
         );
 
