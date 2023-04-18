@@ -20,6 +20,7 @@ export const handleNewAccount = async (accountNum: number, docs: Docs): Promise<
 }
 
 export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Docs): Promise<Docs> => {
+
     if (!(docs.accountNumbersMap[cosmosAddress] >= 0)) {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(cosmosAddress)
 
@@ -28,8 +29,8 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
             docs = await fetchDocsForRequestIfEmpty(docs, [accountNum], [], []);
 
             docs.accounts[accountNum] = {
-                _id: docs.accounts[accountNum]._id,
-                _rev: docs.accounts[accountNum]._rev,
+                ...docs.accounts[accountNum],
+                _id: `${accountNum}`,
                 ...accountInfo,
             }
             docs.accountNumbersMap[accountInfo.cosmosAddress] = accountNum;
