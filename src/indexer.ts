@@ -22,8 +22,8 @@ import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
 
-// var fs = require("fs");
-// var https = require("https");
+var fs = require("fs");
+var https = require("https");
 
 const cors = require('cors');
 
@@ -75,7 +75,7 @@ app.use(expressSession({
     secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
     resave: true,
     saveUninitialized: true,
-    cookie: { secure: true, sameSite: 'none' }
+    cookie: { secure: false, sameSite: true }
 }));
 
 app.use(cookieParser());
@@ -163,8 +163,12 @@ process.on("SIGINT", () => {
 })
 
 const server: Server =
-    app.listen(port, () => {
-        init().catch(console.error).then(() => {
-            console.log(`\nserver started at http://localhost:${port}`)
+    https.createServer({
+        key: fs.readFileSync("server.key"),
+        cert: fs.readFileSync("server.cert"),
+    }, app)
+        .listen(port, () => {
+            init().catch(console.error).then(() => {
+                console.log(`\nserver started at http://localhost:${port}`)
+            })
         })
-    })
