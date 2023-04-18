@@ -59,7 +59,7 @@ export const sendTokensFromFaucet = async (expressReq: Request, res: Response) =
 
         const amount = {
             denom: "badge",
-            amount: "10",
+            amount: "1000",
         };
 
 
