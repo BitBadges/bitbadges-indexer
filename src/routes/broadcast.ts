@@ -9,7 +9,7 @@ export const broadcastTx = async (req: Request, res: Response) => {
             req.body,
         );
 
-        return res.status(200).send(broadcastPost);
+        return res.status(200).send(broadcastPost.data);
     } catch (e) {
         console.error(e);
         return res.status(500).send({ error: 'Error broadcasting' });
