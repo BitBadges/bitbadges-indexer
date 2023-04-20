@@ -39,7 +39,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
         ...accountObj,
         pub_key: pubKeyStr,
         sequence: accountObj.sequence ? accountObj.sequence : 0,
-        account_number: accountObj.account_number !== undefined && accountObj.account_number >= 0 ? accountObj.account_number : -1,
+        account_number: accountObj.account_number !== undefined && accountObj.account_number >= 0 ? accountObj.account_number : 0,
         chain,
         cosmosAddress: accountObj.address ? convertToCosmosAddress(accountObj.address) : '',
         address: chain === 'Cosmos' && accountObj.address ? accountObj.address : cosmosToEth(accountObj.address ? accountObj.address : ''),
