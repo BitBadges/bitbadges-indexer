@@ -13,7 +13,7 @@
         "indexer-dev": "npx ts-node src/indexer.ts",
         "indexer": "node build/dist/indexer.js",
         "setup": "npx ts-node src/setup.ts",
-        "setup-and-run": "node build/dist/setup.js && npm run indexer"
+        "setup-and-run": "npm run setup && npm run indexer"
     },
     "repository": {
         "type": "git",
