@@ -15,14 +15,14 @@ export const httpRequest = async (url: string | URL, options: RequestOptions, po
     })
 }
 
-export const askFaucet = async (address: string, tokens: { [key: string]: number }) =>
-    httpRequest(
-        process.env.FAUCET_URL,
-        {
-            method: "POST",
-        },
-        JSON.stringify({
-            address: address,
-            coins: Object.entries(tokens).map(([key, value]) => value + key),
-        }),
-    )
+// export const askFaucet = async (address: string, tokens: { [key: string]: number }) =>
+//     httpRequest(
+//         process.env.FAUCET_URL,
+//         {
+//             method: "POST",
+//         },
+//         JSON.stringify({
+//             address: address,
+//             coins: Object.entries(tokens).map(([key, value]) => value + key),
+//         }),
+//     )
