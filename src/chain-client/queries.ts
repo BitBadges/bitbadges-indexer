@@ -34,6 +34,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
         pubKeyStr = Buffer.from(pub_key).toString('base64');
     }
 
+    console.log("FETCHED ACCOUNT NUMBER", accountObj.account_number);
     return {
         ...accountObj,
         pub_key: pubKeyStr,
@@ -62,7 +63,10 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
                     return getAccountInfoToReturn(accountPromise);
                 } catch (error) {
+                    console.log("ERROR FETCHING ACCOUNT");
                     console.log(error);
+
+
                     // await ERRORS_DB.bulk({ docs: [{ error: error, date: new Date().toISOString(), message: 'Fetching ' + address }] })
                     return {
                         address: address,

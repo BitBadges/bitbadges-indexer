@@ -24,6 +24,7 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
     if (!(docs.accountNumbersMap[cosmosAddress] >= 0)) {
         let accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(cosmosAddress)
 
+        console.log("ACCOUNT INFO", accountInfo);
         if (accountInfo) {
             let accountNum = accountInfo?.account_number >= 0 ? Number(accountInfo.account_number) : -1;
             docs = await fetchDocsForRequestIfEmpty(docs, [accountNum], [], []);
