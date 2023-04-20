@@ -2,7 +2,7 @@
 Storing all possible data that may be needed for a project directly on the blockchain, such as all activity or metadata, would get expensive very quickly. Enter the BitBadges indexer!
 
 See the [BitBadges Docs](
-    https://docs.bitbadges.io
+    https://docs.bitbadges.io/overview
 ) for more information.
 
 ## How It Works
@@ -16,7 +16,7 @@ For example, if a new MsgTransferBadge transaction is observed, the indexer can 
 The indexer code is open-source, so feel free to run your own indexer and customize it as needed for your project. 
 
 However, we run an official BitBadges Indexer and API which should provide access to the necessary data required for most projects. See the [BitBadges Docs](
-    https://docs.bitbadges.io
+    https://docs.bitbadges.io/overview
 ).
 
 Note that CouchDB uses an optimistic conflict resolution system. If you add functionality to the indexer, design it with this in mind.

@@ -1,10 +1,14 @@
-import { createDatabases, initStatus, createIndexes, deleteDatabases } from "./setup-helpers"
+import { createDatabases, initStatus, createIndexes } from "./setup-helpers"
 
 async function main() {
-    await deleteDatabases();
-    await createDatabases();
-    await initStatus();
-    await createIndexes();
+    try {
+        // await deleteDatabases();
+        await createDatabases(); //If there is an error, we assume the database already exists and continue
+        await initStatus();
+        await createIndexes();
+    } catch (e) {
+        console.log(e);
+    }
 }
 
 main()
