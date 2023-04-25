@@ -80,7 +80,6 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     setChainDriver(chainDriver);
 
     try {
-        
         const generatedEIP4361ChallengeStr: string = await chainDriver.parseChallengeStringFromBytesToSign(body.originalBytes);
 
         const challenge: ChallengeParams = constructChallengeObjectFromString(generatedEIP4361ChallengeStr);
