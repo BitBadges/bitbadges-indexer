@@ -39,10 +39,10 @@ export async function getChallenge(expressReq: Request, res: Response) {
 
 
     const challengeParams = {
-        domain: 'https://bitbadges.xyz',
+        domain: 'https://bitbadges.io',
         statement: 'BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet. You will stay signed in for 24 hours.',
         address: req.body.address,
-        uri: 'https://bitbadges.xyz',
+        uri: 'https://bitbadges.io',
         nonce: req.session.nonce,
         expirationDate: iso8601,
         notBefore: undefined,
