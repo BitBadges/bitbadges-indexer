@@ -21,7 +21,7 @@ import { getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPor
 import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
-import { broadcastTx } from './routes/broadcast'
+import { broadcastTx, simulateTx } from './routes/broadcast'
 
 var fs = require("fs");
 var https = require("https");
@@ -143,8 +143,9 @@ app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
 //Browse
 app.post('/api/v0/browse', getBrowseCollections);
 
-//Browse
+//Broadcasting
 app.post('/api/v0/broadcast', broadcastTx);
+app.post('/api/v0/simulate', simulateTx);
 
 //Fetch arbitrary metadata
 app.post('/api/v0/metadata', fetchMetadata);
