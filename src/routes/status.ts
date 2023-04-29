@@ -1,4 +1,4 @@
-import { DbStatus } from "bitbadges-sdk";
+import { DbStatus } from "bitbadgesjs-utils";
 import { getStatus } from "../db/status";
 
 import { Request, Response } from "express";

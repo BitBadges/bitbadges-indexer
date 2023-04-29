@@ -1,7 +1,7 @@
 import { MessageMsgUpdateDisallowedTransfers } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { DbStatus, Docs } from "bitbadges-sdk";
+import { DbStatus, Docs } from "bitbadgesjs-utils";
 
 
 

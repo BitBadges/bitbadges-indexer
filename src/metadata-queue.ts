@@ -1,7 +1,7 @@
 import { METADATA_DB, fetchDocsForRequestIfEmpty } from "./db/db";
 import axios from "axios";
 import { getFromIpfs } from "./ipfs/ipfs";
-import { StoredBadgeCollection, DbStatus, Docs, BadgeMetadata } from "bitbadges-sdk";
+import { StoredBadgeCollection, DbStatus, Docs, BadgeMetadata } from "bitbadgesjs-utils";
 
 export const fetchUri = async (uri: string): Promise<any> => {
     if (uri.startsWith('ipfs://')) {
@@ -15,7 +15,6 @@ export const fetchUri = async (uri: string): Promise<any> => {
 
 export const pushToMetadataQueue = async (_collection: StoredBadgeCollection, status: DbStatus, specificId?: number | 'collection') => {
     const collection: StoredBadgeCollection = JSON.parse(JSON.stringify(_collection));
-
     let batchId = 0;
 
     let pushed = false;
@@ -110,8 +109,6 @@ export const fetchUriInQueue = async (status: DbStatus, docs: Docs) => {
 
     const queueItems = [];
     while (numFetchesLeft > 0 && status.queue.length > 0) {
-
-
         //Handle if we are only fetching a specific badgeID
         if (status.queue[0].specificId && status.queue[0].batchId !== 'collection') {
             const matchingIdRange = status.queue[0].badgeIds.find((id) => {

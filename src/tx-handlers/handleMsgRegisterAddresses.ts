@@ -1,6 +1,6 @@
 import { MessageMsgRegisterAddresses } from "bitbadgesjs-transactions"
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { DbStatus, Docs } from "bitbadges-sdk";
+import { DbStatus, Docs } from "bitbadgesjs-utils";
 
 export const handleMsgRegisterAddresses = async (msg: MessageMsgRegisterAddresses, status: DbStatus, docs: Docs): Promise<Docs> => {
     docs = await handleNewAccountByAddress(msg.creator, docs);

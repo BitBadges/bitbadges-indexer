@@ -4,7 +4,7 @@ import { Session } from 'express-session';
 import { generateNonce } from 'siwe';
 import { getChainDriver } from './blockin';
 import { parse } from '../util/preserveJson';
-import { convertToCosmosAddress } from 'bitbadges-sdk';
+import { convertToCosmosAddress } from 'bitbadgesjs-utils';
 
 export interface BlockinSession extends Session {
     nonce: string | null;

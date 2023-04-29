@@ -1,4 +1,4 @@
-import { Docs } from "bitbadges-sdk";
+import { Docs } from "bitbadgesjs-utils";
 import { fetchDocsForRequestIfEmpty } from "../db/db";
 import { client } from "../indexer";
 

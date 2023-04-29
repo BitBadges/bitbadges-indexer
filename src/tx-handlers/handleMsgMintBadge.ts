@@ -1,4 +1,4 @@
-import { BadgeMetadata, BadgeMetadataMap, BitBadgesUserInfo, ClaimItem, DbStatus, Docs, GetPermissions, StoredBadgeCollection, createCollectionFromMsgNewCollection } from "bitbadges-sdk"
+import { BadgeMetadata, BadgeMetadataMap, BitBadgesUserInfo, ClaimItem, DbStatus, Docs, GetPermissions, StoredBadgeCollection, createCollectionFromMsgNewCollection } from "bitbadgesjs-utils"
 import { MessageMsgMintBadge } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"

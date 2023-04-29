@@ -2,7 +2,7 @@ import last from 'it-last';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { ipfsClient } from "../indexer";
 import axios from 'axios';
-import { BadgeMetadata } from 'bitbadges-sdk';
+import { BadgeMetadata } from 'bitbadgesjs-utils';
 
 
 export const getFromIpfs = async (path: string) => {
@@ -26,6 +26,17 @@ export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
     return blob
 }
 
+export const addUserListToIpfs = async (userList: string[]) => {
+  const files = [];
+  files.push({
+      path: '',
+      content: uint8ArrayFromString(JSON.stringify(userList))
+  });
+
+  const result = await last(ipfsClient.addAll(files));
+
+  return result;
+}
 
 
 export const addToIpfs = async (collectionMetadata: BadgeMetadata, individualBadgeMetadata: BadgeMetadata[]) => {

@@ -1,4 +1,4 @@
-import { DbStatus, Docs } from "bitbadges-sdk"
+import { DbStatus, Docs } from "bitbadgesjs-utils"
 import { MessageMsgMintBadge } from "bitbadgesjs-transactions"
 import { METADATA_DB, fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"

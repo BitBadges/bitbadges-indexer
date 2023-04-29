@@ -1,4 +1,4 @@
-import { DbStatus } from "bitbadges-sdk";
+import { DbStatus } from "bitbadgesjs-utils";
 import { STATUS_DB } from "./db";
 
 export async function setStatus(status: DbStatus) {

@@ -1,4 +1,4 @@
-import { ActivityItem, AddBalancesForIdRanges, ClaimItem, DbStatus, Docs, getBalanceAfterTransfers } from "bitbadges-sdk"
+import { ActivityItem, AddBalancesForIdRanges, ClaimItem, DbStatus, Docs, getBalanceAfterTransfers } from "bitbadgesjs-utils"
 import { MessageMsgClaimBadge } from "bitbadgesjs-transactions"
 import nano from "nano"
 import { PASSWORDS_DB, fetchDocsForRequestIfEmpty } from "../db/db"

@@ -1,7 +1,7 @@
 import { config } from "dotenv"
 import Nano from "nano";
 import { ACTIVITY_DB, STATUS_DB, COLLECTIONS_DB } from "./db/db";
-import { DbStatus } from "bitbadges-sdk";
+import { DbStatus } from "bitbadgesjs-utils";
 
 config()
 

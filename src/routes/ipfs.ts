@@ -1,10 +1,15 @@
 import { Request, Response } from "express";
-import { addMerkleTreeToIpfs, addToIpfs } from "../ipfs/ipfs";
+import { addMerkleTreeToIpfs, addToIpfs, addUserListToIpfs } from "../ipfs/ipfs";
 import { PASSWORDS_DB } from "../db/db";
 
 export const addToIpfsHandler = async (req: Request, res: Response) => {
     try {
-        const result = await addToIpfs(req.body.collectionMetadata, req.body.individualBadgeMetadata);
+        let result = undefined;
+        if (req.body.collectionMetadata, req.body.individualBadgeMetadata) {
+          result = await addToIpfs(req.body.collectionMetadata, req.body.individualBadgeMetadata);
+        } else if (req.body.userList) {
+          result = await addUserListToIpfs(req.body.userList);
+        }
 
         if (!result) {
             return res.status(400).send({ error: 'No addAll result received' });

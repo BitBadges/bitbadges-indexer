@@ -1,4 +1,4 @@
-import { StoredBadgeCollection, ClaimItem } from "bitbadges-sdk";
+import { StoredBadgeCollection, ClaimItem } from "bitbadgesjs-utils";
 import { PASSWORDS_DB } from "../db/db";
 import { fetchUri } from "../metadata-queue";
 import nano from "nano";

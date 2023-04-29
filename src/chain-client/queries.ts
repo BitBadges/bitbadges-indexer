@@ -1,5 +1,5 @@
 import { createProtobufRpcClient, QueryClient } from "@cosmjs/stargate";
-import { AccountDocument, convertToCosmosAddress } from "bitbadges-sdk";
+import { AccountDocument, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { cosmosToEth } from "bitbadgesjs-address-converter";
 import * as query from "bitbadgesjs-proto/dist/proto/badges/query";
 import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth";

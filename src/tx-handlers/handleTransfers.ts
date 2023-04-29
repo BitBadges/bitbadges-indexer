@@ -1,4 +1,4 @@
-import { ActivityItem, AddBalancesForIdRanges, DbStatus, Docs, StoredBadgeCollection, Transfers, getBalanceAfterTransfers } from "bitbadges-sdk";
+import { ActivityItem, AddBalancesForIdRanges, DbStatus, Docs, StoredBadgeCollection, Transfers, getBalanceAfterTransfers } from "bitbadgesjs-utils";
 import { handleNewAccount } from "./handleNewAccount";
 import { nanoid } from "nanoid";
 

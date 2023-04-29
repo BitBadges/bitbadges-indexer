@@ -1,7 +1,7 @@
-import { BadgeMetadata, BadgeMetadataMap, BitBadgesUserInfo, DbStatus, Docs, StoredBadgeCollection, createCollectionFromMsgNewCollection } from "bitbadges-sdk"
+import { BadgeMetadata, BadgeMetadataMap, BitBadgesUserInfo, DbStatus, Docs, StoredBadgeCollection, createCollectionFromMsgNewCollection, isAddressValid } from "bitbadgesjs-utils"
 import { MessageMsgNewCollection } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
-import { pushToMetadataQueue } from "../metadata-queue"
+import { fetchUri, pushToMetadataQueue } from "../metadata-queue"
 import { fetchClaims } from "./claims"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
@@ -15,7 +15,8 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
         manager: docs.accountNumbersMap[msg.creator],
         claims: msg.claims,
         permissions: msg.permissions,
-        collectionId: status.nextCollectionId
+        collectionId: status.nextCollectionId,
+        standard: msg.standard
     }
 
     docs = await fetchDocsForRequestIfEmpty(docs, [], [collection.collectionId], []);
@@ -23,6 +24,20 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
     await pushToMetadataQueue(collection, status);
 
     collection.claims = await fetchClaims(collection);
+
+    const userList: string[] = [];
+    try {
+      //check if bytes
+      const userListArr: string[] = await fetchUri(collection.bytes);
+      userListArr.forEach((user) => {
+        if (isAddressValid(user)) {
+          userList.push(user);
+        }
+      });
+    } catch (e) {
+      
+    }
+
 
     docs.collections[collection.collectionId] = {
         _id: docs.collections[collection.collectionId]._id,
@@ -34,6 +49,7 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
     docs.collections[collection.collectionId].collectionMetadata = { name: '', description: '', image: '', };
     docs.collections[collection.collectionId].badgeMetadata = {};
     docs.collections[collection.collectionId].managerRequests = [];
+    docs.collections[collection.collectionId].userList = userList;
     docs.collections[collection.collectionId].originalClaims = collection.claims;
     docs.collections[collection.collectionId].createdBlock = status.block.height;
 

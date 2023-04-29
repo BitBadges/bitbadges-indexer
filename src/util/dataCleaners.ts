@@ -1,4 +1,4 @@
-import { StoredBadgeCollection, Transfers, UserBalance } from "bitbadges-sdk";
+import { StoredBadgeCollection, Transfers, UserBalance } from "bitbadgesjs-utils";
 
 export function cleanStoredBadgeCollection(collection: StoredBadgeCollection) {
     collection.collectionId = collection.collectionId ? Number(collection.collectionId) : 0;

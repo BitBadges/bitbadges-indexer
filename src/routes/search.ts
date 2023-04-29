@@ -1,5 +1,5 @@
 
-import { AccountResponse, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadges-sdk";
+import { AccountResponse, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { ACCOUNTS_DB, METADATA_DB } from "../db/db";

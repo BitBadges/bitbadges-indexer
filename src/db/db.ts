@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ActivityItem, AccountDocument, DbStatus, MetadataDocument, PasswordDocument, StoredBadgeCollection, AccountDocs, CollectionDocs, Docs, MetadataDocs } from 'bitbadges-sdk';
+import { ActivityItem, AccountDocument, DbStatus, MetadataDocument, PasswordDocument, StoredBadgeCollection, AccountDocs, CollectionDocs, Docs, MetadataDocs } from 'bitbadgesjs-utils';
 
 config();
 

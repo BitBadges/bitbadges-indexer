@@ -1,4 +1,4 @@
-import { AccountResponse, ActivityItem, StoredBadgeCollection, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadges-sdk";
+import { AccountResponse, ActivityItem, StoredBadgeCollection, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";

@@ -1,4 +1,4 @@
-import { AccountDocument, AnnouncementActivityItem, BadgeMetadata, BadgeMetadataMap, BitBadgeCollection, IdRange, PaginationInfo, SortIdRangesAndMergeIfNecessary, StoredBadgeCollection, TransferActivityItem, convertToBitBadgesUserInfo, updateMetadataMap } from "bitbadges-sdk";
+import { AccountDocument, AnnouncementActivityItem, BadgeMetadata, BadgeMetadataMap, BitBadgeCollection, IdRange, PaginationInfo, SortIdRangesAndMergeIfNecessary, StoredBadgeCollection, TransferActivityItem, convertToBitBadgesUserInfo, updateMetadataMap } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";

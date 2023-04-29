@@ -2,7 +2,7 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { DbStatus, Docs } from "bitbadges-sdk"
+import { DbStatus, Docs } from "bitbadgesjs-utils"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
 import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintBadge, MessageMsgNewCollection, MessageMsgRegisterAddresses, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateDisallowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
 import { ABCIMessageLog, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
