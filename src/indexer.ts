@@ -17,11 +17,13 @@ import { getPasswordsAndCodes } from "./routes/passwords"
 import { fetchMetadata, refreshMetadata } from "./routes/metadata"
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPortfolioInfo, updateAccountInfo } from "./routes/users"
+import { addReviewForUser, getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPortfolioInfo, updateAccountInfo } from "./routes/users"
 import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
 import { broadcastTx, simulateTx } from './routes/broadcast'
+import rateLimit from 'express-rate-limit'
+
 
 var fs = require("fs");
 var https = require("https");
@@ -30,6 +32,15 @@ const cors = require('cors');
 
 // create a mutex for synchronizing access to the queue
 export const refreshQueueMutex = new Mutex();
+
+// Basic rate limiting middleware for Express. Limits requests to 100 per minute.
+// Initially put in place to protect against infinite loops.
+const limiter = rateLimit({
+	windowMs: 60 * 1000, // 1 minutes
+	max: 100, // Limit each IP to 100 requests per `window` (here, per minute)
+	standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+})
 
 
 config()
@@ -63,13 +74,13 @@ export const setTimer = (newTimer: NodeJS.Timer) => {
 const app: Express = express()
 const port = "3001"
 
-// app.use(cors());
-//TODO: secure these / API keys? + rate-limit
-//nano-cookies?
+//TODO: secure these / API keys?
 app.use(cors({
     origin: true,
     credentials: true,
 }));
+
+app.use(limiter);
 
 app.use(expressSession({
     name: 'blockin',
@@ -128,8 +139,10 @@ app.post('/api/v0/collection/:id/addReview', authorizeBlockinRequest, addReview)
 app.post('/api/v0/user/batch', getBatchUsers);
 app.post('/api/v0/user/:accountNum/id', getAccountById); //TODO: Combine getById and getByAddress
 app.post('/api/v0/user/:address/address', getAccountByAddress);
-app.post('/api/v0/user/:accountNum/portfolio', getPortfolioInfo);
+app.post('/api/v0/user/:cosmosAddress/portfolio', getPortfolioInfo);
 app.post('/api/v0/user/:accountNum/activity', getActivity);
+app.post('/api/v0/user/:cosmosAddress/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
+
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
 
 //IPFS

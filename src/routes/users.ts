@@ -1,11 +1,12 @@
-import { AccountResponse, ActivityItem, StoredBadgeCollection, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountResponse, ActivityItem, ReviewActivityItem, StoredBadgeCollection, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
-import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
+import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB, ACTIVITY_DB, AIRDROP_DB, COLLECTIONS_DB } from "../db/db";
 import { client } from "../indexer";
 import { getAddressesForNames, getEnsDetails, getEnsResolver, getEnsResolversForNames, getNameForAddress, getNamesForAddresses } from "../util/ensResolvers";
 import { Coin } from "@cosmjs/stargate";
+import { getStatus } from "../db/status";
 
 
 export const getAccountByAddress = async (req: Request, res: Response) => {
@@ -336,6 +337,23 @@ async function executeAnnouncementsQuery(accountNum: number, bookmark?: string) 
     return announcementsRes;
 }
 
+async function executeReviewsQuery(cosmosAddress: string, bookmark?: string) {
+  const reviewsRes = await ACTIVITY_DB.partitionedFind(`user-${cosmosAddress}` ,{
+      selector: {
+          "method": {
+              "$eq": "Review"
+          },
+          timestamp: {
+              "$gt": null,
+          }
+      },
+      sort: ["timestamp"],
+      bookmark: bookmark ? bookmark : undefined,
+  });
+
+  return reviewsRes;
+}
+
 async function executeCollectedQuery(accountNum: number, bookmark?: string) {
     const collectedRes = await COLLECTIONS_DB.find({
         selector: {
@@ -358,6 +376,63 @@ async function executeCollectedQuery(accountNum: number, bookmark?: string) {
     });
 
     return collectedRes;
+}
+
+export const addReviewForUser = async (expressReq: Request, res: Response) => {
+  try {
+    const req = expressReq as AuthenticatedRequest
+
+    if (!req.body.review || req.body.review.length > 2048) {
+        return res.status(400).send({ error: 'Review must be 1 to 2048 characters long.' });
+    }
+
+    const stars = Number(req.body.stars);
+    if (isNaN(stars) || stars < 0 || stars > 5) {
+        return res.status(400).send({ error: 'Stars must be a number between 0 and 5.' });
+    }
+
+    const cosmosAddress = convertToCosmosAddress(req.params.cosmosAddress);
+
+    const userAccountInfo = await ACCOUNTS_DB.find({
+        selector: {
+            cosmosAddress: {
+                $eq: req.session.cosmosAddress
+            }
+        }
+    });
+
+    if (userAccountInfo.docs.length === 0) {
+        return res.status(400).send({ error: 'User does not exist.' });
+    }
+
+    const status = await getStatus();
+
+    const { review } = req.body;
+
+    const activityDoc: ReviewActivityItem & {
+        _id: string
+    } = {
+        _id: `user-${cosmosAddress}:${Date.now()}`,
+        method: 'Review',
+        cosmosAddress: cosmosAddress,
+        stars: stars,
+        review: review,
+        from: userAccountInfo.docs[0].account_number,
+        timestamp: Date.now(),
+        block: status.block.height,
+        users: [],
+    }
+
+    await ACTIVITY_DB.insert(activityDoc);
+
+    return res.status(200).send({ success: true });
+} catch (e) {
+    console.error(e);
+    return res.status(500).send({
+        error: 'Error adding announcement. Please try again later.'
+    })
+}
+
 }
 
 export const getActivity = async (req: Request, res: Response) => {
@@ -391,42 +466,81 @@ export const getPortfolioInfo = async (req: Request, res: Response) => {
         const userActivityBookmark = req.body.userActivityBookmark;
         const collectedBookmark = req.body.collectedBookmark;
         const announcementsBookmark = req.body.announcementsBookmark;
-        const accountNumIdx = `${Number(req.params.accountNum)}`;
+        const reviewsBookmark = req.body.reviewsBookmark;
+        const accountDoc = await ACCOUNTS_DB.find({
+            selector: {
+                cosmosAddress: {
+                    $eq: req.params.cosmosAddress
+                }
+            }
+        });
+
+        let accountNumIdx = -1;
+        if (accountDoc.docs[0]) {
+            accountNumIdx = Number(accountDoc.docs[0].account_number);
+        }
+
+
 
         let response: nano.MangoResponse<StoredBadgeCollection>;
         let activityRes: nano.MangoResponse<ActivityItem>;
         let announcementsRes: nano.MangoResponse<ActivityItem>;
+        let reviewsRes: nano.MangoResponse<ActivityItem>;
+        
+        if (accountNumIdx === -1) {
+            response = {
+                docs: [],
+            }
+            activityRes = {
+                docs: [],
+            }
+            announcementsRes = {
+                docs: [],
+            }
+          } else {
+
         // Do not fetch if we have a user activity bookmark but no collected bookmark
-        if ((userActivityBookmark || announcementsBookmark) && !collectedBookmark) {
+        if ((userActivityBookmark || announcementsBookmark || reviewsBookmark) && !collectedBookmark) {
             response = {
                 docs: [],
             }
         } else {
-            response = await executeCollectedQuery(Number(req.params.accountNum), collectedBookmark);
+            response = await executeCollectedQuery(accountNumIdx, collectedBookmark);
         }
 
         // Do not fetch if we have a collected bookmark but no user activity bookmark
-        if ((collectedBookmark || announcementsBookmark) && !userActivityBookmark) {
+        if ((collectedBookmark || announcementsBookmark || reviewsBookmark) && !userActivityBookmark) {
             activityRes = {
                 docs: [],
             }
         } else {
-            activityRes = await executeActivityQuery(Number(req.params.accountNum), userActivityBookmark);
+            activityRes = await executeActivityQuery(accountNumIdx, userActivityBookmark);
         }
 
         // Do not fetch if we have a collected bookmark but no user activity bookmark
-        if ((collectedBookmark || userActivityBookmark) && !announcementsBookmark) {
+        if ((collectedBookmark || userActivityBookmark || reviewsBookmark ) && !announcementsBookmark) {
             announcementsRes = {
                 docs: [],
             }
         } else {
-            announcementsRes = await executeAnnouncementsQuery(Number(req.params.accountNum), announcementsBookmark);
+            announcementsRes = await executeAnnouncementsQuery(accountNumIdx, announcementsBookmark);
         }
+      }
+
+        
+        if ((collectedBookmark || userActivityBookmark || announcementsBookmark ) && !reviewsBookmark) {
+          reviewsRes = {
+              docs: [],
+          }
+      } else {
+          reviewsRes = await executeReviewsQuery(req.params.cosmosAddress, reviewsBookmark);
+      }
 
         return res.status(200).send({
             collected: response.docs.filter((x) => !!x.balances[accountNumIdx] && x.balances[accountNumIdx].balances.length > 0),
             activity: activityRes.docs.filter((x) => x.method === 'Transfer' || x.method === 'Mint'),
             announcements: announcementsRes.docs.filter((x) => x.method === 'Announcement'),
+            reviews: reviewsRes.docs.filter((x) => x.method === 'Review'),
             managing: response.docs.filter((x) => x.manager === Number(req.params.accountNum)),
             pagination: {
                 userActivity: {
@@ -441,6 +555,10 @@ export const getPortfolioInfo = async (req: Request, res: Response) => {
                     bookmark: response.bookmark,
                     hasMore: response.docs.length === 25
                 },
+                reviews: {
+                    bookmark: reviewsRes.bookmark,
+                    hasMore: reviewsRes.docs.length === 25
+                }
             }
         });
     } catch (e) {

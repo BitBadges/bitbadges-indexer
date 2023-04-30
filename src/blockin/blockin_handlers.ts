@@ -32,15 +32,19 @@ export async function getChallenge(expressReq: Request, res: Response) {
     req.session.cosmosAddress = cosmosAddress;
     req.session.save();
 
+    const hours = Number(req.body.hours) ? Number(req.body.hours) : 24;
+    if (isNaN(hours)) {
+        return res.status(400).json({ error: 'Invalid hours' });
+    }
+
     // Get the current time
     const now = new Date();
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrow = new Date(now.getTime() + hours * 60 * 60 * 1000);
     const iso8601 = tomorrow.toISOString();
-
 
     const challengeParams = {
         domain: 'https://bitbadges.io',
-        statement: 'BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet. You will stay signed in for 24 hours.',
+        statement: `BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet. You will stay signed in for ${hours} hours.`,
         address: req.body.address,
         uri: 'https://bitbadges.io',
         nonce: req.session.nonce,
@@ -93,6 +97,13 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
             console.log(req.session.nonce, "does not equal", challenge.nonce);
             return res.status(422).json({
                 message: 'Invalid nonce.',
+            });
+        }
+
+        if (convertToCosmosAddress(challenge.address) !== req.session.cosmosAddress) {
+            console.log(req.session.cosmosAddress, "does not equal", challenge.address);
+            return res.status(422).json({
+                message: 'Invalid address.',
             });
         }
 
