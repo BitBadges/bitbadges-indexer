@@ -11,7 +11,7 @@ import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { poll } from "./poll"
 import { getBadgeBalance } from "./routes/balances"
 import { getCodes } from "./routes/codes"
-import { addAnnouncement, getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
+import { addAnnouncement, addReview, getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
 import { addMerkleTreeToIpfsHandler, addToIpfsHandler } from "./routes/ipfs"
 import { getPasswordsAndCodes } from "./routes/passwords"
 import { fetchMetadata, refreshMetadata } from "./routes/metadata"
@@ -121,6 +121,7 @@ app.post('/api/v0/collection/:id/codes', authorizeBlockinRequest, getCodes);
 app.post('/api/v0/collection/:id/password/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes); //Write route
 
 app.post('/api/v0/collection/:id/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
+app.post('/api/v0/collection/:id/addReview', authorizeBlockinRequest, addReview); //Write route
 
 
 //User

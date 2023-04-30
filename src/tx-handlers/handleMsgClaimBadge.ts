@@ -89,7 +89,7 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
     docs.collections[msg.collectionId].claims = newClaims;
 
     docs.activityToAdd.push({
-        _id: `${docs.collections[msg.collectionId].collectionId}:${Date.now()}`,
+        _id: `collection-${docs.collections[msg.collectionId].collectionId}:${Date.now()}`,
         from: ['Mint'],
         to: [Number(toAddress)],
         balances: balanceTransferred.balances,

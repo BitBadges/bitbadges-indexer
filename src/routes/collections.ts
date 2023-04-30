@@ -1,4 +1,4 @@
-import { AccountDocument, AnnouncementActivityItem, BadgeMetadata, BadgeMetadataMap, BitBadgeCollection, IdRange, PaginationInfo, SortIdRangesAndMergeIfNecessary, StoredBadgeCollection, TransferActivityItem, convertToBitBadgesUserInfo, updateMetadataMap } from "bitbadgesjs-utils";
+import { AccountDocument, AnnouncementActivityItem, BadgeMetadata, BadgeMetadataMap, BitBadgeCollection, IdRange, PaginationInfo, ReviewActivityItem, SortIdRangesAndMergeIfNecessary, StoredBadgeCollection, TransferActivityItem, convertToBitBadgesUserInfo, updateMetadataMap } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
@@ -6,7 +6,7 @@ import { ACCOUNTS_DB, ACTIVITY_DB, COLLECTIONS_DB, METADATA_DB } from "../db/db"
 import { getStatus } from "../db/status";
 
 async function executeActivityQuery(collectionId: string, bookmark?: string, badgeId?: string) {
-    const activityRes = await ACTIVITY_DB.partitionedFind(collectionId, {
+    const activityRes = await ACTIVITY_DB.partitionedFind('collection-' + collectionId, {
         selector: {
             method: {
                 "$or": [
@@ -46,13 +46,13 @@ async function executeActivityQuery(collectionId: string, bookmark?: string, bad
         },
         sort: ["timestamp"],
         bookmark: bookmark ? bookmark : undefined,
-    }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem>;
+    }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
 
     return activityRes;
 }
 
 async function executeAnnouncementsQuery(collectionId: string, bookmark?: string) {
-    const announcementsRes = await ACTIVITY_DB.partitionedFind(collectionId, {
+    const announcementsRes = await ACTIVITY_DB.partitionedFind('collection-' + collectionId, {
         selector: {
             method: {
                 $eq: 'Announcement'
@@ -63,9 +63,26 @@ async function executeAnnouncementsQuery(collectionId: string, bookmark?: string
         },
         sort: ["timestamp"],
         bookmark: bookmark ? bookmark : undefined,
-    }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem>;
+    }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
 
     return announcementsRes;
+}
+
+async function executeReviewsQuery(collectionId: string, bookmark?: string) {
+    const reviewsRes = await ACTIVITY_DB.partitionedFind('collection-' + collectionId, {
+        selector: {
+            method: {
+                $eq: 'Review'
+            },
+            timestamp: {
+                "$gt": null,
+            }
+        },
+        sort: ["timestamp"],
+        bookmark: bookmark ? bookmark : undefined,
+    }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
+
+    return reviewsRes;
 }
 
 export const getCollectionById = async (req: Request, res: Response) => {
@@ -101,24 +118,42 @@ export const getCollectionById = async (req: Request, res: Response) => {
                 },
                 collection: collection,
             })
-        }
+        } else if (req.body.reviewsBookmark) {
+          const reviewsRes = await executeReviewsQuery(req.params.id, req.body.reviewsBookmark);
+
+          const collection: BitBadgeCollection = {} as BitBadgeCollection;
+          collection.reviews = reviewsRes.docs as ReviewActivityItem[];
+
+          return res.json({
+              pagination: {
+                  reviews: {
+                      bookmark: reviewsRes.bookmark,
+                      hasMore: reviewsRes.docs.length === 25,
+                  }
+              },
+              collection: collection,
+          })
+      }
 
         //Else we fetch the whole collection, along with initial activity and announcements
         const promises = [];
         promises.push(COLLECTIONS_DB.get(req.params.id));
         promises.push(executeActivityQuery(req.params.id));
         promises.push(executeAnnouncementsQuery(req.params.id));
+        promises.push(executeReviewsQuery(req.params.id));
         promises.push(getMetadata(Number(req.params.id), 0));
 
         const results = await Promise.all(promises);
-        const collection = results[0] as nano.DocumentGetResponse & StoredBadgeCollection & { activity: TransferActivityItem[], announcements: AnnouncementActivityItem[] };
-        const activityRes = results[1] as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem>;
-        const announcementsRes = results[2] as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem>;
+        const collection = results[0] as nano.DocumentGetResponse & StoredBadgeCollection & { activity: TransferActivityItem[], announcements: AnnouncementActivityItem[], reviews: ReviewActivityItem[] };
+        const activityRes = results[1] as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
+        const announcementsRes = results[2] as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
+        const reviewsRes = results[3] as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
 
         collection.activity = activityRes.docs as TransferActivityItem[];
         collection.announcements = announcementsRes.docs as AnnouncementActivityItem[];
+        collection.reviews = reviewsRes.docs as ReviewActivityItem[];
 
-        const metadataRes: { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap } = results[2] as { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap };
+        const metadataRes: { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap } = results[4] as { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap };
 
         const appendedCollection = appendMetadataResToCollection(metadataRes, collection);
         collection.badgeMetadata = appendedCollection.badgeMetadata;
@@ -133,6 +168,10 @@ export const getCollectionById = async (req: Request, res: Response) => {
                 announcements: {
                     bookmark: announcementsRes.bookmark,
                     hasMore: announcementsRes.docs.length === 25,
+                },
+                reviews: {
+                    bookmark: reviewsRes.bookmark,
+                    hasMore: reviewsRes.docs.length === 25,
                 }
             },
             collection: {
@@ -166,8 +205,8 @@ export const getBadgeActivity = async (req: Request, res: Response) => {
 
 export const getCollections = async (req: Request, res: Response) => {
     try {
-        let collectionNumsResponse: (StoredBadgeCollection & { activity: TransferActivityItem[], announcements: AnnouncementActivityItem[] })[];
-        let paginations: { activity: PaginationInfo, announcements: PaginationInfo }[] = [];
+        let collectionNumsResponse: (StoredBadgeCollection & { activity: TransferActivityItem[], announcements: AnnouncementActivityItem[], reviews: ReviewActivityItem[] })[];
+        let paginations: { activity: PaginationInfo, announcements: PaginationInfo, reviews: PaginationInfo }[] = [];
         //Here, we fetch the collections from the database and initial metadata if startBatchId is defined
         if (req.body.collections && req.body.collections.length !== 0) {
             const keys = [];
@@ -189,6 +228,7 @@ export const getCollections = async (req: Request, res: Response) => {
                 promises.push(getMetadata(metadataFetch.collectionId, metadataFetch.startBatchId));
                 promises.push(executeActivityQuery(`${metadataFetch.collectionId}`));
                 promises.push(executeAnnouncementsQuery(`${metadataFetch.collectionId}`));
+                promises.push(executeReviewsQuery(`${metadataFetch.collectionId}`));
             }
 
             const responses = await Promise.all(promises);
@@ -200,7 +240,7 @@ export const getCollections = async (req: Request, res: Response) => {
 
             //Append the metadata responses to each collection
             let idx = 1;
-            for (let i = 1; i < responses.length; i += 3) {
+            for (let i = 1; i < responses.length; i += 4) {
                 const metadataRes: { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap } = responses[i] as { collectionMetadata: BadgeMetadata, badgeMetadata: BadgeMetadataMap };
 
                 let collectionIdx = collectionNumsResponse.findIndex((collection) => collection.collectionId === metadataFetches[idx - 1].collectionId);
@@ -211,10 +251,12 @@ export const getCollections = async (req: Request, res: Response) => {
                 collectionNumsResponse[collectionIdx].collectionMetadata = appendedCollection.collectionMetadata;
 
                 //Append the activity responses to each collection
-                const activityRes = responses[i + 1] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem>;
-                const announcementsRes = responses[i + 2] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem>;
+                const activityRes = responses[i + 1] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem | ReviewActivityItem>;
+                const announcementsRes = responses[i + 2] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem | ReviewActivityItem>;
+                const reviewsRes = responses[i + 3] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem | ReviewActivityItem>;
                 collectionNumsResponse[collectionIdx].activity = activityRes.docs as TransferActivityItem[];
                 collectionNumsResponse[collectionIdx].announcements = announcementsRes.docs as AnnouncementActivityItem[];
+                collectionNumsResponse[collectionIdx].reviews = reviewsRes.docs as ReviewActivityItem[];
                 paginations[collectionIdx] = {
                     activity: {
                         bookmark: activityRes.bookmark || '',
@@ -223,6 +265,11 @@ export const getCollections = async (req: Request, res: Response) => {
                     announcements: {
                         bookmark: announcementsRes.bookmark || '',
                         hasMore: announcementsRes.docs.length === 25
+                    },
+                    reviews: {
+
+                        bookmark: reviewsRes.bookmark || '',
+                        hasMore: reviewsRes.docs.length === 25
                     }
                 }
 
@@ -378,6 +425,66 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
     }
 }
 
+export const addReview = async (expressReq: Request, res: Response) => {
+    try {
+        const req = expressReq as AuthenticatedRequest
+
+        if (!req.body.review || req.body.review.length > 2048) {
+            return res.status(400).send({ error: 'Review must be 1 to 2048 characters long.' });
+        }
+
+        const stars = Number(req.body.stars);
+        if (isNaN(stars) || stars < 0 || stars > 5) {
+            return res.status(400).send({ error: 'Stars must be a number between 0 and 5.' });
+        }
+        const collectionId = Number(req.params.id);
+
+       
+        const userAccountInfo = await ACCOUNTS_DB.find({
+            selector: {
+                cosmosAddress: {
+                    $eq: req.session.cosmosAddress
+                }
+            }
+        });
+
+        if (userAccountInfo.docs.length === 0) {
+            return res.status(400).send({ error: 'User does not exist.' });
+        }
+
+
+        const status = await getStatus();
+
+        const { review } = req.body;
+
+
+
+
+        const activityDoc: ReviewActivityItem & {
+            _id: string
+        } = {
+            _id: `collection-${collectionId}:${Date.now()}`,
+            method: 'Review',
+            collectionId,
+            stars: stars,
+            review: review,
+            from: userAccountInfo.docs[0].account_number,
+            timestamp: Date.now(),
+            block: status.block.height,
+            users: [],
+        }
+
+        await ACTIVITY_DB.insert(activityDoc);
+
+        return res.status(200).send({ success: true });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).send({
+            error: 'Error adding announcement. Please try again later.'
+        })
+    }
+}
+
 export const addAnnouncement = async (expressReq: Request, res: Response) => {
     try {
         const req = expressReq as AuthenticatedRequest
@@ -416,7 +523,7 @@ export const addAnnouncement = async (expressReq: Request, res: Response) => {
         const activityDoc: AnnouncementActivityItem & {
             _id: string
         } = {
-            _id: `${collectionId}:${Date.now()}`,
+            _id: `collection-${collectionId}:${Date.now()}`,
             method: 'Announcement',
             collectionId,
             announcement,

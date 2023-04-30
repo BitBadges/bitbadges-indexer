@@ -1,5 +1,5 @@
-import { BadgeMetadata, BadgeMetadataMap, BitBadgesUserInfo, DbStatus, Docs, StoredBadgeCollection, createCollectionFromMsgNewCollection, isAddressValid } from "bitbadgesjs-utils"
 import { MessageMsgNewCollection } from "bitbadgesjs-transactions"
+import { BadgeMetadata, BadgeMetadataMap, BalancesMap, BitBadgesUserInfo, DbStatus, Docs, StoredBadgeCollection, createCollectionFromMsgNewCollection } from "bitbadgesjs-utils"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { fetchUri, pushToMetadataQueue } from "../metadata-queue"
 import { fetchClaims } from "./claims"
@@ -25,17 +25,15 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
 
     collection.claims = await fetchClaims(collection);
 
-    const userList: string[] = [];
-    try {
-      //check if bytes
-      const userListArr: string[] = await fetchUri(collection.bytes);
-      userListArr.forEach((user) => {
-        if (isAddressValid(user)) {
-          userList.push(user);
-        }
-      });
-    } catch (e) {
-      
+    let balanceMap: BalancesMap = {}
+    if (collection.standard === 1) {
+      try {
+        //check if bytes
+        balanceMap = await fetchUri(collection.bytes);
+        //TODO: validate types
+      } catch (e) {
+        
+      }
     }
 
 
@@ -44,12 +42,12 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
         _rev: docs.collections[collection.collectionId]._rev,
         ...collection
     };
-    docs.collections[collection.collectionId].balances = {};
+    docs.collections[collection.collectionId].balances = balanceMap;
     docs.collections[collection.collectionId].usedClaims = {};
     docs.collections[collection.collectionId].collectionMetadata = { name: '', description: '', image: '', };
     docs.collections[collection.collectionId].badgeMetadata = {};
     docs.collections[collection.collectionId].managerRequests = [];
-    docs.collections[collection.collectionId].userList = userList;
+    docs.collections[collection.collectionId].userList = [];
     docs.collections[collection.collectionId].originalClaims = collection.claims;
     docs.collections[collection.collectionId].createdBlock = status.block.height;
 

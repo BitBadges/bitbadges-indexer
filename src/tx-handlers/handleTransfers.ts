@@ -36,7 +36,7 @@ export const handleTransfers = async (collection: StoredBadgeCollection, from: (
         }
 
         docs.activityToAdd.push({
-            _id: `${docs.collections[collection.collectionId].collectionId}:${nanoid(64)}`,
+            _id: `collection-${docs.collections[collection.collectionId].collectionId}:${nanoid(64)}`,
             from: from,
             to: transfer.toAddresses,
             balances: transfer.balances,

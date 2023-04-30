@@ -31,6 +31,7 @@ export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbSta
             originalClaims: docs.collections[msg.collectionId].originalClaims as ClaimItem[],
             activity: [],
             announcements: [],
+            reviews: []
         },
     );
 

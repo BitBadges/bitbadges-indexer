@@ -57,6 +57,7 @@ export const searchHandler = async (req: Request, res: Response) => {
                     { "cosmosAddress": { "$regex": `(?i)${address}` } },
                     { "address": { "$regex": `(?i)${searchValue}` } },
                     { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
+                    { "name": { "$regex": `(?i)${searchValue}` } },
                 ]
             },
             limit: 3,
@@ -75,7 +76,7 @@ export const searchHandler = async (req: Request, res: Response) => {
                 _id: string;
                 _rev: string;
             }
-        )[] = accountsResponse.docs.map((doc) => { return { ...doc, name: '' } });
+        )[] = accountsResponse.docs.map((doc) => { return { name: '', ...doc } });
 
         //If the address is valid, but not found in the database, add it to the return list (create fake return entry)
         if (isAddressValid(address) && !returnDocs.find((account: any) => account.address === address || account.cosmosAddress === address)) {
@@ -87,6 +88,7 @@ export const searchHandler = async (req: Request, res: Response) => {
                 address: address,
                 cosmosAddress: convertToCosmosAddress(address),
                 name: '',
+                resolvedName: '',
                 avatar: '',
                 github: '',
                 twitter: '',
@@ -101,7 +103,8 @@ export const searchHandler = async (req: Request, res: Response) => {
         if (ensName) {
             let idx = returnDocs.findIndex((doc) => doc.address === address);
             if (idx >= 0) {
-                returnDocs[idx].name = tryEns;
+                returnDocs[idx].name = returnDocs[idx].name ? returnDocs[idx].name : tryEns;
+                returnDocs[idx].resolvedName = tryEns;
                 returnDocs[idx] = {
                     ...returnDocs[idx],
                     ...ensDetails,
@@ -126,7 +129,8 @@ export const searchHandler = async (req: Request, res: Response) => {
         const resolversPromises = [];
         for (let i = 0; i < returnDocs.length; i++) {
             const account = returnDocs[i];
-            account.name = nameResults[i];
+            account.name = account.name ? account.name : nameResults[i];
+            account.resolvedName = nameResults[i];
             account.chain = getChainForAddress(account.address);
 
             if (account.name) {

@@ -32,7 +32,6 @@ export const getAccountByAddress = async (req: Request, res: Response) => {
             });
         }
 
-
         accountInfo = await appendNameForAccount(accountInfo);
         if (accountInfo && accountInfo.account_number >= 0) {
             try {
@@ -104,7 +103,7 @@ export async function appendNameForAccount(account: any) {
                 details = await getEnsDetails(resolver);
             }
         }
-        return { ...account, name: ensName, ...details };
+        return { name: ensName, resolvedName: ensName, ...account,  ...details };
     } catch (e) {
         return account;
     }
@@ -124,7 +123,8 @@ export const getBatchUsers = async (req: Request, res: Response) => {
             const names = await getNamesForAddresses(accountsResponse.map((account) => account.address));
             for (let i = 0; i < accountsResponse.length; i++) {
                 const account = accountsResponse[i];
-                account.name = names[i];
+                account.name = account.name ? account.name : names[i];
+                account.resolvedName = names[i];
                 account.chain = getChainForAddress(account.address);
                 handledNamesMap[account.address] = true;
             }
@@ -200,6 +200,7 @@ export const getBatchUsers = async (req: Request, res: Response) => {
                         address: address,
                         cosmosAddress: convertToCosmosAddress(address),
                         name: '',
+                        resolvedName: '',
                         avatar: '',
                         github: '',
                         twitter: '',
@@ -227,12 +228,13 @@ export const getBatchUsers = async (req: Request, res: Response) => {
         const resolverPromises = [];
         for (let i = 0; i < accountsResponse.length; i++) {
             const account = accountsResponse[i];
-            account.name = names[i];
+            account.name = account.name ? account.name : names[i];
+            account.resolvedName = names[i]
             account.chain = getChainForAddress(account.address);
             if (handledAvatarsMap[account.address]) {
                 resolverPromises.push(Promise.resolve(null));
             } else {
-                resolverPromises.push(getEnsResolver(account.name));
+                resolverPromises.push(getEnsResolver(account.resolvedName));
                 handledAvatarsMap[account.address] = true;
             }
         }
@@ -476,7 +478,14 @@ export const updateAccountInfo = async (expressReq: Request, res: Response) => {
             github: req.body.github ? req.body.github : response.docs[0].github,
             telegram: req.body.telegram ? req.body.telegram : response.docs[0].telegram,
             seenActivity: req.body.seenActivity ? req.body.seenActivity : response.docs[0].seenActivity,
+            name: req.body.name ? req.body.name : response.docs[0].name,
         };
+        const regex = /^[a-zA-Z0-9_\-]+$/; 
+        if (newAccountInfo.name && !regex.test(newAccountInfo.name) && newAccountInfo.name.length > 0) {
+            return res.status(500).send({
+                error: 'Error updating portfolio. Name must be alphanumeric and can only contain underscores and dashes.'
+            })
+        }
 
         await ACCOUNTS_DB.insert(newAccountInfo);
 

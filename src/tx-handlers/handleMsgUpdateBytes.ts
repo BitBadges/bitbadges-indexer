@@ -1,8 +1,8 @@
-import { MessageMsgUpdateBytes } from "bitbadgesjs-transactions"
-import { fetchDocsForRequestIfEmpty } from "../db/db"
-import { handleNewAccountByAddress } from "./handleNewAccount"
-import { DbStatus, Docs, isAddressValid } from "bitbadgesjs-utils";
+import { MessageMsgUpdateBytes } from "bitbadgesjs-transactions";
+import { BalancesMap, DbStatus, Docs } from "bitbadgesjs-utils";
+import { fetchDocsForRequestIfEmpty } from "../db/db";
 import { fetchUri } from "../metadata-queue";
+import { handleNewAccountByAddress } from "./handleNewAccount";
 
 
 export const handleMsgUpdateBytes = async (msg: MessageMsgUpdateBytes, status: DbStatus, docs: Docs): Promise<Docs> => {
@@ -11,19 +11,17 @@ export const handleMsgUpdateBytes = async (msg: MessageMsgUpdateBytes, status: D
 
     docs.collections[msg.collectionId].bytes = msg.newBytes;
 
-    const userList: string[] = [];
-    try {
-      //check if bytes
-      const userListArr: string[] = await fetchUri(docs.collections[msg.collectionId].bytes);
-      userListArr.forEach((user) => {
-        if (isAddressValid(user)) {
-          userList.push(user);
-        }
-      });
-    } catch (e) {
-      
+    let balanceMap: BalancesMap = {}
+    if (docs.collections[msg.collectionId].standard === 1) {
+      try {
+        //check if bytes
+        balanceMap = await fetchUri(docs.collections[msg.collectionId].bytes);
+        //TODO: validate types
+      } catch (e) {
+        
+      }
     }
-    docs.collections[msg.collectionId].userList = userList;
+    docs.collections[msg.collectionId].balances = balanceMap;
 
     return docs;
 }

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { addMerkleTreeToIpfs, addToIpfs, addUserListToIpfs } from "../ipfs/ipfs";
+import { addMerkleTreeToIpfs, addToIpfs, addBalancesToIpfs } from "../ipfs/ipfs";
 import { PASSWORDS_DB } from "../db/db";
 
 export const addToIpfsHandler = async (req: Request, res: Response) => {
@@ -7,8 +7,8 @@ export const addToIpfsHandler = async (req: Request, res: Response) => {
         let result = undefined;
         if (req.body.collectionMetadata, req.body.individualBadgeMetadata) {
           result = await addToIpfs(req.body.collectionMetadata, req.body.individualBadgeMetadata);
-        } else if (req.body.userList) {
-          result = await addUserListToIpfs(req.body.userList);
+        } else if (req.body.balances) {
+          result = await addBalancesToIpfs(req.body.balances);
         }
 
         if (!result) {
