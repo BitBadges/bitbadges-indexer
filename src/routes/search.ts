@@ -96,6 +96,7 @@ export const searchHandler = async (req: Request, res: Response) => {
                 discord: '',
                 sequence: 0,
                 pub_key: '',
+                readme: ''
             });
         }
 

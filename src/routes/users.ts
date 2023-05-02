@@ -206,6 +206,7 @@ export const getBatchUsers = async (req: Request, res: Response) => {
                         github: '',
                         twitter: '',
                         telegram: '',
+                        readme: '',
                         discord: '',
                         sequence: -1,
                         pub_key: ''
@@ -597,6 +598,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response) => {
             telegram: req.body.telegram ? req.body.telegram : response.docs[0].telegram,
             seenActivity: req.body.seenActivity ? req.body.seenActivity : response.docs[0].seenActivity,
             name: req.body.name ? req.body.name : response.docs[0].name,
+            readme: req.body.readme ? req.body.readme : response.docs[0].readme,
         };
         const regex = /^[a-zA-Z0-9_\-]+$/; 
         if (newAccountInfo.name && !regex.test(newAccountInfo.name) && newAccountInfo.name.length > 0) {
