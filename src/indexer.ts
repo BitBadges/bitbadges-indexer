@@ -36,10 +36,10 @@ export const refreshQueueMutex = new Mutex();
 // Basic rate limiting middleware for Express. Limits requests to 100 per minute.
 // Initially put in place to protect against infinite loops.
 const limiter = rateLimit({
-	windowMs: 60 * 1000, // 1 minutes
-	max: 100, // Limit each IP to 100 requests per `window` (here, per minute)
-	standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  windowMs: 60 * 1000, // 1 minutes
+  max: 100, // Limit each IP to 100 requests per `window` (here, per minute)
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 })
 
 
@@ -48,27 +48,27 @@ config()
 const auth = 'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
 
 export const ipfsClient = create({
-    host: 'ipfs.infura.io',
-    port: 5001,
-    protocol: 'https',
-    headers: {
-        authorization: auth,
-    },
+  host: 'ipfs.infura.io',
+  port: 5001,
+  protocol: 'https',
+  headers: {
+    authorization: auth,
+  },
 });
 
 export const getAttributeValueByKey = (attributes: Attribute[], key: string): string | undefined => {
-    return attributes.find((attribute: Attribute) => attribute.key === key)?.value
+  return attributes.find((attribute: Attribute) => attribute.key === key)?.value
 }
 
 
 export let client: IndexerStargateClient
 export const setClient = (newClient: IndexerStargateClient) => {
-    client = newClient
+  client = newClient
 }
 
 export let timer: NodeJS.Timer | undefined
 export const setTimer = (newTimer: NodeJS.Timer) => {
-    timer = newTimer
+  timer = newTimer
 }
 
 const app: Express = express()
@@ -76,18 +76,18 @@ const port = "3001"
 
 //TODO: secure these / API keys?
 app.use(cors({
-    origin: true,
-    credentials: true,
+  origin: true,
+  credentials: true,
 }));
 
 app.use(limiter);
 
 app.use(expressSession({
-    name: 'blockin',
-    secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
-    resave: true,
-    saveUninitialized: true,
-    cookie: { secure: true, sameSite: 'none' }
+  name: 'blockin',
+  secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
+  resave: true,
+  saveUninitialized: true,
+  cookie: { secure: true, sameSite: 'none' }
 }));
 
 app.use(cookieParser());
@@ -99,15 +99,15 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }))
 app.use(express.json({ limit: '10mb' }))
 
 app.use((req, res, next) => {
-    console.log();
-    console.log(req.method, req.url, req.body);
-    next();
+  console.log();
+  console.log(req.method, req.url, req.body);
+  next();
 });
 
 app.get("/", (req: Request, res: Response) => {
-    res.send({
-        message: "Hello from the BitBadges indexer!",
-    })
+  res.send({
+    message: "Hello from the BitBadges indexer!",
+  })
 })
 
 //Status
@@ -167,30 +167,29 @@ app.post('/api/v0/metadata', fetchMetadata);
 //Faucet
 app.post('/api/v0/faucet', authorizeBlockinRequest, sendTokensFromFaucet);
 
-
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {
-    setTimeout(poll, 1)
+  setTimeout(poll, 1)
 }
 
 process.on("SIGINT", () => {
-    if (timer) clearTimeout(timer)
-    server.close(() => {
-        console.log("server closed")
-        process.exit(0)
-    })
+  if (timer) clearTimeout(timer)
+  server.close(() => {
+    console.log("server closed")
+    process.exit(0)
+  })
 })
 
 const server: Server =
-    https.createServer(
-        {
-            key: fs.readFileSync("server.key"),
-            cert: fs.readFileSync("server.cert"),
-        },
-        app
-    )
-        .listen(port, () => {
-            init().catch(console.error).then(() => {
-                console.log(`\nserver started at http://localhost:${port}`)
-            })
-        })
+  https.createServer(
+    {
+      key: fs.readFileSync("server.key"),
+      cert: fs.readFileSync("server.cert"),
+    },
+    app
+  )
+    .listen(port, () => {
+      init().catch(console.error).then(() => {
+        console.log(`\nserver started at http://localhost:${port}`)
+      })
+    })

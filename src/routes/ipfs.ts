@@ -26,7 +26,7 @@ export const addToIpfsHandler = async (req: Request, res: Response) => {
 export const addMerkleTreeToIpfsHandler = async (req: Request, res: Response) => {
     try {
         //Initial sanity check
-        const result = await addMerkleTreeToIpfs(req.body.leaves, req.body.addresses, req.body.hashedCodes, req.body.password ? true : false);
+        const result = await addMerkleTreeToIpfs(req.body.name, req.body.description ,req.body.leaves, req.body.addresses, req.body.hashedCodes, req.body.password ? true : false);
         if (!result) {
             return res.status(400).send({ error: 'No addAll result received' });
         }

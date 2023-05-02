@@ -49,6 +49,8 @@ export const fetchClaims = async (collection: StoredBadgeCollection, startAt = 0
 
                     const fetchedAddresses = fetchedFile.addresses ? fetchedFile.addresses : [];
                     const fetchedCodes = fetchedFile.codes ? fetchedFile.codes : [];
+                    const fetchedName = fetchedFile.name ? fetchedFile.name : ""
+                    const fetchedDescription = fetchedFile.description ? fetchedFile.description : ""
 
                     const claimItems: ClaimItem = {
                         ...claim,
@@ -56,6 +58,8 @@ export const fetchClaims = async (collection: StoredBadgeCollection, startAt = 0
                         codes: [],
                         addresses: fetchedAddresses,
                         hasPassword: fetchedFile.hasPassword,
+                        name: fetchedName,
+                        description: fetchedDescription
                     };
 
                     collection.claims[idx] = claimItems;
@@ -67,7 +71,9 @@ export const fetchClaims = async (collection: StoredBadgeCollection, startAt = 0
                         hashedCodes: [],
                         addresses: [],
                         hasPassword: false,
-                        failedToFetch: true
+                        failedToFetch: true,
+                        name: '',
+                        description: ''
                     } as ClaimItem;
                 }
             } else {

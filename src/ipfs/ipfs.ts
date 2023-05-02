@@ -97,11 +97,11 @@ export const addToIpfs = async (collectionMetadata: BadgeMetadata, individualBad
     return result;
 }
 
-export const addMerkleTreeToIpfs = async (leaves: string[], addresses: string[], codes: string[], hasPassword: boolean) => {
+export const addMerkleTreeToIpfs = async (name: string, description: string,leaves: string[], addresses: string[], codes: string[], hasPassword: boolean) => {
     const files = [];
     files.push({
         path: '',
-        content: uint8ArrayFromString(JSON.stringify({ leaves, addresses, codes, hasPassword }))
+        content: uint8ArrayFromString(JSON.stringify({ name, description, leaves, addresses, codes, hasPassword }))
     });
 
     const result = await last(ipfsClient.addAll(files));
