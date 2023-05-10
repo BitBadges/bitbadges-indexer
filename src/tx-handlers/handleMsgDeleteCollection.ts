@@ -1,32 +1,51 @@
-import { DbStatus, Docs } from "bitbadgesjs-utils"
-import { MessageMsgMintBadge } from "bitbadgesjs-transactions"
-import { METADATA_DB, fetchDocsForRequestIfEmpty } from "../db/db"
+import { CollectionDocument, DbStatus, DocsCache } from "bitbadgesjs-utils"
+import { MessageMsgDeleteCollection } from "bitbadgesjs-transactions"
+import { BALANCES_DB, CLAIMS_DB, METADATA_DB, fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import nano from "nano"
 
-export const handleMsgDeleteCollection = async (msg: MessageMsgMintBadge, status: DbStatus, docs: Docs): Promise<Docs> => {
-    docs = await handleNewAccountByAddress(msg.creator, docs);
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
+export const handleMsgDeleteCollection = async (msg: MessageMsgDeleteCollection, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await handleNewAccountByAddress(msg.creator, docs);
+  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
-    docs.collections[msg.collectionId]._deleted = true;
+  //Safe to cast because MsgDeleteCollection can only be called if the collection exists
+  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
+  collectionDoc._deleted = true;
 
+  //Delete all relevant docs from DB
+  const allMetadataDocs = await METADATA_DB.partitionedList(`${msg.collectionId}`);
+  const allBalancesDocs = await BALANCES_DB.partitionedList(`${msg.collectionId}`);
+  const allClaimsDocs = await CLAIMS_DB.partitionedList(`${msg.collectionId}`);
 
-    //Delete partition
-    const allDocs = await METADATA_DB.partitionedList(`${msg.collectionId}`);
+  const promises = [];
+  for (const doc of allMetadataDocs.rows) {
+    promises.push(METADATA_DB.destroy(doc.id, doc.value.rev));
+  }
+  for (const doc of allBalancesDocs.rows) {
+    promises.push(BALANCES_DB.destroy(doc.id, doc.value.rev));
+  }
+  for (const doc of allClaimsDocs.rows) {
+    promises.push(CLAIMS_DB.destroy(doc.id, doc.value.rev));
+  }
 
+  await Promise.all(promises);
 
-    const promises = [];
-    for (const doc of allDocs.rows) {
-        promises.push(METADATA_DB.destroy(doc.id, doc.value.rev));
+  //Delete all metadata docs from docs object (safe to do because no TXs will be processed after this delete one)
+  for (const key of Object.keys(docs.metadata)) {
+    if (key.split(':')[0] === `${msg.collectionId}`) {
+      delete docs.metadata[key];
     }
+  }
 
-    await Promise.all(promises);
-
-    //Delete all metadata docs from docs object (safe to do because no TXs will be processed after this delete one)
-    for (const key of Object.keys(docs.metadata)) {
-        if (key.split(':')[0] === `${msg.collectionId}`) {
-            delete docs.metadata[key];
-        }
+  for (const key of Object.keys(docs.balances)) {
+    if (key.split(':')[0] === `${msg.collectionId}`) {
+      delete docs.balances[key];
     }
+  }
 
-    return docs;
+  for (const key of Object.keys(docs.claims)) {
+    if (key.split(':')[0] === `${msg.collectionId}`) {
+      delete docs.claims[key];
+    }
+  }
 }

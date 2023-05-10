@@ -1,59 +1,56 @@
 import { MessageMsgNewCollection } from "bitbadgesjs-transactions"
-import { BadgeMetadata, BadgeMetadataMap, BalancesMap, BitBadgesUserInfo, DbStatus, Docs, StoredBadgeCollection, createCollectionFromMsgNewCollection } from "bitbadgesjs-utils"
+import { BitBadgesUserInfo, CollectionDocument, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgNewCollection } from "bitbadgesjs-utils"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
-import { fetchUri, pushToMetadataQueue } from "../metadata-queue"
-import { fetchClaims } from "./claims"
+import { pushToMetadataQueue } from "../metadata-queue"
+import { handleClaims } from "./claims"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
+import { updateBalancesForOffChainBalances } from "./offChainBalances"
 
-export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, status: DbStatus, docs: Docs): Promise<Docs> => {
-    docs = await handleNewAccountByAddress(msg.creator, docs);
+export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await handleNewAccountByAddress(msg.creator, docs);
 
-    const createdCollection = createCollectionFromMsgNewCollection(msg, {} as BadgeMetadata, {} as BadgeMetadataMap, {} as BitBadgesUserInfo, [])
-    const collection: StoredBadgeCollection = {
-        ...createdCollection,
-        manager: docs.accountNumbersMap[msg.creator],
-        claims: msg.claims,
-        permissions: msg.permissions,
-        collectionId: status.nextCollectionId,
-        standard: msg.standard
-    }
+  /**
+   * Here, we simulate the collection creation to get a CollectionDocument object.
+   * 
+   * Note we handle transfers, claims, and balances separately below. The returned collection object is not used for these.
+   * 
+   * All other types are not used in this simulation (just set to default for TypeScript)
+   */
+  const createdCollection = simulateCollectionAfterMsgNewCollection(msg, {} as Metadata, {} as MetadataMap, {} as BitBadgesUserInfo, [])
 
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [collection.collectionId], []);
+  const collection: CollectionDocument = {
+    //Add any fields that were not simulated
+    collectionId: status.nextCollectionId, //msg does not have a collectionId. we keep track of the next collectionId in the status object with a counter
+    manager: docs.accountNumbersMap[msg.creator], //Added manually because we did not provide connectedUser parameter
+    createdBlock: status.block.height,
 
-    await pushToMetadataQueue(collection, status);
+    //These fields are simulated
+    collectionUri: createdCollection.collectionUri,
+    badgeUris: createdCollection.badgeUris,
+    bytes: createdCollection.bytes,
+    permissions: createdCollection.permissions,
+    disallowedTransfers: createdCollection.disallowedTransfers,
+    managerApprovedTransfers: createdCollection.managerApprovedTransfers,
+    nextBadgeId: createdCollection.nextBadgeId,
+    unmintedSupplys: createdCollection.unmintedSupplys,
+    maxSupplys: createdCollection.maxSupplys,
+    standard: createdCollection.standard,
+    managerRequests: createdCollection.managerRequests,
+  }
 
-    collection.claims = await fetchClaims(collection);
+  await fetchDocsForRequestIfEmpty(docs, [], [collection.collectionId], [], [], []);
+  await pushToMetadataQueue(collection, status);
+  await handleClaims(docs, msg.claims, collection.collectionId);
+  await updateBalancesForOffChainBalances(collection, docs, true); //Only if off-chain balances are used (i.e. standard == 1)
 
-    let balanceMap: BalancesMap = {}
-    if (collection.standard === 1) {
-      try {
-        //check if bytes
-        balanceMap = await fetchUri(collection.bytes);
-        //TODO: validate types
-      } catch (e) {
-        
-      }
-    }
+  let collectionDoc = docs.collections[collection.collectionId];
+  collectionDoc = {
+    _id: collectionDoc._id,
+    ...collection
+  };
 
+  status.nextCollectionId++;
 
-    docs.collections[collection.collectionId] = {
-        _id: docs.collections[collection.collectionId]._id,
-        _rev: docs.collections[collection.collectionId]._rev,
-        ...collection
-    };
-    docs.collections[collection.collectionId].balances = balanceMap;
-    docs.collections[collection.collectionId].usedClaims = {};
-    docs.collections[collection.collectionId].collectionMetadata = { name: '', description: '', image: '', };
-    docs.collections[collection.collectionId].badgeMetadata = {};
-    docs.collections[collection.collectionId].managerRequests = [];
-    docs.collections[collection.collectionId].userList = [];
-    docs.collections[collection.collectionId].originalClaims = collection.claims;
-    docs.collections[collection.collectionId].createdBlock = status.block.height;
-
-    status.nextCollectionId++;
-
-    docs = await handleTransfers(collection, ['Mint'], msg.transfers, docs, status);
-
-    return docs;
+  await handleTransfers(collection, ['Mint'], msg.transfers, docs, status);
 }

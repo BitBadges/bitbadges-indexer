@@ -138,8 +138,8 @@ export default class EthDriver {
             if (!requestedAsset) {
                 throw `Address ${address} does not own requested asset : ${assetId}`
             }
-            console.log(`Success: Found asset in user's wallet: ${assetId}.`)
-            console.log("ASSET DETAILS", requestedAsset)
+            // console.log(`Success: Found asset in user's wallet: ${assetId}.`)
+            // console.log("ASSET DETAILS", requestedAsset)
             if (requestedAsset["amount"] && requestedAsset["amount"] < minimumAmount) {
                 throw `Address ${address} only owns ${requestedAsset["amount"]} and does not meet minimum balance requirement of ${minimumAmount} for asset : ${assetId}`
             }

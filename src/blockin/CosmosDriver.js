@@ -31,11 +31,8 @@ export default class CosmosDriver {
         return
     }
     async parseChallengeStringFromBytesToSign(txnBytes) {
-        console.log("TXN", txnBytes)
         const txnString = new TextDecoder().decode(txnBytes)
-        console.log("TXNSTRING", txnString)
         const txnString2 = Buffer.from(txnString.substring(2), "hex").toString()
-        // console.log("TXNSTRING2", txnString2)
         return txnString2
     }
     async lookupTransactionById(txnId) {
@@ -70,7 +67,6 @@ export default class CosmosDriver {
     }
     async verifySignature(originalChallengeToUint8Array, signedChallenge, originalAddress) {
         const originalString = await this.parseChallengeStringFromBytesToSign(originalChallengeToUint8Array)
-        console.log(originalString)
         const pubKey = signedChallenge.slice(0, 33)
         const signature = signedChallenge.slice(33)
 

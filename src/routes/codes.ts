@@ -1,54 +1,44 @@
 import { Request, Response } from "express";
-import { ACCOUNTS_DB, COLLECTIONS_DB, PASSWORDS_DB } from "../db/db";
-import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import nano from "nano";
+import { AuthenticatedRequest } from "../blockin/blockin_handlers";
+import { COLLECTIONS_DB, PASSWORDS_DB } from "../db/db";
 
 export const getCodes = async (expressReq: Request, res: Response) => {
-    try {
-        const req = expressReq as AuthenticatedRequest
+  try {
+    const req = expressReq as AuthenticatedRequest
 
-        const collectionId = Number(req.params.id);
+    const collectionId = Number(req.params.id);
 
-        const collection = await COLLECTIONS_DB.get(`${collectionId}`);
-        const manager = collection.manager;
-
-
-        const managerAccountInfo = await ACCOUNTS_DB.get(`${manager}`);
-        if (managerAccountInfo.cosmosAddress !== req.session.cosmosAddress) {
-            return res.status(401).send({ error: 'Unauthorized. Must be manager of this collection.' });
-        }
-
-
-        const codes: string[][] = [];
-        const passwords: string[] = [];
-        for (let i = 0; i < collection.claims.length; i++) {
-            // const ipfsURI = collection.claims[i].uri.replace('ipfs://', '');
-            try {
-                const docQuery: nano.MangoQuery = {
-                    selector: {
-                        collectionId: {
-                            "$eq": collectionId
-                        },
-                        claimId: {
-                            "$eq": i + 1
-                        }
-                    }
-                }
-
-                const codesDocsArr = await PASSWORDS_DB.find(docQuery);
-                const codesDoc = codesDocsArr.docs[0];
-                codes.push(codesDoc.codes);
-                passwords.push(codesDoc.password);
-            } catch {
-                codes.push([]);
-                passwords.push('');
-            }
-        }
-
-
-        return res.status(200).send({ codes, passwords });
-    } catch (e) {
-        console.error(e);
-        return res.status(500).send({ error: e });
+    const collection = await COLLECTIONS_DB.get(`${collectionId}`);
+    const manager = collection.manager;
+    if (req.session.accountNumber && manager !== req.session.accountNumber) {
+      return res.status(401).send({ error: 'Unauthorized. Must be manager of this collection.' });
     }
+
+    const codes: string[][] = [];
+    const passwords: string[] = [];
+
+
+    const docQuery: nano.MangoQuery = {
+      selector: {
+        collectionId: {
+          "$eq": collectionId
+        }
+      },
+      limit: 1000000, //TODO: make this a list _all_doc or partitionedList query (for now, we just assume less than 1000000 claims)
+    }
+
+    const codesDocsArr = await PASSWORDS_DB.find(docQuery);
+    const docs = codesDocsArr.docs.sort((a, b) => a.claimId - b.claimId).filter(doc => doc.docClaimedByCollection);
+
+    for (const doc of docs) {
+      codes.push(doc.codes);
+      passwords.push(doc.password);
+    }
+
+    return res.status(200).send({ codes, passwords });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({ message: 'Internal server error' });
+  }
 }

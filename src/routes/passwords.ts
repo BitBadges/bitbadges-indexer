@@ -1,7 +1,7 @@
 import { Mutex } from "async-mutex";
 import { Request, Response } from "express";
 import nano from "nano";
-import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
+import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { PASSWORDS_DB } from "../db/db";
 
 // create a map to store the document-specific mutexes

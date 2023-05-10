@@ -1,23 +1,25 @@
 import { MessageMsgRequestTransferManager } from "bitbadgesjs-transactions";
 import { fetchDocsForRequestIfEmpty } from "../db/db";
 import { handleNewAccountByAddress } from "./handleNewAccount";
-import { DbStatus, Docs } from "bitbadgesjs-utils";
+import { CollectionDocument, DbStatus, DocsCache } from "bitbadgesjs-utils";
+import nano from "nano";
 
-export const handleMsgRequestTransferManager = async (msg: MessageMsgRequestTransferManager, status: DbStatus, docs: Docs): Promise<Docs> => {
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
-    docs = await handleNewAccountByAddress(msg.creator, docs);
+export const handleMsgRequestTransferManager = async (msg: MessageMsgRequestTransferManager, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await handleNewAccountByAddress(msg.creator, docs);
+  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
-    const creatorNum = docs.accountNumbersMap[msg.creator];
-    if (creatorNum === undefined) {
-        throw new Error("Creator account number not found");
-    }
+  //Safe to cast because MsgDeleteCollection can only be called if the collection exists
+  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
 
-    const add = msg.addRequest;
-    if (add) {
-        docs.collections[msg.collectionId].managerRequests = [...docs.collections[msg.collectionId].managerRequests, creatorNum];
-    } else {
-        docs.collections[msg.collectionId].managerRequests = docs.collections[msg.collectionId].managerRequests.filter((address: number) => address !== creatorNum);
-    }
+  const creatorNum = docs.accountNumbersMap[msg.creator];
+  if (creatorNum === undefined) {
+    throw new Error("Creator account number not found");
+  }
 
-    return docs;
+  const add = msg.addRequest;
+  if (add) {
+    collectionDoc.managerRequests = [...collectionDoc.managerRequests, creatorNum];
+  } else {
+    collectionDoc.managerRequests = collectionDoc.managerRequests.filter((address: number) => address !== creatorNum);
+  }
 }

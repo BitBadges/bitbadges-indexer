@@ -1,13 +1,15 @@
 import { MessageMsgUpdatePermissions } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { DbStatus, Docs } from "bitbadgesjs-utils";
+import { DbStatus, DocsCache, GetPermissions, CollectionDocument } from "bitbadgesjs-utils";
+import nano from "nano";
 
-export const handleMsgUpdatePermissions = async (msg: MessageMsgUpdatePermissions, status: DbStatus, docs: Docs): Promise<Docs> => {
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
-    docs = await handleNewAccountByAddress(msg.creator, docs);
+export const handleMsgUpdatePermissions = async (msg: MessageMsgUpdatePermissions, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await handleNewAccountByAddress(msg.creator, docs);
+  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
-    docs.collections[msg.collectionId].permissions = msg.permissions;
+  //Safe to cast because Msg can only be called if the collection exists
+  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
 
-    return docs;
+  collectionDoc.permissions = GetPermissions(msg.permissions)
 }

@@ -1,80 +1,82 @@
-import { BadgeMetadata, BadgeMetadataMap, BitBadgesUserInfo, ClaimItem, DbStatus, Docs, GetPermissions, StoredBadgeCollection, createCollectionFromMsgNewCollection } from "bitbadgesjs-utils"
 import { MessageMsgMintBadge } from "bitbadgesjs-transactions"
-import { fetchDocsForRequestIfEmpty } from "../db/db"
+import { BitBadgesUserInfo, CollectionDocument, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgMintBadge } from "bitbadgesjs-utils"
+import { CLAIMS_DB, fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
-import { fetchClaims } from "./claims"
+import { handleClaims } from "./claims"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
+import nano from "nano"
 
-export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbStatus, docs: Docs): Promise<Docs> => {
-    docs = await handleNewAccountByAddress(msg.creator, docs);
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
+export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await handleNewAccountByAddress(msg.creator, docs);
+  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
-    const createdCollection = createCollectionFromMsgNewCollection(
-        {
-            ...msg,
-            standard: docs.collections[msg.collectionId].standard,
-            bytes: docs.collections[msg.collectionId].bytes,
-            permissions: docs.collections[msg.collectionId].permissions,
-            disallowedTransfers: docs.collections[msg.collectionId].disallowedTransfers,
-            managerApprovedTransfers: docs.collections[msg.collectionId].managerApprovedTransfers,
-        },
-        {} as BadgeMetadata,
-        {} as BadgeMetadataMap,
-        {} as BitBadgesUserInfo,
-        [],
-        {
-            ...docs.collections[msg.collectionId],
-            manager: {} as BitBadgesUserInfo,
-            permissions: GetPermissions(0),
-            claims: docs.collections[msg.collectionId].claims as ClaimItem[],
-            originalClaims: docs.collections[msg.collectionId].originalClaims as ClaimItem[],
-            activity: [],
-            announcements: [],
-            reviews: []
-        },
-    );
+  //Safe to cast because MsgMintBadge can only be called if the collection exists
+  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
 
-    for (const claim of msg.claims) {
-        const claimItem = claim as ClaimItem;
-        createdCollection.claims.push(claimItem);
-        createdCollection.originalClaims.push(claimItem);
-    }
+  /**
+   * Honestly, this is pretty overkill. We really just use this function to calculate the updated collection's
+   * collectionUri, badgeUris, unmintedSupplys, maxSupplys and nextBadgeId.
+   *
+   * The only necessary inputs to calculate this is the collectionId, creator, badgeSupplys, collectionUri, and badgeUris 
+   * which are all provided in msg. See the function for more details.
+   *
+   * Note we handle transfers, claims, and balances separately below. The returned collection object is not used for these.
+   * 
+   * All other types are not used in this simulation (just set to default for TypeScript)
+   */
+  const collection = simulateCollectionAfterMsgMintBadge(
+    msg,
+    {} as Metadata,
+    {} as MetadataMap,
+    {} as BitBadgesUserInfo,
+    [],
+    {
+      ...collectionDoc,
+      claims: [],
+      activity: [],
+      announcements: [],
+      reviews: [],
+      balances: [],
+      managerInfo: {} as BitBadgesUserInfo,
+      collectionMetadata: {} as Metadata,
+      badgeMetadata: {} as MetadataMap,
+    },
+  );
 
-    const collection: StoredBadgeCollection = {
-        ...createdCollection,
-        manager: docs.accountNumbersMap[msg.creator],
-        permissions: docs.collections[msg.collectionId].permissions
-    }
 
-    //Handle mint transaction and update docs accordingly
+  //Only update the URIs if the collectionUri or badgeUris were specified and changed
+  let newCollectionUri = collection.collectionUri;
+  let updateCollectionMetadata = false;
+  let newBadgeUris = collection.badgeUris;
+  let updateBadgeMetadata = false;
+  if (msg.collectionUri != "" && msg.collectionUri != collection.collectionUri) {
+    newCollectionUri = msg.collectionUri;
+    updateCollectionMetadata = true;
+  }
+  if (msg.badgeUris && msg.badgeUris.length > 0) {
+    newBadgeUris = msg.badgeUris;
+    updateBadgeMetadata = true;
+  }
+
+  //Add to the refresh metadata queue
+  if (updateCollectionMetadata && !updateBadgeMetadata) {
+    await pushToMetadataQueue(collection, status, "collection"); //Update only collection
+  } else {
+    //TODO: Optimize this to check metadataIds and avoid redundant updates
     await pushToMetadataQueue(collection, status);
+  }
 
-    //Only update the collection if the collectionUri or badgeUris have changed
-    let newCollectionUri = collection.collectionUri;
-    let newBadgeUris = collection.badgeUris;
+  //Only update the relevant fields in the collection doc that can change
+  collectionDoc.collectionUri = newCollectionUri;
+  collectionDoc.badgeUris = newBadgeUris;
+  collectionDoc.unmintedSupplys = collection.unmintedSupplys;
+  collectionDoc.maxSupplys = collection.maxSupplys;
+  collectionDoc.nextBadgeId = collection.nextBadgeId;
 
-    if (msg.collectionUri != "" && msg.collectionUri != collection.collectionUri) {
-        newCollectionUri = msg.collectionUri;
-    }
+  const existingClaimsDocs = await CLAIMS_DB.partitionedList(`${collection.collectionId}`); //Fetches head only
+  const numExistingClaims = existingClaimsDocs.total_rows;
+  await handleClaims(docs, msg.claims, collection.collectionId, numExistingClaims);
 
-    if (msg.badgeUris.length > 0) {
-        newBadgeUris = msg.badgeUris;
-    }
-
-    collection.claims = await fetchClaims(collection, docs.collections[collection.collectionId].claims.length);
-
-    docs.collections[collection.collectionId].collectionUri = newCollectionUri;
-    docs.collections[collection.collectionId].badgeUris = newBadgeUris;
-    docs.collections[collection.collectionId].claims = collection.claims;
-    docs.collections[collection.collectionId].unmintedSupplys = collection.unmintedSupplys;
-    docs.collections[collection.collectionId].maxSupplys = collection.maxSupplys;
-    docs.collections[collection.collectionId].nextBadgeId = collection.nextBadgeId;
-    for (let i = docs.collections[collection.collectionId].originalClaims.length; i < collection.claims.length; i++) {
-        docs.collections[collection.collectionId].originalClaims.push(collection.claims[i]);
-    }
-
-    docs = await handleTransfers(collection, ['Mint'], msg.transfers, docs, status);
-
-    return docs;
+  await handleTransfers(collection, ['Mint'], msg.transfers, docs, status);
 }

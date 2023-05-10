@@ -1,27 +1,18 @@
 import { MessageMsgUpdateBytes } from "bitbadgesjs-transactions";
-import { BalancesMap, DbStatus, Docs } from "bitbadgesjs-utils";
+import { CollectionDocument, DbStatus, DocsCache } from "bitbadgesjs-utils";
 import { fetchDocsForRequestIfEmpty } from "../db/db";
-import { fetchUri } from "../metadata-queue";
 import { handleNewAccountByAddress } from "./handleNewAccount";
+import { updateBalancesForOffChainBalances } from "./offChainBalances";
+import nano from "nano";
 
 
-export const handleMsgUpdateBytes = async (msg: MessageMsgUpdateBytes, status: DbStatus, docs: Docs): Promise<Docs> => {
-    docs = await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], []);
-    docs = await handleNewAccountByAddress(msg.creator, docs);
+export const handleMsgUpdateBytes = async (msg: MessageMsgUpdateBytes, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await handleNewAccountByAddress(msg.creator, docs);
+  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
+  //Safe to cast because MsgUpdateBytes can only be called if the collection exists
+  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
 
-    docs.collections[msg.collectionId].bytes = msg.newBytes;
+  collectionDoc.bytes = msg.newBytes;
 
-    let balanceMap: BalancesMap = {}
-    if (docs.collections[msg.collectionId].standard === 1) {
-      try {
-        //check if bytes
-        balanceMap = await fetchUri(docs.collections[msg.collectionId].bytes);
-        //TODO: validate types
-      } catch (e) {
-        
-      }
-    }
-    docs.collections[msg.collectionId].balances = balanceMap;
-
-    return docs;
+  await updateBalancesForOffChainBalances(collectionDoc, docs, false);
 }

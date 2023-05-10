@@ -6,23 +6,25 @@ import express, { Express, Request, Response } from "express"
 import expressSession from 'express-session'
 import { Server } from "http"
 import { create } from 'ipfs-http-client'
-import { authorizeBlockinRequest, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
+import { authorizeBlockinRequest, getChallenge, removeBlockinSessionCookie, updateSessionWithAccountNumber, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { poll } from "./poll"
 import { getBadgeBalance } from "./routes/balances"
 import { getCodes } from "./routes/codes"
-import { addAnnouncement, addReview, getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
-import { addMerkleTreeToIpfsHandler, addToIpfsHandler } from "./routes/ipfs"
+import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
+import { addClaimToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { getPasswordsAndCodes } from "./routes/passwords"
 import { fetchMetadata, refreshMetadata } from "./routes/metadata"
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { addReviewForUser, getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPortfolioInfo, updateAccountInfo } from "./routes/users"
+import { getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPortfolioInfo, updateAccountInfo } from "./routes/users"
 import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
 import { broadcastTx, simulateTx } from './routes/broadcast'
 import rateLimit from 'express-rate-limit'
+import { addAnnouncement } from './routes/announcements'
+import { addReviewForCollection, addReviewForUser } from './routes/reviews'
 
 
 var fs = require("fs");
@@ -132,7 +134,7 @@ app.post('/api/v0/collection/:id/codes', authorizeBlockinRequest, getCodes);
 app.post('/api/v0/collection/:id/password/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes); //Write route
 
 app.post('/api/v0/collection/:id/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
-app.post('/api/v0/collection/:id/addReview', authorizeBlockinRequest, addReview); //Write route
+app.post('/api/v0/collection/:id/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
 
 
 //User
@@ -146,13 +148,14 @@ app.post('/api/v0/user/:cosmosAddress/addReview', authorizeBlockinRequest, addRe
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
 
 //IPFS
-app.post('/api/v0/addToIpfs', addToIpfsHandler); //
-app.post('/api/v0/addMerkleTreeToIpfs', addMerkleTreeToIpfsHandler); //
+app.post('/api/v0/addMetadataToIpfs', addMetadataToIpfsHandler); //
+app.post('/api/v0/addClaimToIpfs', addClaimToIpfsHandler); //
 
 //Blockin Auth
 app.post('/api/v0/auth/getChallenge', getChallenge);
 app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
 app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
+app.post('/api/v0/auth/addAccountNumberToSession', authorizeBlockinRequest, updateSessionWithAccountNumber);
 
 //Browse
 app.post('/api/v0/browse', getBrowseCollections);

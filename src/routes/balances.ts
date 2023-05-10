@@ -1,33 +1,22 @@
 import { Request, Response } from "express";
-import { COLLECTIONS_DB } from "../db/db";
-import nano from "nano";
+import { BALANCES_DB } from "../db/db";
 
 export const getBadgeBalance = async (req: Request, res: Response) => {
-    try {
-        const accountNumIdx = `${Number(req.params.accountNum)}`;
-        const balanceField = `balances.${accountNumIdx}`;
+  try {
+    const accountNumIdx = `${Number(req.params.accountNum)}`;
+    const docId = `${req.params.id}:${accountNumIdx}`
 
-        const balanceQuery: nano.MangoQuery = {
-            selector: {
-                _id: req.params.id,
-                balances: {
-                    [accountNumIdx]: {
-                        balances: {
-                            "$gt": null
-                        }
-                    }
-                }
-            },
-            fields: [balanceField]
-        };
+    const response = await BALANCES_DB.partitionedFind(req.params.id, {
+      selector: {
+        _id: docId
+      }
+    });
 
-        const response = await COLLECTIONS_DB.find(balanceQuery);
-
-        return res.status(200).send({
-            balance: response.docs[0] && response.docs[0].balances[accountNumIdx] ? response.docs[0].balances[accountNumIdx] : { balances: [], approvals: [] }
-        });
-    } catch (e) {
-        console.error(e);
-        return res.status(500).send({ error: e });
-    }
+    return res.status(200).send({
+      balance: response.docs[0] ? response.docs[0] : { collectionId: Number(req.params.id), accountNumber: Number(req.params.accountNum), balances: [], approvals: [] }
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({ error: 'Error fetching balances' });
+  }
 }

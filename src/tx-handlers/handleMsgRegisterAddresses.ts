@@ -1,13 +1,11 @@
 import { MessageMsgRegisterAddresses } from "bitbadgesjs-transactions"
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { DbStatus, Docs } from "bitbadgesjs-utils";
+import { DbStatus, DocsCache } from "bitbadgesjs-utils";
 
-export const handleMsgRegisterAddresses = async (msg: MessageMsgRegisterAddresses, status: DbStatus, docs: Docs): Promise<Docs> => {
-    docs = await handleNewAccountByAddress(msg.creator, docs);
+export const handleMsgRegisterAddresses = async (msg: MessageMsgRegisterAddresses, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await handleNewAccountByAddress(msg.creator, docs);
 
-    for (const cosmosAddress of msg.addressesToRegister) {
-        docs = await handleNewAccountByAddress(cosmosAddress, docs);
-    }
-
-    return docs;
+  for (const cosmosAddress of msg.addressesToRegister) {
+    await handleNewAccountByAddress(cosmosAddress, docs);
+  }
 }
