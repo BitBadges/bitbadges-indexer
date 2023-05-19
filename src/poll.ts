@@ -4,7 +4,7 @@ import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import { DbStatus, DocsCache } from "bitbadgesjs-utils"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintBadge, MessageMsgNewCollection, MessageMsgRegisterAddresses, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateDisallowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
+import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintAndDistributeBadges, MessageMsgNewCollection, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateAllowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
 import { ABCIMessageLog, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { ERRORS_DB, finalizeDocsForRequest } from "./db/db"
@@ -13,15 +13,14 @@ import { client, refreshQueueMutex, setClient, setTimer } from "./indexer"
 import { fetchUriInQueue } from "./metadata-queue"
 import { handleMsgClaimBadge } from "./tx-handlers/handleMsgClaimBadge"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
-import { handleMsgMintBadge } from "./tx-handlers/handleMsgMintBadge"
+import { handleMsgMintAndDistributeBadges } from "./tx-handlers/handleMsgMintAndDistributeBadges"
 import { handleMsgNewCollection } from "./tx-handlers/handleMsgNewCollection"
-import { handleMsgRegisterAddresses } from "./tx-handlers/handleMsgRegisterAddresses"
 import { handleMsgRequestTransferManager } from "./tx-handlers/handleMsgRequestTransferManager"
 import { handleMsgSetApproval } from "./tx-handlers/handleMsgSetApproval"
 import { handleMsgTransferBadge } from "./tx-handlers/handleMsgTransferBadge"
 import { handleMsgTransferManager } from "./tx-handlers/handleMsgTransferManager"
 import { handleMsgUpdateBytes } from "./tx-handlers/handleMsgUpdateBytes"
-import { handleMsgUpdateDisallowedTransfers } from "./tx-handlers/handleMsgUpdateDisallowedTransfers"
+import { handleMsgUpdateDisallowedTransfers } from "./tx-handlers/handleMsgUpdateAllowedTransfers"
 import { handleMsgUpdatePermissions } from "./tx-handlers/handleMsgUpdatePermissions"
 import { handleMsgUpdateUris } from "./tx-handlers/handleMsgUpdateUris"
 
@@ -50,7 +49,6 @@ export const poll = async () => {
         accounts: {},
         collections: {},
         metadata: {},
-        accountNumbersMap: {},
         activityToAdd: [],
         claims: {},
         balances: {},
@@ -62,10 +60,10 @@ export const poll = async () => {
 
       //Handle each block in sequence
       while (status.block.height < currentHeight) {
-        const processing = status.block.height + 1
+        const processing = status.block.height + 1n
         process.stdout.cursorTo(0);
 
-        const block: Block = await client.getBlock(processing)
+        const block: Block = await client.getBlock(Number(processing))
         process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
         await handleBlock(block, status, docs)
         status.block.height++;
@@ -164,14 +162,14 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) =
       const feeDenom = coin.denom;
 
       if (feeDenom === "badge") {
-        const gasPrice = Number(feeAmount) / gasLimit.toNumber();
+        const gasPrice = BigInt(feeAmount) / BigInt(gasLimit.toNumber());
 
         status.lastXGasPrices.push(gasPrice);
         if (status.lastXGasPrices.length > NUM_TXS_TO_AVERAGE) {
           status.lastXGasPrices.shift();
         }
 
-        status.gasPrice = status.lastXGasPrices.reduce((a, b) => a + b, 0) / status.lastXGasPrices.length;
+        status.gasPrice = status.lastXGasPrices.reduce((a, b) => a + b, 0n) / BigInt(status.lastXGasPrices.length);
       }
     }
   }
@@ -190,16 +188,12 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) =
         await handleMsgUpdatePermissions(permissionsMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers":
-        const disallowedMsg: MessageMsgUpdateDisallowedTransfers = tx.bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers.deserialize(value).toObject() as MessageMsgUpdateDisallowedTransfers;
+        const disallowedMsg: MessageMsgUpdateAllowedTransfers = tx.bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers.deserialize(value).toObject() as MessageMsgUpdateAllowedTransfers;
         await handleMsgUpdateDisallowedTransfers(disallowedMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes":
         const bytesMsg: MessageMsgUpdateBytes = tx.bitbadges.bitbadgeschain.badges.MsgUpdateBytes.deserialize(value).toObject() as MessageMsgUpdateBytes;
         await handleMsgUpdateBytes(bytesMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgRegisterAddresses":
-        const registerMsg: MessageMsgRegisterAddresses = tx.bitbadges.bitbadgeschain.badges.MsgRegisterAddresses.deserialize(value).toObject() as MessageMsgRegisterAddresses;
-        await handleMsgRegisterAddresses(registerMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgTransferManager":
         const transferManagerMsg: MessageMsgTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgTransferManager.deserialize(value).toObject() as MessageMsgTransferManager;
@@ -227,8 +221,8 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) =
         await handleMsgNewCollection(newCollectionMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgMintBadge":
-        const newMintMsg: MessageMsgMintBadge = tx.bitbadges.bitbadgeschain.badges.MsgMintBadge.deserialize(value).toObject() as MessageMsgMintBadge;
-        await handleMsgMintBadge(newMintMsg, status, docs);
+        const newMintMsg: MessageMsgMintAndDistributeBadges = tx.bitbadges.bitbadgeschain.badges.MsgMintAndDistributeBadges.deserialize(value).toObject() as MessageMsgMintAndDistributeBadges;
+        await handleMsgMintAndDistributeBadges(newMintMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgDeleteCollection":
         const newDeleteMsg: MessageMsgDeleteCollection = tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value).toObject() as MessageMsgDeleteCollection;

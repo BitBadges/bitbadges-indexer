@@ -11,7 +11,7 @@ export const getCodes = async (expressReq: Request, res: Response) => {
 
     const collection = await COLLECTIONS_DB.get(`${collectionId}`);
     const manager = collection.manager;
-    if (req.session.accountNumber && manager !== req.session.accountNumber) {
+    if (req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
       return res.status(401).send({ error: 'Unauthorized. Must be manager of this collection.' });
     }
 

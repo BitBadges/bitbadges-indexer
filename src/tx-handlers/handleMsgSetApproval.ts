@@ -5,15 +5,9 @@ import { DbStatus, DocsCache } from "bitbadgesjs-utils";
 import { Approval } from "bitbadgesjs-proto";
 
 export const handleMsgSetApproval = async (msg: MessageMsgSetApproval, status: DbStatus, docs: DocsCache): Promise<void> => {
-  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
+  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [`${msg.collectionId}:${msg.creator}`], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
-  const creatorNum = docs.accountNumbersMap[msg.creator];
-  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [`${msg.collectionId}:${creatorNum}`], []);
-
-  if (creatorNum === undefined) {
-    throw new Error("Creator account number not found");
-  }
 
   let balanceDoc = docs.balances[`${msg.collectionId}:${msg.creator}`];
 

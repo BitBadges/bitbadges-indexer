@@ -1,10 +1,11 @@
-import { AccountDocument, ActivityItem, BalanceDocument, BitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+
 import { Request, Response } from "express";
 import nano from "nano";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB } from "../db/db";
 import { client } from "../indexer";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeReviewsQuery } from "./userHelpers";
+import { s_Account, isAddressValid, convertToCosmosAddress, getChainForAddress, s_BitBadgesUserInfo, s_BalanceDocument, s_ActivityItem } from "bitbadgesjs-utils";
 
 
 export const getAccountByAddress = async (req: Request, res: Response) => {
@@ -13,7 +14,7 @@ export const getAccountByAddress = async (req: Request, res: Response) => {
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
 
     // Attempt to fetch the account from the DB
-    let accountInfo: AccountDocument = { ...cleanedCosmosAccountInfo };
+    let accountInfo: s_Account = { ...cleanedCosmosAccountInfo };
     if (cleanedCosmosAccountInfo?.cosmosAddress) {
       accountInfo = await ACCOUNTS_DB.get(`${cleanedCosmosAccountInfo.cosmosAddress}`);
     }
@@ -33,7 +34,7 @@ export const getAccountById = async (req: Request, res: Response) => {
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
 
     // Attempt to fetch the account from the DB
-    let accountInfo: AccountDocument = { ...cleanedCosmosAccountInfo };
+    let accountInfo: s_Account = { ...cleanedCosmosAccountInfo };
     if (cleanedCosmosAccountInfo?.cosmosAddress) {
       accountInfo = await ACCOUNTS_DB.get(`${cleanedCosmosAccountInfo.cosmosAddress}`);
     }
@@ -53,7 +54,7 @@ export const getAccountById = async (req: Request, res: Response) => {
 //ENS names are not supported. Convert to address first
 export const getBatchUsers = async (req: Request, res: Response) => {
   try {
-    const accountDocuments: AccountDocument[] = [];
+    const accountDocuments: s_Account[] = [];
 
     req.body.accountNums = req.body.accountNums.filter((num: number) => num >= 0);
     req.body.addresses = req.body.addresses.filter((address: string) => address.length > 0);
@@ -104,14 +105,14 @@ export const getBatchUsers = async (req: Request, res: Response) => {
             address,
             cosmosAddress: convertToCosmosAddress(address),
             username: '',
-            accountNumber: -1,
+            accountNumber: "-1",
             chain: getChainForAddress(address),
           });
         }
       }
     }
 
-    const userInfos: BitBadgesUserInfo[] = await convertToBitBadgesUserInfo(accountDocuments);
+    const userInfos: s_BitBadgesUserInfo[] = await convertToBitBadgesUserInfo(accountDocuments);
     return res.status(200).send({ accounts: userInfos });
   } catch (e) {
     console.log(e);
@@ -136,18 +137,18 @@ export const getPortfolioInfo = async (req: Request, res: Response) => {
       }
     });
 
-    let accountNumIdx = -1;
+    let cosmosAddress = "";
     if (accountDoc.docs[0]) {
-      accountNumIdx = Number(accountDoc.docs[0].accountNumber);
+      cosmosAddress = accountDoc.docs[0].cosmosAddress;
     }
 
-    let response: nano.MangoResponse<BalanceDocument> = { docs: [] };
-    let activityRes: nano.MangoResponse<ActivityItem> = { docs: [] };
-    let announcementsRes: nano.MangoResponse<ActivityItem> = { docs: [] };
-    let reviewsRes: nano.MangoResponse<ActivityItem> = { docs: [] };
+    let response: nano.MangoResponse<s_BalanceDocument> = { docs: [] };
+    let activityRes: nano.MangoResponse<s_ActivityItem> = { docs: [] };
+    let announcementsRes: nano.MangoResponse<s_ActivityItem> = { docs: [] };
+    let reviewsRes: nano.MangoResponse<s_ActivityItem> = { docs: [] };
 
     if (req.body.userActivityBookmark !== undefined) {
-      activityRes = await executeActivityQuery(accountNumIdx, userActivityBookmark);
+      activityRes = await executeActivityQuery(cosmosAddress, userActivityBookmark);
     }
 
     if (req.body.collectedBookmark !== undefined) {
@@ -155,7 +156,7 @@ export const getPortfolioInfo = async (req: Request, res: Response) => {
     }
 
     if (req.body.announcementsBookmark !== undefined) {
-      announcementsRes = await executeAnnouncementsQuery(accountNumIdx, announcementsBookmark);
+      announcementsRes = await executeAnnouncementsQuery(cosmosAddress, announcementsBookmark);
     }
 
     if (req.body.reviewsBookmark !== undefined) {
@@ -202,7 +203,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response) => {
     const accountInfo = await ACCOUNTS_DB.get(cosmosAddress);
 
 
-    const newAccountInfo: AccountDocument = {
+    const newAccountInfo: s_Account = {
       ...accountInfo,
       discord: req.body.discord ? req.body.discord : accountInfo.discord,
       twitter: req.body.twitter ? req.body.twitter : accountInfo.twitter,
@@ -235,8 +236,8 @@ export const updateAccountInfo = async (expressReq: Request, res: Response) => {
 
 export const getActivity = async (req: Request, res: Response) => {
   try {
-    const activityRes = await executeActivityQuery(Number(req.params.accountNum));
-    const announcementsRes = await executeAnnouncementsQuery(Number(req.params.accountNum));
+    const activityRes = await executeActivityQuery((req.params.cosmosAddress));
+    const announcementsRes = await executeAnnouncementsQuery((req.params.cosmosAddress));
 
     return res.status(200).send({
       activity: activityRes.docs,

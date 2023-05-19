@@ -1,4 +1,4 @@
-import { AnnouncementActivityItem } from "bitbadgesjs-utils";
+import { s_AnnouncementActivityItem } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { ACTIVITY_DB, COLLECTIONS_DB } from "../db/db";
@@ -11,26 +11,26 @@ export const addAnnouncement = async (expressReq: Request, res: Response) => {
       return res.status(400).send({ error: 'Announcement must be 1 to 2048 characters long.' });
     }
 
-    const collectionId = Number(req.params.id);
+    const collectionId = BigInt(req.params.id);
     const collection = await COLLECTIONS_DB.get(`${collectionId}`);
     const manager = collection.manager;
-    if (req.session.accountNumber && manager !== req.session.accountNumber) {
+    if (req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
       return res.status(401).send({ error: 'Unauthorized. Must be manager of this collection.' });
     }
 
     const status = await getStatus();
 
     const { announcement } = req.body;
-    const activityDoc: AnnouncementActivityItem & {
+    const activityDoc: s_AnnouncementActivityItem & {
       partition: string
     } = {
       partition: `collection-${collectionId}`,
       method: 'Announcement',
-      collectionId,
+      collectionId: collectionId.toString(),
       announcement,
       from: req.session.cosmosAddress,
-      timestamp: Date.now(),
-      block: status.block.height,
+      timestamp: Date.now().toString(),
+      block: status.block.height.toString(),
     }
 
     await ACTIVITY_DB.insert(activityDoc);

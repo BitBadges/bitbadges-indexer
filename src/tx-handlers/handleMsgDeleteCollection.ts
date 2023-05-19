@@ -1,4 +1,4 @@
-import { CollectionDocument, DbStatus, DocsCache } from "bitbadgesjs-utils"
+import { Collection, DbStatus, DocsCache } from "bitbadgesjs-utils"
 import { MessageMsgDeleteCollection } from "bitbadgesjs-transactions"
 import { BALANCES_DB, CLAIMS_DB, METADATA_DB, fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
@@ -8,14 +8,15 @@ export const handleMsgDeleteCollection = async (msg: MessageMsgDeleteCollection,
   await handleNewAccountByAddress(msg.creator, docs);
   await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
+
   //Safe to cast because MsgDeleteCollection can only be called if the collection exists
-  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
+  const collectionDoc = docs.collections[msg.collectionId.toString()] as Collection & nano.DocumentGetResponse;
   collectionDoc._deleted = true;
 
   //Delete all relevant docs from DB
-  const allMetadataDocs = await METADATA_DB.partitionedList(`${msg.collectionId}`);
-  const allBalancesDocs = await BALANCES_DB.partitionedList(`${msg.collectionId}`);
-  const allClaimsDocs = await CLAIMS_DB.partitionedList(`${msg.collectionId}`);
+  const allMetadataDocs = await METADATA_DB.partitionedList(`${msg.collectionId.toString()}`);
+  const allBalancesDocs = await BALANCES_DB.partitionedList(`${msg.collectionId.toString()}`);
+  const allClaimsDocs = await CLAIMS_DB.partitionedList(`${msg.collectionId.toString()}`);
 
   const promises = [];
   for (const doc of allMetadataDocs.rows) {

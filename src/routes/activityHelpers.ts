@@ -1,4 +1,4 @@
-import { AnnouncementActivityItem, TransferActivityItem, ReviewActivityItem, BalanceDocument, ClaimDocument } from "bitbadgesjs-utils";
+import { s_AnnouncementActivityItem, s_BalanceDocument, s_ClaimDocument, s_ReviewActivityItem, s_TransferActivityItem } from "bitbadgesjs-utils";
 import nano from "nano";
 import { ACTIVITY_DB, BALANCES_DB, CLAIMS_DB } from "../db/db";
 
@@ -50,7 +50,7 @@ export async function executeCollectionActivityQuery(collectionId: string, bookm
     },
     sort: ["timestamp"],
     bookmark: bookmark ? bookmark : undefined,
-  }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
+  }) as nano.MangoResponse<s_AnnouncementActivityItem | s_TransferActivityItem | s_ReviewActivityItem>;
 
   return activityRes;
 }
@@ -67,7 +67,7 @@ export async function executeCollectionAnnouncementsQuery(collectionId: string, 
     },
     sort: ["timestamp"],
     bookmark: bookmark ? bookmark : undefined,
-  }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
+  }) as nano.MangoResponse<s_AnnouncementActivityItem | s_TransferActivityItem | s_ReviewActivityItem>;
 
   return announcementsRes;
 }
@@ -84,7 +84,7 @@ export async function executeCollectionReviewsQuery(collectionId: string, bookma
     },
     sort: ["timestamp"],
     bookmark: bookmark ? bookmark : undefined,
-  }) as nano.MangoResponse<AnnouncementActivityItem | TransferActivityItem | ReviewActivityItem>;
+  }) as nano.MangoResponse<s_AnnouncementActivityItem | s_TransferActivityItem | s_ReviewActivityItem>;
 
   return reviewsRes;
 }
@@ -100,7 +100,7 @@ export async function executeCollectionBalancesQuery(collectionId: string, bookm
       }
     },
     bookmark: bookmark ? bookmark : undefined,
-  }) as nano.MangoResponse<BalanceDocument>;
+  }) as nano.MangoResponse<s_BalanceDocument>;
 
   return balancesRes;
 }
@@ -113,7 +113,7 @@ export async function executeCollectionClaimsQuery(collectionId: string, bookmar
       }
     },
     bookmark: bookmark ? bookmark : undefined,
-  }) as nano.MangoResponse<ClaimDocument>;
+  }) as nano.MangoResponse<s_ClaimDocument>;
 
   return claimsRes;
 }

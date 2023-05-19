@@ -30,10 +30,10 @@ export const addClaimToIpfsHandler = async (req: Request, res: Response) => {
       return res.status(400).send({ error: 'No addAll result received' });
     }
 
-    
+
     const { path, cid } = result;
     const password = req.body.password;
-    await PASSWORDS_DB.insert({ collectionId: -1, claimId: -1, docClaimedByCollection: false, cid: cid.toString(), password, codes: req.body.codes, currCode: 0, claimedUsers: {} });
+    await PASSWORDS_DB.insert({ collectionId: -1n, claimId: -1n, docClaimedByCollection: false, cid: cid.toString(), password, codes: req.body.codes, currCode: 0n, claimedUsers: {} });
 
     return res.status(200).send({ cid: cid.toString(), path });
   } catch (e) {

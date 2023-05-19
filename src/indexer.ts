@@ -124,7 +124,7 @@ app.post("/api/v0/collection/query", queryCollections)
 app.post("/api/v0/collection/:id", getCollectionById)
 app.post('/api/v0/collection/:id/:badgeId/owners', getOwnersForCollection);
 app.post("/api/v0/collection/:id/metadata", getMetadataForCollection)
-app.post('/api/v0/collection/:id/balance/:accountNum', getBadgeBalance);
+app.post('/api/v0/collection/:id/balance/:cosmosAddress', getBadgeBalance);
 app.post('/api/v0/collection/:id/:badgeId/activity', getBadgeActivity);
 
 app.post('/api/v0/collection/:id/refreshMetadata', refreshMetadata); //Write route
@@ -142,7 +142,7 @@ app.post('/api/v0/user/batch', getBatchUsers);
 app.post('/api/v0/user/:accountNum/id', getAccountById); //TODO: Combine getById and getByAddress
 app.post('/api/v0/user/:address/address', getAccountByAddress);
 app.post('/api/v0/user/:cosmosAddress/portfolio', getPortfolioInfo);
-app.post('/api/v0/user/:accountNum/activity', getActivity);
+app.post('/api/v0/user/:cosmosAddress/activity', getActivity);
 app.post('/api/v0/user/:cosmosAddress/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route

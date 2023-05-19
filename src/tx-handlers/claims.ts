@@ -1,11 +1,12 @@
-import { Claims } from "bitbadgesjs-proto";
+import { Claim } from "bitbadgesjs-proto";
 import { ClaimDocument, DocsCache } from "bitbadgesjs-utils";
 import nano from "nano";
 import { PASSWORDS_DB } from "../db/db";
 import { fetchUri } from "../metadata-queue";
 
 
-export const handleClaims = async (docs: DocsCache, claims: Claims[], collectionId: number, startAt = 0) => {
+//TODO: handle next claim ID
+export const handleClaims = async (docs: DocsCache, claims: Claim[], collectionId: bigint, startAt = 0) => {
   try {
     //Handle claim objects
     for (let idx = startAt; idx < claims.length; idx++) {
@@ -60,7 +61,7 @@ export const handleClaims = async (docs: DocsCache, claims: Claims[], collection
             name: fetchedName,
             description: fetchedDescription,
             collectionId: collectionId,
-            claimId: idx + 1,
+            claimId: BigInt(idx + 1),
             usedClaims: {
               codes: {},
               numUsed: 0,
@@ -68,8 +69,9 @@ export const handleClaims = async (docs: DocsCache, claims: Claims[], collection
             }
           };
 
-          docs.claims[claimDocument.claimId] = {
-            _id: `${claimDocument.collectionId}:${claimDocument.claimId}`,
+          const partitionedId = `${claimDocument?.collectionId.toString()}:${claimDocument?.claimId.toString()}`;
+          docs.claims[partitionedId] = {
+            _id: partitionedId,
             ...claimDocument
           } as ClaimDocument & nano.DocumentGetResponse;
 
@@ -93,8 +95,9 @@ export const handleClaims = async (docs: DocsCache, claims: Claims[], collection
             }
           } as ClaimDocument;
 
-          docs.claims[claimDocument.claimId] = {
-            _id: `${claimDocument.collectionId}:${claimDocument.claimId}`,
+          const partitionedId = `${claimDocument?.collectionId.toString()}:${claimDocument?.claimId.toString()}`;
+          docs.claims[partitionedId] = {
+            _id: partitionedId,
             ...claimDocument
           } as ClaimDocument & nano.DocumentGetResponse;
         }
@@ -108,7 +111,7 @@ export const handleClaims = async (docs: DocsCache, claims: Claims[], collection
           name: '',
           description: '',
           collectionId: collectionId,
-          claimId: idx + 1,
+          claimId: BigInt(idx + 1),
           usedClaims: {
             codes: {},
             numUsed: 0,
@@ -116,8 +119,9 @@ export const handleClaims = async (docs: DocsCache, claims: Claims[], collection
           }
         };
 
-        docs.claims[claimDocument.claimId] = {
-          _id: `${claimDocument.collectionId}:${claimDocument.claimId}`,
+        const partitionedId = `${claimDocument?.collectionId.toString()}:${claimDocument?.claimId.toString()}`;
+        docs.claims[partitionedId] = {
+          _id: partitionedId,
           ...claimDocument
         } as ClaimDocument & nano.DocumentGetResponse;
       }

@@ -1,5 +1,5 @@
 
-import { AccountDocument, BLANK_USER_INFO, Metadata, BitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { s_Account, s_BLANK_USER_INFO, Metadata, BitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid, s_BitBadgesUserInfo } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { ACCOUNTS_DB, METADATA_DB } from "../db/db";
@@ -63,10 +63,10 @@ export const searchHandler = async (req: Request, res: Response) => {
     const metadataResponseDocs = results[0].docs;
     const accountsResponseDocs = results[1].docs;
 
-    const allAccounts: AccountDocument[] = [];
+    const allAccounts: s_Account[] = [];
     if (isAddressValid(searchValue) && !accountsResponseDocs.find((account) => account.address === searchValue || account.cosmosAddress === searchValue)) {
       allAccounts.push({
-        ...BLANK_USER_INFO,
+        ...s_BLANK_USER_INFO,
         address: searchValue,
         cosmosAddress: convertToCosmosAddress(searchValue),
         chain: getChainForAddress(searchValue),
@@ -80,8 +80,7 @@ export const searchHandler = async (req: Request, res: Response) => {
       });
     }
 
-    const accounts: BitBadgesUserInfo[] = await convertToBitBadgesUserInfo(allAccounts);
-
+    const accounts: s_BitBadgesUserInfo[] = await convertToBitBadgesUserInfo(allAccounts);
     return res.json({
       collections: metadataResponseDocs,
       accounts: accounts,

@@ -1,18 +1,18 @@
-import { MessageMsgMintBadge } from "bitbadgesjs-transactions"
-import { BitBadgesUserInfo, CollectionDocument, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgMintBadge } from "bitbadgesjs-utils"
+import { MessageMsgMintAndDistributeBadges } from "bitbadgesjs-transactions"
+import { BitBadgesUserInfo, Collection, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgMintAndDistributeBadges } from "bitbadgesjs-utils"
+import nano from "nano"
 import { CLAIMS_DB, fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
 import { handleClaims } from "./claims"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
-import nano from "nano"
 
-export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbStatus, docs: DocsCache): Promise<void> => {
+export const handleMsgMintAndDistributeBadges = async (msg: MessageMsgMintAndDistributeBadges, status: DbStatus, docs: DocsCache): Promise<void> => {
   await handleNewAccountByAddress(msg.creator, docs);
   await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
   //Safe to cast because MsgMintBadge can only be called if the collection exists
-  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
+  const collectionDoc = docs.collections[msg.collectionId.toString()] as Collection & nano.DocumentGetResponse;
 
   /**
    * Honestly, this is pretty overkill. We really just use this function to calculate the updated collection's
@@ -25,12 +25,15 @@ export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbSta
    * 
    * All other types are not used in this simulation (just set to default for TypeScript)
    */
-  const collection = simulateCollectionAfterMsgMintBadge(
-    msg,
+  const collection = simulateCollectionAfterMsgMintAndDistributeBadges(
+    {
+      ...msg,
+      claims: [],
+      transfers: [],
+    },
     {} as Metadata,
     {} as MetadataMap,
     {} as BitBadgesUserInfo,
-    [],
     {
       ...collectionDoc,
       claims: [],
@@ -41,7 +44,7 @@ export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbSta
       managerInfo: {} as BitBadgesUserInfo,
       collectionMetadata: {} as Metadata,
       badgeMetadata: {} as MetadataMap,
-    },
+    }
   );
 
 
@@ -74,7 +77,7 @@ export const handleMsgMintBadge = async (msg: MessageMsgMintBadge, status: DbSta
   collectionDoc.maxSupplys = collection.maxSupplys;
   collectionDoc.nextBadgeId = collection.nextBadgeId;
 
-  const existingClaimsDocs = await CLAIMS_DB.partitionedList(`${collection.collectionId}`); //Fetches head only
+  const existingClaimsDocs = await CLAIMS_DB.partitionedList(`${collection.collectionId.toString()}`); //Fetches head only
   const numExistingClaims = existingClaimsDocs.total_rows;
   await handleClaims(docs, msg.claims, collection.collectionId, numExistingClaims);
 

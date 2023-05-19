@@ -1,5 +1,5 @@
 import { MessageMsgClaimBadge } from "bitbadgesjs-transactions"
-import { AccountDocument, ActivityItem, addBalancesForIdRanges, ClaimDocument, DbStatus, DocsCache, getBalanceAfterTransfers } from "bitbadgesjs-utils"
+import { ActivityItem, addBalancesForIdRanges, ClaimDocument, DbStatus, DocsCache, getBalancesAfterTransfers, Account } from "bitbadgesjs-utils"
 import nano from "nano"
 import { fetchDocsForRequestIfEmpty, PASSWORDS_DB } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
@@ -14,7 +14,7 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
   await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], [claimIdString]);
 
   //Safe to cast because we handle new accounts above
-  const creatorAccountDoc = docs.accounts[msg.creator] as nano.DocumentGetResponse & AccountDocument;
+  const creatorAccountDoc = docs.accounts[msg.creator] as nano.DocumentGetResponse & Account;
 
   const toAddress = docs.accountNumbersMap[msg.creator];
   await fetchDocsForRequestIfEmpty(docs, [], [], [], [`${msg.collectionId}:${toAddress}`], []);
@@ -52,7 +52,7 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
     }
   }
 
-  const newClaimBalance = getBalanceAfterTransfers(
+  const newClaimBalance = getBalancesAfterTransfers(
     {
       balances: currClaimObj.balances,
       approvals: [],

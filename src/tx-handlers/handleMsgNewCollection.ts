@@ -1,5 +1,5 @@
 import { MessageMsgNewCollection } from "bitbadgesjs-transactions"
-import { BitBadgesUserInfo, CollectionDocument, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgNewCollection } from "bitbadgesjs-utils"
+import { BitBadgesUserInfo, Collection, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgNewCollection } from "bitbadgesjs-utils"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
 import { handleClaims } from "./claims"
@@ -11,18 +11,20 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
   await handleNewAccountByAddress(msg.creator, docs);
 
   /**
-   * Here, we simulate the collection creation to get a CollectionDocument object.
+   * Here, we simulate the collection creation to get a Collection object.
    * 
    * Note we handle transfers, claims, and balances separately below. The returned collection object is not used for these.
    * 
    * All other types are not used in this simulation (just set to default for TypeScript)
    */
-  const createdCollection = simulateCollectionAfterMsgNewCollection(msg, {} as Metadata, {} as MetadataMap, {} as BitBadgesUserInfo, [])
+  const createdCollection = simulateCollectionAfterMsgNewCollection({
+    ...msg, claims: [], transfers: []
+  }, {} as Metadata, {} as MetadataMap, {} as BitBadgesUserInfo)
 
-  const collection: CollectionDocument = {
+  const collection: Collection = {
     //Add any fields that were not simulated
     collectionId: status.nextCollectionId, //msg does not have a collectionId. we keep track of the next collectionId in the status object with a counter
-    manager: docs.accountNumbersMap[msg.creator], //Added manually because we did not provide connectedUser parameter
+    manager: msg.creator, //Added manually because we did not provide connectedUser parameter
     createdBlock: status.block.height,
 
     //These fields are simulated
@@ -30,9 +32,11 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
     badgeUris: createdCollection.badgeUris,
     bytes: createdCollection.bytes,
     permissions: createdCollection.permissions,
-    disallowedTransfers: createdCollection.disallowedTransfers,
+    allowedTransfers: createdCollection.allowedTransfers,
     managerApprovedTransfers: createdCollection.managerApprovedTransfers,
     nextBadgeId: createdCollection.nextBadgeId,
+    nextClaimId: createdCollection.nextClaimId,
+    balancesUri: createdCollection.balancesUri,
     unmintedSupplys: createdCollection.unmintedSupplys,
     maxSupplys: createdCollection.maxSupplys,
     standard: createdCollection.standard,
@@ -44,7 +48,7 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
   await handleClaims(docs, msg.claims, collection.collectionId);
   await updateBalancesForOffChainBalances(collection, docs, true); //Only if off-chain balances are used (i.e. standard == 1)
 
-  let collectionDoc = docs.collections[collection.collectionId];
+  let collectionDoc = docs.collections[collection.collectionId.toString()];
   collectionDoc = {
     _id: collectionDoc._id,
     ...collection

@@ -1,11 +1,11 @@
-import { DbStatus } from "bitbadgesjs-utils";
+import { DbStatus, convertFromDbStatus, convertToDbStatus } from "bitbadgesjs-utils";
 import { STATUS_DB } from "./db";
 
 export async function setStatus(status: DbStatus) {
   try {
     await Promise.all(
       [
-        STATUS_DB.bulk({ docs: [status] }),
+        STATUS_DB.bulk({ docs: [convertFromDbStatus(status)] }),
       ]
     );
   } catch (error) {
@@ -16,7 +16,7 @@ export async function setStatus(status: DbStatus) {
 export async function getStatus() {
   try {
     const status = await STATUS_DB.get('status');
-    return status;
+    return convertToDbStatus(status);
   } catch (error) {
     throw `Error in getStatus(): ${error}`;
   }

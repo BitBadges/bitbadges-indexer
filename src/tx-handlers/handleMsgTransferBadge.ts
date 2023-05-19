@@ -1,4 +1,4 @@
-import { CollectionDocument, DbStatus, DocsCache } from "bitbadgesjs-utils"
+import { Collection, DbStatus, DocsCache } from "bitbadgesjs-utils"
 import { MessageMsgTransferBadge } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
@@ -12,7 +12,7 @@ export const handleMsgTransferBadge = async (msg: MessageMsgTransferBadge, statu
   await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
   //Safe to cast because MsgTransferBadge can only be called if the collection exists
-  const collectionDoc = docs.collections[collectionIdString] as CollectionDocument & nano.DocumentGetResponse;
+  const collectionDoc = docs.collections[collectionIdString] as Collection & nano.DocumentGetResponse;
 
   await handleTransfers(collectionDoc, [Number(msg.from)], msg.transfers, docs, status);
 }

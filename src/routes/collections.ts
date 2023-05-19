@@ -1,4 +1,4 @@
-import { AccountDocument, AnnouncementActivityItem, BalanceDocument, BitBadgeCollection, BitBadgesUserInfo, ClaimDocument, CollectionDocument, GetCollectionResponse, Metadata, MetadataMap, ReviewActivityItem, TransferActivityItem, updateMetadataMap } from "bitbadgesjs-utils";
+import { BitBadgeCollection, GetCollectionResponse, Metadata, MetadataMap, s_Account, s_AnnouncementActivityItem, s_BalanceDocument, s_BitBadgeCollection, s_BitBadgesUserInfo, s_ClaimDocument, s_Collection, s_ReviewActivityItem, s_TransferActivityItem, updateMetadataMap } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { ACCOUNTS_DB, BALANCES_DB, COLLECTIONS_DB, METADATA_DB } from "../db/db";
@@ -20,8 +20,8 @@ import { convertToBitBadgesUserInfo } from "./userHelpers";
  * claimsBookmark - The bookmark to start fetching claims from.
  */
 interface CollectionQueryOptions {
-  collectionId: number,
-  startMetadataId: number,
+  collectionId: bigint,
+  startMetadataId: bigint,
 
   activityBookmark: string | undefined,
   announcementsBookmark: string | undefined,
@@ -75,33 +75,33 @@ async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions
 
   //Parse results and add to collectionResponses
   const responses = await Promise.all(promises);
-  const collectionResponse: nano.DocumentFetchResponse<CollectionDocument> = responses[0] as nano.DocumentFetchResponse<CollectionDocument>;
-  const baseCollections = collectionResponse.rows.map((row: any) => row.doc) as CollectionDocument[];
+  const collectionResponse: nano.DocumentFetchResponse<s_Collection> = responses[0] as nano.DocumentFetchResponse<s_Collection>;
+  const baseCollections = collectionResponse.rows.map((row: any) => row.doc) as s_Collection[];
 
   for (let i = 1; i < responses.length; i += 6) {
-    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i - 1) / 6].collectionId);
+    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i - 1) / 6].collectionId.toString());
     if (!collectionRes) continue;
 
     const metadataRes: { collectionMetadata: Metadata, badgeMetadata: MetadataMap } = responses[i] as { collectionMetadata: Metadata, badgeMetadata: MetadataMap };
-    const activityRes = responses[i + 1] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem | ReviewActivityItem>;
-    const announcementsRes = responses[i + 2] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem | ReviewActivityItem>;
-    const reviewsRes = responses[i + 3] as nano.MangoResponse<TransferActivityItem | AnnouncementActivityItem | ReviewActivityItem>;
-    const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDocument>;
-    const claimsRes = responses[i + 5] as nano.MangoResponse<ClaimDocument>;
+    const activityRes = responses[i + 1] as nano.MangoResponse<s_TransferActivityItem | s_AnnouncementActivityItem | s_ReviewActivityItem>;
+    const announcementsRes = responses[i + 2] as nano.MangoResponse<s_TransferActivityItem | s_AnnouncementActivityItem | s_ReviewActivityItem>;
+    const reviewsRes = responses[i + 3] as nano.MangoResponse<s_TransferActivityItem | s_AnnouncementActivityItem | s_ReviewActivityItem>;
+    const balancesRes = responses[i + 4] as nano.MangoResponse<s_BalanceDocument>;
+    const claimsRes = responses[i + 5] as nano.MangoResponse<s_ClaimDocument>;
 
-    let collectionToReturn: BitBadgeCollection = {
+    let collectionToReturn: s_BitBadgeCollection = {
       ...collectionRes,
-      activity: activityRes.docs as TransferActivityItem[],
-      announcements: announcementsRes.docs as AnnouncementActivityItem[],
-      reviews: reviewsRes.docs as ReviewActivityItem[],
-      balances: balancesRes.docs as BalanceDocument[],
-      claims: claimsRes.docs as ClaimDocument[],
+      activity: activityRes.docs as s_TransferActivityItem[],
+      announcements: announcementsRes.docs as s_AnnouncementActivityItem[],
+      reviews: reviewsRes.docs as s_ReviewActivityItem[],
+      balances: balancesRes.docs as s_BalanceDocument[],
+      claims: claimsRes.docs as s_ClaimDocument[],
 
 
       //Placeholders to append later in function
       badgeMetadata: {},
       collectionMetadata: {} as Metadata,
-      managerInfo: {} as BitBadgesUserInfo,
+      managerInfo: {} as s_BitBadgesUserInfo,
     };
 
     const appendedCollection = appendMetadataResToCollection(metadataRes, collectionToReturn);
@@ -149,7 +149,7 @@ async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions
     });
 
     for (const collectionRes of collectionResponses) {
-      const managerInfo = managerInfoRes.docs.find((account: AccountDocument) => account.accountNumber === collectionRes.collection.manager);
+      const managerInfo = managerInfoRes.docs.find((account: s_Account) => account.cosmosAddress === collectionRes.collection.manager);
       if (managerInfo) {
         collectionRes.collection.managerInfo = await convertToBitBadgesUserInfo([managerInfo])[0];
       }
@@ -162,8 +162,8 @@ async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions
 export const getCollectionById = async (req: Request, res: Response) => {
   try {
     const collectionsReponse = await executeCollectionsQuery([{
-      collectionId: Number(req.params.id),
-      startMetadataId: req.body.startMetadataId ? Number(req.body.startMetadataId) : 0,
+      collectionId: BigInt(req.params.id),
+      startMetadataId: req.body.startMetadataId ? BigInt(req.body.startMetadataId) : 0n,
       activityBookmark: req.body.activityBookmark,
       announcementsBookmark: req.body.announcementsBookmark,
       reviewsBookmark: req.body.reviewsBookmark,
@@ -191,7 +191,7 @@ export const getBadgeActivity = async (req: Request, res: Response) => {
           hasMore: activityRes.docs.length === 25,
         }
       },
-      activity: activityRes.docs as TransferActivityItem[],
+      activity: activityRes.docs as s_TransferActivityItem[],
     })
   } catch (e) {
     console.error(e);
@@ -244,7 +244,7 @@ export const queryCollections = async (req: Request, res: Response) => {
   }
 }
 
-const getMetadata = async (collectionId: number, startMetadataId: number) => {
+const getMetadata = async (collectionId: bigint, startMetadataId: bigint) => {
   const LIMIT = 100;
   const startId = Number(startMetadataId);
 
@@ -283,7 +283,7 @@ const getMetadata = async (collectionId: number, startMetadataId: number) => {
   }
 }
 
-const appendMetadataResToCollection = (metadataRes: { collectionMetadata: Metadata, badgeMetadata: MetadataMap }, collection: BitBadgeCollection) => {
+const appendMetadataResToCollection = (metadataRes: { collectionMetadata: Metadata, badgeMetadata: MetadataMap }, collection: BitBadgeCollection | s_BitBadgeCollection) => {
   // Kinda hacky and inefficient, but metadataRes is the newest metadata, so we just overwrite existing metadata, if exists with same key
   const isCollectionMetadataResEmpty = Object.keys(metadataRes.collectionMetadata).length === 0;
   collection.collectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.collectionMetadata;
@@ -297,7 +297,7 @@ const appendMetadataResToCollection = (metadataRes: { collectionMetadata: Metada
 
 export const getMetadataForCollection = async (req: Request, res: Response) => {
   try {
-    const metadata = await getMetadata(Number(req.params.id), Number(req.body.startMetadataId));
+    const metadata = await getMetadata(BigInt(req.params.id), BigInt(req.body.startMetadataId));
     return res.json(metadata)
   } catch (e) {
     console.error(e);

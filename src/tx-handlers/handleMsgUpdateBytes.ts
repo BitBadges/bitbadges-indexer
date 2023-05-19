@@ -1,5 +1,5 @@
 import { MessageMsgUpdateBytes } from "bitbadgesjs-transactions";
-import { CollectionDocument, DbStatus, DocsCache } from "bitbadgesjs-utils";
+import { Collection, DbStatus, DocsCache } from "bitbadgesjs-utils";
 import { fetchDocsForRequestIfEmpty } from "../db/db";
 import { handleNewAccountByAddress } from "./handleNewAccount";
 import { updateBalancesForOffChainBalances } from "./offChainBalances";
@@ -10,9 +10,9 @@ export const handleMsgUpdateBytes = async (msg: MessageMsgUpdateBytes, status: D
   await handleNewAccountByAddress(msg.creator, docs);
   await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
   //Safe to cast because MsgUpdateBytes can only be called if the collection exists
-  const collectionDoc = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
+  const collectionDoc = docs.collections[msg.collectionId.toString()] as Collection & nano.DocumentGetResponse;
 
-  collectionDoc.bytes = msg.newBytes;
+  collectionDoc.bytes = msg.bytes;
 
   await updateBalancesForOffChainBalances(collectionDoc, docs, false);
 }

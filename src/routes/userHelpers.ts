@@ -1,10 +1,9 @@
-import { Coin } from "bitbadgesjs-provider";
-import { AccountDocument, BitBadgesUserInfo } from "bitbadgesjs-utils";
-import { AIRDROP_DB, ACTIVITY_DB, BALANCES_DB } from "../db/db";
+import { s_Account, s_BitBadgesUserInfo, s_Coin } from "bitbadgesjs-utils";
+import { ACTIVITY_DB, AIRDROP_DB, BALANCES_DB } from "../db/db";
 import { client } from "../indexer";
-import { getNameForAddress, getEnsResolver, getEnsDetails } from "../utils/ensResolvers";
+import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
 
-export const convertToBitBadgesUserInfo = async (accountInfos: AccountDocument[]): Promise<BitBadgesUserInfo[]> => {
+export const convertToBitBadgesUserInfo = async (accountInfos: s_Account[]): Promise<s_BitBadgesUserInfo[]> => {
   const promises = [];
   for (const accountInfo of accountInfos) {
     promises.push(appendNameAndAvatarForAccount(accountInfo));
@@ -18,11 +17,11 @@ export const convertToBitBadgesUserInfo = async (accountInfos: AccountDocument[]
   }
 
   const results = await Promise.all(promises);
-  const resultsToReturn: BitBadgesUserInfo[] = [];
+  const resultsToReturn: s_BitBadgesUserInfo[] = [];
 
   for (let i = 0; i < results.length; i += 3) {
-    const accountInfo = results[i] as AccountDocument & { resolvedName: string, avatar: string };
-    const balanceInfo = results[i + 1] as Coin;
+    const accountInfo = results[i] as s_Account & { resolvedName: string, avatar: string };
+    const balanceInfo = results[i + 1] as s_Coin;
     const airdropInfo = results[i + 2] as boolean;
 
     resultsToReturn.push({
@@ -58,7 +57,7 @@ export const convertToBitBadgesUserInfo = async (accountInfos: AccountDocument[]
 }
 
 
-export async function appendNameAndAvatarForAccount(account: AccountDocument) {
+export async function appendNameAndAvatarForAccount(account: s_Account) {
   try {
     const ensName = await getNameForAddress(account.address);
     let details: { avatar?: string } = {};
@@ -75,7 +74,7 @@ export async function appendNameAndAvatarForAccount(account: AccountDocument) {
 }
 
 
-export async function executeActivityQuery(accountNum: number, bookmark?: string) {
+export async function executeActivityQuery(cosmosAddress: string, bookmark?: string) {
   const activityRes = await ACTIVITY_DB.find({
     selector: {
       "users": {
@@ -116,7 +115,7 @@ export async function executeActivityQuery(accountNum: number, bookmark?: string
   return activityRes;
 }
 
-export async function executeAnnouncementsQuery(accountNum: number, bookmark?: string) {
+export async function executeAnnouncementsQuery(cosmosAddress: string, bookmark?: string) {
   const announcementsRes = await ACTIVITY_DB.find({
     selector: {
       "users": {

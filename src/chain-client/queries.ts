@@ -13,8 +13,8 @@ import { convertToCosmosAddress, isAddressValid, SupportedChain } from "bitbadge
  */
 export interface CleanedCosmosAccountInformation {
   publicKey: string
-  sequence: number
-  accountNumber: number
+  sequence: string
+  accountNumber: string
   chain: SupportedChain
   cosmosAddress: string
   address: string
@@ -52,8 +52,8 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
 
   return {
     publicKey: pubKeyStr,
-    sequence: accountObj.sequence ? accountObj.sequence : 0,
-    accountNumber: accountObj.account_number !== undefined && accountObj.account_number >= 0 ? accountObj.account_number : 0,
+    sequence: accountObj.sequence ? accountObj.sequence.toString() : "0",
+    accountNumber: accountObj.account_number !== undefined && accountObj.account_number >= 0 ? accountObj.account_number.toString() : "0",
     chain,
     cosmosAddress: accountObj.address ? convertToCosmosAddress(accountObj.address) : '',
     address: chain === SupportedChain.COSMOS && accountObj.address ? accountObj.address : cosmosToEth(accountObj.address ? accountObj.address : ''),
@@ -85,8 +85,8 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
           return {
             address: address,
-            accountNumber: -1,
-            sequence: 0,
+            accountNumber: "-1", //"-1" is the convention for "account not found
+            sequence: "0",
             cosmosAddress: convertToCosmosAddress(address),
             chain: SupportedChain.UNKNOWN,
             publicKey: '',
@@ -96,7 +96,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
       getAccountInfoByNumber: async (accountNum: number): Promise<CleanedCosmosAccountInformation> => {
         try {
           //BitBadges x/badges GetAddressById helper query for account information
-          const data = query.bitbadges.bitbadgeschain.badges.QueryGetAddressByIdRequest.fromObject({ id: accountNum }).serialize();
+          const data = query.bitbadges.bitbadgeschain.badges.QueryGetAddressByIdRequest.fromObject({ id: accountNum.toString() }).serialize();
           const promise = await rpc.request(
             'bitbadges.bitbadgeschain.badges.Query',
             'GetAddressById',
@@ -121,8 +121,8 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
           console.log(error);
           return {
             address: '',
-            accountNumber: -1,
-            sequence: 0,
+            accountNumber: "-1", //"-1" is the convention for "account not found
+            sequence: "0",
             cosmosAddress: '',
             chain: SupportedChain.UNKNOWN,
             publicKey: '',

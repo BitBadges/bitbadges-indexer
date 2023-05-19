@@ -1,4 +1,4 @@
-import { ReviewActivityItem, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { ReviewActivityItem, convertToCosmosAddress, s_ReviewActivityItem } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { getStatus } from "../db/status";
@@ -12,12 +12,12 @@ export const addReviewForCollection = async (expressReq: Request, res: Response)
       return res.status(400).send({ error: 'Review must be 1 to 2048 characters long.' });
     }
 
-    const stars = Number(req.body.stars);
-    if (isNaN(stars) || stars < 0 || stars > 5) {
+    const stars = BigInt(req.body.stars);
+    if (stars < 0 || stars > 5) {
       return res.status(400).send({ error: 'Stars must be a number between 0 and 5.' });
     }
 
-    const collectionId = Number(req.params.id);
+    const collectionId = BigInt(req.params.id);
     const userAccountInfo = await ACCOUNTS_DB.find({
       selector: {
         cosmosAddress: {
@@ -33,17 +33,17 @@ export const addReviewForCollection = async (expressReq: Request, res: Response)
     const status = await getStatus();
 
     const { review } = req.body;
-    const activityDoc: ReviewActivityItem & {
+    const activityDoc: s_ReviewActivityItem & {
       partition: string
     } = {
       partition: `collection-${collectionId}`,
       method: 'Review',
-      collectionId,
-      stars: stars,
+      collectionId: collectionId.toString(),
+      stars: stars.toString(),
       review: review,
       from: userAccountInfo.docs[0].cosmosAddress,
-      timestamp: Date.now(),
-      block: status.block.height,
+      timestamp: Date.now().toString(),
+      block: status.block.height.toString()
     }
 
     await ACTIVITY_DB.insert(activityDoc);
@@ -90,17 +90,17 @@ export const addReviewForUser = async (expressReq: Request, res: Response) => {
 
     const { review } = req.body;
 
-    const activityDoc: ReviewActivityItem & {
+    const activityDoc: s_ReviewActivityItem & {
       partition: string
     } = {
       partition: `user-${cosmosAddress}`,
       method: 'Review',
       reviewedAddress: cosmosAddress,
-      stars: stars,
+      stars: stars.toString(),
       review: review,
       from: userAccountInfo.docs[0].cosmosAddress,
-      timestamp: Date.now(),
-      block: status.block.height,
+      timestamp: Date.now().toString(),
+      block: status.block.height.toString()
     }
 
     await ACTIVITY_DB.insert(activityDoc);

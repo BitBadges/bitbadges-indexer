@@ -2,7 +2,7 @@ import { MessageMsgUpdateUris } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { CollectionDocument, DbStatus, DocsCache } from "bitbadgesjs-utils";
+import { Collection, DbStatus, DocsCache } from "bitbadgesjs-utils";
 import nano from "nano";
 
 export const handleMsgUpdateUris = async (msg: MessageMsgUpdateUris, status: DbStatus, docs: DocsCache): Promise<void> => {
@@ -10,7 +10,7 @@ export const handleMsgUpdateUris = async (msg: MessageMsgUpdateUris, status: DbS
   await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
   //Safe to cast because Msg can only be called if the collection exists
-  const collection = docs.collections[msg.collectionId] as CollectionDocument & nano.DocumentGetResponse;
+  const collection = docs.collections[msg.collectionId.toString()] as Collection & nano.DocumentGetResponse;
 
 
   //Only update the URIs if the collectionUri or badgeUris were specified and changed
