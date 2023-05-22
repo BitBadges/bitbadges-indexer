@@ -41,7 +41,7 @@ export async function getChallenge(expressReq: Request, res: Response) {
   req.session.address = req.body.address;
   req.session.save();
 
-  const hours = Number(req.body.hours) ? Number(req.body.hours) : 24;
+  const hours = req.body.hours ? Math.floor(Number(req.body.hours)) : 24;
   if (isNaN(hours)) {
     return res.status(400).json({ error: 'Invalid hours' });
   }
@@ -64,7 +64,6 @@ export async function getChallenge(expressReq: Request, res: Response) {
 
   const blockinMessage = await createChallenge(challengeParams, req.body.chain);
 
-  res.setHeader('Content-Type', 'text/plain');
   return res.status(200).json({
     nonce: req.session.nonce,
     params: challengeParams,

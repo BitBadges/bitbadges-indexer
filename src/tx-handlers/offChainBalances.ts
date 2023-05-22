@@ -1,6 +1,6 @@
 import { BalancesMap, Collection, DocsCache } from "bitbadgesjs-utils";
 import { fetchUri } from "../metadata-queue";
-import { fetchDocsForRequestIfEmpty } from "../db/db";
+import { fetchDocsForCacheIfEmpty } from "../db/db";
 
 export const updateBalancesForOffChainBalances = async (collection: Collection, docs: DocsCache, isNewCollection: boolean): Promise<void> => {
   let balanceMap: BalancesMap = {};
@@ -19,7 +19,7 @@ export const updateBalancesForOffChainBalances = async (collection: Collection, 
   //IDEA: We could take all balance document updates out of the poller logic and put it in a separate scalable queue
   //Similar to accounts, this can only be updated by one entity (the manager) so data races should not be an issue
   if (!isNewCollection) {
-    await fetchDocsForRequestIfEmpty(docs, [], [], [], [
+    await fetchDocsForCacheIfEmpty(docs, [], [], [], [
       ...Object.keys(balanceMap).map((key) => `${collection.collectionId}:${key}`),
     ], []);
   }

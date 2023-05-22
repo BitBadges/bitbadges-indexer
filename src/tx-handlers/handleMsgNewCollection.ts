@@ -1,6 +1,6 @@
 import { MessageMsgNewCollection } from "bitbadgesjs-transactions"
 import { BitBadgesUserInfo, Collection, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgNewCollection } from "bitbadgesjs-utils"
-import { fetchDocsForRequestIfEmpty } from "../db/db"
+import { fetchDocsForCacheIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
 import { handleClaims } from "./claims"
 
@@ -43,7 +43,7 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
     managerRequests: createdCollection.managerRequests,
   }
 
-  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [collection.collectionId], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [collection.collectionId], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
   await pushToMetadataQueue(collection, status);
   await updateBalancesForOffChainBalances(collection, docs, true); //Only if off-chain balances are used (i.e. standard == 1)

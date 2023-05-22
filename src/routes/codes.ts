@@ -19,15 +19,13 @@ export const getCodes = async (expressReq: Request, res: Response) => {
 
     const codes: string[][] = [];
     const passwords: string[] = [];
-
-
     const docQuery: nano.MangoQuery = {
       selector: {
         collectionId: {
           "$eq": collectionId
         }
       },
-      limit: 1000000, //TODO: make this a list _all_doc or partitionedList query (for now, we just assume less than 1000000 claims)
+      limit: 0, // no limit
     }
 
     const _codesDocsArr = await PASSWORDS_DB.find(docQuery);

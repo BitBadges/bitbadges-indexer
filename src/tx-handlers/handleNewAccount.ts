@@ -1,5 +1,5 @@
 import { Account, DocsCache } from "bitbadgesjs-utils";
-import { fetchDocsForRequestIfEmpty } from "../db/db";
+import { fetchDocsForCacheIfEmpty } from "../db/db";
 import { client } from "../indexer";
 /**
  * This is a little tricky because we need to handle the case where a user registers
@@ -16,7 +16,7 @@ import { client } from "../indexer";
 export const handleNewAccountByAddress = async (cosmosAddress: string, docs: DocsCache): Promise<void> => {
 
   if (!docs.accounts[cosmosAddress]) {
-    await fetchDocsForRequestIfEmpty(docs, [cosmosAddress], [], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], []);
   }
   //Query if we don't have account number (e.g. is just an { _id } new account type) or account number is -1 (e.g. not registered yet but has an account doc generated off-chain)
 

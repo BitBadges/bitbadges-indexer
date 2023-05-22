@@ -29,8 +29,9 @@ import { addReviewForCollection, addReviewForUser } from './routes/reviews'
 
 var fs = require("fs");
 var https = require("https");
-
 const cors = require('cors');
+
+config()
 
 // create a mutex for synchronizing access to the queue
 export const refreshQueueMutex = new Mutex();
@@ -44,8 +45,6 @@ const limiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 })
 
-
-config()
 
 const auth = 'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
 
@@ -139,12 +138,10 @@ app.post('/api/v0/collection/:id/addReview', authorizeBlockinRequest, addReviewF
 
 //User
 app.post('/api/v0/user/batch', getAccountsByAddress);
-app.post('/api/v0/user/:cosmosAddressOrUsername', getAccount);
-//TODO: add username support for all below
-app.post('/api/v0/user/:cosmosAddress/portfolio', getPortfolioInfo);
-app.post('/api/v0/user/:cosmosAddress/activity', getActivity);
-app.post('/api/v0/user/:cosmosAddress/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
-
+app.post('/api/v0/user/:addressOrUsername', getAccount);
+app.post('/api/v0/user/:addressOrUsername/portfolio', getPortfolioInfo);
+app.post('/api/v0/user/:addressOrUsername/activity', getActivity);
+app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
 
 //IPFS

@@ -9,7 +9,8 @@ export const getBadgeBalance = async (req: Request, res: Response) => {
     const response = await BALANCES_DB.partitionedFind(req.params.id, {
       selector: {
         _id: docId
-      }
+      },
+      limit: 1
     });
 
     return res.status(200).send({

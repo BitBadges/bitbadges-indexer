@@ -1,6 +1,6 @@
 import { Transfer } from "bitbadgesjs-proto";
 import { Collection, DbStatus, DocsCache, TransferActivityItem, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils";
-import { fetchDocsForRequestIfEmpty } from "../db/db";
+import { fetchDocsForCacheIfEmpty } from "../db/db";
 ;
 
 export const handleTransfers = async (collection: Collection, from: (string | 'Mint')[], transfers: Transfer[], docs: DocsCache, status: DbStatus) => {
@@ -8,11 +8,11 @@ export const handleTransfers = async (collection: Collection, from: (string | 'M
   for (const address of from) {
     if (address === 'Mint') continue;
 
-    await fetchDocsForRequestIfEmpty(docs, [], [], [], [`${collection.collectionId}:${address}`], []);
+    await fetchDocsForCacheIfEmpty(docs, [], [], [], [`${collection.collectionId}:${address}`], []);
   }
 
   for (const transfer of transfers) {
-    await fetchDocsForRequestIfEmpty(docs, [], [], [], [
+    await fetchDocsForCacheIfEmpty(docs, [], [], [], [
       ...transfer.toAddresses.map((address) => `${collection.collectionId}:${address}`),
     ], []);
   }

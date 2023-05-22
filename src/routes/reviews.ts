@@ -1,8 +1,9 @@
-import { convertToCosmosAddress, s_ReviewActivityItem } from "bitbadgesjs-utils";
+import { convertToCosmosAddress, isAddressValid, s_ReviewActivityItem } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB, ACTIVITY_DB } from "../db/db";
 import { getStatus } from "../db/status";
+import { getAccountByUsername } from "./users";
 
 export const addReviewForCollection = async (expressReq: Request, res: Response) => {
   try {
@@ -72,18 +73,12 @@ export const addReviewForUser = async (expressReq: Request, res: Response) => {
       return res.status(400).send({ error: 'Stars must be a number between 0 and 5.' });
     }
 
-    const cosmosAddress = convertToCosmosAddress(req.params.cosmosAddress);
-
-    const userAccountInfo = await ACCOUNTS_DB.find({
-      selector: {
-        cosmosAddress: {
-          $eq: req.session.cosmosAddress
-        }
-      }
-    });
-
-    if (userAccountInfo.docs.length === 0) {
-      return res.status(400).send({ error: 'User does not exist.' });
+    let cosmosAddress = '';
+    if (isAddressValid(req.params.addressOrUsername)) {
+      cosmosAddress = convertToCosmosAddress(req.params.addressOrUsername);
+    } else {
+      const account = await getAccountByUsername(req.params.addressOrUsername);
+      cosmosAddress = account.cosmosAddress;
     }
 
     const status = await getStatus();
@@ -98,7 +93,7 @@ export const addReviewForUser = async (expressReq: Request, res: Response) => {
       reviewedAddress: cosmosAddress,
       stars: stars.toString(),
       review: review,
-      from: userAccountInfo.docs[0].cosmosAddress,
+      from: req.session.cosmosAddress,
       timestamp: Date.now().toString(),
       block: status.block.height.toString()
     }

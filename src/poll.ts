@@ -2,13 +2,12 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { DbStatus, DocsCache } from "bitbadgesjs-utils"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintAndDistributeBadges, MessageMsgNewCollection, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateAllowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris, convertFromProtoToMsgUpdatePermissions, convertFromProtoToMsgUpdateAllowedTransfers, convertFromProtoToMsgUpdateBytes, convertFromProtoToMsgTransferManager, convertFromProtoToMessageMsgSetApproval, convertFromProtoToMsgRequestTransferManager, convertFromProtoToMsgClaimBadge, convertFromProtoToMsgTransferBadge, convertFromProtoToMsgNewCollection, convertFromProtoToMsgMintAndDistributeBadges, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgUpdateUris } from 'bitbadgesjs-transactions'
-import { ABCIMessageLog, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintAndDistributeBadges, MessageMsgNewCollection, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateAllowedTransfers, MessageMsgUpdateBytes, MessageMsgUpdatePermissions, MessageMsgUpdateUris, convertFromProtoToMessageMsgSetApproval, convertFromProtoToMsgClaimBadge, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgMintAndDistributeBadges, convertFromProtoToMsgNewCollection, convertFromProtoToMsgRequestTransferManager, convertFromProtoToMsgTransferBadge, convertFromProtoToMsgTransferManager, convertFromProtoToMsgUpdateAllowedTransfers, convertFromProtoToMsgUpdateBytes, convertFromProtoToMsgUpdatePermissions, convertFromProtoToMsgUpdateUris } from 'bitbadgesjs-transactions'
+import { DbStatus, DocsCache } from "bitbadgesjs-utils"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { ERRORS_DB, finalizeDocsForRequest } from "./db/db"
-import { getStatus, setStatus } from "./db/status"
+import { ERRORS_DB, flushCachedDocs } from "./db/db"
+import { getStatus } from "./db/status"
 import { client, refreshQueueMutex, setClient, setTimer } from "./indexer"
 import { fetchUriInQueue } from "./metadata-queue"
 import { handleMsgClaimBadge } from "./tx-handlers/handleMsgClaimBadge"
@@ -19,8 +18,8 @@ import { handleMsgRequestTransferManager } from "./tx-handlers/handleMsgRequestT
 import { handleMsgSetApproval } from "./tx-handlers/handleMsgSetApproval"
 import { handleMsgTransferBadge } from "./tx-handlers/handleMsgTransferBadge"
 import { handleMsgTransferManager } from "./tx-handlers/handleMsgTransferManager"
-import { handleMsgUpdateBytes } from "./tx-handlers/handleMsgUpdateBytes"
 import { handleMsgUpdateAllowedTransfers } from "./tx-handlers/handleMsgUpdateAllowedTransfers"
+import { handleMsgUpdateBytes } from "./tx-handlers/handleMsgUpdateBytes"
 import { handleMsgUpdatePermissions } from "./tx-handlers/handleMsgUpdatePermissions"
 import { handleMsgUpdateUris } from "./tx-handlers/handleMsgUpdateUris"
 
@@ -38,10 +37,8 @@ export const poll = async () => {
       setClient(newClient)
     }
 
-
-    // We fetch initial status at beginning and do not write anything in DB until caught up to current block
+    // We fetch initial status at beginning of block and do not write anything in DB until end of block
     // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
-    const currentHeight = await client.getHeight();
 
     await refreshQueueMutex.runExclusive(async () => {
       const status = await getStatus();
@@ -54,29 +51,21 @@ export const poll = async () => {
         balances: {},
       };
 
-      if (status.block.height <= currentHeight - 100) {
-        console.log(`Catching up ${status.block.height}..${currentHeight}`)
-      }
+      const processing = status.block.height + 1n
+      process.stdout.cursorTo(0);
 
-      //Handle each block in sequence
-      while (status.block.height < currentHeight) {
-        const processing = status.block.height + 1n
-        process.stdout.cursorTo(0);
+      const block: Block = await client.getBlock(Number(processing))
+      process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
+      await handleBlock(block, status, docs)
+      status.block.height++;
 
-        const block: Block = await client.getBlock(Number(processing))
-        process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
-        await handleBlock(block, status, docs)
-        status.block.height++;
-      }
 
       await fetchUriInQueue(status, docs);
 
       //Right now, we are banking on all these DB updates succeeding together every time. 
-      //If there is a failure in the middle, it could be bad. //TODO in the future.
-      await finalizeDocsForRequest(docs);
+      //If there is a failure in the middle, it could be bad.
+      await flushCachedDocs(docs, status);
 
-
-      await setStatus(status)
 
       //Handle printing of status if there was an outage
       if (outageTime) {
@@ -122,40 +111,37 @@ export const poll = async () => {
 const handleBlock = async (block: Block, status: DbStatus, docs: DocsCache) => {
   if (0 < block.txs.length) console.log("")
 
-  //Handle each tx in sequence
+  //Handle each tx consecutively
   let txIndex = 0
   while (txIndex < block.txs.length) {
     const txHash: string = toHex(sha256(block.txs[txIndex])).toUpperCase()
-    const indexed: IndexedTx | null = await client.getTx(txHash)
+    const indexed: IndexedTx | null = await client.getTx(txHash);
     if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
     await handleTx(indexed, status, docs)
     txIndex++
   }
-
-  // Handle end block events
-  // const events: StringEvent[] = await client.getEndBlockEvents(status.block.height)
-  // if (0 < events.length) console.log("")
-  // await handleEvents(events, status, docs)
 }
 
 const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) => {
-  let rawLog: any;
   let decodedTx: DecodedTxRaw;
   try {
-    rawLog = JSON.parse(indexed.rawLog)
+    JSON.parse(indexed.rawLog)
+
+    if (indexed.code) {
+      throw new Error(`Non-zero error code for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
+    }
   } catch (e) {
     console.log(`Error parsing rawLog for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
-    console.log(`Current status: ${JSON.stringify(status)}`);
   }
 
   decodedTx = decodeTxRaw(indexed.tx);
 
-
-
+  // Calculate average gas price over last 1000 txs
+  // Note: This is rough and not exact because we are rounding
   const NUM_TXS_TO_AVERAGE = 1000;
   if (decodedTx.authInfo.fee) {
     const gasLimit = decodedTx.authInfo.fee.gasLimit;
-    // console.log(decodedTx.authInfo.fee);
+
     for (const coin of decodedTx.authInfo.fee.amount) {
       const feeAmount = coin.amount;
       const feeDenom = coin.denom;
@@ -231,20 +217,4 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) =
         break;
     }
   }
-
-  const events: StringEvent[] = rawLog.flatMap((log: ABCIMessageLog) => log.events)
-  await handleEvents(events, status, docs)
-
 }
-
-const handleEvents = async (events: StringEvent[], status: DbStatus, docs: DocsCache): Promise<void> => {
-  // let eventIndex = 0
-  // while (eventIndex < events.length) {
-  //     await handleEvent(events[eventIndex], status, docs)
-  //     eventIndex++
-  // }
-
-
-}
-
-// const handleEvent = async (event: StringEvent, status: DbStatus, docs: DocsCache): Promise<void> => { }

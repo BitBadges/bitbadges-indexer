@@ -91,10 +91,10 @@ export const getAccount = async (req: Request, res: Response) => {
   try {
     const fetchFromBlockchain = req.query.fetchFromBlockchain === 'true';
 
-    if (isAddressValid(req.params.cosmosAddressOrUsername)) {
-      return res.status(200).send(await getAccountByAddress(req.params.cosmosAddressOrUsername, fetchFromBlockchain));
+    if (isAddressValid(req.params.addressOrUsername)) {
+      return res.status(200).send(await getAccountByAddress(req.params.addressOrUsername, fetchFromBlockchain));
     } else {
-      return res.status(200).send(await getAccountByUsername(req.params.cosmosAddressOrUsername, fetchFromBlockchain));
+      return res.status(200).send(await getAccountByUsername(req.params.addressOrUsername, fetchFromBlockchain));
     }
   } catch (e) {
     return res.status(500).send({
@@ -135,7 +135,14 @@ export const getPortfolioInfo = async (req: Request, res: Response) => {
     const collectedBookmark = req.body.collectedBookmark;
     const announcementsBookmark = req.body.announcementsBookmark;
     const reviewsBookmark = req.body.reviewsBookmark;
-    const cosmosAddress = req.params.cosmosAddress;
+    let cosmosAddress = '';
+    if (isAddressValid(req.params.addressOrUsername)) {
+      cosmosAddress = convertToCosmosAddress(req.params.addressOrUsername);
+    } else {
+      const account = await getAccountByUsername(req.params.addressOrUsername);
+      cosmosAddress = account.cosmosAddress;
+    }
+
 
     let response: nano.MangoResponse<s_BalanceDocument> = { docs: [] };
     let activityRes: nano.MangoResponse<s_ActivityItem> = { docs: [] };
@@ -240,8 +247,16 @@ export const updateAccountInfo = async (expressReq: Request, res: Response) => {
 
 export const getActivity = async (req: Request, res: Response) => {
   try {
-    const activityRes = await executeActivityQuery((req.params.cosmosAddress));
-    const announcementsRes = await executeAnnouncementsQuery((req.params.cosmosAddress));
+    let cosmosAddress = '';
+    if (isAddressValid(req.params.addressOrUsername)) {
+      cosmosAddress = convertToCosmosAddress(req.params.addressOrUsername);
+    } else {
+      const account = await getAccountByUsername(req.params.addressOrUsername);
+      cosmosAddress = account.cosmosAddress;
+    }
+
+    const activityRes = await executeActivityQuery((cosmosAddress));
+    const announcementsRes = await executeAnnouncementsQuery((cosmosAddress));
 
     return res.status(200).send({
       activity: activityRes.docs,

@@ -1,15 +1,16 @@
 import { MessageMsgMintAndDistributeBadges } from "bitbadgesjs-transactions"
 import { BitBadgesUserInfo, Collection, DbStatus, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgMintAndDistributeBadges } from "bitbadgesjs-utils"
 import nano from "nano"
-import { CLAIMS_DB, fetchDocsForRequestIfEmpty } from "../db/db"
+import { CLAIMS_DB, fetchDocsForCacheIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
 import { handleClaims } from "./claims"
 
 import { handleTransfers } from "./handleTransfers"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { updateBalancesForOffChainBalances } from "./offChainBalances"
 
 export const handleMsgMintAndDistributeBadges = async (msg: MessageMsgMintAndDistributeBadges, status: DbStatus, docs: DocsCache): Promise<void> => {
-  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   //Safe to cast because MsgMintBadge can only be called if the collection exists
@@ -54,6 +55,8 @@ export const handleMsgMintAndDistributeBadges = async (msg: MessageMsgMintAndDis
   let updateCollectionMetadata = false;
   let newBadgeUris = collection.badgeUris;
   let updateBadgeMetadata = false;
+  let newBalancesUri = collection.balancesUri;
+  let updateBalancesUri = false;
   if (msg.collectionUri != "" && msg.collectionUri != collection.collectionUri) {
     newCollectionUri = msg.collectionUri;
     updateCollectionMetadata = true;
@@ -61,6 +64,11 @@ export const handleMsgMintAndDistributeBadges = async (msg: MessageMsgMintAndDis
   if (msg.badgeUris && msg.badgeUris.length > 0) {
     newBadgeUris = msg.badgeUris;
     updateBadgeMetadata = true;
+  }
+
+  if (msg.balancesUri != "" && msg.balancesUri != collection.balancesUri) {
+    newBalancesUri = msg.balancesUri;
+    updateBalancesUri = true;
   }
 
   //Add to the refresh metadata queue
@@ -83,4 +91,8 @@ export const handleMsgMintAndDistributeBadges = async (msg: MessageMsgMintAndDis
   await handleClaims(docs, msg.claims, collection.collectionId, numExistingClaims);
 
   await handleTransfers(collection, ['Mint'], msg.transfers, docs, status);
+
+  if (updateBalancesUri) {
+    await updateBalancesForOffChainBalances(collectionDoc, docs, false);
+  }
 }

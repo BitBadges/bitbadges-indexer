@@ -3,6 +3,7 @@ import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { ipfsClient } from "../indexer";
 import axios from 'axios';
 import { Metadata, BalancesMap, LeavesDetails } from 'bitbadgesjs-utils';
+import { FETCHES_DB } from 'src/db/db';
 
 //TODO: Keep track of how many GB a user has uploaded and make them pay for uploading more than threshold
 //TODO: Also, we may want to eventually move IPFS uploading to the client side for scalability
@@ -36,8 +37,16 @@ export const addBalancesToIpfs = async (balances: BalancesMap) => {
   });
 
   const result = await last(ipfsClient.addAll(files));
-
-  return result;
+  if (result) {
+    await FETCHES_DB.insert({
+      _id: `ipfs://${result.cid.toString()}`,
+      fetchedAt: new Date(),
+      file: balances
+    });
+    return result;
+  } else {
+    return undefined;
+  }
 }
 
 
@@ -59,6 +68,7 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
     }
   }
 
+  //We currently don't store the images in CouchDB, so we don't need to add them to FETCHES_DB
   if (imageFiles.length > 0) {
     const imageResults = ipfsClient.addAll(imageFiles);
     const cids = [];
@@ -68,7 +78,9 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
 
     if (collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
       const result = cids.shift();
-      if (result) collectionMetadata.image = 'ipfs://' + result;
+      if (result) {
+        collectionMetadata.image = 'ipfs://' + result;
+      }
     }
 
     for (const badge of individualBadgeMetadata) {
@@ -97,6 +109,20 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
 
   const result = await last(ipfsClient.addAll(files));
 
+  if (result) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const metadataId = i > 0 ? Number(file.path.split('/')[2]) : -1;
+
+      await FETCHES_DB.insert({
+        _id: `ipfs://${result.cid.toString()}/${file.path}`,
+        fetchedAt: new Date(),
+        file: i === 0 ? collectionMetadata : individualBadgeMetadata[metadataId]
+      });
+    }
+  }
+
+
   return result;
 }
 
@@ -108,5 +134,14 @@ export const addClaimToIpfs = async (name: string, description: string, leavesDe
   });
 
   const result = await last(ipfsClient.addAll(files));
+
+  if (result) {
+    await FETCHES_DB.insert({
+      _id: `ipfs://${result.cid.toString()}`,
+      fetchedAt: new Date(),
+      file: { name, description, leavesDetails, hasPassword }
+    });
+  }
+  
   return result;
 }

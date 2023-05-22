@@ -1,7 +1,7 @@
 import { MessageMsgClaimBadge } from "bitbadgesjs-transactions"
 import { ActivityItem, ClaimDocument, DbStatus, DocsCache, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils"
 import nano from "nano"
-import { fetchDocsForRequestIfEmpty } from "../db/db"
+import { fetchDocsForCacheIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbStatus, docs: DocsCache): Promise<void> => {
@@ -9,11 +9,11 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
   const claimIdString = `${msg.collectionId}:${msg.claimId}`
 
   //Fetch required docs if needed
-  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [`${msg.collectionId}:${msg.claimId}`]);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [`${msg.collectionId}:${msg.claimId}`]);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const toAddress = msg.creator;
-  await fetchDocsForRequestIfEmpty(docs, [], [], [], [`${msg.collectionId}:${toAddress}`], []);
+  await fetchDocsForCacheIfEmpty(docs, [], [], [], [`${msg.collectionId}:${toAddress}`], []);
 
   //Safe to cast because if MsgClaimBadge Tx is valid, then the claim must exist
   const currClaimObj = docs.claims[claimIdString] as ClaimDocument & nano.DocumentGetResponse;

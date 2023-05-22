@@ -1,5 +1,5 @@
 import { MessageMsgUpdateAllowedTransfers } from "bitbadgesjs-transactions"
-import { fetchDocsForRequestIfEmpty } from "../db/db"
+import { fetchDocsForCacheIfEmpty } from "../db/db"
 
 import { Collection, DbStatus, DocsCache } from "bitbadgesjs-utils";
 import nano from "nano";
@@ -8,7 +8,7 @@ import { handleNewAccountByAddress } from "./handleNewAccount";
 
 
 export const handleMsgUpdateAllowedTransfers = async (msg: MessageMsgUpdateAllowedTransfers, status: DbStatus, docs: DocsCache): Promise<void> => {
-  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   //Safe to cast because MsgTransferBadge can only be called if the collection exists

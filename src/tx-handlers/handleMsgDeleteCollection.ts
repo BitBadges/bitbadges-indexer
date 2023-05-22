@@ -1,12 +1,12 @@
 import { Collection, DbStatus, DocsCache } from "bitbadgesjs-utils"
 import { MessageMsgDeleteCollection } from "bitbadgesjs-transactions"
-import { BALANCES_DB, CLAIMS_DB, METADATA_DB, fetchDocsForRequestIfEmpty } from "../db/db"
+import { BALANCES_DB, CLAIMS_DB, METADATA_DB, fetchDocsForCacheIfEmpty } from "../db/db"
 
 import nano from "nano"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgDeleteCollection = async (msg: MessageMsgDeleteCollection, status: DbStatus, docs: DocsCache): Promise<void> => {
-  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
 

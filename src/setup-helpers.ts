@@ -9,6 +9,7 @@ const nano = Nano(`${process.env.DB_URL}`);
 export async function deleteDatabases() {
   await nano.db.destroy('activity');
   await nano.db.destroy('profiles');
+  await nano.db.destroy('fetches');
   await nano.db.destroy('accounts');
   await nano.db.destroy('collections');
   await nano.db.destroy('status');
@@ -31,6 +32,7 @@ export async function createDatabases() {
   await nano.db.create('activity', { partitioned: true });
   await nano.db.create('accounts');
   await nano.db.create('profiles');
+  await nano.db.create('fetches');
   await nano.db.create('collections');
   await nano.db.create('status');
   await nano.db.create('errors');
@@ -99,11 +101,5 @@ export async function createIndexesAndViews() {
   };
 
 
-  await BALANCES_DB.insert(view, function (err, body) {
-    if (err) {
-      console.log('Error creating view:', err);
-    } else {
-      console.log('View created successfully:', body);
-    }
-  });
+  await BALANCES_DB.insert(view);
 }

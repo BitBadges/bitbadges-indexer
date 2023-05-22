@@ -249,18 +249,16 @@ const getMetadata = async (collectionId: bigint, startMetadataId: bigint) => {
   const LIMIT = 100;
   const startId = Number(startMetadataId);
 
+  const idVals = [];
+  for (let i = startId; i < startId + LIMIT; i++) {
+    idVals.push(`${i}`);
+  }
+
   //Fetch 100 at a time
   const response = await METADATA_DB.partitionedFind(`${collectionId}`, {
     selector: {
       "id": {
-        "$and": [
-          {
-            "$gte": startId && !isNaN(startId) ? startId : 0,
-          },
-          {
-            "$lte": startId && !isNaN(startId) ? startId + LIMIT : LIMIT,
-          }
-        ]
+        "$in": idVals
       }
     },
     limit: LIMIT + 1,

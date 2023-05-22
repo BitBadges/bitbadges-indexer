@@ -1,4 +1,4 @@
-import { METADATA_DB, fetchDocsForRequestIfEmpty } from "./db/db";
+import { FETCHES_DB, METADATA_DB, fetchDocsForCacheIfEmpty } from "./db/db";
 import axios from "axios";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { Collection, DbStatus, DocsCache, Metadata, MetadataDoc } from "bitbadgesjs-utils";
@@ -6,8 +6,24 @@ import nano from "nano";
 
 export const fetchUri = async (uri: string): Promise<any> => {
   if (uri.startsWith('ipfs://')) {
-    const res = await getFromIpfs(uri.replace('ipfs://', ''));
-    return JSON.parse(res.file);
+    try {
+      const doc = await FETCHES_DB.get(uri);
+      return doc.file;
+    } catch (error) {
+      //Not in DB, fetch from IPFS
+      const res = await getFromIpfs(uri.replace('ipfs://', ''));
+      const ret = JSON.parse(res.file);
+      try {
+        //We can cache this because it's immutable
+        await FETCHES_DB.insert({
+          _id: uri,
+          file: ret,
+          fetchedAt: Date.now()
+        });
+      } catch (error) { }
+
+      return ret;
+    }
   } else {
     const res = await axios.get(uri).then((res) => res.data);
     return res;
@@ -103,7 +119,7 @@ export const fetchUriInQueue = async (status: DbStatus, docs: DocsCache) => {
   const NUM_METADATA_FETCHES_PER_BLOCK = 25;
   const MAX_NUM_CALLS_PER_URI = 1000;
 
-  //TODO: we have redundances with addMetadataToIpfs (we can save resources by storing the metadata when adding it and never having to re-fetch it)
+  //TODO: we have redundances with addMetadataToIpfs (we cache it in FETCHES_DB but we store it again in METADATA_DB)
 
   let numFetchesLeft = NUM_METADATA_FETCHES_PER_BLOCK;
   let metadataIdsToFetch: string[] = [];
@@ -174,7 +190,7 @@ export const fetchUriInQueue = async (status: DbStatus, docs: DocsCache) => {
     numFetchesLeft--;
   }
 
-  await fetchDocsForRequestIfEmpty(docs, [], [], metadataIdsToFetch, [], []);
+  await fetchDocsForCacheIfEmpty(docs, [], [], metadataIdsToFetch, [], []);
 
   const promises = [];
   for (const queueObj of queueItems) {
