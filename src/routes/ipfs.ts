@@ -1,6 +1,7 @@
+import { AES } from "crypto-js";
 import { Request, Response } from "express";
-import { addClaimToIpfs, addMetadataToIpfs, addBalancesToIpfs } from "../ipfs/ipfs";
 import { PASSWORDS_DB } from "../db/db";
+import { addBalancesToIpfs, addClaimToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
 
 export const addMetadataToIpfsHandler = async (req: Request, res: Response) => {
   try {
@@ -25,7 +26,7 @@ export const addMetadataToIpfsHandler = async (req: Request, res: Response) => {
 
 export const addClaimToIpfsHandler = async (req: Request, res: Response) => {
   try {
-    const result = await addClaimToIpfs(req.body.name, req.body.description, req.body.leaves, req.body.addresses, req.body.hashedCodes, req.body.password ? true : false);
+    const result = await addClaimToIpfs(req.body.name, req.body.description, req.body.leavesDetails, req.body.password ? true : false);
     if (!result) {
       return res.status(400).send({ error: 'No addAll result received' });
     }
@@ -33,7 +34,22 @@ export const addClaimToIpfsHandler = async (req: Request, res: Response) => {
 
     const { path, cid } = result;
     const password = req.body.password;
-    await PASSWORDS_DB.insert({ collectionId: -1n, claimId: -1n, docClaimedByCollection: false, cid: cid.toString(), password, codes: req.body.codes, currCode: 0n, claimedUsers: {} });
+
+    const SYM_KEY = process.env.SYM_KEY;
+
+    await PASSWORDS_DB.insert({
+      collectionId: "-1",
+      claimId: "-1",
+      docClaimedByCollection: false,
+      cid: cid.toString(),
+      //Hash + Salt Password
+      password: password ? AES.encrypt(password, SYM_KEY).toString() : "",
+      //Symmmetric Key Encrypted with Hash + Salt Password
+      codes: req.body.codes.map((code: string) => AES.encrypt(code, SYM_KEY).toString()),
+      currCode: "0",
+      claimedUsers: {}
+    });
+
 
     return res.status(200).send({ cid: cid.toString(), path });
   } catch (e) {

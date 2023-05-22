@@ -1,7 +1,6 @@
-import { config } from "dotenv"
+import { config } from "dotenv";
 import Nano from "nano";
-import { ACTIVITY_DB, STATUS_DB, COLLECTIONS_DB } from "./db/db";
-import { DbStatus } from "bitbadgesjs-utils";
+import { ACTIVITY_DB, BALANCES_DB, COLLECTIONS_DB, STATUS_DB } from "./db/db";
 
 config()
 
@@ -9,6 +8,7 @@ const nano = Nano(`${process.env.DB_URL}`);
 
 export async function deleteDatabases() {
   await nano.db.destroy('activity');
+  await nano.db.destroy('profiles');
   await nano.db.destroy('accounts');
   await nano.db.destroy('collections');
   await nano.db.destroy('status');
@@ -30,6 +30,7 @@ export async function deleteDatabases() {
 export async function createDatabases() {
   await nano.db.create('activity', { partitioned: true });
   await nano.db.create('accounts');
+  await nano.db.create('profiles');
   await nano.db.create('collections');
   await nano.db.create('status');
   await nano.db.create('errors');
@@ -50,18 +51,18 @@ export async function initStatus() {
   await STATUS_DB.insert({
     "_id": "status",
     "block": {
-      "height": 0
+      "height": "1"
     },
-    "nextCollectionId": 1,
+    "nextCollectionId": "1",
     "queue": [],
-    "gasPrice": 0.000001,
+    "gasPrice": "0.000001",
     "lastXGasPrices": [
-      0.000001
+      "0.000001"
     ]
-  } as DbStatus)
+  })
 }
 
-export async function createIndexes() {
+export async function createIndexesAndViews() {
   await ACTIVITY_DB.createIndex({
     index: {
       fields: ['timestamp']
@@ -81,4 +82,28 @@ export async function createIndexes() {
     },
     partitioned: false
   })
+
+  const designDocName = '_design/balances_by_address';
+
+  const view = {
+    _id: designDocName,
+    views: {
+      byCosmosAddress: {
+        map: `function (doc) {
+          if (doc._id) {
+            emit(doc.cosmosAddress, null);
+          }
+        }`
+      }
+    }
+  };
+
+
+  await BALANCES_DB.insert(view, function (err, body) {
+    if (err) {
+      console.log('Error creating view:', err);
+    } else {
+      console.log('View created successfully:', body);
+    }
+  });
 }

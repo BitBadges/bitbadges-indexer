@@ -3,6 +3,7 @@ import { COLLECTIONS_DB } from "../db/db";
 import { getStatus, setStatus } from "../db/status";
 import { refreshQueueMutex } from "../indexer";
 import { fetchUri, pushToMetadataQueue } from "../metadata-queue";
+import { convertToCollection } from "bitbadgesjs-utils";
 
 export const refreshMetadata = async (req: Request, res: Response) => {
   /**
@@ -13,8 +14,9 @@ export const refreshMetadata = async (req: Request, res: Response) => {
   try {
     await refreshQueueMutex.runExclusive(async () => {
       const status = await getStatus();
-      const collection = await COLLECTIONS_DB.get(req.params.id);
-      const specificId = req.params.badgeId ? Number(req.params.badgeId) : req.body.onlyCollectionMetadata ? 'collection' : undefined;
+      const _collection = await COLLECTIONS_DB.get(req.params.id);
+      const collection = convertToCollection(_collection);
+      const specificId = req.params.badgeId ? BigInt(req.params.badgeId) : req.body.onlyCollectionMetadata ? 'collection' : undefined;
       await pushToMetadataQueue(collection, status, specificId);
       await setStatus(status);
     });

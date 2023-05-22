@@ -1,21 +1,25 @@
 import { Claim } from "bitbadgesjs-proto";
-import { ClaimDocument, DocsCache } from "bitbadgesjs-utils";
+import { LeavesDetails, ClaimDocument, DocsCache, ChallengeWithDetails, Collection } from "bitbadgesjs-utils";
 import nano from "nano";
 import { PASSWORDS_DB } from "../db/db";
 import { fetchUri } from "../metadata-queue";
 
 
-//TODO: handle next claim ID
 export const handleClaims = async (docs: DocsCache, claims: Claim[], collectionId: bigint, startAt = 0) => {
+  const collectionDoc = docs.collections[collectionId.toString()] as Collection & nano.DocumentGetResponse;
+
   try {
     //Handle claim objects
     for (let idx = startAt; idx < claims.length; idx++) {
+      collectionDoc.nextClaimId++;
+
       const claim = claims[idx];
       let claimDocument: ClaimDocument | undefined = undefined;
 
+
       if (claim.uri) {
         try {
-          let fetchedFile = await fetchUri(claim.uri);
+          const fetchedFile = await fetchUri(claim.uri);
 
           //The following is to handle if there are multiple claims using the same uri (and thus the same file contents)
           //If the collection was created through our API, we previously made a document in PASSWORDS_DB with docClaimedByCollection = false
@@ -42,31 +46,34 @@ export const handleClaims = async (docs: DocsCache, claims: Claim[], collectionI
               await PASSWORDS_DB.insert({
                 ...doc,
                 docClaimedByCollection: true,
-                collectionId: collectionId,
-                claimId: idx + 1
+                collectionId: collectionId.toString(),
+                claimId: BigInt(idx + 1).toString(),
               });
             }
           }
 
-          const fetchedAddresses = fetchedFile.addresses ? fetchedFile.addresses : [];
-          const fetchedCodes = fetchedFile.codes ? fetchedFile.codes : [];
-          const fetchedName = fetchedFile.name ? fetchedFile.name : ""
-          const fetchedDescription = fetchedFile.description ? fetchedFile.description : ""
+          const leavesDetails: LeavesDetails = fetchedFile.leavesDetails ? fetchedFile.leavesDetails : [];
+          const name = fetchedFile.name ? fetchedFile.name : ""
+          const description = fetchedFile.description ? fetchedFile.description : "";
+
+          const challengesWithDetails: ChallengeWithDetails[] = claim.challenges.map((challenge) => {
+            return {
+              ...challenge,
+              leavesDetails: leavesDetails,
+              usedLeafIndices: [],
+            }
+          });
 
           claimDocument = {
             ...claim,
-            hashedCodes: fetchedCodes,
-            addresses: fetchedAddresses,
+            challenges: challengesWithDetails,
             hasPassword: fetchedFile.hasPassword,
-            name: fetchedName,
-            description: fetchedDescription,
+            name: name,
+            description: description,
             collectionId: collectionId,
             claimId: BigInt(idx + 1),
-            usedClaims: {
-              codes: {},
-              numUsed: 0,
-              addresses: {}
-            }
+            totalClaimsProcessed: BigInt(0),
+            claimsPerAddressCount: {},
           };
 
           const partitionedId = `${claimDocument?.collectionId.toString()}:${claimDocument?.claimId.toString()}`;
@@ -80,19 +87,24 @@ export const handleClaims = async (docs: DocsCache, claims: Claim[], collectionI
           console.log(`Error fetching claim file for ${claim.uri}: ${e}`);
           claimDocument = {
             ...claim,
-            hashedCodes: [],
-            addresses: [],
+            challenges: claim.challenges.map((challenge) => {
+              return {
+                ...challenge,
+                leavesDetails: {
+                  leaves: [],
+                  isHashed: false,
+                },
+                usedLeafIndices: [],
+              }
+            }),
             hasPassword: false,
             failedToFetch: true,
             name: '',
             description: '',
             collectionId: collectionId,
-            claimId: idx + 1,
-            usedClaims: {
-              codes: {},
-              numUsed: 0,
-              addresses: {}
-            }
+            claimId: BigInt(idx + 1),
+            totalClaimsProcessed: BigInt(0),
+            claimsPerAddressCount: {},
           } as ClaimDocument;
 
           const partitionedId = `${claimDocument?.collectionId.toString()}:${claimDocument?.claimId.toString()}`;
@@ -104,19 +116,24 @@ export const handleClaims = async (docs: DocsCache, claims: Claim[], collectionI
       } else {
         claimDocument = {
           ...claim,
-          hashedCodes: [],
-          addresses: [],
+          challenges: claim.challenges.map((challenge) => {
+            return {
+              ...challenge,
+              leavesDetails: {
+                leaves: [],
+                isHashed: false,
+              },
+              usedLeafIndices: [],
+            }
+          }),
           hasPassword: false,
           failedToFetch: true,
           name: '',
           description: '',
           collectionId: collectionId,
           claimId: BigInt(idx + 1),
-          usedClaims: {
-            codes: {},
-            numUsed: 0,
-            addresses: {}
-          }
+          totalClaimsProcessed: BigInt(0),
+          claimsPerAddressCount: {},
         };
 
         const partitionedId = `${claimDocument?.collectionId.toString()}:${claimDocument?.claimId.toString()}`;

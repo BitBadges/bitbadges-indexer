@@ -10,6 +10,7 @@ declare global {
             INFURA_API_KEY: string  //API key for infura
             FAUCET_MNEMONIC: string // ex: "big wrestle ... "
             FAUCET_ADDRESS: string // ex: "cosmos1..."
+            SYM_KEY: string // ex: "mykey"
         }
     }
 }

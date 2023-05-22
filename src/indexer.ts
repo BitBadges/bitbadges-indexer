@@ -6,7 +6,7 @@ import express, { Express, Request, Response } from "express"
 import expressSession from 'express-session'
 import { Server } from "http"
 import { create } from 'ipfs-http-client'
-import { authorizeBlockinRequest, getChallenge, removeBlockinSessionCookie, updateSessionWithAccountNumber, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
+import { authorizeBlockinRequest, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { poll } from "./poll"
 import { getBadgeBalance } from "./routes/balances"
@@ -17,7 +17,7 @@ import { getPasswordsAndCodes } from "./routes/passwords"
 import { fetchMetadata, refreshMetadata } from "./routes/metadata"
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { getAccountByAddress, getAccountById, getActivity, getBatchUsers, getPortfolioInfo, updateAccountInfo } from "./routes/users"
+import { getAccount, getActivity, getAccountsByAddress, getPortfolioInfo, updateAccountInfo } from "./routes/users"
 import _ from "../environment"
 import { getBrowseCollections } from './routes/browse'
 import { sendTokensFromFaucet } from './routes/faucet'
@@ -138,9 +138,9 @@ app.post('/api/v0/collection/:id/addReview', authorizeBlockinRequest, addReviewF
 
 
 //User
-app.post('/api/v0/user/batch', getBatchUsers);
-app.post('/api/v0/user/:accountNum/id', getAccountById); //TODO: Combine getById and getByAddress
-app.post('/api/v0/user/:address/address', getAccountByAddress);
+app.post('/api/v0/user/batch', getAccountsByAddress);
+app.post('/api/v0/user/:cosmosAddressOrUsername', getAccount);
+//TODO: add username support for all below
 app.post('/api/v0/user/:cosmosAddress/portfolio', getPortfolioInfo);
 app.post('/api/v0/user/:cosmosAddress/activity', getActivity);
 app.post('/api/v0/user/:cosmosAddress/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
@@ -155,7 +155,6 @@ app.post('/api/v0/addClaimToIpfs', addClaimToIpfsHandler); //
 app.post('/api/v0/auth/getChallenge', getChallenge);
 app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
 app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
-app.post('/api/v0/auth/addAccountNumberToSession', authorizeBlockinRequest, updateSessionWithAccountNumber);
 
 //Browse
 app.post('/api/v0/browse', getBrowseCollections);

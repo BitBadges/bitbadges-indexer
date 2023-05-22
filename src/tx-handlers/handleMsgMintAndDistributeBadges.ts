@@ -4,12 +4,13 @@ import nano from "nano"
 import { CLAIMS_DB, fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
 import { handleClaims } from "./claims"
-import { handleNewAccountByAddress } from "./handleNewAccount"
+
 import { handleTransfers } from "./handleTransfers"
+import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgMintAndDistributeBadges = async (msg: MessageMsgMintAndDistributeBadges, status: DbStatus, docs: DocsCache): Promise<void> => {
+  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
-  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], []);
 
   //Safe to cast because MsgMintBadge can only be called if the collection exists
   const collectionDoc = docs.collections[msg.collectionId.toString()] as Collection & nano.DocumentGetResponse;

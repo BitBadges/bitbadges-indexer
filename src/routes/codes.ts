@@ -2,12 +2,14 @@ import { Request, Response } from "express";
 import nano from "nano";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { COLLECTIONS_DB, PASSWORDS_DB } from "../db/db";
+import { convertToPasswordDocument } from "bitbadgesjs-utils";
+import { AES } from "crypto-js";
 
 export const getCodes = async (expressReq: Request, res: Response) => {
   try {
     const req = expressReq as AuthenticatedRequest
 
-    const collectionId = Number(req.params.id);
+    const collectionId = BigInt(req.params.id);
 
     const collection = await COLLECTIONS_DB.get(`${collectionId}`);
     const manager = collection.manager;
@@ -28,12 +30,18 @@ export const getCodes = async (expressReq: Request, res: Response) => {
       limit: 1000000, //TODO: make this a list _all_doc or partitionedList query (for now, we just assume less than 1000000 claims)
     }
 
-    const codesDocsArr = await PASSWORDS_DB.find(docQuery);
-    const docs = codesDocsArr.docs.sort((a, b) => a.claimId - b.claimId).filter(doc => doc.docClaimedByCollection);
+    const _codesDocsArr = await PASSWORDS_DB.find(docQuery);
+    const codesDocsArr = _codesDocsArr.docs.map(doc => convertToPasswordDocument(doc));
+
+    const docs = codesDocsArr.sort((a, b) => {
+      const diff = a.claimId - b.claimId;
+      const diffNumber = Number(diff.toString());
+      return diffNumber;
+    }).filter(doc => doc.docClaimedByCollection);
 
     for (const doc of docs) {
-      codes.push(doc.codes);
-      passwords.push(doc.password);
+      codes.push(doc.codes.map(code => AES.decrypt(code, process.env.SYM_KEY).toString()));
+      passwords.push(AES.decrypt(doc.password, process.env.SYM_KEY).toString());
     }
 
     return res.status(200).send({ codes, passwords });

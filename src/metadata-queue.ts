@@ -1,7 +1,8 @@
 import { METADATA_DB, fetchDocsForRequestIfEmpty } from "./db/db";
 import axios from "axios";
 import { getFromIpfs } from "./ipfs/ipfs";
-import { CollectionDocument, DbStatus, DocsCache, Metadata } from "bitbadgesjs-utils";
+import { Collection, DbStatus, DocsCache, Metadata, MetadataDoc } from "bitbadgesjs-utils";
+import nano from "nano";
 
 export const fetchUri = async (uri: string): Promise<any> => {
   if (uri.startsWith('ipfs://')) {
@@ -13,9 +14,9 @@ export const fetchUri = async (uri: string): Promise<any> => {
   }
 }
 
-export const pushToMetadataQueue = async (_collection: CollectionDocument, status: DbStatus, specificId?: number | 'collection') => {
-  const collection: CollectionDocument = JSON.parse(JSON.stringify(_collection));
-  let currentMetadataId = 0;
+export const pushToMetadataQueue = async (_collection: Collection, status: DbStatus, specificId?: bigint | 'collection') => {
+  const collection: Collection = JSON.parse(JSON.stringify(_collection));
+  let currentMetadataId = 0n;
 
   let pushed = false;
   let alreadyPurging = false;
@@ -29,8 +30,8 @@ export const pushToMetadataQueue = async (_collection: CollectionDocument, statu
         collectionId: collection.collectionId,
         collection: true,
         badgeIds: [],
-        currentMetadataId: 0,
-        numCalls: 0,
+        currentMetadataId: 0n,
+        numCalls: 0n,
         startMetadataId: currentMetadataId,
       });
       pushed = true;
@@ -55,7 +56,7 @@ export const pushToMetadataQueue = async (_collection: CollectionDocument, statu
               badgeIds: [badgeIdRange],
               currentMetadataId: currentMetadataId,
               startMetadataId: currentMetadataId,
-              numCalls: 0,
+              numCalls: 0n,
               specificId: specificIdToAdd,
             });
             pushed = true;
@@ -63,7 +64,7 @@ export const pushToMetadataQueue = async (_collection: CollectionDocument, statu
         } else if (existing.purge) {
           alreadyPurging = true;
         }
-        currentMetadataId += Number(badgeIdRange.end) - Number(badgeIdRange.start) + 1;
+        currentMetadataId += badgeIdRange.end - badgeIdRange.start + 1n;
       }
     } else {
       const toPush = !specificId || (specificId && specificId !== 'collection' && badgeUri.badgeIds.find((id) => id.start <= specificId && id.end >= specificId));
@@ -77,7 +78,7 @@ export const pushToMetadataQueue = async (_collection: CollectionDocument, statu
             collection: false,
             badgeIds: badgeUri.badgeIds,
             currentMetadataId: currentMetadataId,
-            numCalls: 0,
+            numCalls: 0n,
             specificId: toPush && specificId ? specificId : undefined,
             startMetadataId: currentMetadataId,
           });
@@ -161,10 +162,8 @@ export const fetchUriInQueue = async (status: DbStatus, docs: DocsCache) => {
         // const res = await METADATA_DB.partitionedList(`${status.queue[0].collectionId}`);
         const info = await METADATA_DB.partitionInfo(`${status.queue[0].collectionId}`);
 
-        // console.log(res.rows);
-        // console.log(res);
         const lastBatchIdToPurge = info.doc_count + info.doc_del_count - 1;
-        const startBatchIdToPurge = status.queue[0].currentMetadataId !== 'collection' ? status.queue[0].currentMetadataId + 1 : 1;
+        const startBatchIdToPurge = status.queue[0].currentMetadataId !== 'collection' ? status.queue[0].currentMetadataId + 1n : 1;
 
         for (let i = startBatchIdToPurge; i <= lastBatchIdToPurge; i++) {
           metadataIdsToFetch.push(`${status.queue[0].collectionId}:${i}`);
@@ -179,21 +178,24 @@ export const fetchUriInQueue = async (status: DbStatus, docs: DocsCache) => {
 
   const promises = [];
   for (const queueObj of queueItems) {
-    // console.log("QUEUE OBJ", queueObj);
     if (queueObj.purge) {
       const collectionId = queueObj.collectionId;
 
+      //This is a little hack. We set every document in the collection to be deleted, and then we will set to non-deleted the ones we want to keep.
       for (const key of Object.keys(docs.metadata)) {
-        if (key.startsWith(collectionId) && key.split(':')[1] !== 'collection' && Number(key.split(':')[1]) > queueObj.currentMetadataId) {
-          docs.metadata[key]._deleted = true;
+        if (key.startsWith(collectionId) && key.split(':')[1] !== 'collection' && BigInt(key.split(':')[1]) > queueObj.currentMetadataId) {
+          //HACK: We cast here. Even if the document is not populated, we can still set the _deleted flag.
+          const doc = docs.metadata[key] as MetadataDoc & nano.DocumentGetResponse;
+          doc._deleted = true;
         }
       }
     }
 
-    const currMetadata = docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`];
-    // console.log("CURR METADATA", currMetadata);
+    //HACK: This is not a safe cast, but it is only used within the first if statement.
+    //If it is still an unpopulated document (i.e. { _id: string }, then it will never enter the first if statement
+    const currMetadata = docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`] as MetadataDoc & nano.DocumentGetResponse;
+
     if (queueObj.uri.startsWith('ipfs://') && currMetadata && currMetadata.uri && currMetadata.uri === queueObj.uri) {
-      // console.log("SKIPPING FETCH BECAUSE ALREADY IN IPFS");
       //If we are attempting to fetch the same URI from IPFS, this is redundant (IPFS is permanent storage). Just use the existing metadata.    
       promises.push(Promise.resolve(currMetadata.metadata));
     } else {
@@ -215,6 +217,7 @@ export const fetchUriInQueue = async (status: DbStatus, docs: DocsCache) => {
       const metadata: Metadata = result.value;
 
       docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`] = {
+        ...docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`],
         metadata: {
           ...metadata,
           name: metadata.name || '',
@@ -226,18 +229,17 @@ export const fetchUriInQueue = async (status: DbStatus, docs: DocsCache) => {
         uri: queueObj.uri,
         metadataId: queueObj.currentMetadataId,
         _id: `${queueObj.collectionId}:${queueObj.currentMetadataId}`,
-        _rev: docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`]._rev,
         _deleted: false
       };
     } else {
       docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`] = {
+        ...docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`],
         metadata: { name: '', description: '', image: '' },
         badgeIds: queueObj.badgeIds,
         isCollection: queueObj.collection,
         uri: queueObj.uri,
         metadataId: queueObj.currentMetadataId,
         _id: `${queueObj.collectionId}:${queueObj.currentMetadataId}`,
-        _rev: docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`]._rev,
         _deleted: false
       }
     }

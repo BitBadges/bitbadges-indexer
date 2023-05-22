@@ -1,14 +1,19 @@
-import { s_Account, s_BitBadgesUserInfo, s_Coin } from "bitbadgesjs-utils";
+import { s_Account, s_BitBadgesUserInfo, s_Coin, s_Profile } from "bitbadgesjs-utils";
 import { ACTIVITY_DB, AIRDROP_DB, BALANCES_DB } from "../db/db";
 import { client } from "../indexer";
 import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
 
-export const convertToBitBadgesUserInfo = async (accountInfos: s_Account[]): Promise<s_BitBadgesUserInfo[]> => {
+export const convertToBitBadgesUserInfo = async (profileInfos: s_Profile[], accountInfos: s_Account[]): Promise<s_BitBadgesUserInfo[]> => {
+  if (profileInfos.length !== accountInfos.length) {
+    throw new Error('Account info and cosmos account details must be the same length');
+  }
+
   const promises = [];
-  for (const accountInfo of accountInfos) {
-    promises.push(appendNameAndAvatarForAccount(accountInfo));
-    promises.push(client.getBalance(accountInfo.cosmosAddress, 'badge'));
-    promises.push(AIRDROP_DB.head(accountInfo.cosmosAddress).then(() => true).catch((e) => {
+  for (let i = 0; i < profileInfos.length; i++) {
+    const cosmosAccountInfo = accountInfos[i];
+    promises.push(getNameAndAvatar(cosmosAccountInfo.address));
+    promises.push(client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
+    promises.push(AIRDROP_DB.head(cosmosAccountInfo.cosmosAddress).then(() => true).catch((e) => {
       if (e.statusCode === 404) {
         return false;
       }
@@ -20,14 +25,21 @@ export const convertToBitBadgesUserInfo = async (accountInfos: s_Account[]): Pro
   const resultsToReturn: s_BitBadgesUserInfo[] = [];
 
   for (let i = 0; i < results.length; i += 3) {
-    const accountInfo = results[i] as s_Account & { resolvedName: string, avatar: string };
+    const profileInfo = profileInfos[i / 3];
+    const accountInfo = accountInfos[i / 3];
+
+    const nameAndAvatarRes = results[i] as { resolvedName: string, avatar: string };
     const balanceInfo = results[i + 1] as s_Coin;
     const airdropInfo = results[i + 2] as boolean;
 
     resultsToReturn.push({
+      ...profileInfo,
+      ...nameAndAvatarRes,
       ...accountInfo,
+
       balance: balanceInfo,
       airdropped: airdropInfo,
+
       collected: [],
       activity: [],
       announcements: [],
@@ -57,9 +69,9 @@ export const convertToBitBadgesUserInfo = async (accountInfos: s_Account[]): Pro
 }
 
 
-export async function appendNameAndAvatarForAccount(account: s_Account) {
+export async function getNameAndAvatar(address: string) {
   try {
-    const ensName = await getNameForAddress(account.address);
+    const ensName = await getNameForAddress(address);
     let details: { avatar?: string } = {};
     if (ensName) {
       const resolver = await getEnsResolver(ensName);
@@ -67,9 +79,9 @@ export async function appendNameAndAvatarForAccount(account: s_Account) {
         details = await getEnsDetails(resolver);
       }
     }
-    return { avatar: details.avatar, resolvedName: ensName, ...account, };
+    return { avatar: details.avatar, resolvedName: ensName };
   } catch (e) {
-    return { resolvedName: '', avatar: '', ...account };
+    return { resolvedName: '', avatar: '' };
   }
 }
 
@@ -77,19 +89,11 @@ export async function appendNameAndAvatarForAccount(account: s_Account) {
 export async function executeActivityQuery(cosmosAddress: string, bookmark?: string) {
   const activityRes = await ACTIVITY_DB.find({
     selector: {
-      "users": {
-        "$elemMatch": {
-          "$and": [
-            {
-              "start": {
-                "$lte": Number(accountNum),
-              },
-              "end": {
-                "$gte": Number(accountNum),
-              }
-            },
-          ]
-        }
+      "to": {
+        "$elemMatch": cosmosAddress,
+      },
+      "from": {
+        "$elemMatch": cosmosAddress,
       },
       "method": {
         "$or": [
@@ -115,22 +119,24 @@ export async function executeActivityQuery(cosmosAddress: string, bookmark?: str
   return activityRes;
 }
 
+export async function getAllCollectionIdsOwned(cosmosAddress: string) {
+  const designDocName = '_design/balances_by_address';
+  const viewName = 'byCosmosAddress';
+
+  const docs = await BALANCES_DB.view(designDocName, viewName, { limit: 0 });
+  const collections = docs.rows.map((row) => row.id.split(':')[1]);
+  return collections;
+}
+
+
 export async function executeAnnouncementsQuery(cosmosAddress: string, bookmark?: string) {
+  const collections: string[] = await getAllCollectionIdsOwned(cosmosAddress);
+
+
   const announcementsRes = await ACTIVITY_DB.find({
     selector: {
-      "users": {
-        "$elemMatch": {
-          "$and": [
-            {
-              "start": {
-                "$lte": Number(accountNum),
-              },
-              "end": {
-                "$gte": Number(accountNum),
-              }
-            },
-          ]
-        }
+      "collectionId": {
+        "$in": collections,
       },
       "method": {
         "$eq": "Announcement"

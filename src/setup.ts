@@ -1,5 +1,5 @@
 import {
-  createDatabases, initStatus, createIndexes,
+  createDatabases, initStatus, createIndexesAndViews,
   deleteDatabases
 } from "./setup-helpers"
 
@@ -11,7 +11,7 @@ async function main() {
 
     await createDatabases(); //If there is an error, we assume the database already exists and continue
     await initStatus();
-    await createIndexes();
+    await createIndexesAndViews();
   } catch (e) {
     console.log(e);
   }

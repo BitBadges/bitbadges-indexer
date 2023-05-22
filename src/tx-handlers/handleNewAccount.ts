@@ -14,14 +14,16 @@ import { client } from "../indexer";
  * Handles a new account by address.
  */
 export const handleNewAccountByAddress = async (cosmosAddress: string, docs: DocsCache): Promise<void> => {
-  await fetchDocsForRequestIfEmpty(docs, [cosmosAddress], [], [], [], []);
 
+  if (!docs.accounts[cosmosAddress]) {
+    await fetchDocsForRequestIfEmpty(docs, [cosmosAddress], [], [], [], []);
+  }
   //Query if we don't have account number (e.g. is just an { _id } new account type) or account number is -1 (e.g. not registered yet but has an account doc generated off-chain)
 
   //Typecast to avoid TS error (could still just be an { _id } type)
   //If this check fails, we need to query the blockchain
   const _accountDoc = docs.accounts[`${cosmosAddress}`] as Account & { _id: string };
-  if (_accountDoc.cosmosAddress && _accountDoc.accountNumber >= 0) {
+  if (_accountDoc.cosmosAddress) {
     return; //Already handled
   }
 

@@ -32,12 +32,12 @@ export async function executeCollectionActivityQuery(collectionId: string, bookm
               "$and": [
                 {
                   "start": {
-                    "$lte": Number(badgeId)
+                    "$lte": badgeId
                   }
                 },
                 {
                   "end": {
-                    "$gte": Number(badgeId)
+                    "$gte": badgeId
                   }
                 }
               ]

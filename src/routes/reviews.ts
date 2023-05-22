@@ -1,8 +1,8 @@
-import { ReviewActivityItem, convertToCosmosAddress, s_ReviewActivityItem } from "bitbadgesjs-utils";
+import { convertToCosmosAddress, s_ReviewActivityItem } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { getStatus } from "../db/status";
 import { ACCOUNTS_DB, ACTIVITY_DB } from "../db/db";
+import { getStatus } from "../db/status";
 
 export const addReviewForCollection = async (expressReq: Request, res: Response) => {
   try {

@@ -1,9 +1,10 @@
-import { BitBadgeCollection, GetCollectionResponse, Metadata, MetadataMap, s_Account, s_AnnouncementActivityItem, s_BalanceDocument, s_BitBadgeCollection, s_BitBadgesUserInfo, s_ClaimDocument, s_Collection, s_ReviewActivityItem, s_TransferActivityItem, updateMetadataMap } from "bitbadgesjs-utils";
+import { BitBadgeCollection, GetCollectionResponse, Metadata, MetadataMap, s_AnnouncementActivityItem, s_BalanceDocument, s_BitBadgeCollection, s_BitBadgesUserInfo, s_ClaimDocument, s_Collection, s_Profile, s_ReviewActivityItem, s_TransferActivityItem, updateMetadataMap } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import nano from "nano";
+import nano, { DocumentResponseRow } from "nano";
 import { ACCOUNTS_DB, BALANCES_DB, COLLECTIONS_DB, METADATA_DB } from "../db/db";
 import { executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionBalancesQuery, executeCollectionClaimsQuery, executeCollectionReviewsQuery } from "./activityHelpers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
+import { getAccountByAddress } from "./users";
 
 /**
  * The executeCollectionsQuery function is the main query function used to fetch all data for a collection in bulk.
@@ -141,17 +142,17 @@ async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions
 
 
   if (managerKeys.length > 0) {
-    const managerInfoRes = await ACCOUNTS_DB.find({
-      selector: {
-        accountNumber: { $in: managerKeys }
-      },
-      limit: managerKeys.length
-    });
+    const managerInfoRes = await ACCOUNTS_DB.fetch({
+      keys: managerKeys
+    }) as nano.DocumentFetchResponse<s_Profile>;
+    const rows = managerInfoRes.rows as DocumentResponseRow<s_Profile>[];
 
     for (const collectionRes of collectionResponses) {
-      const managerInfo = managerInfoRes.docs.find((account: s_Account) => account.cosmosAddress === collectionRes.collection.manager);
+      const managerInfo = rows.find((row) => row.id === collectionRes.collection.manager)?.doc;
+      const cosmosAccountDetails = await getAccountByAddress(collectionRes.collection.manager, false);
+
       if (managerInfo) {
-        collectionRes.collection.managerInfo = await convertToBitBadgesUserInfo([managerInfo])[0];
+        collectionRes.collection.managerInfo = await convertToBitBadgesUserInfo([managerInfo], [cosmosAccountDetails])[0];
       }
     }
   }
@@ -320,12 +321,12 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
                 "$and": [
                   {
                     "start": {
-                      "$lte": Number(req.params.badgeId),
+                      "$lte": req.params.badgeId,
                     }
                   },
                   {
                     "end": {
-                      "$gte": Number(req.params.badgeId),
+                      "$gte": req.params.badgeId,
                     }
                   }
                 ]

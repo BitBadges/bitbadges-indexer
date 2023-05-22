@@ -1,18 +1,16 @@
-import { ChallengeParams, constructChallengeObjectFromString, setChainDriver, verifyChallenge, createChallenge } from 'blockin';
+import { convertToCosmosAddress } from 'bitbadgesjs-utils';
+import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { generateNonce } from 'siwe';
-import { getChainDriver } from './blockin';
 import { parse } from '../utils/preserveJson';
-import { convertToCosmosAddress } from 'bitbadgesjs-utils';
-import { ACCOUNTS_DB } from 'src/db/db';
+import { getChainDriver } from './blockin';
 export interface BlockinSession extends Session {
   nonce: string | null;
   blockin: string | null;
   blockinParams: ChallengeParams | null;
   cosmosAddress: string | null;
   address: string | null;
-  accountNumber: number | null;
 }
 
 export interface BlockinSessionAuthenticated extends BlockinSession {
@@ -21,7 +19,6 @@ export interface BlockinSessionAuthenticated extends BlockinSession {
   blockinParams: ChallengeParams;
   cosmosAddress: string;
   address: string;
-  accountNumber: number | null;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -83,7 +80,6 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
   session.blockinParams = null;
   session.cosmosAddress = null;
   session.address = null;
-  session.accountNumber = null;
 
   req.session.save();
 
@@ -128,15 +124,6 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
       req.session.cookie.expires = new Date(challenge.expirationDate);
     }
 
-    const accountRes = await ACCOUNTS_DB.find({
-      selector: {
-        address: req.session.cosmosAddress
-      }
-    });
-    if (accountRes.docs.length > 0) {
-      req.session.accountNumber = accountRes.docs[0].accountNumber;
-    }
-
     req.session.save();
 
     return res.status(200).json({ verified: true, message: verificationResponse.message });
@@ -147,34 +134,11 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     session.blockin = null;
     session.nonce = null;
     session.blockinParams = null;
-    session.cosmosAddress = null;
     session.address = null;
     session.cosmosAddress = null;
     req.session.save();
 
     return res.status(401).json({ verified: false, message: `${err}` });
-  }
-}
-
-export async function updateSessionWithAccountNumber(expressReq: Request, res: Response, next: NextFunction) {
-  try {
-    const req = expressReq as AuthenticatedRequest;
-    if (!req.session.accountNumber) {
-      const accountRes = await ACCOUNTS_DB.find({
-        selector: {
-          address: req.session.cosmosAddress
-        }
-      });
-      if (accountRes.docs.length > 0) {
-        req.session.accountNumber = accountRes.docs[0].accountNumber;
-      }
-
-      req.session.save();
-    }
-
-    return res.status(200).json({ message: 'Successfully updated session with account number!' });
-  } catch (error) {
-    return res.status(500).json({ message: error });
   }
 }
 

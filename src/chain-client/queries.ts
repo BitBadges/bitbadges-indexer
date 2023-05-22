@@ -1,10 +1,9 @@
 import { createProtobufRpcClient, QueryClient } from "@cosmjs/stargate";
 import { cosmosToEth } from "bitbadgesjs-address-converter";
-import * as query from "bitbadgesjs-proto/dist/proto/badges/query";
 import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth";
 import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query";
 import * as ethermint from 'bitbadgesjs-proto/dist/proto/ethermint/crypto/v1/ethsecp256k1/keys';
-import { convertToCosmosAddress, isAddressValid, SupportedChain } from "bitbadgesjs-utils";
+import { convertToCosmosAddress, getChainForAddress, isAddressValid, SupportedChain } from "bitbadgesjs-utils";
 
 /**
  * The chain will return a similar structure but with a pub_key object and account_number field (see CosmosAccountResponse from bitbadgesjs-utils)
@@ -14,7 +13,6 @@ import { convertToCosmosAddress, isAddressValid, SupportedChain } from "bitbadge
 export interface CleanedCosmosAccountInformation {
   publicKey: string
   sequence: string
-  accountNumber: string
   chain: SupportedChain
   cosmosAddress: string
   address: string
@@ -23,7 +21,6 @@ export interface CleanedCosmosAccountInformation {
 export interface BadgesExtension {
   readonly badges: {
     readonly getAccountInfo: (address: string) => Promise<CleanedCosmosAccountInformation>
-    readonly getAccountInfoByNumber: (accountNum: number) => Promise<CleanedCosmosAccountInformation>
   }
 }
 
@@ -85,46 +82,9 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
           return {
             address: address,
-            accountNumber: "-1", //"-1" is the convention for "account not found
             sequence: "0",
             cosmosAddress: convertToCosmosAddress(address),
-            chain: SupportedChain.UNKNOWN,
-            publicKey: '',
-          }
-        }
-      },
-      getAccountInfoByNumber: async (accountNum: number): Promise<CleanedCosmosAccountInformation> => {
-        try {
-          //BitBadges x/badges GetAddressById helper query for account information
-          const data = query.bitbadges.bitbadgeschain.badges.QueryGetAddressByIdRequest.fromObject({ id: accountNum.toString() }).serialize();
-          const promise = await rpc.request(
-            'bitbadges.bitbadgeschain.badges.Query',
-            'GetAddressById',
-            data
-          )
-
-          const returnedAddress = query.bitbadges.bitbadgeschain.badges.QueryGetAddressByIdResponse.deserialize(promise).address
-          if (returnedAddress === '') {
-            throw 'Account not found'
-          }
-
-          //Native Cosmos SDK x/auth query for account information
-          const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address: returnedAddress }).serialize();
-          const accountPromise = await rpc.request(
-            'cosmos.auth.v1beta1.Query',
-            'Account',
-            accountData
-          )
-
-          return getAccountInfoToReturn(accountPromise);
-        } catch (error) {
-          console.log(error);
-          return {
-            address: '',
-            accountNumber: "-1", //"-1" is the convention for "account not found
-            sequence: "0",
-            cosmosAddress: '',
-            chain: SupportedChain.UNKNOWN,
+            chain: getChainForAddress(address),
             publicKey: '',
           }
         }

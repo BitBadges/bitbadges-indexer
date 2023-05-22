@@ -1,50 +1,68 @@
 import { MessageMsgClaimBadge } from "bitbadgesjs-transactions"
-import { ActivityItem, addBalancesForIdRanges, ClaimDocument, DbStatus, DocsCache, getBalancesAfterTransfers, Account } from "bitbadgesjs-utils"
+import { ActivityItem, ClaimDocument, DbStatus, DocsCache, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils"
 import nano from "nano"
-import { fetchDocsForRequestIfEmpty, PASSWORDS_DB } from "../db/db"
+import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbStatus, docs: DocsCache): Promise<void> => {
-  const codeString = msg.codeProof.leaf ? msg.codeProof.leaf : '';
-  const addressString = msg.creator ? msg.creator : '';
-  const claimIdString = msg.claimId.toString();
+  const solutions = msg.solutions ? msg.solutions : [];
+  const claimIdString = `${msg.collectionId}:${msg.claimId}`
 
   //Fetch required docs if needed
+  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [`${msg.collectionId}:${msg.claimId}`]);
   await handleNewAccountByAddress(msg.creator, docs);
-  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [], [claimIdString]);
 
-  //Safe to cast because we handle new accounts above
-  const creatorAccountDoc = docs.accounts[msg.creator] as nano.DocumentGetResponse & Account;
-
-  const toAddress = docs.accountNumbersMap[msg.creator];
+  const toAddress = msg.creator;
   await fetchDocsForRequestIfEmpty(docs, [], [], [], [`${msg.collectionId}:${toAddress}`], []);
 
   //Safe to cast because if MsgClaimBadge Tx is valid, then the claim must exist
-  const currClaimObj = docs.claims[claimIdString] as nano.DocumentGetResponse & ClaimDocument;
-  const balancesTransferred = [{
-    balance: currClaimObj.amount,
-    badgeIds: JSON.parse(JSON.stringify(currClaimObj.badgeIds)),
-  }]
+  const currClaimObj = docs.claims[claimIdString] as ClaimDocument & nano.DocumentGetResponse;
+
+  //Update for all challenge solutions
+  for (let i = 0; i < solutions.length; i++) {
+    const solution = solutions[i];
+    const challenge = currClaimObj.challenges[i];
+    const proof = solution.proof;
+    const aunts = proof.aunts;
+
+    //Calculate leaf index
+    let leafIndex = BigInt(1);
+    for (let i = aunts.length - 1; i >= 0; i--) {
+      let aunt = aunts[i];
+      let onRight = aunt.onRight;
+
+      if (onRight) {
+        leafIndex *= BigInt(2);
+      } else {
+        leafIndex = leafIndex * BigInt(2) + BigInt(1);
+      }
+    }
+
+    //Add to used leaf indices
+    challenge.usedLeafIndices.push(leafIndex);
+  }
+
+
+  const balancesTransferred = JSON.parse(JSON.stringify(currClaimObj.currentClaimAmounts));
+
 
 
   //Add claim activity item
   docs.activityToAdd.push({
     partition: `collection-${msg.collectionId}`,
     from: ['Mint'],
-    to: [Number(toAddress)],
+    to: [toAddress],
     balances: balancesTransferred,
     collectionId: msg.collectionId,
     method: 'Claim',
     block: status.block.height,
-    timestamp: Date.now(),
+    timestamp: BigInt(Date.now()),
   } as ActivityItem);
 
 
   //Update the balances doc of the toAddress
-  const toCosmosAddress = creatorAccountDoc.cosmosAddress;
-
+  const toCosmosAddress = msg.creator;
   let toAddressBalanceDoc = docs.balances[`${msg.collectionId}:${toCosmosAddress}`];
-
   for (const balance of balancesTransferred) {
     toAddressBalanceDoc = {
       ...toAddressBalanceDoc,
@@ -52,61 +70,28 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
     }
   }
 
-  const newClaimBalance = getBalancesAfterTransfers(
-    {
-      balances: currClaimObj.balances,
-      approvals: [],
-    },
+  const newClaimBalances = getBalancesAfterTransfers(
+    currClaimObj.undistributedBalances,
     [{
       toAddresses: [toAddress],
-      balances: [{
-        balance: currClaimObj.amount,
-        badgeIds: currClaimObj.badgeIds,
-      }],
+      balances: currClaimObj.currentClaimAmounts
     }]
   );
 
-  currClaimObj.balances = newClaimBalance.balances;
+  currClaimObj.currentClaimAmounts = newClaimBalances;
 
   //Increment badgeIDs
   if (currClaimObj.incrementIdsBy) {
-    for (let i = 0; i < currClaimObj.badgeIds.length; i++) {
-      currClaimObj.badgeIds[i].start += currClaimObj.incrementIdsBy;
-      currClaimObj.badgeIds[i].end += currClaimObj.incrementIdsBy;
+    for (const balance of currClaimObj.currentClaimAmounts) {
+      for (let i = 0; i < balance.badgeIds.length; i++) {
+        balance.badgeIds[i].start += currClaimObj.incrementIdsBy;
+        balance.badgeIds[i].end += currClaimObj.incrementIdsBy;
+      }
     }
   }
 
-  //If no more balances, all badges have been claimed
-  //Attempt to delete unneeded docs (don't care if it fails as it is just a cleanup)
-  if (currClaimObj.balances.length == 0) {
-    currClaimObj.hashedCodes = [];
-
-    try {
-      const query: nano.MangoQuery = {
-        selector: {
-          collectionId: {
-            "$eq": msg.collectionId
-          },
-          claimId: {
-            "$eq": msg.claimId
-          }
-        }
-      }
-
-      const result = await PASSWORDS_DB.find(query);
-
-      if (result.docs.length > 0) {
-        const doc = result.docs[0];
-        await PASSWORDS_DB.destroy(doc._id, doc._rev);
-      }
-    } catch (e) { }
-  }
-
-  //Update the usedClaims store
-  const usedClaims = currClaimObj.usedClaims;
-  usedClaims.numUsed = usedClaims.numUsed + 1;
-  usedClaims.addresses[addressString] = usedClaims.addresses[addressString] + 1;
-  usedClaims.codes[codeString] = currClaimObj.usedClaims.codes[codeString] + 1;
+  currClaimObj.totalClaimsProcessed++;
+  currClaimObj.claimsPerAddressCount[toAddress] = currClaimObj.claimsPerAddressCount[toAddress] ? currClaimObj.claimsPerAddressCount[toAddress] + 1n : 1n;
 
   docs.claims[claimIdString] = currClaimObj;
 }

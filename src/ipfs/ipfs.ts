@@ -2,7 +2,7 @@ import last from 'it-last';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { ipfsClient } from "../indexer";
 import axios from 'axios';
-import { Metadata, BalancesMap } from 'bitbadgesjs-utils';
+import { Metadata, BalancesMap, LeavesDetails } from 'bitbadgesjs-utils';
 
 //TODO: Keep track of how many GB a user has uploaded and make them pay for uploading more than threshold
 //TODO: Also, we may want to eventually move IPFS uploading to the client side for scalability
@@ -86,6 +86,7 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
   });
 
   for (const id of Object.keys(individualBadgeMetadata)) {
+
     files.push(
       {
         path: 'metadata/batch/' + id,
@@ -99,11 +100,11 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
   return result;
 }
 
-export const addClaimToIpfs = async (name: string, description: string, leaves: string[], addresses: string[], codes: string[], hasPassword: boolean) => {
+export const addClaimToIpfs = async (name: string, description: string, leavesDetails: LeavesDetails, hasPassword: boolean) => {
   const files = [];
   files.push({
     path: '',
-    content: uint8ArrayFromString(JSON.stringify({ name, description, leaves, addresses, codes, hasPassword }))
+    content: uint8ArrayFromString(JSON.stringify({ name, description, leavesDetails, hasPassword }))
   });
 
   const result = await last(ipfsClient.addAll(files));

@@ -1,18 +1,19 @@
+import { Account, AccountDocs, BalanceDocs, BalanceDocument, ClaimDocs, ClaimDocument, Collection, CollectionDocs, DocsCache, MetadataDoc, MetadataDocs, convertFromAccount, convertFromBalanceDocument, convertFromClaimDocument, convertFromCollection, convertFromMetadataDoc, convertToAccount, convertToBalanceDocument, convertToClaimDocument, convertToCollection, convertToMetadataDoc, s_Account, s_ActivityItem, s_BalanceDocument, s_ClaimDocument, s_Collection, s_DbStatus, s_MetadataDoc, s_PasswordDocument, s_Profile } from 'bitbadgesjs-utils';
 import { config } from "dotenv";
 import Nano from "nano";
-import { s_ActivityItem, s_Account, s_DbStatus, s_MetadataDoc, PasswordDocument, s_Collection, AccountDocs, CollectionDocs, MetadataDocs, s_BalanceDocument, DocsCache, BalanceDocs, s_ClaimDocument, ClaimDocs, isAddressValid, getChainForAddress, SupportedChain, Account, BalanceDocument, ClaimDocument, Collection, MetadataDoc, convertToCollection, convertToAccount, convertToMetadataDoc, convertToBalanceDocument, convertToClaimDocument, convertFromAccount, convertFromBalanceDocument, convertFromClaimDocument, convertFromCollection, convertFromMetadataDoc } from 'bitbadgesjs-utils';
 
 config();
 
 const nano = Nano(`${process.env.DB_URL}`);
 
 export const ACTIVITY_DB = nano.db.use<s_ActivityItem>('activity'); //partitioned
+export const PROFILES_DB = nano.db.use<s_Profile>('profiles');
 export const ACCOUNTS_DB = nano.db.use<s_Account>('accounts');
 export const COLLECTIONS_DB = nano.db.use<s_Collection>('collections');
 export const STATUS_DB = nano.db.use<s_DbStatus>('status');
 export const ERRORS_DB = nano.db.use<any>('errors');
 export const METADATA_DB = nano.db.use<s_MetadataDoc>('metadata'); //partitioned
-export const PASSWORDS_DB = nano.db.use<PasswordDocument>('passwords');
+export const PASSWORDS_DB = nano.db.use<s_PasswordDocument>('passwords');
 export const AIRDROP_DB = nano.db.use<any>('airdrop');
 export const BALANCES_DB = nano.db.use<s_BalanceDocument>('balances');
 export const CLAIMS_DB = nano.db.use<s_ClaimDocument>('claims');
@@ -22,26 +23,24 @@ export const CLAIMS_DB = nano.db.use<s_ClaimDocument>('claims');
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForRequestIfEmpty(currDocs: DocsCache, accountKeys: string[], collectionIds: bigint[], metadataIds: string[], balanceIds: string[], claimIds: string[]) {
+export async function fetchDocsForRequestIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], metadataIds: string[], balanceIds: string[], claimIds: string[]) {
   try {
     const newCollectionIds = collectionIds.map(x => x.toString()).filter((id) => !currDocs.collections[id]); //collectionId as keys (string: `${collectionId}`)
-    const newAccountKeys = accountKeys.filter((address) => !currDocs.accounts[address]); //cosmosAddresses as keys
 
     //Partitioned IDs (collectionId:___)
     const newMetadataIds = metadataIds.filter((id) => !currDocs.metadata[id]);
     const newBalanceIds = balanceIds.filter((id) => !currDocs.balances[id]);
     const newClaimIds = claimIds.filter((id) => !currDocs.claims[id]);
 
-    if (newCollectionIds.length || newAccountKeys.length || newMetadataIds.length || newBalanceIds.length || newClaimIds.length) {
-      const newDocs = await fetchDocsForRequest(newAccountKeys, newCollectionIds, newMetadataIds, newBalanceIds, newClaimIds);
-
-      const newAccounts = {
-        ...currDocs.accounts,
-        ...newDocs.accounts
-      }
+    if (newCollectionIds.length || newMetadataIds.length || newBalanceIds.length || newClaimIds.length) {
+      const newDocs = await fetchDocsForRequest(cosmosAddresses, newCollectionIds, newMetadataIds, newBalanceIds, newClaimIds);
 
       currDocs = {
-        accounts: newAccounts,
+        accounts: {
+          ...currDocs.accounts,
+          ...newDocs.accounts
+        },
+
         collections: {
           ...currDocs.collections,
           ...newDocs.collections
@@ -73,13 +72,13 @@ export async function fetchDocsForRequestIfEmpty(currDocs: DocsCache, accountKey
  */
 export async function fetchDocsForRequest(_cosmosAddresses: string[], _collectionDocIds: string[], _metadataDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[]) {
   try {
+    const cosmosAddresses = [...new Set(_cosmosAddresses)].filter((id) => id.length > 0);
     const collectionDocIds = [...new Set(_collectionDocIds)].filter((id) => id.length > 0);
-    const accountDocIds = [...new Set(_cosmosAddresses)].filter((address) => address.length > 0 && isAddressValid(address) && getChainForAddress(address) === SupportedChain.COSMOS);
     const metadataDocIds = [...new Set(_metadataDocIds)].filter((id) => id.length > 0);
     const balanceDocIds = [...new Set(_balanceDocIds)].filter((id) => id.length > 0);
     const claimDocIds = [...new Set(_claimDocIds)].filter((id) => id.length > 0);
 
-    const accountData: AccountDocs = {};
+    const accountsData: AccountDocs = {};
     const collectionData: CollectionDocs = {};
     const metadataData: MetadataDocs = {};
     const balanceData: BalanceDocs = {};
@@ -87,12 +86,12 @@ export async function fetchDocsForRequest(_cosmosAddresses: string[], _collectio
 
     const promises = [];
 
-    for (const collectionId of collectionDocIds) {
-      promises.push(COLLECTIONS_DB.get(collectionId));
+    for (const address of cosmosAddresses) {
+      promises.push(ACCOUNTS_DB.get(address));
     }
 
-    for (const accountAddress of accountDocIds) {
-      promises.push(ACCOUNTS_DB.get(accountAddress));
+    for (const collectionId of collectionDocIds) {
+      promises.push(COLLECTIONS_DB.get(collectionId));
     }
 
     for (const metadataId of metadataDocIds) {
@@ -111,6 +110,19 @@ export async function fetchDocsForRequest(_cosmosAddresses: string[], _collectio
     const results = await Promise.allSettled(promises);
 
     let idx = 0;
+    for (const address of cosmosAddresses) {
+      const result = results[idx++];
+      if (result.status === 'fulfilled') {
+        const res = result.value as Nano.DocumentGetResponse & s_Account;
+        const convertedAccount = convertToAccount(res) as Nano.DocumentGetResponse & Account;
+        accountsData[address] = convertedAccount;
+      } else {
+        accountsData[address] = {
+          _id: address
+        }
+      }
+    }
+
     for (const collectionId of collectionDocIds) {
       const result = results[idx++];
       if (result.status === 'fulfilled') {
@@ -120,20 +132,6 @@ export async function fetchDocsForRequest(_cosmosAddresses: string[], _collectio
       } else {
         collectionData[collectionId] = {
           _id: collectionId
-        }
-      }
-    }
-
-
-    for (const cosmosAddress of accountDocIds) {
-      const result = results[idx++];
-      if (result.status === 'fulfilled') {
-        const res = result.value as Nano.DocumentGetResponse & s_Account;
-        const convertToedAccount = convertToAccount(res) as Nano.DocumentGetResponse & Account;
-        accountData[cosmosAddress] = convertToedAccount;
-      } else {
-        accountData[cosmosAddress] = {
-          _id: cosmosAddress
         }
       }
     }
@@ -181,7 +179,9 @@ export async function fetchDocsForRequest(_cosmosAddresses: string[], _collectio
       }
     }
 
-    return { accounts: accountData, collections: collectionData, metadata: metadataData, balances: balanceData, claims: claimData };
+
+
+    return { accounts: accountsData, collections: collectionData, metadata: metadataData, balances: balanceData, claims: claimData };
   } catch (error) {
     throw `Error in fetchDocsForRequest(): ${error}`;
   }
@@ -222,6 +222,7 @@ export async function finalizeDocsForRequest(docs: DocsCache) {
       promises.push(CLAIMS_DB.bulk({ docs: claimDocs }));
     }
 
+    //TODO: Handle if error in one of these
     if (promises.length) {
       await Promise.all(promises);
     }

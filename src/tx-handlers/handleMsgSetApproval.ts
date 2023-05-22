@@ -1,11 +1,12 @@
 import { MessageMsgSetApproval } from "bitbadgesjs-transactions"
 import { fetchDocsForRequestIfEmpty } from "../db/db"
-import { handleNewAccountByAddress } from "./handleNewAccount"
+
 import { DbStatus, DocsCache } from "bitbadgesjs-utils";
 import { Approval } from "bitbadgesjs-proto";
+import { handleNewAccountByAddress } from "./handleNewAccount";
 
 export const handleMsgSetApproval = async (msg: MessageMsgSetApproval, status: DbStatus, docs: DocsCache): Promise<void> => {
-  await fetchDocsForRequestIfEmpty(docs, [], [msg.collectionId], [], [`${msg.collectionId}:${msg.creator}`], []);
+  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [msg.collectionId], [], [`${msg.collectionId}:${msg.creator}`], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
 
@@ -13,7 +14,8 @@ export const handleMsgSetApproval = async (msg: MessageMsgSetApproval, status: D
 
   const approvals = balanceDoc.approvals.filter((approval: Approval) => approval.address !== msg.address);
   approvals.push({ address: msg.address, balances: msg.balances });
-  approvals.sort((a: Approval, b: Approval) => Number(a.address) - Number(b.address));
+  //Sort approvals by address alphabetically
+  approvals.sort((a: Approval, b: Approval) => a.address.localeCompare(b.address));
 
   balanceDoc = {
     ...balanceDoc,

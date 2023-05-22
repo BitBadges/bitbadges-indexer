@@ -3,12 +3,12 @@ import { BitBadgesUserInfo, Collection, DbStatus, DocsCache, Metadata, MetadataM
 import { fetchDocsForRequestIfEmpty } from "../db/db"
 import { pushToMetadataQueue } from "../metadata-queue"
 import { handleClaims } from "./claims"
-import { handleNewAccountByAddress } from "./handleNewAccount"
+
 import { handleTransfers } from "./handleTransfers"
 import { updateBalancesForOffChainBalances } from "./offChainBalances"
+import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, status: DbStatus, docs: DocsCache): Promise<void> => {
-  await handleNewAccountByAddress(msg.creator, docs);
 
   /**
    * Here, we simulate the collection creation to get a Collection object.
@@ -43,9 +43,9 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
     managerRequests: createdCollection.managerRequests,
   }
 
-  await fetchDocsForRequestIfEmpty(docs, [], [collection.collectionId], [], [], []);
+  await fetchDocsForRequestIfEmpty(docs, [msg.creator], [collection.collectionId], [], [], []);
+  await handleNewAccountByAddress(msg.creator, docs);
   await pushToMetadataQueue(collection, status);
-  await handleClaims(docs, msg.claims, collection.collectionId);
   await updateBalancesForOffChainBalances(collection, docs, true); //Only if off-chain balances are used (i.e. standard == 1)
 
   let collectionDoc = docs.collections[collection.collectionId.toString()];
@@ -53,6 +53,8 @@ export const handleMsgNewCollection = async (msg: MessageMsgNewCollection, statu
     _id: collectionDoc._id,
     ...collection
   };
+
+  await handleClaims(docs, msg.claims, collection.collectionId); // Keep this here because we need a filled out collectionDoc for nextClaimId
 
   status.nextCollectionId++;
 

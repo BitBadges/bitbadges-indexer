@@ -1,26 +1,101 @@
 
+import { convertToCosmosAddress, getChainForAddress, isAddressValid, s_Account, s_ActivityItem, s_BalanceDocument, s_Profile } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { ACCOUNTS_DB } from "../db/db";
+import { ACCOUNTS_DB, PROFILES_DB } from "../db/db";
 import { client } from "../indexer";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeReviewsQuery } from "./userHelpers";
-import { s_Account, isAddressValid, convertToCosmosAddress, getChainForAddress, s_BitBadgesUserInfo, s_BalanceDocument, s_ActivityItem } from "bitbadgesjs-utils";
 
 
-export const getAccountByAddress = async (req: Request, res: Response) => {
-  try {
-    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(req.params.address);
+export const getAccountByAddress = async (address: string, fetchFromBlockchain = false) => {
+  let accountInfo: s_Account;
+  if (fetchFromBlockchain) {
+    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(convertToCosmosAddress(address));
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
-
-    // Attempt to fetch the account from the DB
-    let accountInfo: s_Account = { ...cleanedCosmosAccountInfo };
-    if (cleanedCosmosAccountInfo?.cosmosAddress) {
-      accountInfo = await ACCOUNTS_DB.get(`${cleanedCosmosAccountInfo.cosmosAddress}`);
+    accountInfo = cleanedCosmosAccountInfo;
+  } else {
+    try {
+      accountInfo = await ACCOUNTS_DB.get(`${convertToCosmosAddress(address)}`);
+    } catch (e) {
+      if (e.statusCode === 404) {
+        accountInfo = {
+          cosmosAddress: convertToCosmosAddress(address),
+          address: address,
+          chain: getChainForAddress(address),
+          publicKey: '',
+        }
+      }
+      throw e;
     }
+  }
 
-    const userInfos = await convertToBitBadgesUserInfo([{ ...accountInfo, ...cleanedCosmosAccountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
-    return res.status(200).send(userInfos[0]);
+
+  // Attempt to fetch the account from the DB
+  let profileInfo: s_Profile = {}
+  if (accountInfo?.cosmosAddress) {
+    try {
+      profileInfo = await PROFILES_DB.get(`${accountInfo.cosmosAddress}`);
+    } catch (e) {
+      if (e.statusCode !== 404) {
+        throw e;
+      }
+    }
+  }
+
+  const userInfos = await convertToBitBadgesUserInfo([{ ...profileInfo }], [{ ...accountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
+  return userInfos[0];
+}
+
+export const getAccountByUsername = async (username: string, fetchFromBlockchain = false) => {
+  const profileRes = await PROFILES_DB.find({
+    selector: {
+      username: { "$eq": username },
+    },
+    limit: 1,
+  });
+
+  if (profileRes.docs.length == 0) {
+    return Promise.reject('No doc with username found');
+  }
+
+  const profileDoc = profileRes.docs[0];
+
+  let accountInfo: s_Account;
+  if (fetchFromBlockchain) {
+    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(profileDoc._id);
+    if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
+    accountInfo = cleanedCosmosAccountInfo;
+  } else {
+    try {
+      accountInfo = await ACCOUNTS_DB.get(`${profileDoc._id}`);
+    } catch (e) {
+      if (e.statusCode === 404) {
+        accountInfo = {
+          cosmosAddress: profileDoc._id,
+          address: profileDoc._id,
+          chain: getChainForAddress(profileDoc._id),
+          publicKey: '',
+        }
+      }
+      throw e;
+    }
+  }
+
+  const userInfos = await convertToBitBadgesUserInfo([{ ...profileDoc }], [{ ...accountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
+  return userInfos[0];
+}
+
+
+export const getAccount = async (req: Request, res: Response) => {
+  try {
+    const fetchFromBlockchain = req.query.fetchFromBlockchain === 'true';
+
+    if (isAddressValid(req.params.cosmosAddressOrUsername)) {
+      return res.status(200).send(await getAccountByAddress(req.params.cosmosAddressOrUsername, fetchFromBlockchain));
+    } else {
+      return res.status(200).send(await getAccountByUsername(req.params.cosmosAddressOrUsername, fetchFromBlockchain));
+    }
   } catch (e) {
     return res.status(500).send({
       error: 'Error fetching account. Please try again later.'
@@ -28,92 +103,23 @@ export const getAccountByAddress = async (req: Request, res: Response) => {
   }
 };
 
-export const getAccountById = async (req: Request, res: Response) => {
-  try {
-    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfoByNumber(Number(req.params.accountNum));
-    if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
-
-    // Attempt to fetch the account from the DB
-    let accountInfo: s_Account = { ...cleanedCosmosAccountInfo };
-    if (cleanedCosmosAccountInfo?.cosmosAddress) {
-      accountInfo = await ACCOUNTS_DB.get(`${cleanedCosmosAccountInfo.cosmosAddress}`);
-    }
-
-    const userInfos = await convertToBitBadgesUserInfo([{ ...accountInfo, ...cleanedCosmosAccountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
-    return res.status(200).send(userInfos[0]);
-  } catch (e) {
-    return res.status(500).send({
-      error: 'Error fetching account. Please try again later.'
-    })
-  }
-}
-
-
-
 //Get by address, cosmosAddress, accountNumber, or username
 //ENS names are not supported. Convert to address first
-export const getBatchUsers = async (req: Request, res: Response) => {
+export const getAccountsByAddress = async (req: Request, res: Response) => {
   try {
-    const accountDocuments: s_Account[] = [];
-
-    req.body.accountNums = req.body.accountNums.filter((num: number) => num >= 0);
     req.body.addresses = req.body.addresses.filter((address: string) => address.length > 0);
 
-    if (req.body.accountNums && req.body.accountNums.length !== 0) {
-      const response = await ACCOUNTS_DB.find({
-        selector: {
-          accountNumber: {
-            $in: req.body.accountNums
-          }
-        },
-        limit: req.body.accountNums.length
-      });
-
-      accountDocuments.push(...response.docs);
-    }
-
     if (req.body.addresses && req.body.addresses.length !== 0) {
-      const response = await ACCOUNTS_DB.find(
-        {
-          selector: {
-            $or: [
-              {
-                address: {
-                  $in: req.body.addresses
-                },
-              },
-              {
-                cosmosAddress: {
-                  $in: req.body.addresses
-                }
-              },
-              {
-                username: {
-                  $in: req.body.addresses
-                }
-              }
-            ]
-          },
-          limit: req.body.addresses.length
-        }
-      );
-      accountDocuments.push(...response.docs);
-
+      const promises = [];
       for (const address of req.body.addresses) {
-        if (isAddressValid(address) && !accountDocuments.find((account) => account.address === address || account.cosmosAddress === address || account.username === address)) {
-          accountDocuments.push({
-            address,
-            cosmosAddress: convertToCosmosAddress(address),
-            username: '',
-            accountNumber: "-1",
-            chain: getChainForAddress(address),
-          });
-        }
+        promises.push(getAccountByAddress(address));
       }
-    }
 
-    const userInfos: s_BitBadgesUserInfo[] = await convertToBitBadgesUserInfo(accountDocuments);
-    return res.status(200).send({ accounts: userInfos });
+      const userInfos = await Promise.all(promises);
+      return res.status(200).send({ accounts: userInfos });
+    } else {
+      return res.status(200).send({ accounts: [] });
+    }
   } catch (e) {
     console.log(e);
     return res.status(500).send({
@@ -129,18 +135,7 @@ export const getPortfolioInfo = async (req: Request, res: Response) => {
     const collectedBookmark = req.body.collectedBookmark;
     const announcementsBookmark = req.body.announcementsBookmark;
     const reviewsBookmark = req.body.reviewsBookmark;
-    const accountDoc = await ACCOUNTS_DB.find({
-      selector: {
-        cosmosAddress: {
-          $eq: req.params.cosmosAddress
-        }
-      }
-    });
-
-    let cosmosAddress = "";
-    if (accountDoc.docs[0]) {
-      cosmosAddress = accountDoc.docs[0].cosmosAddress;
-    }
+    const cosmosAddress = req.params.cosmosAddress;
 
     let response: nano.MangoResponse<s_BalanceDocument> = { docs: [] };
     let activityRes: nano.MangoResponse<s_ActivityItem> = { docs: [] };
@@ -199,11 +194,20 @@ export const updateAccountInfo = async (expressReq: Request, res: Response) => {
   try {
     const req = expressReq as AuthenticatedRequest
     const cosmosAddress = req.session.cosmosAddress;
+    let accountInfo: s_Profile & nano.Document;
+    try {
+      accountInfo = await PROFILES_DB.get(cosmosAddress);
+    } catch (e) {
+      if (e.statusCode === 404) {
+        accountInfo = {
+          _id: cosmosAddress,
+          _rev: '',
+        }
+      }
+      throw e;
+    }
 
-    const accountInfo = await ACCOUNTS_DB.get(cosmosAddress);
-
-
-    const newAccountInfo: s_Account = {
+    const newAccountInfo: s_Profile = {
       ...accountInfo,
       discord: req.body.discord ? req.body.discord : accountInfo.discord,
       twitter: req.body.twitter ? req.body.twitter : accountInfo.twitter,
@@ -221,7 +225,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response) => {
       })
     }
 
-    await ACCOUNTS_DB.insert(newAccountInfo);
+    await PROFILES_DB.insert(newAccountInfo);
 
     return res.status(200).send(
       { message: 'Account info updated successfully' }

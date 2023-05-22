@@ -4,7 +4,7 @@ import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import { DbStatus, DocsCache } from "bitbadgesjs-utils"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintAndDistributeBadges, MessageMsgNewCollection, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateAllowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris } from 'bitbadgesjs-transactions'
+import { MessageMsgClaimBadge, MessageMsgDeleteCollection, MessageMsgMintAndDistributeBadges, MessageMsgNewCollection, MessageMsgRequestTransferManager, MessageMsgSetApproval, MessageMsgTransferBadge, MessageMsgTransferManager, MessageMsgUpdateBytes, MessageMsgUpdateAllowedTransfers, MessageMsgUpdatePermissions, MessageMsgUpdateUris, convertFromProtoToMsgUpdatePermissions, convertFromProtoToMsgUpdateAllowedTransfers, convertFromProtoToMsgUpdateBytes, convertFromProtoToMsgTransferManager, convertFromProtoToMessageMsgSetApproval, convertFromProtoToMsgRequestTransferManager, convertFromProtoToMsgClaimBadge, convertFromProtoToMsgTransferBadge, convertFromProtoToMsgNewCollection, convertFromProtoToMsgMintAndDistributeBadges, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgUpdateUris } from 'bitbadgesjs-transactions'
 import { ABCIMessageLog, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { ERRORS_DB, finalizeDocsForRequest } from "./db/db"
@@ -20,7 +20,7 @@ import { handleMsgSetApproval } from "./tx-handlers/handleMsgSetApproval"
 import { handleMsgTransferBadge } from "./tx-handlers/handleMsgTransferBadge"
 import { handleMsgTransferManager } from "./tx-handlers/handleMsgTransferManager"
 import { handleMsgUpdateBytes } from "./tx-handlers/handleMsgUpdateBytes"
-import { handleMsgUpdateDisallowedTransfers } from "./tx-handlers/handleMsgUpdateAllowedTransfers"
+import { handleMsgUpdateAllowedTransfers } from "./tx-handlers/handleMsgUpdateAllowedTransfers"
 import { handleMsgUpdatePermissions } from "./tx-handlers/handleMsgUpdatePermissions"
 import { handleMsgUpdateUris } from "./tx-handlers/handleMsgUpdateUris"
 
@@ -146,12 +146,11 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) =
   } catch (e) {
     console.log(`Error parsing rawLog for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
     console.log(`Current status: ${JSON.stringify(status)}`);
-
   }
 
-
-
   decodedTx = decodeTxRaw(indexed.tx);
+
+
 
   const NUM_TXS_TO_AVERAGE = 1000;
   if (decodedTx.authInfo.fee) {
@@ -162,7 +161,7 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) =
       const feeDenom = coin.denom;
 
       if (feeDenom === "badge") {
-        const gasPrice = BigInt(feeAmount) / BigInt(gasLimit.toNumber());
+        const gasPrice = BigInt(feeAmount) / BigInt(gasLimit.toString());
 
         status.lastXGasPrices.push(gasPrice);
         if (status.lastXGasPrices.length > NUM_TXS_TO_AVERAGE) {
@@ -178,54 +177,54 @@ const handleTx = async (indexed: IndexedTx, status: DbStatus, docs: DocsCache) =
   for (const message of decodedTx.body.messages) {
     const typeUrl = message.typeUrl;
     const value = message.value;
+
     switch (typeUrl) {
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateUris":
-        const urisMsg: MessageMsgUpdateUris = tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value).toObject() as MessageMsgUpdateUris;
+        const urisMsg: MessageMsgUpdateUris = convertFromProtoToMsgUpdateUris(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value)) as MessageMsgUpdateUris;
         await handleMsgUpdateUris(urisMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions":
-        const permissionsMsg: MessageMsgUpdatePermissions = tx.bitbadges.bitbadgeschain.badges.MsgUpdatePermissions.deserialize(value).toObject() as MessageMsgUpdatePermissions;
+        const permissionsMsg: MessageMsgUpdatePermissions = convertFromProtoToMsgUpdatePermissions(tx.bitbadges.bitbadgeschain.badges.MsgUpdatePermissions.deserialize(value)) as MessageMsgUpdatePermissions;
         await handleMsgUpdatePermissions(permissionsMsg, status, docs);
         break;
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers":
-        const disallowedMsg: MessageMsgUpdateAllowedTransfers = tx.bitbadges.bitbadgeschain.badges.MsgUpdateDisallowedTransfers.deserialize(value).toObject() as MessageMsgUpdateAllowedTransfers;
-        await handleMsgUpdateDisallowedTransfers(disallowedMsg, status, docs);
+      case "/bitbadges.bitbadgeschain.badges.MsgUpdateAllowedTransfers":
+        const allowedMsg: MessageMsgUpdateAllowedTransfers = convertFromProtoToMsgUpdateAllowedTransfers(tx.bitbadges.bitbadgeschain.badges.MsgUpdateAllowedTransfers.deserialize(value)) as MessageMsgUpdateAllowedTransfers;
+        await handleMsgUpdateAllowedTransfers(allowedMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes":
-        const bytesMsg: MessageMsgUpdateBytes = tx.bitbadges.bitbadgeschain.badges.MsgUpdateBytes.deserialize(value).toObject() as MessageMsgUpdateBytes;
+        const bytesMsg: MessageMsgUpdateBytes = convertFromProtoToMsgUpdateBytes(tx.bitbadges.bitbadgeschain.badges.MsgUpdateBytes.deserialize(value)) as MessageMsgUpdateBytes;
         await handleMsgUpdateBytes(bytesMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgTransferManager":
-        const transferManagerMsg: MessageMsgTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgTransferManager.deserialize(value).toObject() as MessageMsgTransferManager;
-
+        const transferManagerMsg: MessageMsgTransferManager = convertFromProtoToMsgTransferManager(tx.bitbadges.bitbadgeschain.badges.MsgTransferManager.deserialize(value)) as MessageMsgTransferManager;
         await handleMsgTransferManager(transferManagerMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgSetApproval":
-        const setApprovalMsg: MessageMsgSetApproval = tx.bitbadges.bitbadgeschain.badges.MsgSetApproval.deserialize(value).toObject() as MessageMsgSetApproval;
+        const setApprovalMsg: MessageMsgSetApproval = convertFromProtoToMessageMsgSetApproval(tx.bitbadges.bitbadgeschain.badges.MsgSetApproval.deserialize(value)) as MessageMsgSetApproval;
         await handleMsgSetApproval(setApprovalMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgRequestTransferManager":
-        const requestTransferManagerMsg: MessageMsgRequestTransferManager = tx.bitbadges.bitbadgeschain.badges.MsgRequestTransferManager.deserialize(value).toObject() as MessageMsgRequestTransferManager;
+        const requestTransferManagerMsg: MessageMsgRequestTransferManager = convertFromProtoToMsgRequestTransferManager(tx.bitbadges.bitbadgeschain.badges.MsgRequestTransferManager.deserialize(value)) as MessageMsgRequestTransferManager;
         await handleMsgRequestTransferManager(requestTransferManagerMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgClaimBadge":
-        const claimMsg: MessageMsgClaimBadge = tx.bitbadges.bitbadgeschain.badges.MsgClaimBadge.deserialize(value).toObject() as MessageMsgClaimBadge;
+        const claimMsg: MessageMsgClaimBadge = convertFromProtoToMsgClaimBadge(tx.bitbadges.bitbadgeschain.badges.MsgClaimBadge.deserialize(value)) as MessageMsgClaimBadge;
         await handleMsgClaimBadge(claimMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgTransferBadge":
-        const transferMsg: MessageMsgTransferBadge = tx.bitbadges.bitbadgeschain.badges.MsgTransferBadge.deserialize(value).toObject() as MessageMsgTransferBadge;
+        const transferMsg: MessageMsgTransferBadge = convertFromProtoToMsgTransferBadge(tx.bitbadges.bitbadgeschain.badges.MsgTransferBadge.deserialize(value)) as MessageMsgTransferBadge;
         await handleMsgTransferBadge(transferMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgNewCollection":
-        const newCollectionMsg: MessageMsgNewCollection = tx.bitbadges.bitbadgeschain.badges.MsgNewCollection.deserialize(value).toObject() as MessageMsgNewCollection;
+        const newCollectionMsg: MessageMsgNewCollection = convertFromProtoToMsgNewCollection(tx.bitbadges.bitbadgeschain.badges.MsgNewCollection.deserialize(value)) as MessageMsgNewCollection;
         await handleMsgNewCollection(newCollectionMsg, status, docs);
         break;
-      case "/bitbadges.bitbadgeschain.badges.MsgMintBadge":
-        const newMintMsg: MessageMsgMintAndDistributeBadges = tx.bitbadges.bitbadgeschain.badges.MsgMintAndDistributeBadges.deserialize(value).toObject() as MessageMsgMintAndDistributeBadges;
+      case "/bitbadges.bitbadgeschain.badges.MsgMintAndDistributeBadges":
+        const newMintMsg: MessageMsgMintAndDistributeBadges = convertFromProtoToMsgMintAndDistributeBadges(tx.bitbadges.bitbadgeschain.badges.MsgMintAndDistributeBadges.deserialize(value)) as MessageMsgMintAndDistributeBadges;
         await handleMsgMintAndDistributeBadges(newMintMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgDeleteCollection":
-        const newDeleteMsg: MessageMsgDeleteCollection = tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value).toObject() as MessageMsgDeleteCollection;
+        const newDeleteMsg: MessageMsgDeleteCollection = convertFromProtoToMsgDeleteCollection(tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value)) as MessageMsgDeleteCollection;
         await handleMsgDeleteCollection(newDeleteMsg, status, docs);
         break;
       default:
