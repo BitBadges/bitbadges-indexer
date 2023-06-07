@@ -9,7 +9,7 @@ import { serializeError } from "serialize-error";
 import { SendTokensFromFaucetRouteResponse } from "bitbadgesjs-utils";
 
 // Create a mutex to protect the faucet from double spending
-// TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency), but it will work for now 
+// TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency); it will work for now  but needs a refactor
 
 /**
  * Problem: How do we prevent double spending from the faucet when the blockchain is asynchronous?

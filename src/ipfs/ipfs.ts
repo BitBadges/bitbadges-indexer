@@ -1,13 +1,10 @@
 import axios from 'axios';
 import { BalancesMap, BigIntify, LeavesDetails, Metadata, MetadataMap, convertBalancesMap, convertMetadata, convertMetadataMap } from 'bitbadgesjs-utils';
 import last from 'it-last';
-import { FETCHES_DB, insertToDB } from 'src/db/db';
+import { FETCHES_DB, insertToDB } from '../db/db';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { ipfsClient } from "../indexer";
 import { NumberType } from 'bitbadgesjs-proto';
-
-//TODO: Keep track of how many GB a user has uploaded and make them pay for uploading more than threshold
-//TODO: Also, we may want to eventually move IPFS uploading to the client side for scalability
 
 export const getFromIpfs = async (path: string) => {
   if (!path) return { file: '{}' }

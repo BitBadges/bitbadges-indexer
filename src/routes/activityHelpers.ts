@@ -1,5 +1,5 @@
 import { GetBadgeActivityRouteResponse, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
-import { removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { removeCouchDBDetails } from "../utils/couchdb-utils";
 import { ANNOUNCEMENTS_DB, BALANCES_DB, CLAIMS_DB, COLLECTIONS_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 
 export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse> {

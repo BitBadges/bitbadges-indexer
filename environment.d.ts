@@ -16,6 +16,7 @@ declare global {
       MIN_TIME_BETWEEN_REFRESHES: string //string number ex: "60000"
       NUM_METADATA_FETCHES_PER_BLOCK: string //string number ex: "25"
       BASE_DELAY: string //string number ex: "60000"
+      PORT: string //string number ex: "3000"
     }
   }
 }

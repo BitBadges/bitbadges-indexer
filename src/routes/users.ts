@@ -4,7 +4,7 @@ import { AccountInfoBase, AnnouncementDoc, BalanceDoc, GetAccountRouteRequestBod
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { catch404, removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";

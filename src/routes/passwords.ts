@@ -53,8 +53,6 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response<Ge
       const claimId = req.params.claimId;
       const password = req.params.password;
 
-      //TODO: prune once all codes have actually been used or expired
-
       const query: nano.MangoQuery = {
         selector: {
           collectionId: {

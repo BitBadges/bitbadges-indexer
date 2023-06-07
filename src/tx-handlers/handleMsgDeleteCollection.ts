@@ -2,7 +2,7 @@ import { MsgDeleteCollection } from "bitbadgesjs-transactions"
 import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
 import { BALANCES_DB, CLAIMS_DB } from "../db/db"
 
-import { fetchDocsForCacheIfEmpty } from "src/db/cache"
+import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {

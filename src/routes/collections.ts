@@ -3,9 +3,9 @@ import { AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfo, BigIntify, 
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "src/db/db";
-import { fetchUriFromDb } from "src/metadata-queue";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
+import { fetchUriFromDb } from "../metadata-queue";
+import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionBalancesQuery, executeCollectionClaimsQuery, executeCollectionReviewsQuery } from "./activityHelpers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAccountByAddress } from "./users";

@@ -4,7 +4,7 @@ import { getStatus } from "../db/status";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { Stringify } from "bitbadgesjs-proto";
-import { removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export const getStatusHandler = async (req: Request, res: Response<GetStatusRouteResponse>) => {
   try {

@@ -3,7 +3,7 @@
 import { CouchDBDetailsExcluded } from "bitbadgesjs-utils";
 import nano, { DocumentResponseRow, Document } from "nano";
 
-// Path: src/utils/catch404.ts
+// Path: ../utils/catch404.ts
 export const catch404 = async (reason: any) => {
   if (reason.statusCode !== 404) {
     return Promise.reject(reason);

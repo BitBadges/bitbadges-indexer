@@ -3,8 +3,8 @@ import { BitBadgesUserInfo, CollectionDoc, StatusDoc, DocsCache, Metadata, Metad
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleClaims } from "./claims"
 
-import { getBalancesIdForQueueDb, getCollectionIdForQueueDb, pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "src/metadata-queue"
-import { getLoadBalancerId } from "src/utils/loadBalancer"
+import { getBalancesIdForQueueDb, getCollectionIdForQueueDb, pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../metadata-queue"
+import { getLoadBalancerId } from "../utils/loadBalancer"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
 

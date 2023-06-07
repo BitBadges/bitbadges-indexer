@@ -1,7 +1,8 @@
 import { MsgClaimBadge } from "bitbadgesjs-transactions"
-import { DocsCache, StatusDoc, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils"
+import { BigIntify, DocsCache, StatusDoc, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { convertBalance } from "bitbadgesjs-proto"
 
 export const handleMsgClaimBadge = async (msg: MsgClaimBadge<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
   const solutions = msg.solutions ? msg.solutions : [];
@@ -44,7 +45,7 @@ export const handleMsgClaimBadge = async (msg: MsgClaimBadge<bigint>, status: St
   }
 
 
-  const balancesTransferred = JSON.parse(JSON.stringify(currClaimObj.currentClaimAmounts));
+  const balancesTransferred = currClaimObj.currentClaimAmounts.map((balance => convertBalance(balance, BigIntify))); //used for deep copy
   docs.activityToAdd.push({
     _id: `collection-${msg.collectionId}:${status.block.height}-${status.block.txIndex}`,
     from: ['Mint'],
@@ -63,7 +64,7 @@ export const handleMsgClaimBadge = async (msg: MsgClaimBadge<bigint>, status: St
   for (const balance of balancesTransferred) {
     toAddressBalanceDoc = {
       ...toAddressBalanceDoc,
-      ...addBalancesForIdRanges(toAddressBalanceDoc, balance.badgeIds, balance.balance)
+      ...addBalancesForIdRanges(toAddressBalanceDoc, balance.badgeIds, balance.amount)
     }
   }
 

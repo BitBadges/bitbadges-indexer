@@ -4,7 +4,7 @@ import { AccountInfoBase, BitBadgesUserInfo, GetSearchRouteResponse, Stringify, 
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { getDocsFromNanoFetchRes } from "src/utils/couchdb-utils";
+import { getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
 import { ACCOUNTS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
 import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";

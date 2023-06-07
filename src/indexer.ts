@@ -72,7 +72,7 @@ export const setTimer = (newTimer: NodeJS.Timer) => {
 }
 
 const app: Express = express()
-const port = "3001"
+const port = process.env.port ? Number(process.env.port) : 3001
 
 //TODO: secure these / API keys?
 app.use(cors({

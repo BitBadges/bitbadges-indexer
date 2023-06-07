@@ -7,35 +7,35 @@ config()
 const nano = Nano(`${process.env.DB_URL}`);
 
 export async function deleteDatabases() {
-  await nano.db.destroy('activity');
-  await nano.db.destroy('profiles');
-  await nano.db.destroy('fetches');
-  await nano.db.destroy('accounts');
-  await nano.db.destroy('collections');
-  await nano.db.destroy('status');
-  await nano.db.destroy('errors');
-  await nano.db.destroy('metadata');
-  await nano.db.destroy('passwords');
-  await nano.db.destroy('airdrop');
-  await nano.db.destroy('balances');
-  await nano.db.destroy('claims');
-  await nano.db.destroy('queue');
-  await nano.db.destroy('ipfs_totals');
-  await nano.db.destroy('refreshes');
-  await nano.db.destroy('announcements');
-  await nano.db.destroy('reviews');
-  await nano.db.destroy('load-balance');
+  await nano.db.destroy('transfer-activity').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('profiles').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('fetches').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('accounts').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('collections').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('status').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('errors').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('metadata').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('passwords').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('airdrop').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('balances').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('claims').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('queue').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('ipfs-totals').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('refreshes').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('announcements').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('reviews').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('load-balance').catch((e) => { if (e.statusCode !== 404) throw e });
 
   //_utils, _replicator, _global_changes, _metadata
-  await nano.db.destroy('_users');
-  await nano.db.destroy('_replicator');
-  await nano.db.destroy('_global_changes');
-  await nano.db.destroy('_metadata');
+  await nano.db.destroy('_users').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('_replicator').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('_global_changes').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('_metadata').catch((e) => { if (e.statusCode !== 404) throw e });
 }
 
 
 export async function createDatabases() {
-  await nano.db.create('activity', { partitioned: true });
+  await nano.db.create('transfer-activity', { partitioned: true });
   await nano.db.create('accounts');
   await nano.db.create('profiles');
   await nano.db.create('fetches');
@@ -48,7 +48,7 @@ export async function createDatabases() {
   await nano.db.create('balances', { partitioned: true });
   await nano.db.create('claims', { partitioned: true });
   await nano.db.create('queue');
-  await nano.db.create('ipfs_totals');
+  await nano.db.create('ipfs-totals');
   await nano.db.create('refreshes');
   await nano.db.create('announcements', { partitioned: true });
   await nano.db.create('reviews', { partitioned: true });
@@ -70,9 +70,9 @@ export async function initStatus() {
       "timestamp": 0
     },
     "nextCollectionId": "1",
-    "gasPrice": "0.000001",
+    "gasPrice": "1",
     "lastXGasPrices": [
-      "0.000001"
+      "1"
     ]
   })
 }

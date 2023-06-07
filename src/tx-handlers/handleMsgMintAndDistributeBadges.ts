@@ -3,9 +3,9 @@ import { BitBadgesUserInfo, DocsCache, Metadata, MetadataMap, StatusDoc, simulat
 import { CLAIMS_DB } from "../db/db"
 import { handleClaims } from "./claims"
 
-import { fetchDocsForCacheIfEmpty } from "src/db/cache"
-import { getBalancesIdForQueueDb, getCollectionIdForQueueDb, pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "src/metadata-queue"
-import { getLoadBalancerId } from "src/utils/loadBalancer"
+import { fetchDocsForCacheIfEmpty } from "../db/cache"
+import { getBalancesIdForQueueDb, getCollectionIdForQueueDb, pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../metadata-queue"
+import { getLoadBalancerId } from "../utils/loadBalancer"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
 

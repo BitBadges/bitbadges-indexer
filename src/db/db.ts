@@ -9,7 +9,7 @@ const nano = Nano(`${process.env.DB_URL}`);
 
 export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | ClaimInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T>;
 
-export const TRANSFER_ACTIVITY_DB = nano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('activity');
+export const TRANSFER_ACTIVITY_DB = nano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
 export const PROFILES_DB = nano.db.use<ProfileDoc<JSPrimitiveNumberType>>('profiles');
 export const ACCOUNTS_DB = nano.db.use<AccountDoc<JSPrimitiveNumberType>>('accounts');
 export const COLLECTIONS_DB = nano.db.use<CollectionDoc<JSPrimitiveNumberType>>('collections');
@@ -21,7 +21,7 @@ export const BALANCES_DB = nano.db.use<BalanceDoc<JSPrimitiveNumberType>>('balan
 export const CLAIMS_DB = nano.db.use<ClaimDoc<JSPrimitiveNumberType>>('claims');
 export const FETCHES_DB = nano.db.use<FetchDoc<JSPrimitiveNumberType>>('fetches');
 export const QUEUE_DB = nano.db.use<QueueDoc<JSPrimitiveNumberType>>('queue');
-export const IPFS_TOTALS_DB = nano.db.use<IPFSTotalsDoc<JSPrimitiveNumberType>>('ipfs_totals');
+export const IPFS_TOTALS_DB = nano.db.use<IPFSTotalsDoc<JSPrimitiveNumberType>>('ipfs-totals');
 export const REFRESHES_DB = nano.db.use<RefreshDoc<JSPrimitiveNumberType>>('refreshes');
 export const ANNOUNCEMENTS_DB = nano.db.use<AnnouncementDoc<JSPrimitiveNumberType>>('announcements');
 export const REVIEWS_DB = nano.db.use<ReviewDoc<JSPrimitiveNumberType>>('reviews');

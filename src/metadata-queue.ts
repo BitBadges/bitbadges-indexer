@@ -338,7 +338,7 @@ export const fetchUrisFromQueue = async () => {
       if (currQueueDoc.lastFetchedAt && Number(currQueueDoc.lastFetchedAt) + delay > Date.now()) {
         //If we have fetched this URI recently, do not spam it
       } else {
-        queueItems.push(JSON.parse(JSON.stringify(currQueueDoc)));
+        queueItems.push(convertQueueDoc(currQueueDoc, BigIntify)); //Used for a deep copy
       }
     }
     queue.shift()

@@ -1,8 +1,8 @@
 import { Claim } from "bitbadgesjs-proto";
 import { ClaimDoc, DocsCache, StatusDoc } from "bitbadgesjs-utils";
 import nano from "nano";
-import { getClaimIdForQueueDb, pushClaimFetchToQueue } from "src/metadata-queue";
-import { getLoadBalancerId } from "src/utils/loadBalancer";
+import { getClaimIdForQueueDb, pushClaimFetchToQueue } from "../metadata-queue";
+import { getLoadBalancerId } from "../utils/loadBalancer";
 import { PASSWORDS_DB, insertToDB } from "../db/db";
 
 

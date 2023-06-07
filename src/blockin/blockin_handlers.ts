@@ -5,8 +5,9 @@ import { Session } from 'express-session';
 import { generateNonce } from 'siwe';
 import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
-import { COLLECTIONS_DB, IPFS_TOTALS_DB } from 'src/db/db';
+import { COLLECTIONS_DB, IPFS_TOTALS_DB } from '../db/db';
 import { serializeError } from 'serialize-error';
+
 export interface BlockinSession extends Session {
   nonce: string | null;
   blockin: string | null;

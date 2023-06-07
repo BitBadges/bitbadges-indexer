@@ -3,7 +3,7 @@ import { fetchDocsForCacheIfEmpty } from "../db/cache";
 import { getBalancesIdForQueueDb, getCollectionIdForQueueDb, pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../metadata-queue";
 
 import { DocsCache, StatusDoc } from "bitbadgesjs-utils";
-import { getLoadBalancerId } from "src/utils/loadBalancer";
+import { getLoadBalancerId } from "../utils/loadBalancer";
 import { handleNewAccountByAddress } from "./handleNewAccount";
 
 export const handleMsgUpdateUris = async (msg: MsgUpdateUris<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {

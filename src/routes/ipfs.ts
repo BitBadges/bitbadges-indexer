@@ -2,10 +2,10 @@ import { AES } from "crypto-js";
 import { Request, Response } from "express";
 import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
 import { addBalancesToIpfs, addClaimToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
-import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
+import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { serializeError } from "serialize-error";
 import { AddClaimToIpfsRouteRequestBody, AddClaimToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
-import { cleanBalances } from "src/utils/dataCleaners";
+import { cleanBalances } from "../utils/dataCleaners";
 
 const IPFS_UPLOAD_KB_LIMIT = 100000; //100MB
 

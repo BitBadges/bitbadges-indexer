@@ -1,12 +1,12 @@
 import axios from "axios";
 import { BigIntify, DocsCache, FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, RefreshMetadataRouteResponse, convertCollectionDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import { getFromIpfs } from "src/ipfs/ipfs";
-import { getLoadBalancerId } from "src/utils/loadBalancer";
+import { getFromIpfs } from "../ipfs/ipfs";
+import { getLoadBalancerId } from "../utils/loadBalancer";
 import { COLLECTIONS_DB } from "../db/db";
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from "../metadata-queue";
 import { serializeError } from "serialize-error";
-import { flushCachedDocs } from "src/db/cache";
+import { flushCachedDocs } from "../db/cache";
 
 export const refreshMetadata = async (req: Request, res: Response<RefreshMetadataRouteResponse>) => {
   /**

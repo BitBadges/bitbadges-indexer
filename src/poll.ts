@@ -46,49 +46,65 @@ export const poll = async () => {
         }
       }
 
-      throw new Error('Could not connect to any chain client')
+      if (!client) throw new Error('Could not connect to any chain client')
     }
 
-    // We fetch initial status at beginning of block and do not write anything in DB until end of block
-    // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
-    const _status = await getStatus();
-    const status = convertStatusDoc(_status, BigIntify);
-    let docs: DocsCache = {
-      accounts: {},
-      collections: {},
-      refreshes: {},
-      activityToAdd: [],
-      queueDocsToAdd: [],
-      claims: {},
-      balances: {},
-    };
+    const clientHeight = await client.getHeight();
+    let caughtUp = false;
 
-    const processing = status.block.height + 1n
-    process.stdout.cursorTo(0);
+    // If we are behind, go until we catch up
+    do {
 
-    const block: Block = await client.getBlock(Number(processing))
+      // We fetch initial status at beginning of block and do not write anything in DB until end of block
+      // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
+      const _status = await getStatus();
+      const status = convertStatusDoc(_status, BigIntify);
+      let docs: DocsCache = {
+        accounts: {},
+        collections: {},
+        refreshes: {},
+        activityToAdd: [],
+        queueDocsToAdd: [],
+        claims: {},
+        balances: {},
+      };
 
-    process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
-    status.block.timestamp = BigInt(new Date(block.header.time).getTime());
+      if (status.block.height >= clientHeight) {
+        caughtUp = true;
+        break;
+      }
 
-    await handleBlock(block, status, docs)
-    status.block.height++;
-    status.block.txIndex = 0n;
+      //Handle printing of status if there was an outage
+      if (outageTime) {
+        process.stdout.write('\n');
+        console.log(`Reconnected to chain at block ${status.block.height} after outage of ${new Date().getTime() - outageTime.getTime()} ms`)
+      }
+      outageTime = undefined;
 
 
-    await fetchUrisFromQueue();
-    await purgeQueueDocs();
+      const processing = status.block.height + 1n;
+      process.stdout.cursorTo(0);
 
-    //Right now, we are banking on all these DB updates succeeding together every time. 
-    //If there is a failure in the middle, it could be bad.
-    await flushCachedDocs(docs, status);
+      const block: Block = await client.getBlock(Number(processing))
 
-    //Handle printing of status if there was an outage
-    if (outageTime) {
-      process.stdout.write('\n');
-      console.log(`Reconnected to chain at block ${status.block.height} after outage of ${new Date().getTime() - outageTime.getTime()} ms`)
-    }
-    outageTime = undefined;
+      process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
+      status.block.timestamp = BigInt(new Date(block.header.time).getTime());
+
+      await handleBlock(block, status, docs)
+      status.block.height++;
+      status.block.txIndex = 0n;
+
+      await fetchUrisFromQueue();
+      await purgeQueueDocs();
+
+      //Right now, we are banking on all these DB updates succeeding together every time. 
+      //If there is a failure in the middle, it could be bad.
+      await flushCachedDocs(docs, status);
+
+
+    } while (!caughtUp);
+
+
   } catch (e) {
     //Error handling
 
