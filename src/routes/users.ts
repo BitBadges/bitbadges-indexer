@@ -1,13 +1,13 @@
 
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, AnnouncementDoc, BalanceDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsByAddressRouteRequestBody, GetAccountsByAddressRouteResponse, GetActivityForUserRouteResponse, GetActivityRouteRequestBody, GetPortfolioInfoRouteRequestBody, GetPortfolioInfoRouteResponse, ProfileDoc, ProfileInfoBase, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfoBase, AnnouncementDoc, BalanceDoc, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsByAddressRouteRequestBody, GetAccountsByAddressRouteResponse, ProfileDoc, ProfileInfoBase, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
+import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeReviewsQuery } from "./userHelpers";
 
 export const getAccountByAddress = async (address: string, fetchFromBlockchain = false) => {
@@ -86,6 +86,8 @@ export const getAccountByUsername = async (username: string, fetchFromBlockchain
 
 
   const userInfos = await convertToBitBadgesUserInfo([{ ...profileDoc }], [{ ...accountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
+
+  //userInfos is currently an array with placeholders for everything
   return userInfos[0];
 }
 
@@ -96,13 +98,21 @@ export const getAccount = async (req: Request, res: Response<GetAccountRouteResp
 
     const fetchFromBlockchain = reqBody.fetchFromBlockchain;
 
+    let account: BitBadgesUserInfo<JSPrimitiveNumberType>;
     if (isAddressValid(req.params.addressOrUsername)) {
-      const account = await getAccountByAddress(req.params.addressOrUsername, fetchFromBlockchain);
-      return res.status(200).send(convertBitBadgesUserInfo(account, Stringify));
+      account = await getAccountByAddress(req.params.addressOrUsername, fetchFromBlockchain);
     } else {
-      const account = await getAccountByUsername(req.params.addressOrUsername, fetchFromBlockchain);
-      return res.status(200).send(convertBitBadgesUserInfo(account, Stringify));
+      account = await getAccountByUsername(req.params.addressOrUsername, fetchFromBlockchain);
     }
+
+    //account is currently a BitBadgesUserInfo with no portfolio info
+    const portfolioRes = await getAdditionalUserInfo(account.cosmosAddress, reqBody);
+    account = {
+      ...account,
+      ...portfolioRes
+    }
+
+    return res.status(200).send(convertBitBadgesUserInfo(account, Stringify));
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
@@ -138,74 +148,57 @@ export const getAccountsByAddress = async (req: Request, res: Response<GetAccoun
   }
 }
 
+const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: GetAccountRouteRequestBody) => {
+  const activityBookmark = reqBody.activityBookmark;
+  const collectedBookmark = reqBody.collectedBookmark;
+  const announcementsBookmark = reqBody.announcementsBookmark;
+  const reviewsBookmark = reqBody.reviewsBookmark;
 
-export const getPortfolioInfo = async (req: Request, res: Response<GetPortfolioInfoRouteResponse>) => {
-  try {
-    const reqBody = req.body as GetPortfolioInfoRouteRequestBody;
-    const activityBookmark = reqBody.activityBookmark;
-    const collectedBookmark = reqBody.collectedBookmark;
-    const announcementsBookmark = reqBody.announcementsBookmark;
-    const reviewsBookmark = reqBody.reviewsBookmark;
-    let cosmosAddress = '';
-    if (isAddressValid(req.params.addressOrUsername)) {
-      cosmosAddress = convertToCosmosAddress(req.params.addressOrUsername);
-    } else {
-      const account = await getAccountByUsername(req.params.addressOrUsername);
-      cosmosAddress = account.cosmosAddress;
-    }
+  let response: nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>> = { docs: [] };
+  let activityRes: nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>> = { docs: [] };
+  let announcementsRes: nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>> = { docs: [] };
+  let reviewsRes: nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>> = { docs: [] };
 
-
-    let response: nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>> = { docs: [] };
-    let activityRes: nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>> = { docs: [] };
-    let announcementsRes: nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>> = { docs: [] };
-    let reviewsRes: nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>> = { docs: [] };
-
-    if (reqBody.activityBookmark !== undefined) {
-      activityRes = await executeActivityQuery(cosmosAddress, activityBookmark);
-    }
-
-    if (reqBody.collectedBookmark !== undefined) {
-      response = await executeCollectedQuery(req.params.cosmosAddress, collectedBookmark);
-    }
-
-    if (reqBody.announcementsBookmark !== undefined) {
-      announcementsRes = await executeAnnouncementsQuery(cosmosAddress, announcementsBookmark);
-    }
-
-    if (reqBody.reviewsBookmark !== undefined) {
-      reviewsRes = await executeReviewsQuery(req.params.cosmosAddress, reviewsBookmark);
-    }
-
-    return res.status(200).send({
-      collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails),
-      activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
-      announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
-      reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
-      pagination: {
-        activity: {
-          bookmark: activityRes.bookmark ? activityRes.bookmark : '',
-          hasMore: activityRes.docs.length === 25
-        },
-        announcements: {
-          bookmark: announcementsRes.bookmark ? announcementsRes.bookmark : '',
-          hasMore: announcementsRes.docs.length === 25
-        },
-        collected: {
-          bookmark: response.bookmark ? response.bookmark : '',
-          hasMore: response.docs.length === 25
-        },
-        reviews: {
-          bookmark: reviewsRes.bookmark ? reviewsRes.bookmark : '',
-          hasMore: reviewsRes.docs.length === 25
-        }
-      }
-    });
-  } catch (e) {
-    return res.status(500).send({
-      error: serializeError(e),
-      message: "Error fetching portfolio. Please try again later."
-    })
+  if (reqBody.activityBookmark !== undefined) {
+    activityRes = await executeActivityQuery(cosmosAddress, activityBookmark);
   }
+
+  if (reqBody.collectedBookmark !== undefined) {
+    response = await executeCollectedQuery(cosmosAddress, collectedBookmark);
+  }
+
+  if (reqBody.announcementsBookmark !== undefined) {
+    announcementsRes = await executeAnnouncementsQuery(cosmosAddress, announcementsBookmark);
+  }
+
+  if (reqBody.reviewsBookmark !== undefined) {
+    reviewsRes = await executeReviewsQuery(cosmosAddress, reviewsBookmark);
+  }
+
+  return {
+    collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails),
+    activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
+    announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
+    reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
+    pagination: {
+      activity: {
+        bookmark: activityRes.bookmark ? activityRes.bookmark : '',
+        hasMore: activityRes.docs.length === 25
+      },
+      announcements: {
+        bookmark: announcementsRes.bookmark ? announcementsRes.bookmark : '',
+        hasMore: announcementsRes.docs.length === 25
+      },
+      collected: {
+        bookmark: response.bookmark ? response.bookmark : '',
+        hasMore: response.docs.length === 25
+      },
+      reviews: {
+        bookmark: reviewsRes.bookmark ? reviewsRes.bookmark : '',
+        hasMore: reviewsRes.docs.length === 25
+      }
+    }
+  };
 }
 
 
@@ -242,44 +235,6 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
     return res.status(500).send({
       error: serializeError(e),
       message: "Error updating account info. Please try again later."
-    })
-  }
-}
-
-
-export const getActivity = async (req: Request, res: Response<GetActivityForUserRouteResponse>) => {
-  try {
-    const reqBody = req.body as GetActivityRouteRequestBody;
-
-    let cosmosAddress = '';
-    if (isAddressValid(req.params.addressOrUsername)) {
-      cosmosAddress = convertToCosmosAddress(req.params.addressOrUsername);
-    } else {
-      const account = await getAccountByUsername(req.params.addressOrUsername);
-      cosmosAddress = account.cosmosAddress;
-    }
-
-    const activityRes = await executeActivityQuery(cosmosAddress, reqBody.activityBookmark);
-    const announcementsRes = await executeAnnouncementsQuery(cosmosAddress, reqBody.announcementsBookmark);
-
-    return res.status(200).send({
-      activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
-      announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
-      pagination: {
-        activity: {
-          bookmark: activityRes.bookmark ? activityRes.bookmark : '',
-          hasMore: activityRes.docs.length === 25
-        },
-        announcements: {
-          bookmark: announcementsRes.bookmark ? announcementsRes.bookmark : '',
-          hasMore: announcementsRes.docs.length === 25
-        }
-      }
-    });
-  } catch (e) {
-    return res.status(500).send({
-      error: serializeError(e),
-      message: "Error fetching activity. Please try again later."
     })
   }
 }

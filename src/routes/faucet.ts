@@ -6,7 +6,7 @@ import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { AIRDROP_DB, insertToDB } from "../db/db";
 import _ from "environment"
 import { serializeError } from "serialize-error";
-import { SendTokensFromFaucetRouteResponse } from "bitbadgesjs-utils";
+import { GetTokensFromFaucetRouteResponse } from "bitbadgesjs-utils";
 
 // Create a mutex to protect the faucet from double spending
 // TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency); it will work for now  but needs a refactor
@@ -20,7 +20,7 @@ import { SendTokensFromFaucetRouteResponse } from "bitbadgesjs-utils";
  */
 const faucetMutex = new Mutex();
 
-export const sendTokensFromFaucet = async (expressReq: Request, res: Response<SendTokensFromFaucetRouteResponse>) => {
+export const getTokensFromFaucet = async (expressReq: Request, res: Response<GetTokensFromFaucetRouteResponse>) => {
   try {
     const req = expressReq as AuthenticatedRequest;
 

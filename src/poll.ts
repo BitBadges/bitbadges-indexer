@@ -130,12 +130,12 @@ export const poll = async () => {
     }
 
     //Log error to DB, unless it is a connection refused error
-    if (e.code !== 'ECONNREFUSED') {
+    if (e && e.code !== 'ECONNREFUSED') {
       console.log(e);
       await ERRORS_DB.bulk({
         docs: [{
-          _id: `${Date.now()}`,
           error: e,
+          function: 'poll',
         }]
       });
     }

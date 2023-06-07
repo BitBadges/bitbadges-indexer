@@ -1,5 +1,5 @@
 import { BadgeUri, JSPrimitiveNumberType, NumberType, convertBadgeUri } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfo, BigIntify, BitBadgesCollection, BitBadgesUserInfo, ClaimDetails, ClaimDoc, ClaimInfo, CollectionDoc, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionQueryRouteResponse, GetCollectionRouteSuccessResponse, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForCollectionRouteRequestBody, GetOwnersForCollectionRouteResponse, Metadata, MetadataMap, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBalanceDoc, convertBitBadgesCollection, convertClaimDetails, convertCollectionDoc, convertMetadata, convertMetadataMap, getBadgeIdsForMetadataId, getUrisForMetadataIds, updateMetadataMap } from "bitbadgesjs-utils";
+import { AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfo, BigIntify, BitBadgesCollection, BitBadgesUserInfo, ClaimDetails, ClaimDoc, ClaimInfo, CollectionDoc, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetCollectionRouteSuccessResponse, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, Metadata, MetadataMap, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBalanceDoc, convertBitBadgesCollection, convertClaimDetails, convertCollectionDoc, convertMetadata, convertMetadataMap, getBadgeIdsForMetadataId, getUrisForMetadataIds, updateMetadataMap } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -196,7 +196,7 @@ export async function executeCollectionsQuery(collectionQueries: CollectionQuery
   return await executeAdditionalCollectionQueries(baseCollections, collectionQueries);
 }
 
-export const getCollectionById = async (req: Request, res: Response<GetCollectionQueryRouteResponse>) => {
+export const getCollectionById = async (req: Request, res: Response<GetCollectionRouteResponse>) => {
   try {
     const reqBody = req.body as GetCollectionByIdRouteRequestBody;
 
@@ -242,10 +242,12 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
     const reqBody = req.body as GetCollectionBatchRouteRequestBody;
 
     const queryDetails: CollectionQueryOptions[] = [];
-    for (const collectionId of reqBody.collectionIds) {
+    for (let i = 0; i < reqBody.collectionIds.length; i++) {
+      const collectionId = BigInt(reqBody.collectionIds[i]);
+      const startMetadataId = reqBody.startMetadataIds && reqBody.startMetadataIds.length > i ? BigInt(reqBody.startMetadataIds[i]) : 0n;
       queryDetails.push({
         collectionId,
-        startMetadataId: reqBody.startMetadataIds[reqBody.collectionIds.indexOf(collectionId)],
+        startMetadataId: startMetadataId,
         activityBookmark: undefined,
         announcementsBookmark: undefined,
         reviewsBookmark: undefined,
@@ -345,9 +347,9 @@ export const getMetadataForCollection = async (req: Request, res: Response<GetMe
   }
 }
 
-export const getOwnersForCollection = async (req: Request, res: Response<GetOwnersForCollectionRouteResponse>) => {
+export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersForBadgeRouteResponse>) => {
   try {
-    const reqBody = req.body as GetOwnersForCollectionRouteRequestBody;
+    const reqBody = req.body as GetOwnersForBadgeRouteRequestBody;
 
     const collection = await COLLECTIONS_DB.get(req.params.collectionId);
     if (BigInt(collection.nextBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {

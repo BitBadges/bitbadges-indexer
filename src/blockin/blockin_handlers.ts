@@ -1,4 +1,4 @@
-import { convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, GetChallengeRouteRequestBody, GetChallengeRouteResponse, Numberify, NumberType, RemoveBlockinSessionCookieRouteResponse, VerifyBlockinAndGrantSessionCookieRouteRequestBody, VerifyBlockinAndGrantSessionCookieRouteResponse } from 'bitbadgesjs-utils';
+import { convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
@@ -52,10 +52,10 @@ export async function returnUnauthorized(res: Response<ErrorResponse>, managerRo
   return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : ''} to access this route.`, unauthorized: true });
 }
 
-export async function getChallenge(expressReq: Request, res: Response<GetChallengeRouteResponse>) {
+export async function getChallenge(expressReq: Request, res: Response<GetSignInChallengeRouteResponse>) {
   try {
     const req = expressReq as AuthenticatedRequest;
-    const reqBody = req.body as GetChallengeRouteRequestBody;
+    const reqBody = req.body as GetSignInChallengeRouteRequestBody;
 
     const chainDriver = getChainDriver(reqBody.chain);
     setChainDriver(chainDriver);
@@ -107,7 +107,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetChallen
   }
 }
 
-export async function removeBlockinSessionCookie(expressReq: Request, res: Response<RemoveBlockinSessionCookieRouteResponse>) {
+export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse>) {
   const req = expressReq as AuthenticatedRequest;
 
   const session = req.session as BlockinSession;
@@ -122,10 +122,10 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
   return res.status(200).send({ message: 'Successfully removed session cookie!' });
 }
 
-export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifyBlockinAndGrantSessionCookieRouteResponse>) {
+export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse>) {
   const req = expressReq as AuthenticatedRequest;
 
-  const body = parse(JSON.stringify(req.body)) as VerifyBlockinAndGrantSessionCookieRouteRequestBody;
+  const body = parse(JSON.stringify(req.body)) as VerifySignInRouteRequestBody;
 
   const chainDriver = getChainDriver(body.chain);
   setChainDriver(chainDriver);

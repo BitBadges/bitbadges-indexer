@@ -10,19 +10,19 @@ import { authorizeBlockinRequest, getChallenge, removeBlockinSessionCookie, veri
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { poll } from "./poll"
 import { addAnnouncement } from './routes/announcements'
-import { getBadgeBalance } from "./routes/balances"
+import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
 import { getBrowseCollections } from './routes/browse'
-import { getCodes } from "./routes/codes"
-import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection } from "./routes/collections"
-import { sendTokensFromFaucet } from './routes/faucet'
+import { getAllCodesAndPasswords } from "./routes/codes"
+import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForBadge } from "./routes/collections"
+import { getTokensFromFaucet } from './routes/faucet'
 import { addClaimToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, refreshMetadata } from "./routes/metadata"
-import { getPasswordsAndCodes } from "./routes/passwords"
+import { getClaimCodeViaPassword } from "./routes/passwords"
 import { addReviewForCollection, addReviewForUser } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { getAccount, getAccountsByAddress, getActivity, getPortfolioInfo, updateAccountInfo } from "./routes/users"
+import { getAccount, getAccountsByAddress, updateAccountInfo } from "./routes/users"
 import _ from 'environment'
 import axios from 'axios'
 
@@ -119,15 +119,15 @@ app.post("/api/v0/search/:searchValue", searchHandler);
 //Collections
 app.post("/api/v0/collection/batch", getCollections)
 app.post("/api/v0/collection/:collectionId", getCollectionById)
-app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForCollection);
+app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);
 app.post("/api/v0/collection/:collectionId/metadata", getMetadataForCollection)
-app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalance);
+app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
 app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
 
 app.post('/api/v0/collection/:collectionId/refreshMetadata', refreshMetadata); //Write route
 
-app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getCodes);
-app.post('/api/v0/collection/:collectionId/password/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes); //Write route
+app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
+app.post('/api/v0/collection/:collectionId/password/:claimId/:password', authorizeBlockinRequest, getClaimCodeViaPassword); //Write route
 
 app.post('/api/v0/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
 app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
@@ -136,8 +136,6 @@ app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, 
 //User
 app.post('/api/v0/user/batch', getAccountsByAddress);
 app.post('/api/v0/user/:addressOrUsername', getAccount);
-app.post('/api/v0/user/:addressOrUsername/portfolio', getPortfolioInfo);
-app.post('/api/v0/user/:addressOrUsername/activity', getActivity);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
 
@@ -161,7 +159,7 @@ app.post('/api/v0/simulate', simulateTx);
 app.post('/api/v0/metadata', fetchMetadataDirectly);
 
 //Faucet
-app.post('/api/v0/faucet', authorizeBlockinRequest, sendTokensFromFaucet);
+app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

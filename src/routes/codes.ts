@@ -1,5 +1,5 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { GetCodesRouteResponse, PasswordDoc } from "bitbadgesjs-utils";
+import { GetAllCodesAndPasswordsRouteResponse, PasswordDoc } from "bitbadgesjs-utils";
 import { AES } from "crypto-js";
 import { Request, Response } from "express";
 import nano from "nano";
@@ -7,7 +7,7 @@ import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
 import { PASSWORDS_DB } from "../db/db";
 
-export const getCodes = async (expressReq: Request, res: Response<GetCodesRouteResponse>) => {
+export const getAllCodesAndPasswords = async (expressReq: Request, res: Response<GetAllCodesAndPasswordsRouteResponse>) => {
   try {
     const req = expressReq as AuthenticatedRequest
     const collectionId = Number(req.params.collectionId);

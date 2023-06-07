@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import { BALANCES_DB } from "../db/db";
 import { serializeError } from "serialize-error";
-import { GetBadgeBalanceRouteResponse, Stringify, convertBalanceDoc } from "bitbadgesjs-utils";
+import { GetBadgeBalanceByAddressRouteResponse, Stringify, convertBalanceDoc } from "bitbadgesjs-utils";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 
-export const getBadgeBalance = async (req: Request, res: Response<GetBadgeBalanceRouteResponse>) => {
+export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBadgeBalanceByAddressRouteResponse>) => {
   try {
     const cosmosAddress = `${req.params.cosmosAddress.toString()}`;
     const docId = `${req.params.collectionId}:${cosmosAddress}`
