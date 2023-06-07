@@ -1,9 +1,10 @@
+import axios from 'axios';
+import { BalancesMap, BigIntify, LeavesDetails, Metadata, MetadataMap, convertBalancesMap, convertMetadata, convertMetadataMap } from 'bitbadgesjs-utils';
 import last from 'it-last';
+import { FETCHES_DB, insertToDB } from 'src/db/db';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { ipfsClient } from "../indexer";
-import axios from 'axios';
-import { Metadata, BalancesMap, LeavesDetails } from 'bitbadgesjs-utils';
-import { FETCHES_DB } from 'src/db/db';
+import { NumberType } from 'bitbadgesjs-proto';
 
 //TODO: Keep track of how many GB a user has uploaded and make them pay for uploading more than threshold
 //TODO: Also, we may want to eventually move IPFS uploading to the client side for scalability
@@ -29,7 +30,8 @@ export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
   return blob
 }
 
-export const addBalancesToIpfs = async (balances: BalancesMap) => {
+export const addBalancesToIpfs = async (_balances: BalancesMap<NumberType>) => {
+  const balances = convertBalancesMap(_balances, BigIntify);
   const files = [];
   files.push({
     path: '',
@@ -38,10 +40,12 @@ export const addBalancesToIpfs = async (balances: BalancesMap) => {
 
   const result = await last(ipfsClient.addAll(files));
   if (result) {
-    await FETCHES_DB.insert({
+    insertToDB(FETCHES_DB, {
       _id: `ipfs://${result.cid.toString()}`,
-      fetchedAt: new Date(),
-      file: balances
+      fetchedAt: BigInt(Date.now()),
+      content: balances,
+      db: 'Balances',
+      isPermanent: true
     });
     return result;
   } else {
@@ -49,8 +53,10 @@ export const addBalancesToIpfs = async (balances: BalancesMap) => {
   }
 }
 
+export const addMetadataToIpfs = async (_collectionMetadata: Metadata<NumberType>, _individualBadgeMetadata: MetadataMap<NumberType>) => {
+  const collectionMetadata = convertMetadata(_collectionMetadata, BigIntify);
+  const individualBadgeMetadata = convertMetadataMap(_individualBadgeMetadata, BigIntify);
 
-export const addMetadataToIpfs = async (collectionMetadata: Metadata, individualBadgeMetadata: Metadata[]) => {
   const imageFiles = [];
   if (collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
     const blob = await dataUrlToFile(collectionMetadata.image);
@@ -59,9 +65,9 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
     });
   }
 
-  for (const badge of individualBadgeMetadata) {
-    if (badge.image && badge.image.startsWith('data:image')) {
-      const blob = await dataUrlToFile(badge.image);
+  for (const badge of Object.values(individualBadgeMetadata)) {
+    if (badge?.metadata.image && badge?.metadata.image.startsWith('data:image')) {
+      const blob = await dataUrlToFile(badge?.metadata.image);
       imageFiles.push({
         content: new Uint8Array(blob)
       });
@@ -83,22 +89,21 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
       }
     }
 
-    for (const badge of individualBadgeMetadata) {
-      if (badge.image && badge.image.startsWith('data:image')) {
+    for (const badge of Object.values(individualBadgeMetadata)) {
+      if (badge?.metadata.image && badge?.metadata.image.startsWith('data:image')) {
         const result = cids.shift();
-        if (result) badge.image = 'ipfs://' + result;
+        if (result) badge.metadata.image = 'ipfs://' + result;
       }
     }
   }
 
-  const files = [];
+  const files: { path: string, content: Uint8Array }[] = [];
   files.push({
     path: 'metadata/collection',
     content: uint8ArrayFromString(JSON.stringify(collectionMetadata))
   });
 
   for (const id of Object.keys(individualBadgeMetadata)) {
-
     files.push(
       {
         path: 'metadata/batch/' + id,
@@ -114,10 +119,12 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
       const file = files[i];
       const metadataId = i > 0 ? Number(file.path.split('/')[2]) : -1;
 
-      await FETCHES_DB.insert({
+      await insertToDB(FETCHES_DB, {
         _id: `ipfs://${result.cid.toString()}/${file.path}`,
-        fetchedAt: new Date(),
-        file: i === 0 ? collectionMetadata : individualBadgeMetadata[metadataId]
+        fetchedAt: BigInt(Date.now()),
+        content: i === 0 ? collectionMetadata : individualBadgeMetadata[metadataId]?.metadata,
+        db: 'Metadata',
+        isPermanent: true
       });
     }
   }
@@ -126,22 +133,28 @@ export const addMetadataToIpfs = async (collectionMetadata: Metadata, individual
   return result;
 }
 
-export const addClaimToIpfs = async (name: string, description: string, leavesDetails: LeavesDetails, hasPassword: boolean) => {
+export const addClaimToIpfs = async (name: string, description: string, leavesDetails: LeavesDetails[], hasPassword: boolean) => {
   const files = [];
   files.push({
     path: '',
-    content: uint8ArrayFromString(JSON.stringify({ name, description, leavesDetails, hasPassword }))
+    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: { leavesDetails }, hasPassword }))
   });
 
   const result = await last(ipfsClient.addAll(files));
+  if (!result) return undefined;
 
-  if (result) {
-    await FETCHES_DB.insert({
-      _id: `ipfs://${result.cid.toString()}`,
-      fetchedAt: new Date(),
-      file: { name, description, leavesDetails, hasPassword }
-    });
-  }
-  
+  await insertToDB(FETCHES_DB, {
+    _id: `ipfs://${result.cid.toString()}`,
+    fetchedAt: BigInt(Date.now()),
+    content: {
+      name,
+      description,
+      challengeDetails: leavesDetails.map((leaf) => ({ leavesDetails: leaf })),
+      hasPassword
+    },
+    db: 'Claim',
+    isPermanent: true
+  });
+
   return result;
 }

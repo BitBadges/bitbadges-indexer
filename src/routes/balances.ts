@@ -1,23 +1,23 @@
 import { Request, Response } from "express";
 import { BALANCES_DB } from "../db/db";
+import { serializeError } from "serialize-error";
+import { GetBadgeBalanceRouteResponse, Stringify, convertBalanceDoc } from "bitbadgesjs-utils";
+import { catch404, removeCouchDBDetails } from "src/utils/couchdb-utils";
 
-export const getBadgeBalance = async (req: Request, res: Response) => {
+export const getBadgeBalance = async (req: Request, res: Response<GetBadgeBalanceRouteResponse>) => {
   try {
     const cosmosAddress = `${req.params.cosmosAddress.toString()}`;
-    const docId = `${req.params.id}:${cosmosAddress}`
-
-    const response = await BALANCES_DB.partitionedFind(req.params.id, {
-      selector: {
-        _id: docId
-      },
-      limit: 1
-    });
+    const docId = `${req.params.collectionId}:${cosmosAddress}`
+    const response = await BALANCES_DB.get(docId).catch(catch404);
 
     return res.status(200).send({
-      balance: response.docs[0] ? response.docs[0] : { collectionId: BigInt(req.params.id).toString(), accountNumber: BigInt(req.params.accountNum).toString(), balances: [], approvals: [] }
+      balance: response ? removeCouchDBDetails(convertBalanceDoc(response, Stringify))
+        : { collectionId: req.params.collectionId, cosmosAddress: req.params.cosmosAddress, balances: [], approvals: [], onChain: true }
     });
   } catch (e) {
-    console.error(e);
-    return res.status(500).send({ error: 'Error fetching balances' });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error getting badge balances"
+    });
   }
 }

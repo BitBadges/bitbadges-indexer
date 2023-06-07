@@ -1,24 +1,28 @@
-import { convertToCosmosAddress, isAddressValid, s_ReviewActivityItem } from "bitbadgesjs-utils";
+import { AddReviewForCollectionRouteRequestBody, AddReviewForCollectionRouteResponse, AddReviewForUserRouteRequestBody, AddReviewForUserRouteResponse, ReviewInfoBase, convertToCosmosAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
+import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { ACCOUNTS_DB, ACTIVITY_DB } from "../db/db";
+import { ACCOUNTS_DB, REVIEWS_DB, insertToDB } from "../db/db";
 import { getStatus } from "../db/status";
 import { getAccountByUsername } from "./users";
 
-export const addReviewForCollection = async (expressReq: Request, res: Response) => {
+export const addReviewForCollection = async (expressReq: Request, res: Response<AddReviewForCollectionRouteResponse>) => {
   try {
     const req = expressReq as AuthenticatedRequest
+    const reqBody = req.body as AddReviewForCollectionRouteRequestBody;
 
-    if (!req.body.review || req.body.review.length > 2048) {
-      return res.status(400).send({ error: 'Review must be 1 to 2048 characters long.' });
+    if (!reqBody.review || reqBody.review.length > 2048) {
+      return res.status(400).send({ message: 'Review must be 1 to 2048 characters long.' });
     }
 
-    const stars = BigInt(req.body.stars);
+    const stars = BigInt(reqBody.stars);
     if (stars < 0 || stars > 5) {
-      return res.status(400).send({ error: 'Stars must be a number between 0 and 5.' });
+      return res.status(400).send({ message: 'Stars must be a number between 0 and 5.' });
     }
 
-    const collectionId = BigInt(req.params.id);
+    //TODO: Search PROFILES_DB here? And create new profile if not found?
+
+    const collectionId = BigInt(req.params.collectionId);
     const userAccountInfo = await ACCOUNTS_DB.find({
       selector: {
         cosmosAddress: {
@@ -27,50 +31,53 @@ export const addReviewForCollection = async (expressReq: Request, res: Response)
       }
     });
     if (userAccountInfo.docs.length === 0) {
-      return res.status(400).send({ error: 'User does not exist.' });
+      return res.status(400).send({ message: 'User does not exist in database.' });
     }
 
 
     const status = await getStatus();
 
     const { review } = req.body;
-    const activityDoc: s_ReviewActivityItem & {
+    //number because nothng should overflow here
+    const activityDoc: ReviewInfoBase<number> & {
       partition: string
     } = {
       partition: `collection-${collectionId}`,
       method: 'Review',
-      collectionId: collectionId.toString(),
-      stars: stars.toString(),
+      collectionId: Number(collectionId),
+      stars: Number(stars),
       review: review,
       from: userAccountInfo.docs[0].cosmosAddress,
-      timestamp: Date.now().toString(),
-      block: status.block.height.toString()
+      timestamp: Number(Date.now()),
+      block: Number(status.block.height)
     }
 
-    await ACTIVITY_DB.insert(activityDoc);
+    await insertToDB(REVIEWS_DB, activityDoc);
 
     return res.status(200).send({ success: true });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: 'Error adding announcement. Please try again later.'
+      error: serializeError(e),
+      message: "Error adding announcement. Please try again later."
     })
   }
 }
 
 
 
-export const addReviewForUser = async (expressReq: Request, res: Response) => {
+export const addReviewForUser = async (expressReq: Request, res: Response<AddReviewForUserRouteResponse>) => {
   try {
     const req = expressReq as AuthenticatedRequest
+    const reqBody = req.body as AddReviewForUserRouteRequestBody;
 
-    if (!req.body.review || req.body.review.length > 2048) {
-      return res.status(400).send({ error: 'Review must be 1 to 2048 characters long.' });
+    if (!reqBody.review || reqBody.review.length > 2048) {
+      return res.status(400).send({ message: 'Review must be 1 to 2048 characters long.' });
     }
 
-    const stars = Number(req.body.stars);
+    const stars = Number(reqBody.stars);
     if (isNaN(stars) || stars < 0 || stars > 5) {
-      return res.status(400).send({ error: 'Stars must be a number between 0 and 5.' });
+      return res.status(400).send({ message: 'Stars must be a number between 0 and 5.' });
     }
 
     let cosmosAddress = '';
@@ -85,27 +92,28 @@ export const addReviewForUser = async (expressReq: Request, res: Response) => {
 
     const { review } = req.body;
 
-    const activityDoc: s_ReviewActivityItem & {
+
+    const activityDoc: ReviewInfoBase<number> & {
       partition: string
     } = {
       partition: `user-${cosmosAddress}`,
       method: 'Review',
       reviewedAddress: cosmosAddress,
-      stars: stars.toString(),
+      stars: Number(stars),
       review: review,
       from: req.session.cosmosAddress,
-      timestamp: Date.now().toString(),
-      block: status.block.height.toString()
+      timestamp: Number(Date.now()),
+      block: Number(status.block.height)
     }
 
-    await ACTIVITY_DB.insert(activityDoc);
+    await insertToDB(REVIEWS_DB, activityDoc);
 
     return res.status(200).send({ success: true });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: 'Error adding announcement. Please try again later.'
+      error: serializeError(e),
+      message: "Error adding announcement. Please try again later."
     })
   }
-
 }

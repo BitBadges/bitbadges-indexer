@@ -1,8 +1,12 @@
-import { BitBadgeCollection, GetCollectionResponse, Metadata, MetadataMap, s_AnnouncementActivityItem, s_BalanceDocument, s_BitBadgeCollection, s_BitBadgesUserInfo, s_ClaimDocument, s_Collection, s_Profile, s_ReviewActivityItem, s_TransferActivityItem, updateMetadataMap } from "bitbadgesjs-utils";
+import { BadgeUri, JSPrimitiveNumberType, NumberType, convertBadgeUri } from "bitbadgesjs-proto";
+import { AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfo, BigIntify, BitBadgesCollection, BitBadgesUserInfo, ClaimDetails, ClaimDoc, ClaimInfo, CollectionDoc, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionQueryRouteResponse, GetCollectionRouteSuccessResponse, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForCollectionRouteRequestBody, GetOwnersForCollectionRouteResponse, Metadata, MetadataMap, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBalanceDoc, convertBitBadgesCollection, convertClaimDetails, convertCollectionDoc, convertMetadata, convertMetadataMap, getBadgeIdsForMetadataId, getUrisForMetadataIds, updateMetadataMap } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import nano, { DocumentResponseRow } from "nano";
-import { ACCOUNTS_DB, BALANCES_DB, COLLECTIONS_DB, METADATA_DB } from "../db/db";
-import { executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionBalancesQuery, executeCollectionClaimsQuery, executeCollectionReviewsQuery } from "./activityHelpers";
+import nano from "nano";
+import { serializeError } from "serialize-error";
+import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "src/db/db";
+import { fetchUriFromDb } from "src/metadata-queue";
+import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionBalancesQuery, executeCollectionClaimsQuery, executeCollectionReviewsQuery } from "./activityHelpers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAccountByAddress } from "./users";
 
@@ -21,26 +25,27 @@ import { getAccountByAddress } from "./users";
  * claimsBookmark - The bookmark to start fetching claims from.
  */
 interface CollectionQueryOptions {
-  collectionId: bigint,
-  startMetadataId: bigint,
+  collectionId: NumberType,
+  startMetadataId?: NumberType,
 
-  activityBookmark: string | undefined,
-  announcementsBookmark: string | undefined,
-  reviewsBookmark: string | undefined,
-  balancesBookmark: string | undefined,
-  claimsBookmark: string | undefined
+  activityBookmark?: string,
+  announcementsBookmark?: string,
+  reviewsBookmark?: string,
+  balancesBookmark?: string,
+  claimsBookmark?: string
 }
 
-async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions[]) {
-  const collectionResponses: GetCollectionResponse[] = [];
+export async function executeAdditionalCollectionQueries(baseCollections: CollectionDoc<JSPrimitiveNumberType>[], collectionQueries: CollectionQueryOptions[]) {
   const promises = [];
+  const collectionResponses: GetCollectionRouteSuccessResponse[] = [];
 
-  //Fetch all base collection details in bulk
-  promises.push(COLLECTIONS_DB.fetch({ keys: collectionQueries.map((query) => `${query.collectionId}`) }));
 
   //Fetch metadata, activity, announcements, and reviews for each collection
   for (const query of collectionQueries) {
-    promises.push(getMetadata(query.collectionId, query.startMetadataId));
+    const collection = baseCollections.find((collection) => collection.collectionId === query.collectionId.toString());
+    if (!collection) throw new Error(`Collection ${query.collectionId} does not exist`);
+
+    promises.push(getMetadata(collection.collectionUri, collection.badgeUris, query.startMetadataId ? BigInt(query.startMetadataId) : 0n, collection.collectionId.toString()));
 
     if (query.activityBookmark !== undefined) {
       promises.push(executeCollectionActivityQuery(`${query.collectionId}`, query.activityBookmark));
@@ -76,41 +81,40 @@ async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions
 
   //Parse results and add to collectionResponses
   const responses = await Promise.all(promises);
-  const collectionResponse: nano.DocumentFetchResponse<s_Collection> = responses[0] as nano.DocumentFetchResponse<s_Collection>;
-  const baseCollections = collectionResponse.rows.map((row: any) => row.doc) as s_Collection[];
 
-  for (let i = 1; i < responses.length; i += 6) {
-    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i - 1) / 6].collectionId.toString());
+
+  for (let i = 0; i < responses.length; i += 6) {
+    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i) / 6].collectionId.toString());
     if (!collectionRes) continue;
 
-    const metadataRes: { collectionMetadata: Metadata, badgeMetadata: MetadataMap } = responses[i] as { collectionMetadata: Metadata, badgeMetadata: MetadataMap };
-    const activityRes = responses[i + 1] as nano.MangoResponse<s_TransferActivityItem | s_AnnouncementActivityItem | s_ReviewActivityItem>;
-    const announcementsRes = responses[i + 2] as nano.MangoResponse<s_TransferActivityItem | s_AnnouncementActivityItem | s_ReviewActivityItem>;
-    const reviewsRes = responses[i + 3] as nano.MangoResponse<s_TransferActivityItem | s_AnnouncementActivityItem | s_ReviewActivityItem>;
-    const balancesRes = responses[i + 4] as nano.MangoResponse<s_BalanceDocument>;
-    const claimsRes = responses[i + 5] as nano.MangoResponse<s_ClaimDocument>;
+    const metadataRes: { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: MetadataMap<JSPrimitiveNumberType> } = responses[i] as { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: MetadataMap<JSPrimitiveNumberType> };
+    const activityRes = responses[i + 1] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
+    const announcementsRes = responses[i + 2] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
+    const reviewsRes = responses[i + 3] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
+    const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+    const claimsRes = responses[i + 5] as nano.MangoResponse<ClaimDoc<JSPrimitiveNumberType>>;
 
-    let collectionToReturn: s_BitBadgeCollection = {
+    let collectionToReturn: BitBadgesCollection<JSPrimitiveNumberType> = {
       ...collectionRes,
-      activity: activityRes.docs as s_TransferActivityItem[],
-      announcements: announcementsRes.docs as s_AnnouncementActivityItem[],
-      reviews: reviewsRes.docs as s_ReviewActivityItem[],
-      balances: balancesRes.docs as s_BalanceDocument[],
-      claims: claimsRes.docs as s_ClaimDocument[],
+      _id: undefined,
+      _rev: undefined,
+      _deleted: undefined,
+      activity: activityRes.docs.map(removeCouchDBDetails) as TransferActivityInfo<JSPrimitiveNumberType>[],
+      announcements: announcementsRes.docs.map(removeCouchDBDetails) as AnnouncementInfo<JSPrimitiveNumberType>[],
+      reviews: reviewsRes.docs.map(removeCouchDBDetails) as ReviewInfo<JSPrimitiveNumberType>[],
+      balances: balancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[],
+      claims: claimsRes.docs.map(removeCouchDBDetails) as ClaimInfo<JSPrimitiveNumberType>[],
 
 
-      //Placeholders to append later in function
+      //Placeholders to be replaced later in function
       badgeMetadata: {},
-      collectionMetadata: {} as Metadata,
-      managerInfo: {} as s_BitBadgesUserInfo,
-    };
+      collectionMetadata: {
+        name: '',
+        description: '',
+        image: '',
+      },
+      managerInfo: {} as BitBadgesUserInfo<JSPrimitiveNumberType>,
 
-    const appendedCollection = appendMetadataResToCollection(metadataRes, collectionToReturn);
-    collectionToReturn.badgeMetadata = appendedCollection.badgeMetadata;
-    collectionToReturn.collectionMetadata = appendedCollection.collectionMetadata;
-
-    collectionResponses.push({
-      collection: collectionToReturn,
       pagination: {
         activity: {
           bookmark: activityRes.bookmark || '',
@@ -133,22 +137,47 @@ async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions
           hasMore: claimsRes.docs.length === 25
         }
       }
+    };
+
+    const appendedCollection = appendMetadataResToCollection(metadataRes, collectionToReturn);
+    collectionToReturn.badgeMetadata = appendedCollection.badgeMetadata;
+    collectionToReturn.collectionMetadata = appendedCollection.collectionMetadata;
+
+    collectionResponses.push({
+      collection: convertBitBadgesCollection(collectionToReturn, Stringify),
     });
+  }
+
+  const claimPromises = [];
+  for (const collectionRes of collectionResponses) {
+    for (const claim of collectionRes.collection.claims) {
+      claimPromises.push(FETCHES_DB.get(claim.uri));
+    }
+  }
+
+  const claimFetches = await Promise.all(claimPromises);
+
+  for (const collectionRes of collectionResponses) {
+    for (const claim of collectionRes.collection.claims) {
+      const claimFetch = claimFetches.find((fetch) => fetch._id === claim.uri);
+      if (claimFetch && claimFetch.content) {
+        claim.details = convertClaimDetails(claimFetch.content as ClaimDetails<JSPrimitiveNumberType>, Stringify);
+      }
+    }
   }
 
 
   const managerKeys = [...new Set(collectionResponses.map((collectionRes) => collectionRes.collection.manager))];
 
-
-
   if (managerKeys.length > 0) {
-    const managerInfoRes = await ACCOUNTS_DB.fetch({
+    const managerInfoRes = await PROFILES_DB.fetch({
       keys: managerKeys
-    }) as nano.DocumentFetchResponse<s_Profile>;
-    const rows = managerInfoRes.rows as DocumentResponseRow<s_Profile>[];
+    }, { include_docs: true });
+    const docs = getDocsFromNanoFetchRes(managerInfoRes);
+
 
     for (const collectionRes of collectionResponses) {
-      const managerInfo = rows.find((row) => row.id === collectionRes.collection.manager)?.doc;
+      const managerInfo = docs.find((doc) => doc._id === collectionRes.collection.manager);
       const cosmosAccountDetails = await getAccountByAddress(collectionRes.collection.manager, false);
 
       if (managerInfo) {
@@ -160,16 +189,25 @@ async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions
   return collectionResponses;
 }
 
-export const getCollectionById = async (req: Request, res: Response) => {
+export async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions[]) {
+  const collectionsResponse = await COLLECTIONS_DB.fetch({ keys: collectionQueries.map((query) => `${query.collectionId.toString()}`) }, { include_docs: true });
+  const baseCollections = getDocsFromNanoFetchRes(collectionsResponse);
+
+  return await executeAdditionalCollectionQueries(baseCollections, collectionQueries);
+}
+
+export const getCollectionById = async (req: Request, res: Response<GetCollectionQueryRouteResponse>) => {
   try {
+    const reqBody = req.body as GetCollectionByIdRouteRequestBody;
+
     const collectionsReponse = await executeCollectionsQuery([{
-      collectionId: BigInt(req.params.id),
-      startMetadataId: req.body.startMetadataId ? BigInt(req.body.startMetadataId) : 0n,
-      activityBookmark: req.body.activityBookmark,
-      announcementsBookmark: req.body.announcementsBookmark,
-      reviewsBookmark: req.body.reviewsBookmark,
-      balancesBookmark: req.body.balancesBookmark,
-      claimsBookmark: req.body.claimsBookmark
+      collectionId: BigInt(req.params.collectionId),
+      startMetadataId: reqBody.startMetadataId ? BigInt(reqBody.startMetadataId) : 0n,
+      activityBookmark: reqBody.activityBookmark,
+      announcementsBookmark: reqBody.announcementsBookmark,
+      reviewsBookmark: reqBody.reviewsBookmark,
+      balancesBookmark: reqBody.balancesBookmark,
+      claimsBookmark: reqBody.claimsBookmark
     }]);
 
     return res.json({
@@ -177,36 +215,37 @@ export const getCollectionById = async (req: Request, res: Response) => {
     })
   } catch (e) {
     console.error(e);
-    return res.status(500).send({ error: 'Error fetching collection' });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: 'Error fetching collection. Please try again later.'
+    });
   }
 }
 
-export const getBadgeActivity = async (req: Request, res: Response) => {
+export const getBadgeActivity = async (req: Request, res: Response<GetBadgeActivityRouteResponse>) => {
   try {
-    const activityRes = await executeCollectionActivityQuery(req.params.id, req.body.bookmark, req.params.badgeId);
+    const reqBody = req.body as GetBadgeActivityRouteRequestBody;
+    const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqBody.bookmark);
 
-    return res.json({
-      pagination: {
-        activity: {
-          bookmark: activityRes.bookmark,
-          hasMore: activityRes.docs.length === 25,
-        }
-      },
-      activity: activityRes.docs as s_TransferActivityItem[],
-    })
+    return res.json(activityRes);
   } catch (e) {
     console.error(e);
-    return res.status(500).send({ error: 'Error fetching badge activity' });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: 'Error fetching badge activity'
+    });
   }
 }
 
-export const getCollections = async (req: Request, res: Response) => {
+export const getCollections = async (req: Request, res: Response<GetCollectionBatchRouteResponse>) => {
   try {
+    const reqBody = req.body as GetCollectionBatchRouteRequestBody;
+
     const queryDetails: CollectionQueryOptions[] = [];
-    for (const collectionId of req.body.collections) {
+    for (const collectionId of reqBody.collectionIds) {
       queryDetails.push({
         collectionId,
-        startMetadataId: req.body.startMetadataIds[req.body.collections.indexOf(collectionId)],
+        startMetadataId: reqBody.startMetadataIds[reqBody.collectionIds.indexOf(collectionId)],
         activityBookmark: undefined,
         announcementsBookmark: undefined,
         reviewsBookmark: undefined,
@@ -216,73 +255,64 @@ export const getCollections = async (req: Request, res: Response) => {
     }
 
     const collectionResponses = await executeCollectionsQuery(queryDetails);
-    return res.status(200).send({ collections: collectionResponses.map((collectionResponse) => collectionResponse.collection), paginations: collectionResponses.map((collectionResponse) => collectionResponse.pagination) });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      collections: [],
-      error: 'Error fetching collections. Please try again later.'
-    })
-  }
-}
-
-export const queryCollections = async (req: Request, res: Response) => {
-  try {
-    const response = await COLLECTIONS_DB.find({
-      selector: req.body.selector,
-      limit: req.body.limit,
-      bookmark: req.body.bookmark,
+    return res.status(200).send({
+      collections: collectionResponses.map((collectionResponse) => collectionResponse.collection),
     });
-
-    return res.json({
-      collections: response.docs,
-    })
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: 'Error fetching collections. Please try again later.'
+      error: serializeError(e),
+      message: 'Error fetching collections. Please try again later.'
     })
   }
 }
 
-const getMetadata = async (collectionId: bigint, startMetadataId: bigint) => {
-  const LIMIT = 100;
-  const startId = Number(startMetadataId);
+const getMetadata = async (collectionUri: string, _badgeUris: BadgeUri<NumberType>[], startMetadataId: NumberType, collectionId: NumberType) => {
+  const badgeUris = _badgeUris.map((uri) => convertBadgeUri(uri, BigIntify));
+
+  const LIMIT = 100n;
+  const startId = BigInt(startMetadataId);
 
   const idVals = [];
   for (let i = startId; i < startId + LIMIT; i++) {
-    idVals.push(`${i}`);
+    idVals.push(BigInt(i));
   }
 
-  //Fetch 100 at a time
-  const response = await METADATA_DB.partitionedFind(`${collectionId}`, {
-    selector: {
-      "id": {
-        "$in": idVals
-      }
-    },
-    limit: LIMIT + 1,
-  })
 
-  let badgeMetadata: MetadataMap = {};
-  let collectionMetadata: Metadata | undefined = undefined;
-  for (const doc of response.docs) {
-    if (doc.isCollection) {
-      collectionMetadata = doc.metadata;
+  const uris: string[] = getUrisForMetadataIds(idVals, collectionUri, badgeUris);
+  const promises = [];
+  for (const uri of uris) {
+    promises.push(fetchUriFromDb(uri, collectionId.toString()));
+  }
+
+  const results = await Promise.all(promises) as {
+    content: Metadata<JSPrimitiveNumberType>,
+    updating: boolean,
+  }[];
+
+  let badgeMetadata: MetadataMap<bigint> = {};
+  let collectionMetadata: Metadata<bigint> | undefined = undefined;
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const metadataRes = convertMetadata(result.content, BigIntify);
+    if (i === 0 && startId === 0n) {
+      //If first metadata document, we return the collection metadata
+      collectionMetadata = convertMetadata(metadataRes, BigIntify);
     } else {
-      for (const badgeId of doc.badgeIds) {
-        badgeMetadata = updateMetadataMap(badgeMetadata, doc.metadata, badgeId, doc.uri);
+      const badgeUrisToUpdate = getBadgeIdsForMetadataId(BigInt(startId) + BigInt(i), badgeUris);
+      for (const badgeUri of badgeUrisToUpdate) {
+        badgeMetadata = updateMetadataMap(badgeMetadata, metadataRes, badgeUri, uris[i]);
       }
     }
   }
 
   return {
-    collectionMetadata: { ...collectionMetadata },
-    badgeMetadata
+    collectionMetadata: collectionMetadata ? convertMetadata(collectionMetadata, Stringify) : undefined,
+    badgeMetadata: badgeMetadata ? convertMetadataMap(badgeMetadata, Stringify) : undefined
   }
 }
 
-const appendMetadataResToCollection = (metadataRes: { collectionMetadata: Metadata, badgeMetadata: MetadataMap }, collection: BitBadgeCollection | s_BitBadgeCollection) => {
+const appendMetadataResToCollection = (metadataRes: { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: MetadataMap<JSPrimitiveNumberType> }, collection: BitBadgesCollection<JSPrimitiveNumberType> | BitBadgesCollection<JSPrimitiveNumberType>) => {
   // Kinda hacky and inefficient, but metadataRes is the newest metadata, so we just overwrite existing metadata, if exists with same key
   const isCollectionMetadataResEmpty = Object.keys(metadataRes.collectionMetadata).length === 0;
   collection.collectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.collectionMetadata;
@@ -294,23 +324,38 @@ const appendMetadataResToCollection = (metadataRes: { collectionMetadata: Metada
   return collection;
 }
 
-export const getMetadataForCollection = async (req: Request, res: Response) => {
+export const getMetadataForCollection = async (req: Request, res: Response<GetMetadataForCollectionRouteResponse>) => {
   try {
-    const metadata = await getMetadata(BigInt(req.params.id), BigInt(req.body.startMetadataId));
-    return res.json(metadata)
+    const reqBody = req.body as GetMetadataForCollectionRouteRequestBody;
+
+    const _collection = await COLLECTIONS_DB.get(req.params.collectionId);
+    const collection = convertCollectionDoc(_collection, BigIntify);
+
+    const metadata = await getMetadata(collection.collectionUri, collection.badgeUris, reqBody.startMetadataId ? reqBody.startMetadataId : 0, collection.collectionId);
+    return res.json({
+      collectionMetadata: metadata.collectionMetadata ? convertMetadata(metadata.collectionMetadata, Stringify) : undefined,
+      badgeMetadata: metadata.badgeMetadata ? convertMetadataMap(metadata.badgeMetadata, Stringify) : undefined
+    });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: 'Error fetching collection metadata. Please try again later.'
+      error: serializeError(e),
+      message: 'Error fetching collection metadata. Please try again later.'
     })
   }
 }
 
-export const getOwnersForCollection = async (req: Request, res: Response) => {
+export const getOwnersForCollection = async (req: Request, res: Response<GetOwnersForCollectionRouteResponse>) => {
   try {
-    //In the future, this may be a significant query, but, for now, this is fine because it is a partitionedFind
-    //and the number of owners will be relatively small
-    const balancesRes = await BALANCES_DB.partitionedFind(`${req.params.id}`, {
+    const reqBody = req.body as GetOwnersForCollectionRouteRequestBody;
+
+    const collection = await COLLECTIONS_DB.get(req.params.collectionId);
+    if (BigInt(collection.nextBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
+      //TODO: Support string-number queries
+      throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us in the event that you see this error.');
+    }
+
+    const ownersRes = await BALANCES_DB.partitionedFind(`${req.params.collectionId}`, {
       selector: {
         "balances": {
           "$elemMatch": {
@@ -319,12 +364,26 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
                 "$and": [
                   {
                     "start": {
-                      "$lte": req.params.badgeId,
+                      "$and": [
+                        {
+                          "$lte": Number(req.params.badgeId),
+                        },
+                        {
+                          "$type": "number"
+                        }
+                      ]
                     }
                   },
                   {
                     "end": {
-                      "$gte": req.params.badgeId,
+                      "$and": [
+                        {
+                          "$gte": Number(req.params.badgeId),
+                        },
+                        {
+                          "$type": "number"
+                        }
+                      ]
                     }
                   }
                 ]
@@ -333,13 +392,17 @@ export const getOwnersForCollection = async (req: Request, res: Response) => {
           }
         }
       },
-      bookmark: req.body.bookmark,
+      bookmark: reqBody.bookmark ? reqBody.bookmark : undefined,
     });
 
+
     return res.status(200).send({
-      balances: balancesRes.docs,
+      balances: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails),
     });
   } catch (e) {
-    return res.status(500).send({ error: e });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: 'Error fetching owners for collection. Please try again later.'
+    });
   }
 }

@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ACTIVITY_DB, BALANCES_DB, COLLECTIONS_DB, STATUS_DB } from "./db/db";
+import { ANNOUNCEMENTS_DB, BALANCES_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
@@ -19,6 +19,12 @@ export async function deleteDatabases() {
   await nano.db.destroy('airdrop');
   await nano.db.destroy('balances');
   await nano.db.destroy('claims');
+  await nano.db.destroy('queue');
+  await nano.db.destroy('ipfs_totals');
+  await nano.db.destroy('refreshes');
+  await nano.db.destroy('announcements');
+  await nano.db.destroy('reviews');
+  await nano.db.destroy('load-balance');
 
   //_utils, _replicator, _global_changes, _metadata
   await nano.db.destroy('_users');
@@ -41,6 +47,12 @@ export async function createDatabases() {
   await nano.db.create('airdrop');
   await nano.db.create('balances', { partitioned: true });
   await nano.db.create('claims', { partitioned: true });
+  await nano.db.create('queue');
+  await nano.db.create('ipfs_totals');
+  await nano.db.create('refreshes');
+  await nano.db.create('announcements', { partitioned: true });
+  await nano.db.create('reviews', { partitioned: true });
+  await nano.db.create('load-balance');
 
   //_utils, _replicator, _global_changes, _metadata
   await nano.db.create('_users');
@@ -50,13 +62,14 @@ export async function createDatabases() {
 }
 
 export async function initStatus() {
-  await STATUS_DB.insert({
+  await insertToDB(STATUS_DB, {
     "_id": "status",
     "block": {
-      "height": "1"
+      "height": "1",
+      "txIndex": "0",
+      "timestamp": 0
     },
     "nextCollectionId": "1",
-    "queue": [],
     "gasPrice": "0.000001",
     "lastXGasPrices": [
       "0.000001"
@@ -65,13 +78,39 @@ export async function initStatus() {
 }
 
 export async function createIndexesAndViews() {
-  await ACTIVITY_DB.createIndex({
+  await TRANSFER_ACTIVITY_DB.createIndex({
     index: {
       fields: ['timestamp']
     },
     partitioned: true
   })
-  await ACTIVITY_DB.createIndex({
+  await TRANSFER_ACTIVITY_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: false
+  })
+
+  await ANNOUNCEMENTS_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: true
+  })
+  await ANNOUNCEMENTS_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: false
+  })
+
+  await REVIEWS_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: true
+  })
+  await REVIEWS_DB.createIndex({
     index: {
       fields: ['timestamp']
     },

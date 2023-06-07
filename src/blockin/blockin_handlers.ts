@@ -1,16 +1,19 @@
-import { convertToCosmosAddress } from 'bitbadgesjs-utils';
+import { convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, GetChallengeRouteRequestBody, GetChallengeRouteResponse, Numberify, NumberType, RemoveBlockinSessionCookieRouteResponse, VerifyBlockinAndGrantSessionCookieRouteRequestBody, VerifyBlockinAndGrantSessionCookieRouteResponse } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { generateNonce } from 'siwe';
 import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
+import { COLLECTIONS_DB, IPFS_TOTALS_DB } from 'src/db/db';
+import { serializeError } from 'serialize-error';
 export interface BlockinSession extends Session {
   nonce: string | null;
   blockin: string | null;
   blockinParams: ChallengeParams | null;
   cosmosAddress: string | null;
   address: string | null;
+  ipfsTotal: number | null;
 }
 
 export interface BlockinSessionAuthenticated extends BlockinSession {
@@ -19,60 +22,93 @@ export interface BlockinSessionAuthenticated extends BlockinSession {
   blockinParams: ChallengeParams;
   cosmosAddress: string;
   address: string;
+  ipfsTotal: number;
 }
 
 export interface AuthenticatedRequest extends Request {
   session: BlockinSessionAuthenticated
 }
 
-export async function getChallenge(expressReq: Request, res: Response) {
-  const req = expressReq as AuthenticatedRequest;
-
-  const chainDriver = getChainDriver(req.body.chain);
-  setChainDriver(chainDriver);
-
-  req.session.nonce = generateNonce();
-  const cosmosAddress = convertToCosmosAddress(req.body.address);
-  if (!cosmosAddress) {
-    return res.status(400).json({ error: 'Invalid address' });
-  }
-
-  req.session.cosmosAddress = cosmosAddress;
-  req.session.address = req.body.address;
-  req.session.save();
-
-  const hours = req.body.hours ? Math.floor(Number(req.body.hours)) : 24;
-  if (isNaN(hours)) {
-    return res.status(400).json({ error: 'Invalid hours' });
-  }
-
-  // Get the current time
-  const now = new Date();
-  const tomorrow = new Date(now.getTime() + hours * 60 * 60 * 1000);
-  const iso8601 = tomorrow.toISOString();
-
-  const challengeParams = {
-    domain: 'https://bitbadges.io',
-    statement: `BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet. You will stay signed in for ${hours} hours.`,
-    address: req.body.address,
-    uri: 'https://bitbadges.io',
-    nonce: req.session.nonce,
-    expirationDate: iso8601,
-    notBefore: undefined,
-    resources: []
-  }
-
-  const blockinMessage = await createChallenge(challengeParams, req.body.chain);
-
-  return res.status(200).json({
-    nonce: req.session.nonce,
-    params: challengeParams,
-    blockinMessage: blockinMessage
-  });
+export function checkIfAuthenticated(req: AuthenticatedRequest) {
+  return req.session.blockin && req.session.nonce && req.session.blockinParams && req.session.cosmosAddress && req.session.address;
 }
 
-export async function removeBlockinSessionCookie(expressReq: Request, res: Response, next: NextFunction) {
+
+export async function checkIfManager(req: AuthenticatedRequest, collectionId: NumberType) {
+  if (!checkIfAuthenticated(req)) return false;
+
+  const collectionIdStr = BigInt(collectionId).toString();
+  const collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);
+  const manager = collection.manager;
+  if (req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
+    return false;
+  }
+
+  return true;
+}
+
+export async function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: boolean = false) {
+  return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : ''} to access this route.`, unauthorized: true });
+}
+
+export async function getChallenge(expressReq: Request, res: Response<GetChallengeRouteResponse>) {
+  try {
+    const req = expressReq as AuthenticatedRequest;
+    const reqBody = req.body as GetChallengeRouteRequestBody;
+
+    const chainDriver = getChainDriver(reqBody.chain);
+    setChainDriver(chainDriver);
+
+    req.session.nonce = generateNonce();
+    const cosmosAddress = convertToCosmosAddress(reqBody.address);
+    if (!cosmosAddress) {
+      return res.status(400).json({ message: 'Invalid address' });
+    }
+
+    req.session.cosmosAddress = cosmosAddress;
+    req.session.address = reqBody.address;
+    req.session.save();
+
+    const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 24;
+    if (isNaN(hours)) {
+      return res.status(400).json({ message: 'Invalid hours' });
+    }
+
+    // Get the current time
+    const now = new Date();
+    const tomorrow = new Date(now.getTime() + hours * 60 * 60 * 1000);
+    const iso8601 = tomorrow.toISOString();
+
+    const challengeParams = {
+      domain: 'https://bitbadges.io',
+      statement: `BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet. You will stay signed in for ${hours} hours.`,
+      address: reqBody.address,
+      uri: 'https://bitbadges.io',
+      nonce: req.session.nonce,
+      expirationDate: iso8601,
+      notBefore: undefined,
+      resources: []
+    }
+
+    const blockinMessage = await createChallenge(challengeParams, reqBody.chain);
+
+    return res.status(200).json({
+      nonce: req.session.nonce,
+      params: challengeParams,
+      blockinMessage: blockinMessage
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({
+      error: serializeError(err),
+      message: 'Error creating challenge. Please try again later.'
+    });
+  }
+}
+
+export async function removeBlockinSessionCookie(expressReq: Request, res: Response<RemoveBlockinSessionCookieRouteResponse>) {
   const req = expressReq as AuthenticatedRequest;
+
   const session = req.session as BlockinSession;
   session.blockin = null;
   session.nonce = null;
@@ -85,10 +121,10 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
   return res.status(200).send({ message: 'Successfully removed session cookie!' });
 }
 
-export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response, next: NextFunction) {
+export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifyBlockinAndGrantSessionCookieRouteResponse>) {
   const req = expressReq as AuthenticatedRequest;
 
-  const body = parse(JSON.stringify(req.body)); //little hack to preserve Uint8Arrays
+  const body = parse(JSON.stringify(req.body)) as VerifyBlockinAndGrantSessionCookieRouteRequestBody;
 
   const chainDriver = getChainDriver(body.chain);
   setChainDriver(chainDriver);
@@ -123,9 +159,13 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
       req.session.cookie.expires = new Date(challenge.expirationDate);
     }
 
+    const _doc = await IPFS_TOTALS_DB.get(req.session.cosmosAddress)
+    const doc = convertIPFSTotalsDoc(_doc, Numberify);
+    req.session.ipfsTotal = doc ? doc.kbUploaded : 0;
+
     req.session.save();
 
-    return res.status(200).json({ verified: true, message: verificationResponse.message });
+    return res.status(200).json({ success: true, successMessage: verificationResponse.message });
   } catch (err) {
     console.log(err);
 
@@ -137,24 +177,12 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     session.cosmosAddress = null;
     req.session.save();
 
-    return res.status(401).json({ verified: false, message: `${err}` });
+    return res.status(401).json({ success: false, message: `${err}` });
   }
 }
 
-export async function authorizeBlockinRequest(expressReq: Request, res: Response, next: NextFunction) {
+export async function authorizeBlockinRequest(expressReq: Request, res: Response<ErrorResponse>, next: NextFunction) {
   const req = expressReq as AuthenticatedRequest;
-
-  try {
-    if (!req.session.blockin) {
-      throw 'User is not signed in w/ Blockin';
-    }
-
-    console.log('User is authenticated!', req.session.blockin);
-  } catch (error) {
-    return res.status(401).json({ message: error });
-  }
-
-  expressReq = req;
-
+  if (!checkIfAuthenticated(req)) return returnUnauthorized(res);
   return next();
 }

@@ -6,7 +6,7 @@ module.exports = function override(config, env) {
         new webpack.ProvidePlugin({
             Buffer: ["buffer", "Buffer"],
         }),
-        new webpack.EnvironmentPlugin(["RPC_URL"]),
+        new webpack.EnvironmentPlugin(["RPC_URLS"]),
     )
     config.resolve.fallback = {
         buffer: false,

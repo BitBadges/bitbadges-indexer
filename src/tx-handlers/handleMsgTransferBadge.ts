@@ -1,19 +1,19 @@
-import { Collection, DbStatus, DocsCache } from "bitbadgesjs-utils"
-import { MessageMsgTransferBadge } from "bitbadgesjs-transactions"
-import { fetchDocsForCacheIfEmpty } from "../db/db"
+import { MsgTransferBadge } from "bitbadgesjs-transactions"
+import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
+import { fetchDocsForCacheIfEmpty } from "../db/cache"
 
-import { handleTransfers } from "./handleTransfers"
-import nano from "nano"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { handleTransfers } from "./handleTransfers"
 
-export const handleMsgTransferBadge = async (msg: MessageMsgTransferBadge, status: DbStatus, docs: DocsCache): Promise<void> => {
+export const handleMsgTransferBadge = async (msg: MsgTransferBadge<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
   const collectionIdString = `${msg.collectionId}`
 
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   //Safe to cast because MsgTransferBadge can only be called if the collection exists
-  const collectionDoc = docs.collections[collectionIdString] as Collection & nano.DocumentGetResponse;
+  const collectionDoc = docs.collections[collectionIdString];
+  if (!collectionDoc) throw new Error(`Collection ${collectionIdString} does not exist`);
 
   await handleTransfers(collectionDoc, [msg.from], msg.transfers, docs, status);
 }

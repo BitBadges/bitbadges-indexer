@@ -1,265 +1,419 @@
-import { FETCHES_DB, METADATA_DB, fetchDocsForCacheIfEmpty } from "./db/db";
 import axios from "axios";
-import { getFromIpfs } from "./ipfs/ipfs";
-import { Collection, DbStatus, DocsCache, Metadata, MetadataDoc } from "bitbadgesjs-utils";
+import { Claim, JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { BalancesMap, BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid } from "bitbadgesjs-utils";
 import nano from "nano";
+import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
+import { FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
+import { LOAD_BALANCER_ID } from "./indexer";
+import { getFromIpfs } from "./ipfs/ipfs";
+import { cleanBalances, cleanClaims, cleanMetadata } from "./utils/dataCleaners";
+import { getLoadBalancerId } from "./utils/loadBalancer";
 
-export const fetchUri = async (uri: string): Promise<any> => {
-  if (uri.startsWith('ipfs://')) {
-    try {
-      const doc = await FETCHES_DB.get(uri);
-      return doc.file;
-    } catch (error) {
-      //Not in DB, fetch from IPFS
-      const res = await getFromIpfs(uri.replace('ipfs://', ''));
-      const ret = JSON.parse(res.file);
-      try {
-        //We can cache this because it's immutable
-        await FETCHES_DB.insert({
-          _id: uri,
-          file: ret,
-          fetchedAt: Date.now()
-        });
-      } catch (error) { }
+//1. Upon initial TX (new collection or URIs updating): 
+// 	1. Trigger collection, claims, first X badges, and balances in QUEUE_DB
+// 	2. Add collection to REFRESHES_DB
+// 2. Upon fetch request:
+// 	1. Check if URI is to be refreshed in REFRESHES_DB
+// 	2. If to be refreshed or not in FETCHES_DB, add to queue. Return adding to queue message or old cached version.
+// 	3. Else, return FETCHES_DB cached version
+// 	4. If in queue or just added to queue, return flag
+// 3. For refresh requests, update REFRESHES_DB
+// 	1. Do same as initial TX
+// 	2. Refresh queue buffer time - Can't spam. 60 second timeout
+// 4. Aggressively prune old QUEUE_DB doc IDs, once _deleted is true. Once deleted, we will never use the doc again.
+// 	1. For own node's docs, keep _deleted for much longer for replication purposes (24 hours)
+// 	2. For others, we can delete right upon receiving _deleted = true
+// 5. When fetching from queue, check if lastFetchedAt > refreshRequestTime (i.e. do not fetch if we have already fetched after latest refresh time)
+// 	1. This is fine because we have a no-conflict system for FETCHES_DB
+// 	2. Implemented with exponential backoff where delay = 2^numRetries * BASE_DELAY 
+// 	3. BASE_DELAY = 12 hours
 
-      return ret;
+//Upon fetch request, check in REFRESHES_DB if it is to be refreshed
+export const fetchUriFromDb = async (uri: string, collectionId: string) => {
+  let fetchDoc: (FetchDoc<JSPrimitiveNumberType> & nano.Document) | undefined;
+  let refreshDoc: (RefreshDoc<JSPrimitiveNumberType> & {
+    _id: string;
+    _rev: string;
+  }) | undefined;
+  let alreadyInQueue = false;
+  let needsRefresh = false;
+  let refreshRequestTime = Date.now();
+
+  //Get document from cache if it exists
+  try {
+    fetchDoc = await FETCHES_DB.get(uri);
+  } catch (error) {
+    //Throw if non-404 error.
+    if (error.statusCode !== 404) {
+      throw error;
+    }
+  }
+
+  //TODO: Get _conflicts and only take the one with latest time
+  //Check if we need to refresh
+  const refreshesRes = await REFRESHES_DB.find({
+    selector: {
+      collectionId: {
+        "$eq": Number(collectionId),
+      }
+    },
+    limit: 1,
+  });
+
+  if (refreshesRes.docs.length > 0) {
+    refreshDoc = refreshesRes.docs[0];
+    if (!fetchDoc || refreshDoc.refreshRequestTime > fetchDoc.fetchedAt) {
+      needsRefresh = true;
+      refreshRequestTime = Number(refreshDoc.refreshRequestTime);
     }
   } else {
-    const res = await axios.get(uri).then((res) => res.data);
-    return res;
+    throw new Error('Collection refresh document not found');
   }
+
+  /*
+    Below, we use a clever approach to prevent multiple queue documents for the same URI and same refresh request.
+    This is in case the REFRESHES_DB is ahead of the QUEUE_DB. If REFRESHES_DB is ahead, we do not want
+    all N nodes to pick up on the fact that it needs a refresh and create N separate queue documents. Instead, we want
+    only one queue document to be created. To do this, we use the _rev of the refresh document as the _id of the queue document.
+    This way, the same exact document is created by all N nodes and will not cause any conflicts.
+  */
+
+  //Check if already in queue
+  const res = await QUEUE_DB.get(`${uri}-${refreshDoc._rev}`).catch((e) => {
+    if (e.statusCode !== 404) {
+      throw e;
+    }
+    return undefined;
+  });
+
+  if (res) {
+    alreadyInQueue = true;
+  }
+
+  //If not already in queue and we need to refresh, add to queue
+  if (!alreadyInQueue && needsRefresh) {
+
+    const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc._rev}`); //`${uri}-${refreshDoc._rev}
+
+    await insertToDB(QUEUE_DB, {
+      _id: `${uri}-${refreshDoc._rev}`,
+      _rev: '',
+      uri: uri,
+      collectionId: collectionId,
+      refreshRequestTime,
+      numRetries: 0,
+      loadBalanceId,
+    });
+  }
+
+  return {
+    content: fetchDoc ? fetchDoc.content : undefined,
+    updating: alreadyInQueue || needsRefresh,
+  };
 }
 
-export const pushToMetadataQueue = async (_collection: Collection, status: DbStatus, specificId?: bigint | 'collection') => {
-  const collection: Collection = JSON.parse(JSON.stringify(_collection));
-  let currentMetadataId = 0n;
+export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>) => {
+  let fetchDoc: (FetchDoc<bigint> & nano.Document) | undefined;
+  let needsRefresh = false;
+  let dbType: 'Claim' | 'Metadata' | 'Balances' = 'Metadata';
 
-  let pushed = false;
-  let alreadyPurging = false;
-  //If already in queue somewhere, don't add it again
-  const existing = status.queue.find((q) => q.collectionId === collection.collectionId && q.startMetadataId === currentMetadataId);
-  if (!existing) {
-    const toPush = !specificId || (specificId && specificId == 'collection');
-    if (toPush) {
-      status.queue.push({
-        uri: collection.collectionUri,
-        collectionId: collection.collectionId,
-        collection: true,
-        badgeIds: [],
-        currentMetadataId: 0n,
-        numCalls: 0n,
-        startMetadataId: currentMetadataId,
-      });
-      pushed = true;
+  //Get document from cache if it exists
+  try {
+    const _fetchDoc = await FETCHES_DB.get(uri);
+    fetchDoc = convertFetchDoc(_fetchDoc, BigIntify);
+  } catch (error) {
+    //Throw if non-404 error.
+    if (error.statusCode !== 404) {
+      throw error;
     }
-  } else if (existing.purge) {
-    alreadyPurging = true;
   }
-  currentMetadataId++;
 
-  for (const badgeUri of collection.badgeUris) {
-    if (badgeUri.uri.includes('{id}')) {
-      for (const badgeIdRange of badgeUri.badgeIds) {
-        const toPush = !specificId || (specificId && specificId !== 'collection' && specificId >= badgeIdRange.start && specificId <= badgeIdRange.end);
-        const specificIdToAdd = toPush && specificId ? specificId : undefined;
-        const existing = status.queue.find((q) => q.collectionId === collection.collectionId && q.startMetadataId === currentMetadataId && q.specificId === specificIdToAdd);
-        if (!existing) {
-          if (toPush) {
-            status.queue.push({
-              uri: badgeUri.uri,
-              collectionId: collection.collectionId,
-              collection: false,
-              badgeIds: [badgeIdRange],
-              currentMetadataId: currentMetadataId,
-              startMetadataId: currentMetadataId,
-              numCalls: 0n,
-              specificId: specificIdToAdd,
-            });
-            pushed = true;
-          }
-        } else if (existing.purge) {
-          alreadyPurging = true;
-        }
-        currentMetadataId += badgeIdRange.end - badgeIdRange.start + 1n;
-      }
+  //If permanent, do not need to fetch from source
+  if (fetchDoc && fetchDoc.isPermanent) {
+    await insertToDB(FETCHES_DB, {
+      ...fetchDoc,
+      fetchedAt: BigInt(Date.now()),
+    });
+    return;
+  }
+
+  //Check if we need to refresh
+  if (!fetchDoc || queueObj.refreshRequestTime > fetchDoc.fetchedAt) {
+    needsRefresh = true;
+  }
+
+  //Fetch from URI and update cache
+  if (needsRefresh) {
+    let res: any;
+    let isPermanent = false;
+    //If we are here, we need to fetch from the source
+    if (uri.startsWith('ipfs://')) {
+      const _res = await getFromIpfs(uri.replace('ipfs://', ''));
+      res = JSON.parse(_res.file);
+      isPermanent = true;
     } else {
-      const toPush = !specificId || (specificId && specificId !== 'collection' && badgeUri.badgeIds.find((id) => id.start <= specificId && id.end >= specificId));
-      const specificIdToAdd = toPush && specificId ? specificId : undefined;
-      const existing = status.queue.find((q) => q.collectionId === collection.collectionId && q.startMetadataId === currentMetadataId && q.specificId === specificIdToAdd);
-      if (!existing) {
-        if (toPush) {
-          status.queue.push({
-            uri: badgeUri.uri,
-            collectionId: collection.collectionId,
-            collection: false,
-            badgeIds: badgeUri.badgeIds,
-            currentMetadataId: currentMetadataId,
-            numCalls: 0n,
-            specificId: toPush && specificId ? specificId : undefined,
-            startMetadataId: currentMetadataId,
-          });
-          pushed = true;
-        }
-      } else {
-        if (existing.purge) {
-          alreadyPurging = true;
-        }
-      }
-      currentMetadataId++;
+      const _res = await axios.get(uri).then((res) => res.data);
+      res = JSON.parse(_res);
     }
-  }
 
-  if (pushed && !specificId && !alreadyPurging) {
-    status.queue[status.queue.length - 1].purge = true;
+    if (res.image) { //res.image is required for all metadata and not included in any other type
+      dbType = 'Metadata';
+      res = cleanMetadata(res);
+    } else if (res.hasPassword) { //hasPassword is required for all claims and not included in any other type
+      dbType = 'Claim';
+      res = cleanClaims(res);
+    } else if (Object.keys(res).every((key) => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS)) { //If it has at least one valid address as a key, it is a balances doc
+      dbType = 'Balances';
+      res = cleanBalances(res);
+      await handleBalances(res, queueObj);
+    } else {
+      throw new Error('Invalid content. Must be metadata, claim, or balances.');
+    }
+
+    await insertToDB(FETCHES_DB, {
+      ...fetchDoc,
+      _id: uri,
+      _rev: '',
+      content: dbType !== 'Balances' ? res : undefined, //We already stored balances in a separate DB so it makes no sense to doubly store content here
+      fetchedAt: BigInt(Date.now()),
+      db: dbType,
+      isPermanent
+    });
   }
 }
 
-//Assumes the metadata queue mutex is already obtained
-export const fetchUriInQueue = async (status: DbStatus, docs: DocsCache) => {
-  const NUM_METADATA_FETCHES_PER_BLOCK = 25;
-  const MAX_NUM_CALLS_PER_URI = 1000;
+const MIN_TIME_BETWEEN_REFRESHES = process.env.MIN_TIME_BETWEEN_REFRESHES ? BigInt(process.env.MIN_TIME_BETWEEN_REFRESHES) : BigInt(1000 * 60); //1 minute
+export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, refreshRequestTime: bigint) => {
 
-  //TODO: we have redundances with addMetadataToIpfs (we cache it in FETCHES_DB but we store it again in METADATA_DB)
+  const _refreshesRes = await REFRESHES_DB.get(collectionId);
+  const refreshesRes = convertRefreshDoc(_refreshesRes, BigIntify);
+
+  if (refreshesRes.refreshRequestTime + MIN_TIME_BETWEEN_REFRESHES > Date.now()) {
+    //If we have refreshed recently, do not spam it
+    return true;
+  }
+
+  docs.refreshes[collectionId] = {
+    ...refreshesRes,
+    refreshRequestTime,
+  };
+
+  return false
+}
+
+
+export const getClaimIdForQueueDb = (entropy: string, collectionId: string, claimId: string) => {
+  return entropy + "-claim-" + collectionId.toString() + "-" + claimId.toString()
+}
+
+export const pushClaimFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, claim: Claim<bigint>, claimId: bigint, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
+  docs.queueDocsToAdd.push({
+    _id: deterministicEntropy ? getClaimIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), claimId.toString()) : undefined,
+    uri: claim.uri,
+    collectionId: BigInt(collection.collectionId),
+    numRetries: 0n,
+    refreshRequestTime: refreshTime,
+    loadBalanceId: BigInt(loadBalanceId)
+  })
+}
+
+export const getCollectionIdForQueueDb = (entropy: string, collectionId: string, metadataId?: string) => {
+  return entropy + "-collection-" + collectionId.toString() + metadataId ? "-" + metadataId : ''
+}
+
+const NUM_BADGE_METADATAs_FECTHED_ON_EVENT = 10000;
+export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
+  docs.queueDocsToAdd.push({
+    _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString()) : undefined,
+    uri: collection.collectionUri,
+    collectionId: BigInt(collection.collectionId),
+    numRetries: 0n,
+    refreshRequestTime: refreshTime,
+    loadBalanceId: BigInt(loadBalanceId)
+  });
+
+  const maxMetadataId = getMaxMetadataId(collection);
+  const maxIdx = maxMetadataId < NUM_BADGE_METADATAs_FECTHED_ON_EVENT ? maxMetadataId : NUM_BADGE_METADATAs_FECTHED_ON_EVENT;
+
+  for (let i = 1; i <= maxIdx; i++) {
+    const uris = getUrisForMetadataIds([BigInt(i)], collection.collectionUri, collection.badgeUris);
+    const uri = uris[0];
+    if (uri) {
+      docs.queueDocsToAdd.push({
+        _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), `${i}`) : undefined,
+        uri: uri,
+        collectionId: collection.collectionId,
+        numRetries: 0n,
+        refreshRequestTime: refreshTime,
+        loadBalanceId: BigInt(loadBalanceId)
+      })
+    }
+  }
+}
+
+export const getBalancesIdForQueueDb = (entropy: string, collectionId: string) => {
+  return entropy + "-balances-" + collectionId.toString()
+}
+
+export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
+  docs.queueDocsToAdd.push({
+    _id: deterministicEntropy ? deterministicEntropy + "-balances" : undefined,
+    uri: collection.balancesUri,
+    collectionId: collection.collectionId,
+    refreshRequestTime: refreshTime,
+    numRetries: 0n,
+    loadBalanceId: BigInt(loadBalanceId)
+  })
+}
+
+const handleBalances = async (balancesMap: BalancesMap<bigint>, queueObj: QueueDoc<bigint>) => {
+  const docs: DocsCache = {
+    accounts: {},
+    collections: {},
+    balances: {},
+    refreshes: {},
+    claims: {},
+    activityToAdd: [],
+    queueDocsToAdd: [],
+  };
+
+
+  //Handle balance doc creation
+  let balanceMap = balancesMap;
+  //We have to update the existing balances with the new balances, if the collection already exists
+  //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
+  await fetchDocsForCacheIfEmpty(docs, [], [], [
+    ...Object.keys(balanceMap).filter(key => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS).map((key) => `${queueObj.collectionId}:${key}`),
+  ], []);
+
+  //Update the balance documents
+  for (const [key, val] of Object.entries(balanceMap)) {
+    if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
+      docs.balances[`${queueObj.collectionId}:${key}`] = {
+        ...docs.balances[`${queueObj.collectionId}:${key}`],
+        _id: docs.balances[`${queueObj.collectionId}:${key}`]._id,
+        ...val,
+        collectionId: queueObj.collectionId,
+        cosmosAddress: key,
+        fetchedAt: BigInt(Date.now()),
+        onChain: false,
+        uri: queueObj.uri,
+        isPermanent: queueObj.uri.startsWith('ipfs://')
+      };
+    }
+  }
+
+  //TODO: Eventually, we should make this a transactional all-or-nothing update with QUEUE_DB.destroy
+  await flushCachedDocs(docs);
+}
+
+export const fetchUrisFromQueue = async () => {
+  //To prevent spam and bloated metadata, we set the following parameters.
+  //If we cannot fetch within the parameters, it will remain in the queue and will be fetched again.
+  const NUM_METADATA_FETCHES_PER_BLOCK = process.env.NUM_METADATA_FETCHES_PER_BLOCK ? Number(process.env.NUM_METADATA_FETCHES_PER_BLOCK) : 25;
+  const BASE_DELAY = process.env.BASE_DELAY ? Number(process.env.BASE_DELAY) : 1000 * 60 * 60 * 1; //1 hour
 
   let numFetchesLeft = NUM_METADATA_FETCHES_PER_BLOCK;
-  let metadataIdsToFetch: string[] = [];
 
-  const queueItems = [];
-  while (numFetchesLeft > 0 && status.queue.length > 0) {
-    //Handle if we are only fetching a specific badgeID
-    if (status.queue[0].specificId && status.queue[0].currentMetadataId !== 'collection') {
-      const matchingIdRange = status.queue[0].badgeIds.find((id) => {
-        if (status.queue[0].specificId) return id.start <= status.queue[0].specificId && id.end >= status.queue[0].specificId
-
-        return false;
-      });
-
-      if (matchingIdRange) status.queue[0].currentMetadataId += status.queue[0].specificId - matchingIdRange.start;
-      status.queue[0].badgeIds = [{ start: status.queue[0].specificId, end: status.queue[0].specificId }];
-    }
-
-    metadataIdsToFetch.push(`${status.queue[0].collectionId}:${status.queue[0].currentMetadataId}`);
-    const queueItem = status.queue[0];
-
-    if (queueItem) queueItems.push(JSON.parse(JSON.stringify(queueItem)));
-
-    if (queueItem.uri.includes('{id}') && !queueItem.collection) {
-      status.queue[0].numCalls++;
-
-      //Should only be one badgeId[]
-      status.queue[0].badgeIds.forEach((badgeIdRange) => {
-        badgeIdRange.start++;
-      });
-      if (status.queue[0].currentMetadataId !== 'collection') status.queue[0].currentMetadataId++;
-
-      //If we have reached the end of the range, remove it from the queue
-      if (status.queue[0].badgeIds[0].start > status.queue[0].badgeIds[0].end) {
-        //Fetch and purge all entries for this collection
-        if (status.queue[0].purge) {
-          // const res = await METADATA_DB.partitionedList(`${status.queue[0].collectionId}`);
-          const info = await METADATA_DB.partitionInfo(`${status.queue[0].collectionId}`);
-
-          const lastBatchIdToPurge = info.doc_count + info.doc_del_count - 1;
-          const startBatchIdToPurge = status.queue[0].currentMetadataId !== 'collection' ? status.queue[0].currentMetadataId : 1;
-
-          for (let i = startBatchIdToPurge; i <= lastBatchIdToPurge; i++) { //This was already incremented
-            metadataIdsToFetch.push(`${status.queue[0].collectionId}:${i}`);
-          }
-        }
-        status.queue.shift();
-      } else if (status.queue[0].numCalls > MAX_NUM_CALLS_PER_URI) {
-        //If we have made more than MAX_NUM_CALLS_PER_URI calls to the same URI, place it at the end of the queue
-        const queueItem = status.queue.shift();
-        if (queueItem) status.queue.push(queueItem);
+  const queueRes = await QUEUE_DB.find({
+    selector: {
+      _id: { $gt: null },
+      loadBalanceId: {
+        "$eq": LOAD_BALANCER_ID
       }
-    } else {
-      //Fetch and purge all entries for this collection
-      if (status.queue[0].purge) {
-        // const res = await METADATA_DB.partitionedList(`${status.queue[0].collectionId}`);
-        const info = await METADATA_DB.partitionInfo(`${status.queue[0].collectionId}`);
+    },
+    limit: NUM_METADATA_FETCHES_PER_BLOCK
+  });
 
-        const lastBatchIdToPurge = info.doc_count + info.doc_del_count - 1;
-        const startBatchIdToPurge = status.queue[0].currentMetadataId !== 'collection' ? status.queue[0].currentMetadataId + 1n : 1;
+  const queue = queueRes.docs.map((doc) => convertQueueDoc(doc, BigIntify));
+  const queueItems: (QueueDoc<bigint> & nano.DocumentGetResponse)[] = [];
 
-        for (let i = startBatchIdToPurge; i <= lastBatchIdToPurge; i++) {
-          metadataIdsToFetch.push(`${status.queue[0].collectionId}:${i}`);
-        }
+  while (numFetchesLeft > 0 && queue.length > 0) {
+    const currQueueDoc = queue[0];
+    if (currQueueDoc) {
+      const delay = BASE_DELAY * Math.pow(2, Number(currQueueDoc.numRetries));
+
+      //This uses exponential backoff to prevent spamming the source
+      //Delay = BASE_DELAY * 2^numRetries
+      if (currQueueDoc.lastFetchedAt && Number(currQueueDoc.lastFetchedAt) + delay > Date.now()) {
+        //If we have fetched this URI recently, do not spam it
+      } else {
+        queueItems.push(JSON.parse(JSON.stringify(currQueueDoc)));
       }
-      status.queue.shift()
     }
+    queue.shift()
     numFetchesLeft--;
   }
 
-  await fetchDocsForCacheIfEmpty(docs, [], [], metadataIdsToFetch, [], []);
-
   const promises = [];
   for (const queueObj of queueItems) {
-    if (queueObj.purge) {
-      const collectionId = queueObj.collectionId;
-
-      //This is a little hack. We set every document in the collection to be deleted, and then we will set to non-deleted the ones we want to keep.
-      for (const key of Object.keys(docs.metadata)) {
-        if (key.startsWith(collectionId) && key.split(':')[1] !== 'collection' && BigInt(key.split(':')[1]) > queueObj.currentMetadataId) {
-          //HACK: We cast here. Even if the document is not populated, we can still set the _deleted flag.
-          const doc = docs.metadata[key] as MetadataDoc & nano.DocumentGetResponse;
-          doc._deleted = true;
-        }
-      }
-    }
-
-    //HACK: This is not a safe cast, but it is only used within the first if statement.
-    //If it is still an unpopulated document (i.e. { _id: string }, then it will never enter the first if statement
-    const currMetadata = docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`] as MetadataDoc & nano.DocumentGetResponse;
-
-    if (queueObj.uri.startsWith('ipfs://') && currMetadata && currMetadata.uri && currMetadata.uri === queueObj.uri) {
-      //If we are attempting to fetch the same URI from IPFS, this is redundant (IPFS is permanent storage). Just use the existing metadata.    
-      promises.push(Promise.resolve(currMetadata.metadata));
-    } else {
-      const uriToFetch = queueObj.uri.includes('{id}') && queueObj.badgeIds.length > 0 ? queueObj.uri.replace('{id}', queueObj.badgeIds[0].start.toString()) : queueObj.uri;
-      promises.push(fetchUri(uriToFetch));
-    }
+    promises.push(fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj));
   }
 
+  //If fulfilled, delete from queue (after creating balance docs if necessary).
+  //If rejected, do nothing (it will remain in queue)
   const results = await Promise.allSettled(promises);
-
   for (let i = 0; i < results.length; i++) {
     let queueObj = queueItems[i];
     let result = results[i];
-    if (queueObj.uri.includes('{id}') && !queueObj.collection) {
-      queueObj.badgeIds = [{ start: queueObj.badgeIds[0].start, end: queueObj.badgeIds[0].start }];
-    }
 
     if (result.status == 'fulfilled') {
-      const metadata: Metadata = result.value;
-
-      docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`] = {
-        ...docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`],
-        metadata: {
-          ...metadata,
-          name: metadata.name || '',
-          description: metadata.description || '',
-          image: metadata.image || '',
-        },
-        badgeIds: queueObj.badgeIds,
-        isCollection: queueObj.collection,
-        uri: queueObj.uri,
-        metadataId: queueObj.currentMetadataId,
-        _id: `${queueObj.collectionId}:${queueObj.currentMetadataId}`,
-        _deleted: false
-      };
-    } else {
-      docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`] = {
-        ...docs.metadata[`${queueObj.collectionId}:${queueObj.currentMetadataId}`],
-        metadata: { name: '', description: '', image: '' },
-        badgeIds: queueObj.badgeIds,
-        isCollection: queueObj.collection,
-        uri: queueObj.uri,
-        metadataId: queueObj.currentMetadataId,
-        _id: `${queueObj.collectionId}:${queueObj.currentMetadataId}`,
-        _deleted: false
+      try {
+        await insertToDB(QUEUE_DB, {
+          ...queueObj,
+          _deleted: true,
+          deletedAt: BigInt(Date.now()),
+        });
+      } catch (e) {
+        console.error(e);
       }
+    } else {
+      let reason = '';
+      try {
+        reason = result.reason.toString();
+      } catch (e) {
+        try {
+          reason = JSON.stringify(result.reason);
+        } catch (e) {
+          reason = 'Could not stringify error message';
+        }
+      }
+
+      await insertToDB(QUEUE_DB, {
+        ...queueObj,
+        lastFetchedAt: BigInt(Date.now()),
+        error: reason,
+        numRetries: BigInt(queueObj.numRetries + 1n),
+      });
+
+      console.error(result.reason);
+    }
+  }
+}
+
+export const purgeQueueDocs = async () => {
+  const res = await QUEUE_DB.find({
+    selector: {
+      _deleted: {
+        "$eq": true
+      }
+    },
+  });
+  const docs = res.docs.map((doc) => convertQueueDoc(doc, Numberify));
+
+  let docsToPurge = {};
+  for (const doc of docs) {
+    //Purge all deleted docs from this load balancer that are older than 24 hours
+    //Keep for 24 hours for replication purposes
+    if (doc.loadBalanceId === LOAD_BALANCER_ID) {
+      if (doc.deletedAt && doc.deletedAt + 1000 * 60 * 60 * 24 < Date.now()) {
+        docsToPurge[doc._id] = doc._rev;
+      }
+    } else {
+      //Purge all deleted docs that are not from the current load balancer
+      docsToPurge[doc._id] = doc._rev;
     }
   }
 
-
+  await axios.post(process.env.DB_URL + '/queue/_purge', docsToPurge);
 }

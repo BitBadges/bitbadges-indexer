@@ -1,38 +1,43 @@
+import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { GetCodesRouteResponse, PasswordDoc } from "bitbadgesjs-utils";
+import { AES } from "crypto-js";
 import { Request, Response } from "express";
 import nano from "nano";
-import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { COLLECTIONS_DB, PASSWORDS_DB } from "../db/db";
-import { convertToPasswordDocument } from "bitbadgesjs-utils";
-import { AES } from "crypto-js";
+import { serializeError } from "serialize-error";
+import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
+import { PASSWORDS_DB } from "../db/db";
 
-export const getCodes = async (expressReq: Request, res: Response) => {
+export const getCodes = async (expressReq: Request, res: Response<GetCodesRouteResponse>) => {
   try {
     const req = expressReq as AuthenticatedRequest
+    const collectionId = Number(req.params.collectionId);
 
-    const collectionId = BigInt(req.params.id);
-
-    const collection = await COLLECTIONS_DB.get(`${collectionId}`);
-    const manager = collection.manager;
-    if (req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
-      return res.status(401).send({ error: 'Unauthorized. Must be manager of this collection.' });
-    }
+    const isManager = await checkIfManager(req, collectionId);
+    if (!isManager) return returnUnauthorized(res, true);
 
     const codes: string[][] = [];
     const passwords: string[] = [];
-    const docQuery: nano.MangoQuery = {
-      selector: {
-        collectionId: {
-          "$eq": collectionId
-        }
-      },
-      limit: 0, // no limit
-    }
+    const codesDocsArr: PasswordDoc<JSPrimitiveNumberType>[] = [];
 
-    const _codesDocsArr = await PASSWORDS_DB.find(docQuery);
-    const codesDocsArr = _codesDocsArr.docs.map(doc => convertToPasswordDocument(doc));
+    let docsLength = -1;
+
+    do {
+      const docQuery: nano.MangoQuery = {
+        selector: {
+          collectionId: {
+            "$eq": collectionId
+          }
+        },
+        limit: 200,
+      }
+
+      const _codesDocsArr = await PASSWORDS_DB.find(docQuery);
+      codesDocsArr.push(..._codesDocsArr.docs);
+      docsLength = _codesDocsArr.docs.length;
+    } while (docsLength !== 200);
 
     const docs = codesDocsArr.sort((a, b) => {
-      const diff = a.claimId - b.claimId;
+      const diff = BigInt(a.claimId) - BigInt(b.claimId);
       const diffNumber = Number(diff.toString());
       return diffNumber;
     }).filter(doc => doc.docClaimedByCollection);
@@ -45,6 +50,9 @@ export const getCodes = async (expressReq: Request, res: Response) => {
     return res.status(200).send({ codes, passwords });
   } catch (e) {
     console.error(e);
-    return res.status(500).send({ message: 'Internal server error' });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error getting codes. Please try again later."
+    });
   }
 }

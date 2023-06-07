@@ -1,10 +1,11 @@
 import { Mutex } from "async-mutex";
+import { BigIntify, GetPasswordAndCodesRouteResponse, convertPasswordDoc } from "bitbadgesjs-utils";
+import { AES } from "crypto-js";
 import { Request, Response } from "express";
 import nano from "nano";
+import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { PASSWORDS_DB } from "../db/db";
-import { convertFromPasswordDocument, convertToPasswordDocument } from "bitbadgesjs-utils";
-import { AES } from "crypto-js";
+import { PASSWORDS_DB, insertToDB } from "../db/db";
 
 // create a map to store the document-specific mutexes
 const documentMutexes = new Map();
@@ -15,13 +16,8 @@ const documentMutexesMutex = new Mutex();
 
 //TODO: In the future, we should probably look to change this approach to a more scalable and high throughput approach
 //This is a simple approach that will work 99% of the time for now
-export const getPasswordsAndCodes = async (expressReq: Request, res: Response) => {
+export const getPasswordsAndCodes = async (expressReq: Request, res: Response<GetPasswordAndCodesRouteResponse>) => {
   try {
-    const req = expressReq as AuthenticatedRequest;
-    if (!req.session.blockin || !req.session.cosmosAddress) {
-      return res.status(401).send({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
-    }
-
     let documentMutex: Mutex | undefined = undefined;
     // acquire the mutex for the documentMutexes map
     await documentMutexesMutex.runExclusive(async () => {
@@ -53,7 +49,7 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
         return Promise.reject({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
       }
 
-      const collectionId = req.params.id;
+      const collectionId = req.params.collectionId;
       const claimId = req.params.claimId;
       const password = req.params.password;
 
@@ -62,10 +58,10 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
       const query: nano.MangoQuery = {
         selector: {
           collectionId: {
-            "$eq": collectionId
+            "$eq": Number(collectionId)
           },
           claimId: {
-            "$eq": claimId
+            "$eq": Number(claimId)
           }
         }
       }
@@ -75,7 +71,7 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
         return Promise.reject({ message: 'Doc not found' });
       }
 
-      const passwordDoc = convertToPasswordDocument(passwordDocResponse.docs[0]);
+      const passwordDoc = convertPasswordDoc(passwordDocResponse.docs[0], BigIntify);
 
       const currCode = passwordDoc.currCode;
       const claimedUsers = passwordDoc.claimedUsers ? passwordDoc.claimedUsers : {};
@@ -90,26 +86,27 @@ export const getPasswordsAndCodes = async (expressReq: Request, res: Response) =
         return Promise.reject({ message: 'Incorrect password' });
       }
 
-      await PASSWORDS_DB.insert(convertFromPasswordDocument({
+      await insertToDB(PASSWORDS_DB, {
         ...passwordDoc,
         currCode: passwordDoc.currCode + 1n,
         claimedUsers: {
           ...claimedUsers,
           [req.session.cosmosAddress]: currCode
         }
-      }));
+      });
 
       const currCodeIdx = Number(currCode.toString());
 
       return { code: AES.decrypt(passwordDoc.codes[currCodeIdx], process.env.SYM_KEY).toString() };
     });
 
-    console.log(returnValue);
-
     return res.status(200).send(returnValue);
   } catch (e) {
     console.error(e);
-    return res.status(500).send({ error: 'Internal server error handling passwords.' });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error getting codes. Please try again later."
+    });
   }
 
 
