@@ -16,13 +16,13 @@ import { getBrowseCollections } from './routes/browse'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForBadge } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
-import { addClaimToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
+import { addBalancesToIpfsHandler, addClaimToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, refreshMetadata } from "./routes/metadata"
 import { getClaimCodeViaPassword } from "./routes/passwords"
 import { addReviewForCollection, addReviewForUser } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { getAccount, getAccountsByAddress, updateAccountInfo } from "./routes/users"
+import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 import _ from 'environment'
 import axios from 'axios'
 
@@ -134,7 +134,7 @@ app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, 
 
 
 //User
-app.post('/api/v0/user/batch', getAccountsByAddress);
+app.post('/api/v0/user/batch', getAccounts);
 app.post('/api/v0/user/:addressOrUsername', getAccount);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
@@ -142,6 +142,7 @@ app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInf
 //IPFS
 app.post('/api/v0/addMetadataToIpfs', authorizeBlockinRequest, addMetadataToIpfsHandler); //
 app.post('/api/v0/addClaimToIpfs', authorizeBlockinRequest, addClaimToIpfsHandler); //
+app.post('/api/v0/addBalancesToIpfs', authorizeBlockinRequest, addBalancesToIpfsHandler); //
 
 //Blockin Auth
 app.post('/api/v0/auth/getChallenge', getChallenge);

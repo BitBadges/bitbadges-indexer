@@ -1,5 +1,5 @@
 import { MsgMintAndDistributeBadges } from "bitbadgesjs-transactions"
-import { BitBadgesUserInfo, DocsCache, Metadata, MetadataMap, StatusDoc, simulateCollectionAfterMsgMintAndDistributeBadges } from "bitbadgesjs-utils"
+import { BadgeMetadataDetails, BitBadgesUserInfo, DocsCache, Metadata, StatusDoc, simulateCollectionAfterMsgMintAndDistributeBadges } from "bitbadgesjs-utils"
 import { CLAIMS_DB } from "../db/db"
 import { handleClaims } from "./claims"
 
@@ -36,7 +36,7 @@ export const handleMsgMintAndDistributeBadges = async (msg: MsgMintAndDistribute
       claims: [],
     },
     {} as Metadata<bigint>,
-    {} as MetadataMap<bigint>,
+    {} as BadgeMetadataDetails<bigint>[],
     {} as BitBadgesUserInfo<bigint>,
     {
       ...collectionDoc,
@@ -47,7 +47,7 @@ export const handleMsgMintAndDistributeBadges = async (msg: MsgMintAndDistribute
       balances: [],
       managerInfo: {} as BitBadgesUserInfo<bigint>,
       collectionMetadata: {} as Metadata<bigint>,
-      badgeMetadata: {} as MetadataMap<bigint>,
+      badgeMetadata: {} as BadgeMetadataDetails<bigint>[],
       _id: undefined,
       _rev: undefined,
       _deleted: undefined,

@@ -1,10 +1,10 @@
 import axios from 'axios';
-import { BalancesMap, BigIntify, LeavesDetails, Metadata, MetadataMap, convertBalancesMap, convertMetadata, convertMetadataMap } from 'bitbadgesjs-utils';
-import last from 'it-last';
-import { FETCHES_DB, insertToDB } from '../db/db';
-import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
-import { ipfsClient } from "../indexer";
 import { NumberType } from 'bitbadgesjs-proto';
+import { BadgeMetadataDetails, BalancesMap, BigIntify, LeavesDetails, Metadata, convertBadgeMetadataDetails, convertBalancesMap, convertMetadata } from 'bitbadgesjs-utils';
+import last from 'it-last';
+import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
+import { FETCHES_DB, insertToDB } from '../db/db';
+import { ipfsClient } from "../indexer";
 
 export const getFromIpfs = async (path: string) => {
   if (!path) return { file: '{}' }
@@ -44,27 +44,45 @@ export const addBalancesToIpfs = async (_balances: BalancesMap<NumberType>) => {
       db: 'Balances',
       isPermanent: true
     });
-    return result;
+    return { path: result.path, cid: result.cid.toString() };
   } else {
     return undefined;
   }
 }
 
-export const addMetadataToIpfs = async (_collectionMetadata: Metadata<NumberType>, _individualBadgeMetadata: MetadataMap<NumberType>) => {
-  const collectionMetadata = convertMetadata(_collectionMetadata, BigIntify);
-  const individualBadgeMetadata = convertMetadataMap(_individualBadgeMetadata, BigIntify);
+export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberType>, _individualBadgeMetadata?: BadgeMetadataDetails<NumberType>[] | Metadata<NumberType>[]) => {
+  const collectionMetadata = _collectionMetadata ? convertMetadata(_collectionMetadata, BigIntify) : undefined;
+  const badgeMetadata: Metadata<NumberType>[] = [];
+  if (_individualBadgeMetadata) {
+    for (const item of _individualBadgeMetadata) {
+      let currItemCastedAsDetails = item as BadgeMetadataDetails<NumberType>;
+      let currItemCastedAsMetadata = item as Metadata<NumberType>;
+
+      let badgeMetadataItem;
+      if (currItemCastedAsDetails.metadata) {
+        badgeMetadataItem = convertBadgeMetadataDetails(currItemCastedAsDetails, BigIntify).metadata;
+      } else {
+        badgeMetadataItem = convertMetadata(currItemCastedAsMetadata, BigIntify);
+      }
+      badgeMetadata.push(badgeMetadataItem);
+    }
+  }
+
+  const results = [];
+  let collectionMetadataResult = undefined;
+  const badgeMetadataResults = [];
 
   const imageFiles = [];
-  if (collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
+  if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
     const blob = await dataUrlToFile(collectionMetadata.image);
     imageFiles.push({
       content: new Uint8Array(blob)
     });
   }
 
-  for (const badge of Object.values(individualBadgeMetadata)) {
-    if (badge?.metadata.image && badge?.metadata.image.startsWith('data:image')) {
-      const blob = await dataUrlToFile(badge?.metadata.image);
+  for (const metadata of badgeMetadata) {
+    if (metadata.image && metadata.image.startsWith('data:image')) {
+      const blob = await dataUrlToFile(metadata.image);
       imageFiles.push({
         content: new Uint8Array(blob)
       });
@@ -77,57 +95,67 @@ export const addMetadataToIpfs = async (_collectionMetadata: Metadata<NumberType
     const cids = [];
     for await (const imageResult of imageResults) {
       cids.push(imageResult.cid.toString());
+      results.push({ path: imageResult.path, cid: imageResult.cid.toString() });
     }
 
-    if (collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
+    if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
       const result = cids.shift();
       if (result) {
         collectionMetadata.image = 'ipfs://' + result;
       }
     }
 
-    for (const badge of Object.values(individualBadgeMetadata)) {
-      if (badge?.metadata.image && badge?.metadata.image.startsWith('data:image')) {
+    for (const metadata of badgeMetadata) {
+      if (metadata.image && metadata.image.startsWith('data:image')) {
         const result = cids.shift();
-        if (result) badge.metadata.image = 'ipfs://' + result;
+        if (result) metadata.image = 'ipfs://' + result;
       }
     }
   }
 
   const files: { path: string, content: Uint8Array }[] = [];
-  files.push({
-    path: 'metadata/collection',
-    content: uint8ArrayFromString(JSON.stringify(collectionMetadata))
-  });
-
-  for (const id of Object.keys(individualBadgeMetadata)) {
-    files.push(
-      {
-        path: 'metadata/batch/' + id,
-        content: uint8ArrayFromString(JSON.stringify(individualBadgeMetadata[Number(id)]))
-      }
-    );
+  if (collectionMetadata) {
+    files.push({
+      path: 'collection',
+      content: uint8ArrayFromString(JSON.stringify(collectionMetadata))
+    });
   }
 
-  const result = await last(ipfsClient.addAll(files));
+  let i = 0;
 
-  if (result) {
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const metadataId = i > 0 ? Number(file.path.split('/')[2]) : -1;
+  for (const metadata of badgeMetadata) {
+    files.push(
+      {
+        path: 'badges/' + i,
+        content: uint8ArrayFromString(JSON.stringify(metadata))
+      }
+    );
+    i++;
+  }
+  const metadataResults = ipfsClient.addAll(files);
+
+  let idx = 0;
+  for await (const result of metadataResults) {
+    results.push({ path: result.path, cid: result.cid.toString() });
+    if (result) {
+      if (idx === 0 && collectionMetadata) {
+        collectionMetadataResult = { path: result.path, cid: result.cid.toString() };
+      } else {
+        badgeMetadataResults.push({ path: result.path, cid: result.cid.toString() });
+      }
 
       await insertToDB(FETCHES_DB, {
-        _id: `ipfs://${result.cid.toString()}/${file.path}`,
+        _id: `ipfs://${result.cid.toString()}/${result.path}`,
         fetchedAt: BigInt(Date.now()),
-        content: i === 0 ? collectionMetadata : individualBadgeMetadata[metadataId]?.metadata,
+        content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
         db: 'Metadata',
         isPermanent: true
       });
     }
+    idx++;
   }
 
-
-  return result;
+  return { allResults: results, collectionMetadataResult, badgeMetadataResults };
 }
 
 export const addClaimToIpfs = async (name: string, description: string, leavesDetails: LeavesDetails[], hasPassword: boolean) => {

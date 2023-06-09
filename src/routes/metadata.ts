@@ -1,5 +1,5 @@
 import axios from "axios";
-import { BigIntify, DocsCache, FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, RefreshMetadataRouteResponse, convertCollectionDoc } from "bitbadgesjs-utils";
+import { BigIntify, DocsCache, FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType, RefreshMetadataRouteResponse, convertCollectionDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { getFromIpfs } from "../ipfs/ipfs";
 import { getLoadBalancerId } from "../utils/loadBalancer";
@@ -8,7 +8,7 @@ import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc 
 import { serializeError } from "serialize-error";
 import { flushCachedDocs } from "../db/cache";
 
-export const refreshMetadata = async (req: Request, res: Response<RefreshMetadataRouteResponse>) => {
+export const refreshMetadata = async (req: Request, res: Response<RefreshMetadataRouteResponse<NumberType>>) => {
   /**
    * Refreshes metadata for a collection or a specific badge.
    * 
@@ -49,8 +49,10 @@ export const refreshMetadata = async (req: Request, res: Response<RefreshMetadat
   }
 }
 
-export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMetadataDirectlyRouteResponse>) => {
+export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMetadataDirectlyRouteResponse<NumberType>>) => {
   try {
+    //TODO: Only allow this from the BitBadges frontend or from a trusted source with CORS. Should also be rate limited.
+
     let res: any;
     const reqBody = req.body as FetchMetadataDirectlyRouteRequestBody;
     let uri = reqBody.uri;

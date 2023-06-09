@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, AnnouncementDoc, BalanceDoc, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsByAddressRouteRequestBody, GetAccountsByAddressRouteResponse, ProfileDoc, ProfileInfoBase, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfoBase, AnnouncementDoc, BalanceDoc, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, NumberType, ProfileDoc, ProfileInfoBase, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -10,9 +10,12 @@ import { client } from "../indexer";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeReviewsQuery } from "./userHelpers";
 
-export const getAccountByAddress = async (address: string, fetchFromBlockchain = false) => {
+
+type AccountFetchOptions = GetAccountRouteRequestBody;
+
+export const getAccountByAddress = async (address: string, fetchOptions?: AccountFetchOptions) => {
   let accountInfo: AccountInfoBase<JSPrimitiveNumberType>;
-  if (fetchFromBlockchain) {
+  if (fetchOptions?.fetchFromBlockchain) {
     const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(convertToCosmosAddress(address));
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
     accountInfo = cleanedCosmosAccountInfo;
@@ -46,10 +49,20 @@ export const getAccountByAddress = async (address: string, fetchFromBlockchain =
   }
 
   const userInfos = await convertToBitBadgesUserInfo([{ ...profileInfo }], [{ ...accountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
-  return userInfos[0];
+  let account = userInfos[0];
+  if (fetchOptions) {
+    //account is currently a BitBadgesUserInfo with no portfolio info
+    const portfolioRes = await getAdditionalUserInfo(account.cosmosAddress, fetchOptions);
+    account = {
+      ...account,
+      ...portfolioRes
+    }
+  }
+
+  return account;
 }
 
-export const getAccountByUsername = async (username: string, fetchFromBlockchain = false) => {
+export const getAccountByUsername = async (username: string, fetchOptions?: AccountFetchOptions) => {
   const accountRes = await ACCOUNTS_DB.find({
     selector: {
       username: { "$eq": username },
@@ -64,6 +77,7 @@ export const getAccountByUsername = async (username: string, fetchFromBlockchain
   const accountDoc = accountRes.docs[0];
 
   let accountInfo: AccountInfoBase<JSPrimitiveNumberType> = accountDoc;
+  let fetchFromBlockchain = fetchOptions?.fetchFromBlockchain;
   if (fetchFromBlockchain) {
     const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(accountDoc.cosmosAddress);
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
@@ -86,30 +100,30 @@ export const getAccountByUsername = async (username: string, fetchFromBlockchain
 
 
   const userInfos = await convertToBitBadgesUserInfo([{ ...profileDoc }], [{ ...accountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
+  let account = userInfos[0];
 
-  //userInfos is currently an array with placeholders for everything
-  return userInfos[0];
-}
-
-
-export const getAccount = async (req: Request, res: Response<GetAccountRouteResponse>) => {
-  try {
-    const reqBody = req.body as GetAccountRouteRequestBody;
-
-    const fetchFromBlockchain = reqBody.fetchFromBlockchain;
-
-    let account: BitBadgesUserInfo<JSPrimitiveNumberType>;
-    if (isAddressValid(req.params.addressOrUsername)) {
-      account = await getAccountByAddress(req.params.addressOrUsername, fetchFromBlockchain);
-    } else {
-      account = await getAccountByUsername(req.params.addressOrUsername, fetchFromBlockchain);
-    }
-
+  if (fetchOptions) {
     //account is currently a BitBadgesUserInfo with no portfolio info
-    const portfolioRes = await getAdditionalUserInfo(account.cosmosAddress, reqBody);
+    const portfolioRes = await getAdditionalUserInfo(account.cosmosAddress, fetchOptions);
     account = {
       ...account,
       ...portfolioRes
+    }
+  }
+
+  return account;
+}
+
+
+export const getAccount = async (req: Request, res: Response<GetAccountRouteResponse<NumberType>>) => {
+  try {
+    const reqBody = req.body as GetAccountRouteRequestBody;
+
+    let account: BitBadgesUserInfo<JSPrimitiveNumberType>;
+    if (isAddressValid(req.params.addressOrUsername)) {
+      account = await getAccountByAddress(req.params.addressOrUsername, reqBody);
+    } else {
+      account = await getAccountByUsername(req.params.addressOrUsername, reqBody);
     }
 
     return res.status(200).send(convertBitBadgesUserInfo(account, Stringify));
@@ -123,24 +137,29 @@ export const getAccount = async (req: Request, res: Response<GetAccountRouteResp
 
 //Get by address, cosmosAddress, accountNumber, or username
 //ENS names are not supported. Convert to address first
-export const getAccountsByAddress = async (req: Request, res: Response<GetAccountsByAddressRouteResponse>) => {
+export const getAccounts = async (req: Request, res: Response<GetAccountsRouteResponse<NumberType>>) => {
   try {
-    const reqBody = req.body as GetAccountsByAddressRouteRequestBody;
-    reqBody.addresses = reqBody.addresses.filter((address: string) => address.length > 0);
-
-    if (reqBody.addresses && reqBody.addresses.length !== 0) {
-      const promises = [];
-      for (const address of reqBody.addresses) {
-        promises.push(getAccountByAddress(address));
-      }
-
-      const userInfos = await Promise.all(promises);
-      return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
-    } else {
-      return res.status(200).send({ accounts: [] });
+    if (req.body.accountsToFetch.length > 250) {
+      return res.status(400).send({
+        message: 'You can only fetch up to 250 accounts at a time. Please structure your request accordingly.'
+      })
     }
+
+    const promises = [];
+    const reqBody = req.body as GetAccountsRouteRequestBody;
+    for (const accountFetchOptions of reqBody.accountsToFetch) {
+      if (accountFetchOptions.username) {
+        promises.push(getAccountByUsername(accountFetchOptions.username, accountFetchOptions));
+      }
+      else if (accountFetchOptions.address) {
+        promises.push(getAccountByAddress(accountFetchOptions.address, accountFetchOptions));
+      }
+    }
+
+    const userInfos = await Promise.all(promises);
+    return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return res.status(500).send({
       error: serializeError(e),
       message: "Error fetching accounts. Please try again later."
@@ -148,7 +167,7 @@ export const getAccountsByAddress = async (req: Request, res: Response<GetAccoun
   }
 }
 
-const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: GetAccountRouteRequestBody) => {
+const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetchOptions) => {
   const activityBookmark = reqBody.activityBookmark;
   const collectedBookmark = reqBody.collectedBookmark;
   const announcementsBookmark = reqBody.announcementsBookmark;
@@ -202,7 +221,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: GetAccountR
 }
 
 
-export const updateAccountInfo = async (expressReq: Request, res: Response<UpdateAccountInfoRouteResponse>) => {
+export const updateAccountInfo = async (expressReq: Request, res: Response<UpdateAccountInfoRouteResponse<NumberType>>) => {
   try {
     const req = expressReq as AuthenticatedRequest
     const reqBody = req.body as UpdateAccountInfoRouteRequestBody;

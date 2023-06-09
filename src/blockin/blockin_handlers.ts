@@ -52,7 +52,7 @@ export async function returnUnauthorized(res: Response<ErrorResponse>, managerRo
   return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : ''} to access this route.`, unauthorized: true });
 }
 
-export async function getChallenge(expressReq: Request, res: Response<GetSignInChallengeRouteResponse>) {
+export async function getChallenge(expressReq: Request, res: Response<GetSignInChallengeRouteResponse<NumberType>>) {
   try {
     const req = expressReq as AuthenticatedRequest;
     const reqBody = req.body as GetSignInChallengeRouteRequestBody;
@@ -107,7 +107,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
   }
 }
 
-export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse>) {
+export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest;
 
   const session = req.session as BlockinSession;
@@ -122,7 +122,7 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
   return res.status(200).send({ message: 'Successfully removed session cookie!' });
 }
 
-export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse>) {
+export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest;
 
   const body = parse(JSON.stringify(req.body)) as VerifySignInRouteRequestBody;

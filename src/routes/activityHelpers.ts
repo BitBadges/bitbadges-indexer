@@ -1,8 +1,8 @@
-import { GetBadgeActivityRouteResponse, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { removeCouchDBDetails } from "../utils/couchdb-utils";
 import { ANNOUNCEMENTS_DB, BALANCES_DB, CLAIMS_DB, COLLECTIONS_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
+import { GetBadgeActivityRouteResponse, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
 
-export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse> {
+export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse<NumberType>> {
   //Check if badgeId > Number.MAX_SAFE_INTEGER
   //If so, we need to do a string query because it is saved in DB as a string
   //Otherwise, we can do a number query

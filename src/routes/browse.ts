@@ -2,10 +2,10 @@ import { Request, Response } from "express";
 import nano from "nano";
 import { COLLECTIONS_DB } from "../db/db";
 import { serializeError } from "serialize-error";
-import { GetBrowseCollectionsRouteResponse } from "bitbadgesjs-utils";
+import { GetBrowseCollectionsRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { executeCollectionsQuery } from "./collections";
 
-export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse>) => {
+export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
     //TODO: populate with real data
 
@@ -28,10 +28,10 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     }));
 
     return res.status(200).send({
-      'featured': collections.map(x => x.collection),
-      'latest': collections.map(x => x.collection),
-      'claimable': collections.map(x => x.collection),
-      'popular': collections.map(x => x.collection)
+      'featured': collections,
+      'latest': collections,
+      'claimable': collections,
+      'popular': collections,
     });
   } catch (e) {
     console.error(e);

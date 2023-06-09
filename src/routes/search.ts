@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, GetSearchRouteResponse, Stringify, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfoBase, BitBadgesUserInfo, GetSearchRouteResponse, NumberType, Stringify, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -10,7 +10,7 @@ import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { executeAdditionalCollectionQueries } from "./collections";
 
-export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse>) => {
+export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
     const searchValue = req.params.searchValue;
     if (!searchValue || searchValue.length == 0) {
@@ -113,7 +113,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }));
 
     return res.json({
-      collections: collectionsResponses.map((collectionRes) => collectionRes.collection),
+      collections: collectionsResponses,
       accounts: accounts.map(acc => convertBitBadgesUserInfo(acc, Stringify)),
     })
   } catch (e) {

@@ -1,5 +1,5 @@
 import { MsgNewCollection } from "bitbadgesjs-transactions"
-import { BitBadgesUserInfo, CollectionDoc, StatusDoc, DocsCache, Metadata, MetadataMap, simulateCollectionAfterMsgNewCollection } from "bitbadgesjs-utils"
+import { BitBadgesUserInfo, CollectionDoc, StatusDoc, DocsCache, Metadata, BadgeMetadataDetails, simulateCollectionAfterMsgNewCollection } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleClaims } from "./claims"
 
@@ -19,7 +19,7 @@ export const handleMsgNewCollection = async (msg: MsgNewCollection<bigint>, stat
    */
   const createdCollection = simulateCollectionAfterMsgNewCollection({
     ...msg, details: [], transfers: [], claims: []
-  }, {} as Metadata<bigint>, {} as MetadataMap<bigint>, {} as BitBadgesUserInfo<bigint>)
+  }, {} as Metadata<bigint>, {} as BadgeMetadataDetails<bigint>[], {} as BitBadgesUserInfo<bigint>)
 
   const collection: CollectionDoc<bigint> = {
     _id: status.nextCollectionId.toString(),

@@ -1,10 +1,10 @@
 import axios from "axios";
 import { generateEndpointBroadcast } from "bitbadgesjs-provider";
-import { BroadcastTxRouteRequestBody, BroadcastTxRouteResponse, SimulateTxRouteResponse } from "bitbadgesjs-utils";
+import { BroadcastTxRouteRequestBody, BroadcastTxRouteResponse, SimulateTxRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 
-export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteResponse>) => {
+export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteResponse<NumberType>>) => {
   try {
     const reqBody = req.body as BroadcastTxRouteRequestBody;
 
@@ -23,7 +23,7 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
   }
 }
 
-export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResponse>) => {
+export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResponse<NumberType>>) => {
   try {
     const reqBody = req.body as BroadcastTxRouteRequestBody;
 

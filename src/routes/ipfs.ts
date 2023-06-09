@@ -4,7 +4,7 @@ import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
 import { addBalancesToIpfs, addClaimToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { serializeError } from "serialize-error";
-import { AddClaimToIpfsRouteRequestBody, AddClaimToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
+import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddClaimToIpfsRouteRequestBody, AddClaimToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, NumberType, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
 import { cleanBalances } from "../utils/dataCleaners";
 
 const IPFS_UPLOAD_KB_LIMIT = 100000; //100MB
@@ -37,9 +37,9 @@ export const updateIpfsTotals = async (address: string, size: number, req: Authe
   req.session.save();
 }
 
-export const addMetadataToIpfsHandler = async (expressReq: Request, res: Response<AddMetadataToIpfsRouteResponse>) => {
+export const addBalancesToIpfsHandler = async (expressReq: Request, res: Response<AddBalancesToIpfsRouteResponse<NumberType>>) => {
   const req = expressReq as AuthenticatedRequest;
-  const reqBody = req.body as AddMetadataToIpfsRouteRequestBody;
+  const reqBody = req.body as AddBalancesToIpfsRouteRequestBody;
 
   if (req.session.ipfsTotal > IPFS_UPLOAD_KB_LIMIT) {
     return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
@@ -48,11 +48,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
   try {
     let result = undefined;
     let size = 0;
-    if (reqBody.collectionMetadata && reqBody.badgeMetadata) {
-      result = await addMetadataToIpfs(reqBody.collectionMetadata, reqBody.badgeMetadata);
-      //get size of req.body in KB
-      size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;
-    } else if (reqBody.balances) {
+    if (reqBody.balances) {
       const balances = cleanBalances(reqBody.balances);
       result = await addBalancesToIpfs(balances);
       //get size of req.body in KB
@@ -65,8 +61,37 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
 
     await updateIpfsTotals(req.session.cosmosAddress, size, req);
 
-    const { path, cid } = result;
-    return res.status(200).send({ cid: cid.toString(), path });
+    return res.status(200).send({ result });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error adding balances to IPFS. Please try again later."
+    })
+  }
+}
+
+export const addMetadataToIpfsHandler = async (expressReq: Request, res: Response<AddMetadataToIpfsRouteResponse<NumberType>>) => {
+  const req = expressReq as AuthenticatedRequest;
+  const reqBody = req.body as AddMetadataToIpfsRouteRequestBody;
+
+  if (req.session.ipfsTotal > IPFS_UPLOAD_KB_LIMIT) {
+    return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
+  }
+
+  try {
+    let size = 0;
+    const { allResults, collectionMetadataResult, badgeMetadataResults } = await addMetadataToIpfs(reqBody.collectionMetadata, reqBody.badgeMetadata);
+    //get size of req.body in KB
+    size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;
+
+    if (allResults.length === 0) {
+      throw new Error('No result received');
+    }
+
+    await updateIpfsTotals(req.session.cosmosAddress, size, req);
+
+    return res.status(200).send({ allResults, collectionMetadataResult, badgeMetadataResults });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -76,7 +101,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
   }
 }
 
-export const addClaimToIpfsHandler = async (expressReq: Request, res: Response<AddClaimToIpfsRouteResponse>) => {
+export const addClaimToIpfsHandler = async (expressReq: Request, res: Response<AddClaimToIpfsRouteResponse<NumberType>>) => {
   const req = expressReq as AuthenticatedRequest;
   const reqBody = req.body as AddClaimToIpfsRouteRequestBody;
 
@@ -114,7 +139,7 @@ export const addClaimToIpfsHandler = async (expressReq: Request, res: Response<A
     let size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;
     await updateIpfsTotals(req.session.cosmosAddress, size, req);
 
-    return res.status(200).send({ cid: cid.toString(), path });
+    return res.status(200).send({ result: { cid: cid.toString(), path } });
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),

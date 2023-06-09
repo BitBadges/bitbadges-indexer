@@ -39,7 +39,7 @@
     "bitbadgesjs-proto": "^0.0.109",
     "bitbadgesjs-provider": "^0.0.3",
     "bitbadgesjs-transactions": "^0.0.113",
-    "bitbadgesjs-utils": "^1.0.121",
+    "bitbadgesjs-utils": "^1.0.131",
     "blockin": "^1.2.12",
     "blockin-algo-driver": "^1.0.2",
     "blockin-eth-driver": "^1.0.9",

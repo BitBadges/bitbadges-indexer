@@ -1,11 +1,11 @@
-import { AddAnnouncementRouteRequestBody, AddAnnouncementRouteResponse, AnnouncementInfoBase } from "bitbadgesjs-utils";
+import { AddAnnouncementRouteRequestBody, AddAnnouncementRouteResponse, AnnouncementInfoBase, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
 import { ANNOUNCEMENTS_DB, insertToDB } from "../db/db";
 import { getStatus } from "../db/status";
 import { serializeError } from "serialize-error";
 
-export const addAnnouncement = async (expressReq: Request, res: Response<AddAnnouncementRouteResponse>) => {
+export const addAnnouncement = async (expressReq: Request, res: Response<AddAnnouncementRouteResponse<NumberType>>) => {
   try {
     const req = expressReq as AuthenticatedRequest;
     const reqBody = req.body as AddAnnouncementRouteRequestBody;
