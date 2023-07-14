@@ -1,5 +1,5 @@
 import { NumberType, JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { BalancesMap, isAddressValid, getChainForAddress, SupportedChain, convertBalancesMap, NumberifyIfPossible } from "bitbadgesjs-utils";
+import { convertOffChainBalancesMap, isAddressValid, getChainForAddress, SupportedChain, NumberifyIfPossible, OffChainBalancesMap } from "bitbadgesjs-utils";
 
 export function cleanMetadata(res: any): any {
   return {
@@ -39,38 +39,24 @@ export function cleanClaims(res: any): any {
   }
 }
 
-export function cleanBalances(res: BalancesMap<NumberType>): BalancesMap<JSPrimitiveNumberType> {
-  const newMap: BalancesMap<string> = {};
+export function cleanBalances(res: OffChainBalancesMap<NumberType>): OffChainBalancesMap<JSPrimitiveNumberType> {
+  const newMap: OffChainBalancesMap<string> = {};
   const entries: [string, any][] = Object.entries(res);
   for (const [key, val] of entries) {
     if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
-      newMap[key] = {
-        balances: val.balances && Array.isArray(val.balances)
-          && val.balances.every((balance: any) => typeof balance === 'object')
-          ? val.balances.map((balance: any) => ({
-            amount: balance.amount ? BigInt(balance.amount).toString() : "0",
-            badgeIds: balance.badgeIds && Array.isArray(balance.badgeIds)
-              && balance.badgeIds.every((badgeId: any) => typeof badgeId === 'object')
-              ? balance.badgeIds.map((badgeId: any) => ({
-                start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
-                end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
-              })) : [],
-          })) : [],
-        approvals: val.approvals && Array.isArray(val.approvals)
-          && val.approvals.every((balance: any) => typeof balance === 'object')
-          ? val.approvals.map((balance: any) => ({
-            amount: balance.amount ? BigInt(balance.amount).toString() : "0",
-            badgeIds: balance.badgeIds && Array.isArray(balance.badgeIds)
-              && balance.badgeIds.every((badgeId: any) => typeof badgeId === 'object')
-              ? balance.badgeIds.map((badgeId: any) => ({
-                start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
-                end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
-              })) : [],
-          })) : [],
-
-      }
+      newMap[key] = val && Array.isArray(val)
+        && val.every((balance: any) => typeof balance === 'object')
+        ? val.map((balance: any) => ({
+          amount: balance.amount ? BigInt(balance.amount).toString() : "0",
+          badgeIds: balance.badgeIds && Array.isArray(balance.badgeIds)
+            && balance.badgeIds.every((badgeId: any) => typeof badgeId === 'object')
+            ? balance.badgeIds.map((badgeId: any) => ({
+              start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
+              end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
+            })) : [],
+        })) : [];
     }
   }
 
-  return convertBalancesMap(newMap, NumberifyIfPossible);
+  return convertOffChainBalancesMap(newMap, NumberifyIfPossible);
 }

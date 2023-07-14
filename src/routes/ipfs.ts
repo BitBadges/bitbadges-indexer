@@ -4,7 +4,7 @@ import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
 import { addBalancesToIpfs, addClaimToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { serializeError } from "serialize-error";
-import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddClaimToIpfsRouteRequestBody, AddClaimToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, NumberType, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
+import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddClaimToIpfsRouteRequestBody, AddClaimToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
 import { cleanBalances } from "../utils/dataCleaners";
 
 const IPFS_UPLOAD_KB_LIMIT = 100000; //100MB
@@ -110,14 +110,14 @@ export const addClaimToIpfsHandler = async (expressReq: Request, res: Response<A
   }
 
   try {
-    const result = await addClaimToIpfs(reqBody.name, reqBody.description, [reqBody.leavesDetails], reqBody.password ? true : false);
+    const challengeDetails = reqBody.challengeDetails ? reqBody.challengeDetails.map(x => convertChallengeDetails(x, BigIntify)) : [];
+    const result = await addClaimToIpfs(reqBody.name, reqBody.description, challengeDetails ?? []);
     if (!result) {
       throw new Error('No addAll result received');
     }
 
 
     const { path, cid } = result;
-    const password = reqBody.password;
 
     const SYM_KEY = process.env.SYM_KEY;
 
@@ -127,14 +127,18 @@ export const addClaimToIpfsHandler = async (expressReq: Request, res: Response<A
       challengeId: "-1",
       docClaimedByCollection: false,
       cid: cid.toString(),
-      //Hash + Salt Password
-      password: password ? AES.encrypt(password, SYM_KEY).toString() : "",
-      //Symmmetric Key Encrypted with Hash + Salt Password
-      codes: reqBody.leavesDetails.leaves.map((code: string) => AES.encrypt(code, SYM_KEY).toString()),
-      isHashed: reqBody.leavesDetails.isHashed,
-      currCode: "0",
-      claimedUsers: {}
+      challengeDetails: challengeDetails.map(x => {
+        return {
+          ...x,
+          password: x.password ? AES.encrypt(x.password, SYM_KEY).toString() : "",
+          leavesDetails: {
+            ...x.leavesDetails,
+            preimages: x.leavesDetails.preimages ? x.leavesDetails.preimages.map((preimage: string) => AES.encrypt(preimage, SYM_KEY).toString()) : undefined
+          }
+        }
+      })
     });
+
 
     let size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;
     await updateIpfsTotals(req.session.cosmosAddress, size, req);

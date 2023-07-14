@@ -1,12 +1,12 @@
 import { BadgeUri, IdRange, JSPrimitiveNumberType, NumberType, convertBadgeUri, convertIdRange } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BigIntify, BitBadgesCollection, BitBadgesUserInfo, ClaimDetails, ClaimDoc, ClaimInfo, CollectionDoc, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertClaimDetails, convertCollectionDoc, convertMetadata, getBadgeIdsForMetadataId, getMetadataIdForBadgeId, getUrisForMetadataIds, removeIdsFromIdRange, updateBadgeMetadata } from "bitbadgesjs-utils";
+import { AnnouncementDoc, AnnouncementInfo, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BigIntify, BitBadgesCollection, BitBadgesUserInfo, ClaimDetails, ClaimDoc, ClaimInfo, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertClaimDetails, convertCollectionDoc, convertMetadata, getBadgeIdsForMetadataId, getMetadataIdForBadgeId, getMetadataIdForUri, getUrisForMetadataIds, removeIdsFromIdRange, updateBadgeMetadata } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
 import { fetchUriFromDb } from "../metadata-queue";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionBalancesQuery, executeCollectionClaimsQuery, executeCollectionReviewsQuery } from "./activityHelpers";
+import { executeBadgeActivityQuery, executeClaimByIdsQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionBalancesQuery, executeCollectionClaimsQuery, executeCollectionReviewsQuery } from "./activityHelpers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAccountByAddress } from "./users";
 
@@ -25,7 +25,7 @@ import { getAccountByAddress } from "./users";
  * activityBookmark - The bookmark to start fetching activity from.
  * announcementsBookmark - The bookmark to start fetching announcements from.
  * reviewsBookmark - The bookmark to start fetching reviews from.
- * balancesBookmark - The bookmark to start fetching balances from.
+ * ownersBookmark - The bookmark to start fetching balances from.
  * claimsBookmark - The bookmark to start fetching claims from.
  */
 type CollectionQueryOptions = ({ collectionId: NumberType } & GetMetadataForCollectionRequestBody & GetAdditionalCollectionDetailsRequestBody);
@@ -41,32 +41,44 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
 
     promises.push(getMetadata(collection.collectionId.toString(), collection.collectionUri, collection.badgeUris, query.metadataToFetch));
 
-    if (query.activityBookmark !== undefined) {
-      promises.push(executeCollectionActivityQuery(`${query.collectionId}`, query.activityBookmark));
+    const activityBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestActivity')?.bookmark;
+    const announcementsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestAnnouncements')?.bookmark;
+    const reviewsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestReviews')?.bookmark;
+    const ownersBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'owners')?.bookmark;
+    const claimsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'claimsById')?.bookmark;
+
+    if (activityBookmark !== undefined) {
+      promises.push(executeCollectionActivityQuery(`${query.collectionId}`, activityBookmark));
     } else {
       promises.push(Promise.resolve({ docs: [] }));
     }
 
-    if (query.announcementsBookmark !== undefined) {
-      promises.push(executeCollectionAnnouncementsQuery(`${query.collectionId}`, query.announcementsBookmark));
+    if (announcementsBookmark !== undefined) {
+      promises.push(executeCollectionAnnouncementsQuery(`${query.collectionId}`, announcementsBookmark));
     } else {
       promises.push(Promise.resolve({ docs: [] }));
     }
 
-    if (query.reviewsBookmark !== undefined) {
-      promises.push(executeCollectionReviewsQuery(`${query.collectionId}`, query.reviewsBookmark));
+    if (reviewsBookmark !== undefined) {
+      promises.push(executeCollectionReviewsQuery(`${query.collectionId}`, reviewsBookmark));
     } else {
       promises.push(Promise.resolve({ docs: [] }));
     }
 
-    if (query.balancesBookmark !== undefined) {
-      promises.push(executeCollectionBalancesQuery(`${query.collectionId}`, query.balancesBookmark));
+    if (ownersBookmark !== undefined) {
+      promises.push(executeCollectionBalancesQuery(`${query.collectionId}`, ownersBookmark));
     } else {
       promises.push(Promise.resolve({ docs: [] }));
     }
 
-    if (query.claimsBookmark !== undefined) {
-      promises.push(executeCollectionClaimsQuery(`${query.collectionId}`, query.claimsBookmark));
+    if (claimsBookmark !== undefined) {
+      promises.push(executeCollectionClaimsQuery(`${query.collectionId}`, claimsBookmark));
+    } else {
+      promises.push(Promise.resolve({ docs: [] }));
+    }
+
+    if (query.claimIdsToFetch?.length) {
+      promises.push(executeClaimByIdsQuery(`${query.collectionId}`, query.claimIdsToFetch));
     } else {
       promises.push(Promise.resolve({ docs: [] }));
     }
@@ -77,54 +89,76 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
   const responses = await Promise.all(promises);
 
 
-  for (let i = 0; i < responses.length; i += 6) {
-    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i) / 6].collectionId.toString());
+  for (let i = 0; i < responses.length; i += 7) {
+    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i) / 7].collectionId.toString());
     if (!collectionRes) continue;
 
+    const query = collectionQueries[(i) / 7];
     const metadataRes: { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] } = responses[i] as { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] };
     const activityRes = responses[i + 1] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
     const announcementsRes = responses[i + 2] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
     const reviewsRes = responses[i + 3] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
     const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
     const claimsRes = responses[i + 5] as nano.MangoResponse<ClaimDoc<JSPrimitiveNumberType>>;
+    const specificClaimsRes = responses[i + 6] as nano.MangoResponse<ClaimDoc<JSPrimitiveNumberType>>;
 
     let collectionToReturn: BitBadgesCollection<JSPrimitiveNumberType> = {
       ...collectionRes,
-      _id: undefined,
       _rev: undefined,
       _deleted: undefined,
       activity: activityRes.docs.map(removeCouchDBDetails) as TransferActivityInfo<JSPrimitiveNumberType>[],
       announcements: announcementsRes.docs.map(removeCouchDBDetails) as AnnouncementInfo<JSPrimitiveNumberType>[],
       reviews: reviewsRes.docs.map(removeCouchDBDetails) as ReviewInfo<JSPrimitiveNumberType>[],
-      balances: balancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[],
-      claims: claimsRes.docs.map(removeCouchDBDetails) as ClaimInfo<JSPrimitiveNumberType>[],
-
+      owners: balancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[],
+      claims: [
+        ...claimsRes.docs.map(removeCouchDBDetails) as ClaimInfo<JSPrimitiveNumberType>[],
+        ...specificClaimsRes.docs.map(removeCouchDBDetails) as ClaimInfo<JSPrimitiveNumberType>[]
+      ].filter((claim, idx, self) => self.findIndex((c) => c.claimId === claim.claimId) === idx),
 
       //Placeholders to be replaced later in function
       badgeMetadata: [],
       managerInfo: {} as BitBadgesUserInfo<JSPrimitiveNumberType>,
-
-      pagination: {
-        activity: {
-          bookmark: activityRes.bookmark || '',
-          hasMore: activityRes.docs.length === 25
-        },
-        announcements: {
-          bookmark: announcementsRes.bookmark || '',
-          hasMore: announcementsRes.docs.length === 25
-        },
-        reviews: {
-          bookmark: reviewsRes.bookmark || '',
-          hasMore: reviewsRes.docs.length === 25
-        },
-        balances: {
-          bookmark: balancesRes.bookmark || '',
-          hasMore: balancesRes.docs.length === 25
-        },
-        claims: {
-          bookmark: claimsRes.bookmark || '',
-          hasMore: claimsRes.docs.length === 25
-        }
+      views: {
+        'latestActivity': query.viewsToFetch?.find(x => x.viewKey === 'latestActivity') ? {
+          ids: activityRes.docs.map((doc) => doc._id),
+          type: 'Activity',
+          pagination: {
+            bookmark: activityRes.bookmark || '',
+            hasMore: activityRes.docs.length === 25
+          }
+        } : undefined,
+        'latestAnnouncements': query.viewsToFetch?.find(x => x.viewKey === 'latestAnnouncements') ? {
+          ids: announcementsRes.docs.map((doc) => doc._id),
+          type: 'Announcement',
+          pagination: {
+            bookmark: announcementsRes.bookmark || '',
+            hasMore: announcementsRes.docs.length === 25
+          }
+        } : undefined,
+        'latestReviews': query.viewsToFetch?.find(x => x.viewKey === 'latestReviews') ? {
+          ids: reviewsRes.docs.map((doc) => doc._id),
+          type: 'Review',
+          pagination: {
+            bookmark: reviewsRes.bookmark || '',
+            hasMore: reviewsRes.docs.length === 25
+          }
+        } : undefined,
+        'owners': query.viewsToFetch?.find(x => x.viewKey === 'owners') ? {
+          ids: balancesRes.docs.map((doc) => doc._id),
+          type: 'Balance',
+          pagination: {
+            bookmark: balancesRes.bookmark || '',
+            hasMore: balancesRes.docs.length === 25
+          }
+        } : undefined,
+        'claimsById': query.viewsToFetch?.find(x => x.viewKey === 'claimsById') ? {
+          ids: claimsRes.docs.map((doc) => doc._id),
+          type: 'Claim',
+          pagination: {
+            bookmark: claimsRes.bookmark || '',
+            hasMore: claimsRes.docs.length === 25
+          }
+        } : undefined,
       }
     };
 
@@ -190,11 +224,7 @@ export const getCollectionById = async (req: Request, res: Response<GetCollectio
     const collectionsReponse = await executeCollectionsQuery([{
       collectionId: BigInt(req.params.collectionId),
       metadataToFetch: reqBody.metadataToFetch,
-      activityBookmark: reqBody.activityBookmark,
-      announcementsBookmark: reqBody.announcementsBookmark,
-      reviewsBookmark: reqBody.reviewsBookmark,
-      balancesBookmark: reqBody.balancesBookmark,
-      claimsBookmark: reqBody.claimsBookmark
+      viewsToFetch: reqBody.viewsToFetch,
     }]);
 
     return res.json({
@@ -258,12 +288,16 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   let metadataIdsToFetch: NumberType[] = [];
 
   if (!doNotFetchCollectionMetadata) uris.push(collectionUri);
-  uris.push(...urisToFetch);
+  for (const uri of urisToFetch) {
+    uris.push(uri);
+    metadataIdsToFetch.push(getMetadataIdForUri(uri, badgeUris));
+  }
+
 
   for (const metadataId of metadataIds) {
     const metadataIdCastedAsIdRange = metadataId as IdRange<NumberType>;
     const metadataIdCastedAsNumber = metadataId as NumberType;
-    if (metadataIdCastedAsIdRange.start && metadataIdCastedAsIdRange.end) {
+    if (typeof metadataId === 'object' && metadataIdCastedAsIdRange.start && metadataIdCastedAsIdRange.end) {
       const start = BigInt(metadataIdCastedAsIdRange.start);
       const end = BigInt(metadataIdCastedAsIdRange.end);
       for (let i = start; i <= end; i++) {
@@ -279,15 +313,15 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   for (const badgeId of badgeIdsToFetch) {
     const badgeIdCastedAsIdRange = badgeId as IdRange<NumberType>;
     const badgeIdCastedAsNumber = badgeId as NumberType;
-    if (badgeIdCastedAsIdRange.start && badgeIdCastedAsIdRange.end) {
+    if (typeof badgeId === 'object' && badgeIdCastedAsIdRange.start && badgeIdCastedAsIdRange.end) {
       const badgeIdsLeft = [convertIdRange(badgeIdCastedAsIdRange, BigIntify)]
 
       while (badgeIdsLeft.length > 0) {
         const currBadgeIdRange = badgeIdsLeft.pop();
-        if (!currBadgeIdRange) continue;
+        if (!currBadgeIdRange) continue; //For TS
 
         const metadataId = getMetadataIdForBadgeId(BigInt(currBadgeIdRange.start), badgeUris);
-        if (metadataId === -1) continue;
+        if (metadataId === -1) throw new Error(`BadgeId ${currBadgeIdRange.start} does not exist in collection ${collectionId}`);
 
         metadataIdsToFetch.push(metadataId);
         uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
@@ -302,12 +336,13 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       }
     } else {
       const metadataId = getMetadataIdForBadgeId(BigInt(badgeIdCastedAsNumber), badgeUris);
-      if (metadataId === -1) continue;
+      if (metadataId === -1) throw new Error(`BadgeId ${badgeIdCastedAsNumber} does not exist in collection ${collectionId}`);
 
       uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
       metadataIdsToFetch.push(metadataId);
     }
   }
+
   let badgeMetadataUris: string[] = [];
   if (uris.length > 0) {
     badgeMetadataUris = uris.slice(1);
@@ -328,7 +363,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   }
 
   const results = await Promise.all(promises) as {
-    content: Metadata<JSPrimitiveNumberType>,
+    content: Metadata<JSPrimitiveNumberType> | undefined,
     updating: boolean,
   }[];
 
@@ -339,7 +374,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     if (collectionMetadataResult) {
       collectionMetadata = {
         _isUpdating: collectionMetadataResult.updating,
-        ...convertMetadata(collectionMetadataResult.content, BigIntify)
+        ...convertMetadata(collectionMetadataResult.content ?? DefaultPlaceholderMetadata, BigIntify)
       }
     }
   }
@@ -356,7 +391,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       badgeIds,
       metadata: {
         _isUpdating: results[resultIdx].updating,
-        ...convertMetadata(results[resultIdx].content, BigIntify)
+        ...convertMetadata(results[resultIdx].content ?? DefaultPlaceholderMetadata, BigIntify)
       }
     });
   }
@@ -413,6 +448,9 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us in the event that you see this error.');
     }
 
+    const ownersResOverview = await BALANCES_DB.partitionInfo(`${req.params.collectionId}`);
+    const numOwners = ownersResOverview.doc_count;
+
     const ownersRes = await BALANCES_DB.partitionedFind(`${req.params.collectionId}`, {
       selector: {
         "balances": {
@@ -455,7 +493,13 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
 
 
     return res.status(200).send({
-      balances: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails),
+      owners: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails),
+      pagination: {
+        bookmark: ownersRes.bookmark || '',
+        hasMore: ownersRes.docs.length === 25,
+        total: numOwners
+      },
+
     });
   } catch (e) {
     return res.status(500).send({

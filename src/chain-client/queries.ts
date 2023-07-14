@@ -16,6 +16,7 @@ export interface CleanedCosmosAccountInformation {
   chain: SupportedChain
   cosmosAddress: string
   address: string
+  accountNumber: string
 }
 
 export interface BadgesExtension {
@@ -83,6 +84,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
           return {
             address: address,
             sequence: "0",
+            accountNumber: "-1",
             cosmosAddress: convertToCosmosAddress(address),
             chain: getChainForAddress(address),
             publicKey: '',

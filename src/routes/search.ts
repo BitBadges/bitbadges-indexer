@@ -1,14 +1,13 @@
 
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, GetSearchRouteResponse, NumberType, Stringify, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfo, GetSearchRouteResponse, NumberType, Stringify, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
-import { ACCOUNTS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
+import { ACCOUNTS_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
 import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
-import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { executeAdditionalCollectionQueries } from "./collections";
+import { convertToBitBadgesUserInfo } from "./userHelpers";
 
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
@@ -67,26 +66,20 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const metadataResponseDocs = results[0].docs;
     const accountsResponseDocs = results[1].docs;
 
-    const allAccounts: AccountInfoBase<JSPrimitiveNumberType>[] = [];
+    const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [];
     if (isAddressValid(searchValue)
       && !accountsResponseDocs.find((account) => account.address === searchValue || account.cosmosAddress === searchValue)) {
       allAccounts.push({
+        _id: convertToCosmosAddress(searchValue),
         address: searchValue,
         cosmosAddress: convertToCosmosAddress(searchValue),
         chain: getChainForAddress(searchValue),
         publicKey: '',
+        accountNumber: '-1',
       });
     }
 
-    const profilesRes = await PROFILES_DB.fetch({ keys: allAccounts.map((account) => account.cosmosAddress) }, { include_docs: true });
-    const profilesResponseDocs = getDocsFromNanoFetchRes(profilesRes);
-
-    const allProfiles = [...profilesResponseDocs];
-
     allAccounts.sort((a, b) => a.address.localeCompare(b.address));
-    allProfiles.sort((a, b) => a._id.localeCompare(b._id));
-
-    const accounts: BitBadgesUserInfo<JSPrimitiveNumberType>[] = await convertToBitBadgesUserInfo(allProfiles, allAccounts);
 
     const uris = metadataResponseDocs.map((doc) => doc._id);
     const collectionsRes = await COLLECTIONS_DB.find({
@@ -109,12 +102,12 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     });
 
     const collectionsResponses = await executeAdditionalCollectionQueries(collectionsRes.docs, collectionsRes.docs.map((doc) => {
-      return { collectionId: doc._id }
+      return { collectionId: doc._id };
     }));
 
     return res.json({
       collections: collectionsResponses,
-      accounts: accounts.map(acc => convertBitBadgesUserInfo(acc, Stringify)),
+      accounts: (await convertToBitBadgesUserInfo(allAccounts.map(() => { return {} }), allAccounts)).map((account) => convertBitBadgesUserInfo(account, Stringify)),
     })
   } catch (e) {
     console.error(e);

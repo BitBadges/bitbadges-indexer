@@ -1,9 +1,9 @@
 import axios from "axios";
-import { Claim, JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { BalancesMap, BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid } from "bitbadgesjs-utils";
+import { Claim, JSPrimitiveNumberType, convertBalance } from "bitbadgesjs-proto";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalancesForIdRanges } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
-import { FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
+import { COLLECTIONS_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
 import { LOAD_BALANCER_ID } from "./indexer";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { cleanBalances, cleanClaims, cleanMetadata } from "./utils/dataCleaners";
@@ -266,7 +266,7 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
   })
 }
 
-const handleBalances = async (balancesMap: BalancesMap<bigint>, queueObj: QueueDoc<bigint>) => {
+const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>) => {
   const docs: DocsCache = {
     accounts: {},
     collections: {},
@@ -277,6 +277,9 @@ const handleBalances = async (balancesMap: BalancesMap<bigint>, queueObj: QueueD
     queueDocsToAdd: [],
   };
 
+
+  const res = await COLLECTIONS_DB.get(queueObj.collectionId.toString());
+  let remainingSupplys = res.maxSupplys.map(x => convertBalance(x, BigIntify));
 
   //Handle balance doc creation
   let balanceMap = balancesMap;
@@ -290,9 +293,10 @@ const handleBalances = async (balancesMap: BalancesMap<bigint>, queueObj: QueueD
   for (const [key, val] of Object.entries(balanceMap)) {
     if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
       docs.balances[`${queueObj.collectionId}:${key}`] = {
-        ...docs.balances[`${queueObj.collectionId}:${key}`],
+        _rev: docs.balances[`${queueObj.collectionId}:${key}`]._rev || '',
         _id: docs.balances[`${queueObj.collectionId}:${key}`]._id,
-        ...val,
+        balances: val,
+        approvals: [],
         collectionId: queueObj.collectionId,
         cosmosAddress: key,
         fetchedAt: BigInt(Date.now()),
@@ -300,6 +304,12 @@ const handleBalances = async (balancesMap: BalancesMap<bigint>, queueObj: QueueD
         uri: queueObj.uri,
         isPermanent: queueObj.uri.startsWith('ipfs://')
       };
+
+      //Will throw if underflow and the URI speecifies more badges than what is denoted on the blockchain
+      //This is to enforce that the balancesUri is not lying or overallocating balances 
+      for (const balance of val) {
+        remainingSupplys = subtractBalancesForIdRanges({ balances: remainingSupplys, approvals: [] }, balance.badgeIds, balance.amount).balances;
+      }
     }
   }
 

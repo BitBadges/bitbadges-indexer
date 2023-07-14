@@ -49,7 +49,7 @@ export async function checkIfManager(req: AuthenticatedRequest, collectionId: Nu
 }
 
 export async function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: boolean = false) {
-  return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : ''} to access this route.`, unauthorized: true });
+  return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : ''}.`, unauthorized: true });
 }
 
 export async function getChallenge(expressReq: Request, res: Response<GetSignInChallengeRouteResponse<NumberType>>) {

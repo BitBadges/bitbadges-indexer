@@ -1,6 +1,6 @@
 import { removeCouchDBDetails } from "../utils/couchdb-utils";
 import { ANNOUNCEMENTS_DB, BALANCES_DB, CLAIMS_DB, COLLECTIONS_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
-import { GetBadgeActivityRouteResponse, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
+import { GetBadgeActivityRouteResponse, NumberType, Numberify, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
 
 export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse<NumberType>> {
   //Check if badgeId > Number.MAX_SAFE_INTEGER
@@ -61,10 +61,8 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
   return {
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     pagination: {
-      activity: {
-        bookmark: bookmark ? bookmark : '',
-        hasMore: activityRes.docs.length === 25,
-      }
+      bookmark: bookmark ? bookmark : '',
+      hasMore: activityRes.docs.length === 25,
     }
   }
 }
@@ -138,9 +136,24 @@ export async function executeCollectionClaimsQuery(collectionId: string, bookmar
     selector: {
       collectionId: {
         $eq: Number(collectionId)
-      }
+      },
     },
     bookmark: bookmark ? bookmark : undefined,
+  });
+
+  return claimsRes;
+}
+
+export async function executeClaimByIdsQuery(collectionId: string, claimIdsToFetch: NumberType[]) {
+  const claimsRes = await CLAIMS_DB.partitionedFind(collectionId, {
+    selector: {
+      collectionId: {
+        $eq: Number(collectionId)
+      },
+      claimId: {
+        $in: claimIdsToFetch.map(x => Numberify(x))
+      }
+    },
   });
 
   return claimsRes;

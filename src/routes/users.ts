@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, AnnouncementDoc, BalanceDoc, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, NumberType, ProfileDoc, ProfileInfoBase, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfoBase, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfo, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -15,7 +15,7 @@ type AccountFetchOptions = GetAccountRouteRequestBody;
 
 export const getAccountByAddress = async (address: string, fetchOptions?: AccountFetchOptions) => {
   let accountInfo: AccountInfoBase<JSPrimitiveNumberType>;
-  if (fetchOptions?.fetchFromBlockchain) {
+  if (fetchOptions?.fetchSequence) {
     const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(convertToCosmosAddress(address));
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
     accountInfo = cleanedCosmosAccountInfo;
@@ -29,6 +29,7 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
           address: address,
           chain: getChainForAddress(address),
           publicKey: '',
+          accountNumber: -1,
         }
       }
       throw e;
@@ -77,8 +78,8 @@ export const getAccountByUsername = async (username: string, fetchOptions?: Acco
   const accountDoc = accountRes.docs[0];
 
   let accountInfo: AccountInfoBase<JSPrimitiveNumberType> = accountDoc;
-  let fetchFromBlockchain = fetchOptions?.fetchFromBlockchain;
-  if (fetchFromBlockchain) {
+  let fetchSequence = fetchOptions?.fetchSequence;
+  if (fetchSequence) {
     const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(accountDoc.cosmosAddress);
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
     accountInfo = {
@@ -167,57 +168,95 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
   }
 }
 
-const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetchOptions) => {
-  const activityBookmark = reqBody.activityBookmark;
-  const collectedBookmark = reqBody.collectedBookmark;
-  const announcementsBookmark = reqBody.announcementsBookmark;
-  const reviewsBookmark = reqBody.reviewsBookmark;
+const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetchOptions): Promise<{
+  collected: BalanceInfo<JSPrimitiveNumberType>[],
+  activity: TransferActivityInfo<JSPrimitiveNumberType>[],
+  announcements: AnnouncementInfo<JSPrimitiveNumberType>[],
+  reviews: ReviewInfo<JSPrimitiveNumberType>[],
+  views: {
+    [viewKey: string]: {
+      ids: string[],
+      type: string,
+      pagination: PaginationInfo,
+    } | undefined
+  }
+}> => {
+  if (!reqBody.viewsToFetch) return {
+    collected: [],
+    activity: [],
+    announcements: [],
+    reviews: [],
+    views: {},
+  };
+
+  const activityBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestActivity')?.bookmark;
+  const collectedBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected')?.bookmark;
+  const announcementsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements')?.bookmark;
+  const reviewsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews')?.bookmark;
+
 
   let response: nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>> = { docs: [] };
   let activityRes: nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>> = { docs: [] };
   let announcementsRes: nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>> = { docs: [] };
   let reviewsRes: nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>> = { docs: [] };
 
-  if (reqBody.activityBookmark !== undefined) {
+  if (activityBookmark !== undefined) {
     activityRes = await executeActivityQuery(cosmosAddress, activityBookmark);
   }
 
-  if (reqBody.collectedBookmark !== undefined) {
+  if (collectedBookmark !== undefined) {
     response = await executeCollectedQuery(cosmosAddress, collectedBookmark);
   }
 
-  if (reqBody.announcementsBookmark !== undefined) {
+  if (announcementsBookmark !== undefined) {
     announcementsRes = await executeAnnouncementsQuery(cosmosAddress, announcementsBookmark);
   }
 
-  if (reqBody.reviewsBookmark !== undefined) {
+  if (reviewsBookmark !== undefined) {
     reviewsRes = await executeReviewsQuery(cosmosAddress, reviewsBookmark);
   }
+
 
   return {
     collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails),
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
     reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
-    pagination: {
-      activity: {
-        bookmark: activityRes.bookmark ? activityRes.bookmark : '',
-        hasMore: activityRes.docs.length === 25
-      },
-      announcements: {
-        bookmark: announcementsRes.bookmark ? announcementsRes.bookmark : '',
-        hasMore: announcementsRes.docs.length === 25
-      },
-      collected: {
-        bookmark: response.bookmark ? response.bookmark : '',
-        hasMore: response.docs.length === 25
-      },
-      reviews: {
-        bookmark: reviewsRes.bookmark ? reviewsRes.bookmark : '',
-        hasMore: reviewsRes.docs.length === 25
-      }
+    views: {
+      'latestActivity': activityBookmark ? {
+        ids: activityRes.docs.map(x => x._id),
+        type: 'Activity',
+        pagination: {
+          bookmark: activityRes.bookmark ? activityRes.bookmark : '',
+          hasMore: activityRes.docs.length === 25
+        }
+      } : undefined,
+      'badgesCollected': collectedBookmark ? {
+        ids: response.docs.map(x => x._id),
+        type: 'Balances',
+        pagination: {
+          bookmark: response.bookmark ? response.bookmark : '',
+          hasMore: response.docs.length === 25
+        }
+      } : undefined,
+      'latestAnnouncements': announcementsBookmark ? {
+        ids: announcementsRes.docs.map(x => x._id),
+        type: 'Announcements',
+        pagination: {
+          bookmark: announcementsRes.bookmark ? announcementsRes.bookmark : '',
+          hasMore: announcementsRes.docs.length === 25
+        }
+      } : undefined,
+      'latestReviews': reviewsBookmark ? {
+        ids: reviewsRes.docs.map(x => x._id),
+        type: 'Reviews',
+        pagination: {
+          bookmark: reviewsRes.bookmark ? reviewsRes.bookmark : '',
+          hasMore: reviewsRes.docs.length === 25
+        }
+      } : undefined,
     }
-  };
+  }
 }
 
 

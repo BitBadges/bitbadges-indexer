@@ -1,5 +1,5 @@
 import { MsgNewCollection } from "bitbadgesjs-transactions"
-import { BitBadgesUserInfo, CollectionDoc, StatusDoc, DocsCache, Metadata, BadgeMetadataDetails, simulateCollectionAfterMsgNewCollection } from "bitbadgesjs-utils"
+import { BitBadgesUserInfo, CollectionDoc, StatusDoc, DocsCache, Metadata, BadgeMetadataDetails, simulateCollectionAfterMsg, GetPermissions } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleClaims } from "./claims"
 
@@ -17,9 +17,51 @@ export const handleMsgNewCollection = async (msg: MsgNewCollection<bigint>, stat
    * 
    * All other types are not used in this simulation (just set to default for TypeScript)
    */
-  const createdCollection = simulateCollectionAfterMsgNewCollection({
-    ...msg, details: [], transfers: [], claims: []
-  }, {} as Metadata<bigint>, {} as BadgeMetadataDetails<bigint>[], {} as BitBadgesUserInfo<bigint>)
+  const createdCollection = simulateCollectionAfterMsg({
+    ...msg,
+    permissions: GetPermissions(msg.permissions),
+    nextBadgeId: 1n,
+    nextClaimId: 1n,
+    unmintedSupplys: [],
+    maxSupplys: [],
+    claims: [],
+
+    //The following do not matter. Just set to default values for TypeScript
+    manager: '',
+    managerRequests: [],
+    createdBlock: 0n,
+    _id: '',
+    balancesUri: '',
+    collectionId: 0n,
+
+    activity: [],
+    announcements: [],
+    reviews: [],
+    owners: [],
+    managerInfo: {} as BitBadgesUserInfo<bigint>,
+    collectionMetadata: {} as Metadata<bigint>,
+    badgeMetadata: [] as BadgeMetadataDetails<bigint>[],
+    _rev: undefined,
+    _deleted: undefined,
+    views: {},
+  },
+    msg.claims.map((claim, idx) => {
+      return {
+        ...claim,
+        //Values below don't matter.
+        claimId: BigInt(idx + 1),
+        collectionId: 0n,
+        totalClaimsProcessed: 0n,
+        claimsPerAddressCount: {},
+        usedLeafIndices: [...claim.challenges.map(() => [])],
+        usedLeaves: [...claim.challenges.map(() => [])],
+        details: undefined,
+        _id: ``
+      }
+    }),
+    msg.transfers,
+    msg.badgeSupplys
+  );
 
   const collection: CollectionDoc<bigint> = {
     _id: status.nextCollectionId.toString(),
@@ -38,7 +80,7 @@ export const handleMsgNewCollection = async (msg: MsgNewCollection<bigint>, stat
     allowedTransfers: createdCollection.allowedTransfers,
     managerApprovedTransfers: createdCollection.managerApprovedTransfers,
     nextBadgeId: createdCollection.nextBadgeId,
-    nextClaimId: createdCollection.nextClaimId,
+    nextClaimId: createdCollection.nextClaimId, //Will be 1, we increment later in handle claims
     balancesUri: createdCollection.balancesUri,
     unmintedSupplys: createdCollection.unmintedSupplys,
     maxSupplys: createdCollection.maxSupplys,

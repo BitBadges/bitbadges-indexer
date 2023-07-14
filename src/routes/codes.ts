@@ -15,8 +15,8 @@ export const getAllCodesAndPasswords = async (expressReq: Request, res: Response
     const isManager = await checkIfManager(req, collectionId);
     if (!isManager) return returnUnauthorized(res, true);
 
-    const codes: string[][] = [];
-    const passwords: string[] = [];
+    const codes: string[][][] = [];
+    const passwords: string[][] = [];
     const codesDocsArr: PasswordDoc<JSPrimitiveNumberType>[] = [];
 
     let docsLength = -1;
@@ -43,8 +43,17 @@ export const getAllCodesAndPasswords = async (expressReq: Request, res: Response
     }).filter(doc => doc.docClaimedByCollection);
 
     for (const doc of docs) {
-      codes.push(doc.codes.map(code => AES.decrypt(code, process.env.SYM_KEY).toString()));
-      passwords.push(AES.decrypt(doc.password, process.env.SYM_KEY).toString());
+      const currDocCodes = [];
+      const currDocPasswords = [];
+
+      for (const challengeDetails of doc.challengeDetails) {
+        currDocCodes.push(challengeDetails.leavesDetails.preimages ?
+          challengeDetails.leavesDetails.preimages.map(code => AES.decrypt(code, process.env.SYM_KEY).toString()) : []);
+        currDocPasswords.push(challengeDetails.password ? AES.decrypt(challengeDetails.password ?? '', process.env.SYM_KEY).toString() : '');
+      }
+
+      codes.push(currDocCodes);
+      passwords.push(currDocPasswords);
     }
 
     return res.status(200).send({ codes, passwords });

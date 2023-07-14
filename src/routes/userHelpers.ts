@@ -45,26 +45,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       activity: [],
       announcements: [],
       reviews: [],
-      pagination: {
-        collected: {
-          bookmark: '',
-          hasMore: true,
-        },
-        announcements: {
-          bookmark: '',
-          hasMore: true,
-        },
-        reviews: {
-          bookmark: '',
-          hasMore: true,
-        },
-        activity: {
-          bookmark: '',
-          hasMore: true,
-        }
-      },
+      views: {},
       //We don't want to return these to the user
-      _id: undefined,
+      _id: accountInfo.cosmosAddress,
       _rev: undefined,
     } as BitBadgesUserInfo<JSPrimitiveNumberType>);
   }

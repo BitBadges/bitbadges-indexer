@@ -51,6 +51,7 @@ export const getClaimCodeViaPassword = async (expressReq: Request, res: Response
 
       const collectionId = req.params.collectionId;
       const claimId = req.params.claimId;
+      const challengeId = req.params.challengeId;
       const password = req.params.password;
 
       const query: nano.MangoQuery = {
@@ -60,7 +61,10 @@ export const getClaimCodeViaPassword = async (expressReq: Request, res: Response
           },
           claimId: {
             "$eq": Number(claimId)
-          }
+          },
+          docClaimedByCollection: {
+            "$eq": true
+          },
         }
       }
       const passwordDocResponse = await PASSWORDS_DB.find(query);
@@ -71,31 +75,40 @@ export const getClaimCodeViaPassword = async (expressReq: Request, res: Response
 
       const passwordDoc = convertPasswordDoc(passwordDocResponse.docs[0], BigIntify);
 
-      const currCode = passwordDoc.currCode;
-      const claimedUsers = passwordDoc.claimedUsers ? passwordDoc.claimedUsers : {};
+      const challengeDetails = passwordDoc.challengeDetails[Number(challengeId)];
+
+      const currCode = challengeDetails.currCode ? challengeDetails.currCode : 0n;
+      const claimedUsers = challengeDetails.claimedUsers ? challengeDetails.claimedUsers : {};
+
+      if (!challengeDetails.leavesDetails.preimages) {
+        return Promise.reject({ message: 'No codes found' });
+      }
 
       //Already claimed
       if (claimedUsers[req.session.cosmosAddress] >= 0) {
         const idx = Number(claimedUsers[req.session.cosmosAddress].toString());
-        return { code: AES.decrypt(passwordDoc.codes[idx], process.env.SYM_KEY).toString() };
+        return { code: AES.decrypt(challengeDetails.leavesDetails.preimages[idx], process.env.SYM_KEY).toString() };
       }
 
-      if (passwordDoc.password !== password) {
+
+      if (challengeDetails.password !== AES.encrypt(password, process.env.SYM_KEY).toString()) {
         return Promise.reject({ message: 'Incorrect password' });
+      }
+
+      challengeDetails.currCode = challengeDetails.currCode ? challengeDetails.currCode + 1n : 1n;
+
+      challengeDetails.claimedUsers = {
+        ...challengeDetails.claimedUsers,
+        [req.session.cosmosAddress]: currCode
       }
 
       await insertToDB(PASSWORDS_DB, {
         ...passwordDoc,
-        currCode: passwordDoc.currCode + 1n,
-        claimedUsers: {
-          ...claimedUsers,
-          [req.session.cosmosAddress]: currCode
-        }
       });
 
       const currCodeIdx = Number(currCode.toString());
 
-      return { code: AES.decrypt(passwordDoc.codes[currCodeIdx], process.env.SYM_KEY).toString() };
+      return { code: AES.decrypt(challengeDetails.leavesDetails.preimages[currCodeIdx], process.env.SYM_KEY).toString() };
     });
 
     return res.status(200).send(returnValue);

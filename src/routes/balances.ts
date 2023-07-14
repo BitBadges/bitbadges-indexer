@@ -12,7 +12,7 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
     return res.status(200).send({
       balance: response ? removeCouchDBDetails(convertBalanceDoc(response, Stringify))
-        : { collectionId: req.params.collectionId, cosmosAddress: req.params.cosmosAddress, balances: [], approvals: [], onChain: true }
+        : { collectionId: req.params.collectionId, cosmosAddress: req.params.cosmosAddress, balances: [], approvals: [], onChain: true, _id: req.params.collectionId + ':' + cosmosAddress }
     });
   } catch (e) {
     return res.status(500).send({

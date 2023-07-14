@@ -1,5 +1,5 @@
 import { MsgMintAndDistributeBadges } from "bitbadgesjs-transactions"
-import { BadgeMetadataDetails, BitBadgesUserInfo, DocsCache, Metadata, StatusDoc, simulateCollectionAfterMsgMintAndDistributeBadges } from "bitbadgesjs-utils"
+import { BadgeMetadataDetails, BitBadgesUserInfo, DocsCache, Metadata, StatusDoc, simulateCollectionAfterMsg } from "bitbadgesjs-utils"
 import { CLAIMS_DB } from "../db/db"
 import { handleClaims } from "./claims"
 
@@ -24,56 +24,41 @@ export const handleMsgMintAndDistributeBadges = async (msg: MsgMintAndDistribute
    * The only necessary inputs to calculate this is the collectionId, creator, badgeSupplys, collectionUri, and badgeUris 
    * which are all provided in msg. See the function for more details.
    *
-   * Note we handle transfers, claims, and balances separately below. The returned collection object is not used for these.
-   * 
+   * Note we handle claims, and balances separately below. The returned collection object is not used for these.
+   *
    * All other types are not used in this simulation (just set to default blank values for TypeScript)
    */
-  const collection = simulateCollectionAfterMsgMintAndDistributeBadges(
-    {
-      ...msg,
-      details: [],
-      transfers: [],
-      claims: [],
-    },
-    {} as Metadata<bigint>,
-    {} as BadgeMetadataDetails<bigint>[],
-    {} as BitBadgesUserInfo<bigint>,
+  const collection = simulateCollectionAfterMsg(
     {
       ...collectionDoc,
       claims: [],
       activity: [],
       announcements: [],
       reviews: [],
-      balances: [],
+      owners: [],
       managerInfo: {} as BitBadgesUserInfo<bigint>,
       collectionMetadata: {} as Metadata<bigint>,
-      badgeMetadata: {} as BadgeMetadataDetails<bigint>[],
-      _id: undefined,
+      badgeMetadata: [] as BadgeMetadataDetails<bigint>[],
       _rev: undefined,
       _deleted: undefined,
-      pagination: {
-        activity: {
-          bookmark: '',
-          hasMore: true,
-        },
-        announcements: {
-          bookmark: '',
-          hasMore: true,
-        },
-        reviews: {
-          bookmark: '',
-          hasMore: true,
-        },
-        claims: {
-          bookmark: '',
-          hasMore: true,
-        },
-        balances: {
-          bookmark: '',
-          hasMore: true,
-        },
+      views: {},
+    },
+    msg.claims.map((claim, idx) => {
+      return {
+        ...claim,
+        //Values below don't matter. Just need to set them to something.
+        claimId: BigInt(idx + 1),
+        collectionId: 0n,
+        totalClaimsProcessed: 0n,
+        claimsPerAddressCount: {},
+        usedLeafIndices: [...claim.challenges.map(() => [])],
+        usedLeaves: [...claim.challenges.map(() => [])],
+        details: undefined,
+        _id: ``
       }
-    }
+    }),
+    msg.transfers,
+    msg.badgeSupplys
   );
 
 
@@ -105,8 +90,8 @@ export const handleMsgMintAndDistributeBadges = async (msg: MsgMintAndDistribute
   collectionDoc.maxSupplys = collection.maxSupplys;
   collectionDoc.nextBadgeId = collection.nextBadgeId;
 
-  const existingClaimsDocs = await CLAIMS_DB.partitionedList(`${collection.collectionId.toString()}`); //Fetches head only
-  const numExistingClaims = existingClaimsDocs.total_rows;
+  const existingClaimsDocs = await CLAIMS_DB.partitionInfo(`${collection.collectionId.toString()}`); //Fetches head only
+  const numExistingClaims = existingClaimsDocs.doc_count;
   await handleClaims(docs, msg.claims, collection.collectionId, numExistingClaims, status);
 
   await handleTransfers(collection, ['Mint'], msg.transfers, docs, status);

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { NumberType } from 'bitbadgesjs-proto';
-import { BadgeMetadataDetails, BalancesMap, BigIntify, LeavesDetails, Metadata, convertBadgeMetadataDetails, convertBalancesMap, convertMetadata } from 'bitbadgesjs-utils';
+import { BadgeMetadataDetails, BigIntify, ChallengeDetails, ClaimDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
 import last from 'it-last';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { FETCHES_DB, insertToDB } from '../db/db';
@@ -27,8 +27,8 @@ export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
   return blob
 }
 
-export const addBalancesToIpfs = async (_balances: BalancesMap<NumberType>) => {
-  const balances = convertBalancesMap(_balances, BigIntify);
+export const addBalancesToIpfs = async (_balances: OffChainBalancesMap<NumberType>) => {
+  const balances = convertOffChainBalancesMap(_balances, BigIntify);
   const files = [];
   files.push({
     path: '',
@@ -158,11 +158,24 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   return { allResults: results, collectionMetadataResult, badgeMetadataResults };
 }
 
-export const addClaimToIpfs = async (name: string, description: string, leavesDetails: LeavesDetails[], hasPassword: boolean) => {
+export const addClaimToIpfs = async (name: string, description: string, challengeDetails: ChallengeDetails<bigint>[]) => {
+  //Remove preimages and passwords from challengeDetails
+  const convertedChallengeDetails: ChallengeDetails<bigint>[] = challengeDetails.map(x => {
+    return {
+      ...x,
+      password: undefined,
+      hasPassword: x.password ? true : false,
+      leavesDetails: {
+        ...x.leavesDetails,
+        preimages: undefined
+      }
+    }
+  })
+
   const files = [];
   files.push({
     path: '',
-    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: { leavesDetails }, hasPassword }))
+    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: convertedChallengeDetails }))
   });
 
   const result = await last(ipfsClient.addAll(files));
@@ -174,9 +187,8 @@ export const addClaimToIpfs = async (name: string, description: string, leavesDe
     content: {
       name,
       description,
-      challengeDetails: leavesDetails.map((leaf) => ({ leavesDetails: leaf })),
-      hasPassword
-    },
+      challengeDetails: convertedChallengeDetails,
+    } as ClaimDetails<bigint>,
     db: 'Claim',
     isPermanent: true
   });

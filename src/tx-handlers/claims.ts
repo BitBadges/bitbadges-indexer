@@ -13,8 +13,6 @@ export const handleClaims = async (docs: DocsCache, claims: Claim<bigint>[], col
   try {
     //Handle claim objects
     for (let idx = startAt; idx < claims.length; idx++) {
-      collectionDoc.nextClaimId++;
-
       const claim = claims[idx];
       let claimDocument: ClaimDoc<bigint>;
 
@@ -61,6 +59,7 @@ export const handleClaims = async (docs: DocsCache, claims: Claim<bigint>[], col
         _id: partitionedId,
         _rev: '',
         usedLeafIndices: [...claim.challenges.map(() => [])],
+        usedLeaves: [...claim.challenges.map(() => [])],
         collectionId: collectionId,
         claimId: BigInt(idx + 1),
         totalClaimsProcessed: BigInt(0),

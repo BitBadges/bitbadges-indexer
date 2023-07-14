@@ -1,6 +1,6 @@
 //Catch function to return rejected promises upon non-404 errors but return undefined for all other errors
 
-import { CouchDBDetailsExcluded } from "bitbadgesjs-utils";
+import { Identified } from "bitbadgesjs-utils";
 import nano, { DocumentResponseRow, Document } from "nano";
 
 // Path: ../utils/catch404.ts
@@ -26,6 +26,6 @@ export function getDocsFromNanoFetchRes<T>(response: nano.DocumentFetchResponse<
   return rows.map((row) => row.doc).filter((doc) => doc !== undefined) as (T & Document)[];
 }
 
-export function removeCouchDBDetails<T extends Object>(x: T): T & CouchDBDetailsExcluded {
-  return { ...x, _id: undefined, _rev: undefined, _deleted: undefined }
+export function removeCouchDBDetails<T extends Object & { _id: string }>(x: T): T & Identified {
+  return { ...x, _rev: undefined, _deleted: undefined }
 }
