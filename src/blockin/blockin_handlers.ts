@@ -1,12 +1,13 @@
-import { convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
+import { BigIntify } from 'bitbadgesjs-proto';
+import { convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getCurrentValueIdxForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
+import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
+import { COLLECTIONS_DB, IPFS_TOTALS_DB } from '../db/db';
 import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
-import { COLLECTIONS_DB, IPFS_TOTALS_DB } from '../db/db';
-import { serializeError } from 'serialize-error';
 
 export interface BlockinSession extends Session {
   nonce: string | null;
@@ -39,8 +40,15 @@ export async function checkIfManager(req: AuthenticatedRequest, collectionId: Nu
   if (!checkIfAuthenticated(req)) return false;
 
   const collectionIdStr = BigInt(collectionId).toString();
-  const collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);
-  const manager = collection.manager;
+  const _collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);
+  const collection = convertCollectionDoc(_collection, BigIntify);
+
+  const managerIdx = getCurrentValueIdxForTimeline(collection.managerTimeline);
+  if (managerIdx == -1n) {
+    return false;
+  }
+
+  const manager = collection.managerTimeline[Number(managerIdx)].manager;
   if (req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
     return false;
   }
