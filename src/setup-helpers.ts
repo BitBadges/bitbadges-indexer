@@ -1,35 +1,41 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ACTIVITY_DB, BALANCES_DB, COLLECTIONS_DB, STATUS_DB } from "./db/db";
+import { ANNOUNCEMENTS_DB, BALANCES_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
 const nano = Nano(`${process.env.DB_URL}`);
 
 export async function deleteDatabases() {
-  await nano.db.destroy('activity');
-  await nano.db.destroy('profiles');
-  await nano.db.destroy('fetches');
-  await nano.db.destroy('accounts');
-  await nano.db.destroy('collections');
-  await nano.db.destroy('status');
-  await nano.db.destroy('errors');
-  await nano.db.destroy('metadata');
-  await nano.db.destroy('passwords');
-  await nano.db.destroy('airdrop');
-  await nano.db.destroy('balances');
-  await nano.db.destroy('claims');
+  await nano.db.destroy('transfer-activity').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('profiles').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('fetches').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('accounts').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('collections').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('status').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('errors').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('metadata').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('passwords').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('airdrop').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('balances').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('claims').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('queue').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('ipfs-totals').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('refreshes').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('announcements').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('reviews').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('load-balance').catch((e) => { if (e.statusCode !== 404) throw e });
 
   //_utils, _replicator, _global_changes, _metadata
-  await nano.db.destroy('_users');
-  await nano.db.destroy('_replicator');
-  await nano.db.destroy('_global_changes');
-  await nano.db.destroy('_metadata');
+  await nano.db.destroy('_users').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('_replicator').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('_global_changes').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('_metadata').catch((e) => { if (e.statusCode !== 404) throw e });
 }
 
 
 export async function createDatabases() {
-  await nano.db.create('activity', { partitioned: true });
+  await nano.db.create('transfer-activity', { partitioned: true });
   await nano.db.create('accounts');
   await nano.db.create('profiles');
   await nano.db.create('fetches');
@@ -41,6 +47,12 @@ export async function createDatabases() {
   await nano.db.create('airdrop');
   await nano.db.create('balances', { partitioned: true });
   await nano.db.create('claims', { partitioned: true });
+  await nano.db.create('queue');
+  await nano.db.create('ipfs-totals');
+  await nano.db.create('refreshes');
+  await nano.db.create('announcements', { partitioned: true });
+  await nano.db.create('reviews', { partitioned: true });
+  await nano.db.create('load-balance');
 
   //_utils, _replicator, _global_changes, _metadata
   await nano.db.create('_users');
@@ -50,28 +62,55 @@ export async function createDatabases() {
 }
 
 export async function initStatus() {
-  await STATUS_DB.insert({
+  await insertToDB(STATUS_DB, {
     "_id": "status",
     "block": {
-      "height": "1"
+      "height": "1",
+      "txIndex": "0",
+      "timestamp": 0
     },
     "nextCollectionId": "1",
-    "queue": [],
-    "gasPrice": "0.000001",
+    "gasPrice": "1",
     "lastXGasPrices": [
-      "0.000001"
+      "1"
     ]
   })
 }
 
 export async function createIndexesAndViews() {
-  await ACTIVITY_DB.createIndex({
+  await TRANSFER_ACTIVITY_DB.createIndex({
     index: {
       fields: ['timestamp']
     },
     partitioned: true
   })
-  await ACTIVITY_DB.createIndex({
+  await TRANSFER_ACTIVITY_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: false
+  })
+
+  await ANNOUNCEMENTS_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: true
+  })
+  await ANNOUNCEMENTS_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: false
+  })
+
+  await REVIEWS_DB.createIndex({
+    index: {
+      fields: ['timestamp']
+    },
+    partitioned: true
+  })
+  await REVIEWS_DB.createIndex({
     index: {
       fields: ['timestamp']
     },

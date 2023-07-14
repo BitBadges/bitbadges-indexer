@@ -1,40 +1,38 @@
-import { Mutex } from 'async-mutex'
 import cookieParser from 'cookie-parser'
 import { Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { config } from "dotenv"
 import express, { Express, Request, Response } from "express"
+import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
 import { Server } from "http"
 import { create } from 'ipfs-http-client'
 import { authorizeBlockinRequest, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { poll } from "./poll"
-import { getBadgeBalance } from "./routes/balances"
-import { getCodes } from "./routes/codes"
-import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForCollection, queryCollections } from "./routes/collections"
-import { addClaimToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
-import { getPasswordsAndCodes } from "./routes/passwords"
-import { fetchMetadata, refreshMetadata } from "./routes/metadata"
+import { addAnnouncement } from './routes/announcements'
+import { getBadgeBalanceByAddress } from "./routes/balances"
+import { broadcastTx, simulateTx } from './routes/broadcast'
+import { getBrowseCollections } from './routes/browse'
+import { getAllCodesAndPasswords } from "./routes/codes"
+import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForBadge } from "./routes/collections"
+import { getTokensFromFaucet } from './routes/faucet'
+import { addBalancesToIpfsHandler, addClaimToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
+import { fetchMetadataDirectly, refreshMetadata } from "./routes/metadata"
+import { getClaimCodeViaPassword } from "./routes/passwords"
+import { addReviewForCollection, addReviewForUser } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
-import { getAccount, getActivity, getAccountsByAddress, getPortfolioInfo, updateAccountInfo } from "./routes/users"
-import _ from "../environment"
-import { getBrowseCollections } from './routes/browse'
-import { sendTokensFromFaucet } from './routes/faucet'
-import { broadcastTx, simulateTx } from './routes/broadcast'
-import rateLimit from 'express-rate-limit'
-import { addAnnouncement } from './routes/announcements'
-import { addReviewForCollection, addReviewForUser } from './routes/reviews'
-
+import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
+import _ from 'environment'
+import axios from 'axios'
 
 var fs = require("fs");
 var https = require("https");
 const cors = require('cors');
 
-config()
+axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 
-// create a mutex for synchronizing access to the queue
-export const refreshQueueMutex = new Mutex();
+config()
 
 // Basic rate limiting middleware for Express. Limits requests to 100 per minute.
 // Initially put in place to protect against infinite loops.
@@ -45,8 +43,9 @@ const limiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 })
 
-
 const auth = 'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
+
+export const LOAD_BALANCER_ID = Number(process.env.LOAD_BALANCER_ID); //string number
 
 export const ipfsClient = create({
   host: 'ipfs.infura.io',
@@ -73,7 +72,7 @@ export const setTimer = (newTimer: NodeJS.Timer) => {
 }
 
 const app: Express = express()
-const port = "3001"
+const port = process.env.port ? Number(process.env.port) : 3001
 
 //TODO: secure these / API keys?
 app.use(cors({
@@ -119,34 +118,31 @@ app.post("/api/v0/search/:searchValue", searchHandler);
 
 //Collections
 app.post("/api/v0/collection/batch", getCollections)
-app.post("/api/v0/collection/query", queryCollections)
-app.post("/api/v0/collection/:id", getCollectionById)
-app.post('/api/v0/collection/:id/:badgeId/owners', getOwnersForCollection);
-app.post("/api/v0/collection/:id/metadata", getMetadataForCollection)
-app.post('/api/v0/collection/:id/balance/:cosmosAddress', getBadgeBalance);
-app.post('/api/v0/collection/:id/:badgeId/activity', getBadgeActivity);
+app.post("/api/v0/collection/:collectionId", getCollectionById)
+app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);
+app.post("/api/v0/collection/:collectionId/metadata", getMetadataForCollection)
+app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
+app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
 
-app.post('/api/v0/collection/:id/refreshMetadata', refreshMetadata); //Write route
-app.post('/api/v0/collection/:id/:badgeId/refreshMetadata', refreshMetadata); //Write route
+app.post('/api/v0/collection/:collectionId/refreshMetadata', refreshMetadata); //Write route
 
-app.post('/api/v0/collection/:id/codes', authorizeBlockinRequest, getCodes);
-app.post('/api/v0/collection/:id/password/:claimId/:password', authorizeBlockinRequest, getPasswordsAndCodes); //Write route
+app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
+app.post('/api/v0/collection/:collectionId/password/:claimId/:password', authorizeBlockinRequest, getClaimCodeViaPassword); //Write route
 
-app.post('/api/v0/collection/:id/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
-app.post('/api/v0/collection/:id/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
+app.post('/api/v0/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
+app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
 
 
 //User
-app.post('/api/v0/user/batch', getAccountsByAddress);
+app.post('/api/v0/user/batch', getAccounts);
 app.post('/api/v0/user/:addressOrUsername', getAccount);
-app.post('/api/v0/user/:addressOrUsername/portfolio', getPortfolioInfo);
-app.post('/api/v0/user/:addressOrUsername/activity', getActivity);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
 
 //IPFS
-app.post('/api/v0/addMetadataToIpfs', addMetadataToIpfsHandler); //
-app.post('/api/v0/addClaimToIpfs', addClaimToIpfsHandler); //
+app.post('/api/v0/addMetadataToIpfs', authorizeBlockinRequest, addMetadataToIpfsHandler); //
+app.post('/api/v0/addClaimToIpfs', authorizeBlockinRequest, addClaimToIpfsHandler); //
+app.post('/api/v0/addBalancesToIpfs', authorizeBlockinRequest, addBalancesToIpfsHandler); //
 
 //Blockin Auth
 app.post('/api/v0/auth/getChallenge', getChallenge);
@@ -161,10 +157,10 @@ app.post('/api/v0/broadcast', broadcastTx);
 app.post('/api/v0/simulate', simulateTx);
 
 //Fetch arbitrary metadata
-app.post('/api/v0/metadata', fetchMetadata);
+app.post('/api/v0/metadata', fetchMetadataDirectly);
 
 //Faucet
-app.post('/api/v0/faucet', authorizeBlockinRequest, sendTokensFromFaucet);
+app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

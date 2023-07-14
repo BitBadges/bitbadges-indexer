@@ -1,8 +1,11 @@
 import { Request, Response } from "express";
 import nano from "nano";
 import { COLLECTIONS_DB } from "../db/db";
+import { serializeError } from "serialize-error";
+import { GetBrowseCollectionsRouteResponse, NumberType } from "bitbadgesjs-utils";
+import { executeCollectionsQuery } from "./collections";
 
-export const getBrowseCollections = async (req: Request, res: Response) => {
+export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
     //TODO: populate with real data
 
@@ -18,15 +21,23 @@ export const getBrowseCollections = async (req: Request, res: Response) => {
 
     const latestCollections = await COLLECTIONS_DB.find(latestQuery);
 
+    const collections = await executeCollectionsQuery(latestCollections.docs.map(doc => {
+      return {
+        collectionId: doc._id,
+      }
+    }));
 
     return res.status(200).send({
-      'featured': latestCollections.docs,
-      'latest': latestCollections.docs,
-      'claimable': latestCollections.docs,
-      'popular': latestCollections.docs
+      'featured': collections,
+      'latest': collections,
+      'claimable': collections,
+      'popular': collections,
     });
   } catch (e) {
     console.error(e);
-    return res.status(500).send({ error: 'Error fetching collections' });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: 'Error getting collections'
+    });
   }
 }

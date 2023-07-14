@@ -1,9 +1,10 @@
-import { s_Account, s_BitBadgesUserInfo, s_Coin, s_Profile } from "bitbadgesjs-utils";
-import { ACTIVITY_DB, AIRDROP_DB, BALANCES_DB } from "../db/db";
+import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase } from "bitbadgesjs-utils";
+import { AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { client } from "../indexer";
 import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
 
-export const convertToBitBadgesUserInfo = async (profileInfos: s_Profile[], accountInfos: s_Account[]): Promise<s_BitBadgesUserInfo[]> => {
+export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[], accountInfos: AccountInfoBase<JSPrimitiveNumberType>[]): Promise<BitBadgesUserInfo<JSPrimitiveNumberType>[]> => {
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
   }
@@ -22,14 +23,14 @@ export const convertToBitBadgesUserInfo = async (profileInfos: s_Profile[], acco
   }
 
   const results = await Promise.all(promises);
-  const resultsToReturn: s_BitBadgesUserInfo[] = [];
+  const resultsToReturn: BitBadgesUserInfo<JSPrimitiveNumberType>[] = [];
 
   for (let i = 0; i < results.length; i += 3) {
     const profileInfo = profileInfos[i / 3];
     const accountInfo = accountInfos[i / 3];
 
     const nameAndAvatarRes = results[i] as { resolvedName: string, avatar: string };
-    const balanceInfo = results[i + 1] as s_Coin;
+    const balanceInfo = results[i + 1] as CosmosCoin<JSPrimitiveNumberType>;
     const airdropInfo = results[i + 2] as boolean;
 
     resultsToReturn.push({
@@ -61,8 +62,11 @@ export const convertToBitBadgesUserInfo = async (profileInfos: s_Profile[], acco
           bookmark: '',
           hasMore: true,
         }
-      }
-    });
+      },
+      //We don't want to return these to the user
+      _id: undefined,
+      _rev: undefined,
+    } as BitBadgesUserInfo<JSPrimitiveNumberType>);
   }
 
   return resultsToReturn;
@@ -87,27 +91,18 @@ export async function getNameAndAvatar(address: string) {
 
 
 export async function executeActivityQuery(cosmosAddress: string, bookmark?: string) {
-  const activityRes = await ACTIVITY_DB.find({
+  const activityRes = await TRANSFER_ACTIVITY_DB.find({
     selector: {
-      "to": {
-        "$elemMatch": cosmosAddress,
+      "$or": [{
+        "to": {
+          "$elemMatch": cosmosAddress,
+        },
       },
-      "from": {
-        "$elemMatch": cosmosAddress,
-      },
-      "method": {
-        "$or": [
-          {
-            "$eq": "Transfer"
-          },
-          {
-            "$eq": "Mint"
-          },
-          {
-            "$eq": "Claim"
-          }
-        ]
-      },
+      {
+        "from": {
+          "$elemMatch": cosmosAddress,
+        },
+      }],
       timestamp: {
         "$gt": null,
       }
@@ -119,11 +114,12 @@ export async function executeActivityQuery(cosmosAddress: string, bookmark?: str
   return activityRes;
 }
 
+
 export async function getAllCollectionIdsOwned(cosmosAddress: string) {
   const designDocName = '_design/balances_by_address';
   const viewName = 'byCosmosAddress';
 
-  const docs = await BALANCES_DB.view(designDocName, viewName, { limit: 0 });
+  const docs = await BALANCES_DB.view(designDocName, viewName);
   const collections = docs.rows.map((row) => row.id.split(':')[1]);
   return collections;
 }
@@ -133,13 +129,10 @@ export async function executeAnnouncementsQuery(cosmosAddress: string, bookmark?
   const collections: string[] = await getAllCollectionIdsOwned(cosmosAddress);
 
 
-  const announcementsRes = await ACTIVITY_DB.find({
+  const announcementsRes = await ANNOUNCEMENTS_DB.find({
     selector: {
       "collectionId": {
-        "$in": collections,
-      },
-      "method": {
-        "$eq": "Announcement"
+        "$in": collections.map((collectionId) => Number(collectionId)),
       },
       timestamp: {
         "$gt": null,
@@ -153,11 +146,8 @@ export async function executeAnnouncementsQuery(cosmosAddress: string, bookmark?
 }
 
 export async function executeReviewsQuery(cosmosAddress: string, bookmark?: string) {
-  const reviewsRes = await ACTIVITY_DB.partitionedFind(`user-${cosmosAddress}`, {
+  const reviewsRes = await REVIEWS_DB.partitionedFind(`user-${cosmosAddress}`, {
     selector: {
-      "method": {
-        "$eq": "Review"
-      },
       timestamp: {
         "$gt": null,
       }

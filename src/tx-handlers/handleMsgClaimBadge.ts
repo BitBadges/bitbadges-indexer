@@ -1,27 +1,28 @@
-import { MessageMsgClaimBadge } from "bitbadgesjs-transactions"
-import { ActivityItem, ClaimDocument, DbStatus, DocsCache, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils"
-import nano from "nano"
-import { fetchDocsForCacheIfEmpty } from "../db/db"
+import { MsgClaimBadge } from "bitbadgesjs-transactions"
+import { BigIntify, DocsCache, StatusDoc, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils"
+import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { convertBalance } from "bitbadgesjs-proto"
 
-export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbStatus, docs: DocsCache): Promise<void> => {
+export const handleMsgClaimBadge = async (msg: MsgClaimBadge<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
   const solutions = msg.solutions ? msg.solutions : [];
   const claimIdString = `${msg.collectionId}:${msg.claimId}`
 
   //Fetch required docs if needed
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [`${msg.collectionId}:${msg.claimId}`]);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [`${msg.collectionId}:${msg.claimId}`]);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const toAddress = msg.creator;
-  await fetchDocsForCacheIfEmpty(docs, [], [], [], [`${msg.collectionId}:${toAddress}`], []);
+  await fetchDocsForCacheIfEmpty(docs, [], [], [`${msg.collectionId}:${toAddress}`], []);
 
   //Safe to cast because if MsgClaimBadge Tx is valid, then the claim must exist
-  const currClaimObj = docs.claims[claimIdString] as ClaimDocument & nano.DocumentGetResponse;
+  const currClaimObj = docs.claims[claimIdString];
+  if (!currClaimObj) throw new Error(`Claim ${claimIdString} does not exist`);
 
   //Update for all challenge solutions
   for (let i = 0; i < solutions.length; i++) {
     const solution = solutions[i];
-    const challenge = currClaimObj.challenges[i];
+    const usedLeafIndices = currClaimObj.usedLeafIndices[i];
     const proof = solution.proof;
     const aunts = proof.aunts;
 
@@ -39,17 +40,14 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
     }
 
     //Add to used leaf indices
-    challenge.usedLeafIndices.push(leafIndex);
+    usedLeafIndices.push(leafIndex);
+
   }
 
 
-  const balancesTransferred = JSON.parse(JSON.stringify(currClaimObj.currentClaimAmounts));
-
-
-
-  //Add claim activity item
+  const balancesTransferred = currClaimObj.currentClaimAmounts.map((balance => convertBalance(balance, BigIntify))); //used for deep copy
   docs.activityToAdd.push({
-    partition: `collection-${msg.collectionId}`,
+    _id: `collection-${msg.collectionId}:${status.block.height}-${status.block.txIndex}`,
     from: ['Mint'],
     to: [toAddress],
     balances: balancesTransferred,
@@ -57,7 +55,7 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
     method: 'Claim',
     block: status.block.height,
     timestamp: BigInt(Date.now()),
-  } as ActivityItem);
+  });
 
 
   //Update the balances doc of the toAddress
@@ -66,7 +64,7 @@ export const handleMsgClaimBadge = async (msg: MessageMsgClaimBadge, status: DbS
   for (const balance of balancesTransferred) {
     toAddressBalanceDoc = {
       ...toAddressBalanceDoc,
-      ...addBalancesForIdRanges(toAddressBalanceDoc, balance.badgeIds, balance.balance)
+      ...addBalancesForIdRanges(toAddressBalanceDoc, balance.badgeIds, balance.amount)
     }
   }
 

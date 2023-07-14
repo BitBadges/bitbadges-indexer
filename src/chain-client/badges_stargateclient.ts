@@ -1,5 +1,5 @@
 import { QueryClient, StargateClient, StargateClientOptions } from "@cosmjs/stargate"
-import { BroadcastTxSyncResponse, Tendermint34Client } from "@cosmjs/tendermint-rpc"
+import { Tendermint34Client } from "@cosmjs/tendermint-rpc"
 import { BadgesExtension, setupBadgesExtension } from "./queries"
 
 //Credit: Code in this folder is mostly inherited from Cosmos Tutorials (Academy Checkers)
@@ -19,9 +19,5 @@ export class BadgesStargateClient extends StargateClient {
     if (tmClient) {
       this.badgesQueryClient = QueryClient.withExtensions(tmClient, setupBadgesExtension)
     }
-  }
-
-  public async tmBroadcastTxSync(tx: Uint8Array): Promise<BroadcastTxSyncResponse> {
-    return this.forceGetTmClient().broadcastTxSync({ tx })
   }
 }

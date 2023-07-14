@@ -3,10 +3,13 @@ import { SigningStargateClient, assertIsDeliverTxSuccess } from "@cosmjs/stargat
 import { Mutex } from "async-mutex";
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { AIRDROP_DB } from "../db/db";
+import { AIRDROP_DB, insertToDB } from "../db/db";
+import _ from "environment"
+import { serializeError } from "serialize-error";
+import { GetTokensFromFaucetRouteResponse, NumberType } from "bitbadgesjs-utils";
 
 // Create a mutex to protect the faucet from double spending
-// TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency), but it will work for now 
+// TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency); it will work for now  but needs a refactor
 
 /**
  * Problem: How do we prevent double spending from the faucet when the blockchain is asynchronous?
@@ -17,12 +20,9 @@ import { AIRDROP_DB } from "../db/db";
  */
 const faucetMutex = new Mutex();
 
-export const sendTokensFromFaucet = async (expressReq: Request, res: Response) => {
+export const getTokensFromFaucet = async (expressReq: Request, res: Response<GetTokensFromFaucetRouteResponse<NumberType>>) => {
   try {
     const req = expressReq as AuthenticatedRequest;
-    if (!req.session.blockin || !req.session.cosmosAddress) {
-      return res.status(401).send({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
-    }
 
     // acquire the mutex for the documentMutexes map
     const returnValue = await faucetMutex.runExclusive(async () => {
@@ -42,7 +42,7 @@ export const sendTokensFromFaucet = async (expressReq: Request, res: Response) =
       if (doc && doc.airdropped) {
         return { message: "Already airdropped" };
       } else {
-        await AIRDROP_DB.insert({ ...doc, airdropped: true, _id: req.session.cosmosAddress, timestamp: Date.now() });
+        await insertToDB(AIRDROP_DB, { ...doc, airdropped: true, _id: req.session.cosmosAddress, timestamp: Date.now() });
         return null;
       }
     });
@@ -61,10 +61,24 @@ export const sendTokensFromFaucet = async (expressReq: Request, res: Response) =
       const wallet = await DirectSecp256k1HdWallet.fromMnemonic(fromMnemonic);
       const [firstAccount] = await wallet.getAccounts();
 
-      const signingClient = await SigningStargateClient.connectWithSigner(
-        process.env.RPC_URL,
-        wallet
-      );
+      const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
+
+      let signingClient;
+      for (let i = 0; i < rpcs.length; i++) {
+        try {
+          signingClient = await SigningStargateClient.connectWithSigner(
+            rpcs[i],
+            wallet
+          );
+          break;
+        } catch (e) {
+          console.log(`Error connecting to chain client at ${rpcs[i]}. Trying new one....`)
+        }
+      }
+
+      if (!signingClient) {
+        throw new Error('Could not connect to any RPCs');
+      }
 
       const amount = {
         denom: "badge",
@@ -84,16 +98,18 @@ export const sendTokensFromFaucet = async (expressReq: Request, res: Response) =
       const result = await signingClient.sendTokens(firstAccount.address, to, [amount], fee);
       assertIsDeliverTxSuccess(result);
       const doc = await AIRDROP_DB.get(req.session.cosmosAddress);
-      await AIRDROP_DB.insert({ ...doc, hash: result.transactionHash, timestamp: Date.now() });
+      await insertToDB(AIRDROP_DB, { ...doc, hash: result.transactionHash, timestamp: Date.now() });
 
       return res.status(200).send(result);
     } catch (e) {
       const doc = await AIRDROP_DB.get(req.session.cosmosAddress);
-      await AIRDROP_DB.insert({ ...doc, airdropped: false, timestamp: Date.now() });
+      await insertToDB(AIRDROP_DB, { ...doc, airdropped: false, timestamp: Date.now() });
       throw e;
     }
   } catch (e) {
-    console.error(e);
-    return res.status(500).send({ error: 'Internal server error handling airdrop.' });
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error sending airdrop tokens. Please try again later."
+    });
   }
 }

@@ -1,24 +1,23 @@
 
-import { BitBadgesUserInfo, Metadata, convertToCosmosAddress, getChainForAddress, isAddressValid, s_Account, s_BitBadgesUserInfo, s_Profile } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { AccountInfoBase, BitBadgesUserInfo, GetSearchRouteResponse, NumberType, Stringify, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
-import { ACCOUNTS_DB, METADATA_DB, PROFILES_DB } from "../db/db";
+import { serializeError } from "serialize-error";
+import { getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
+import { ACCOUNTS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
 import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
+import { executeAdditionalCollectionQueries } from "./collections";
 
-export const searchHandler = async (req: Request, res: Response) => {
+export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
-    const searchResponse: {
-      collections: Metadata[],
-      accounts: BitBadgesUserInfo[],
-    } = {
-      collections: [],
-      accounts: [],
-    }
-
     const searchValue = req.params.searchValue;
     if (!searchValue || searchValue.length == 0) {
-      return res.json(searchResponse)
+      return res.json({
+        collections: [],
+        accounts: [],
+      })
     }
 
     const ensToAttempt = searchValue.includes('.eth') ? searchValue : `${searchValue}.eth`;
@@ -37,11 +36,12 @@ export const searchHandler = async (req: Request, res: Response) => {
     // Search metadata of collections for matching names
     const collectionMetadataQuery: nano.MangoQuery = {
       selector: {
-        "isCollection": true,
-        "$or": [
-          { "name": { "$regex": `(?i)${searchValue}` } },
-          { "_id": { "$regex": `(?i)${searchValue}:` } },
-        ]
+        content: {
+          name: { "$regex": `(?i)${searchValue}` }
+        },
+        db: {
+          "$eq": "Metadata"
+        }
       },
     }
 
@@ -53,32 +53,21 @@ export const searchHandler = async (req: Request, res: Response) => {
           { "address": { "$regex": `(?i)${searchValue}` } },
           { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
           { "_id": { "$regex": `(?i)${convertToCosmosAddress(searchValue)}:` } },
-        ]
-      },
-    }
-
-    const usernameQuery = {
-      selector: {
-        "$or": [
           { "username": { "$regex": `(?i)${searchValue}` } },
         ]
       },
     }
 
 
-
-
     const results = await Promise.all([
-      METADATA_DB.find(collectionMetadataQuery),
+      FETCHES_DB.find(collectionMetadataQuery),
       ACCOUNTS_DB.find(accountQuery),
-      PROFILES_DB.find(usernameQuery),
     ]);
 
     const metadataResponseDocs = results[0].docs;
     const accountsResponseDocs = results[1].docs;
-    const profilesResponseDocs = results[2].docs;
 
-    const allAccounts: s_Account[] = [];
+    const allAccounts: AccountInfoBase<JSPrimitiveNumberType>[] = [];
     if (isAddressValid(searchValue)
       && !accountsResponseDocs.find((account) => account.address === searchValue || account.cosmosAddress === searchValue)) {
       allAccounts.push({
@@ -89,35 +78,49 @@ export const searchHandler = async (req: Request, res: Response) => {
       });
     }
 
-    //Since we need a profile doc and an account doc to create a BitBadgesUserInfo, we need to query with both queries and then merge the results
-    const fetchedAddressesNotInProfileDocs = accountsResponseDocs.filter((account) => !profilesResponseDocs.find((profile) => profile._id === account.cosmosAddress)).map((account) => account.cosmosAddress);
-    const fetchedProfileAddressesNotInAccountDocs = profilesResponseDocs.filter((profile) => !accountsResponseDocs.find((account) => account.cosmosAddress === profile._id)).map((profile) => profile._id);
+    const profilesRes = await PROFILES_DB.fetch({ keys: allAccounts.map((account) => account.cosmosAddress) }, { include_docs: true });
+    const profilesResponseDocs = getDocsFromNanoFetchRes(profilesRes);
 
-    const promises2 = [];
-    promises2.push(ACCOUNTS_DB.fetch({ keys: fetchedAddressesNotInProfileDocs }));
-    promises2.push(PROFILES_DB.fetch({ keys: fetchedProfileAddressesNotInAccountDocs }));
-
-    const results2 = await Promise.all(promises2);
-    const accountsResponseDocs2 = results2[0].rows.map((row: any) => row.doc);
-    const profilesResponseDocs2 = results2[1].rows.map((row: any) => row.doc) as (s_Profile & nano.Document)[];
-
-    for (const account of accountsResponseDocs2) {
-      allAccounts.push(account);
-    }
-    const allProfiles = [...profilesResponseDocs, ...profilesResponseDocs2];
+    const allProfiles = [...profilesResponseDocs];
 
     allAccounts.sort((a, b) => a.address.localeCompare(b.address));
     allProfiles.sort((a, b) => a._id.localeCompare(b._id));
 
-    const accounts: s_BitBadgesUserInfo[] = await convertToBitBadgesUserInfo(allProfiles, allAccounts);
+    const accounts: BitBadgesUserInfo<JSPrimitiveNumberType>[] = await convertToBitBadgesUserInfo(allProfiles, allAccounts);
+
+    const uris = metadataResponseDocs.map((doc) => doc._id);
+    const collectionsRes = await COLLECTIONS_DB.find({
+      selector: {
+        "$or": [
+          {
+            collectionUri: {
+              "$in": uris
+            }
+          },
+          {
+            badgeUris: {
+              "$elemMatch": {
+                "$in": uris
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    const collectionsResponses = await executeAdditionalCollectionQueries(collectionsRes.docs, collectionsRes.docs.map((doc) => {
+      return { collectionId: doc._id }
+    }));
+
     return res.json({
-      collections: metadataResponseDocs,
-      accounts: accounts,
+      collections: collectionsResponses,
+      accounts: accounts.map(acc => convertBitBadgesUserInfo(acc, Stringify)),
     })
   } catch (e) {
     console.error(e);
     return res.status(500).json({
-      message: 'Internal server error.'
+      error: serializeError(e),
+      message: `Error searching for ${req.params.searchValue}. Please try a different search value or try again later.`
     })
   }
 }
