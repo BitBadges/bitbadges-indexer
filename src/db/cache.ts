@@ -1,5 +1,5 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, BalanceDoc, BalanceDocs, BigIntify, ClaimDoc, ClaimDocs, CollectionDoc, CollectionDocs, DocsCache, RefreshDoc, StatusDoc, convertAccountDoc, convertBalanceDoc, convertClaimDoc, convertCollectionDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountDocs, BalanceDoc, BalanceDocs, BigIntify, MerkleChallengeDoc, MerkleChallengeDocs, CollectionDoc, CollectionDocs, DocsCache, RefreshDoc, StatusDoc, convertAccountDoc, convertBalanceDoc, convertMerkleChallengeDoc, convertCollectionDoc, ApprovalsTrackerDocs, AddressMappingsDocs, AddressMappingDoc, ApprovalsTrackerDoc, convertApprovalsTrackerDoc } from "bitbadgesjs-utils";
 import { serializeError } from "serialize-error";
 import { ACCOUNTS_DB, TRANSFER_ACTIVITY_DB, BALANCES_DB, CLAIMS_DB, COLLECTIONS_DB, ERRORS_DB, QUEUE_DB, REFRESHES_DB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
@@ -9,17 +9,19 @@ import { setStatus } from "./status";
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], claimIds: string[]) {
+export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[]) {
   try {
     const newCollectionIds = collectionIds.map(x => x.toString()).filter((id) => !currDocs.collections[id]); //collectionId as keys (string: `${collectionId}`)
     const newCosmosAddresses = cosmosAddresses.map(x => x.toString()).filter((id) => !currDocs.collections[id]);
+    const newApprovalsTrackerIds = approvalsTrackerIds.filter((id) => !currDocs.approvalsTrackers[id]);
+    const newAddressMappingIds = addressMappingIds.filter((id) => !currDocs.addressMappings[id]);
 
     //Partitioned IDs (collectionId:___)
     const newBalanceIds = balanceIds.filter((id) => !currDocs.balances[id]);
-    const newClaimIds = claimIds.filter((id) => !currDocs.claims[id]);
+    const newMerkleChallengeIds = merkleChallengeIds.filter((id) => !currDocs.claims[id]);
 
-    if (newCollectionIds.length || newBalanceIds.length || newClaimIds.length || newCosmosAddresses.length) {
-      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newClaimIds);
+    if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length) {
+      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds);
 
       currDocs = {
         accounts: {
@@ -34,9 +36,17 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
           ...currDocs.balances,
           ...newDocs.balances
         },
-        claims: {
-          ...currDocs.claims,
-          ...newDocs.claims
+        merkleChallenges: {
+          ...currDocs.merkleChallenges,
+          ...newDocs.merkleChallenges
+        },
+        approvalsTrackers: {
+          ...currDocs.approvalsTrackers,
+          ...newDocs.approvalsTrackers
+        },
+        addressMappings: {
+          ...currDocs.addressMappings,
+          ...newDocs.addressMappings
         },
         activityToAdd: currDocs.activityToAdd,
         queueDocsToAdd: currDocs.queueDocsToAdd,
@@ -56,17 +66,21 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[]) {
+export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[]) {
   try {
     const cosmosAddresses = [...new Set(_cosmosAddresses)].filter((id) => id.length > 0);
     const collectionDocIds = [...new Set(_collectionDocIds)].filter((id) => id.length > 0);
     const balanceDocIds = [...new Set(_balanceDocIds)].filter((id) => id.length > 0);
     const claimDocIds = [...new Set(_claimDocIds)].filter((id) => id.length > 0);
+    const approvalsTrackerIds = [...new Set(_approvalsTrackerIds)].filter((id) => id.length > 0);
+    const addressMappingIds = [...new Set(_addressMappingIds)].filter((id) => id.length > 0);
 
     const accountsData: AccountDocs = {};
     const collectionData: CollectionDocs = {};
     const balanceData: BalanceDocs = {};
-    const claimData: ClaimDocs = {};
+    const claimData: MerkleChallengeDocs = {};
+    const approvalsTrackerData: ApprovalsTrackerDocs = {};
+    const addressMappingsData: AddressMappingsDocs = {};
 
     const promises = [];
 
@@ -142,15 +156,32 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     for (const claimId of claimDocIds) {
       const result = results[idx++];
       if (result.status === 'fulfilled') {
-        const res = result.value as ClaimDoc<JSPrimitiveNumberType>;
-        const convertedClaimDoc = convertClaimDoc(res, BigIntify);
-        claimData[claimId] = convertedClaimDoc;
+        const res = result.value as MerkleChallengeDoc<JSPrimitiveNumberType>;
+        const convertedMerkleChallengeDoc = convertMerkleChallengeDoc(res, BigIntify);
+        claimData[claimId] = convertedMerkleChallengeDoc;
+      }
+    }
+
+    for (const addressMappingId of addressMappingIds) {
+      const result = results[idx++];
+      if (result.status === 'fulfilled') {
+        const res = result.value as AddressMappingDoc;
+        const convertedAddressMappingDoc = res;
+        addressMappingsData[addressMappingId] = convertedAddressMappingDoc;
+      }
+    }
+
+    for (const approvalsTrackerId of approvalsTrackerIds) {
+      const result = results[idx++];
+      if (result.status === 'fulfilled') {
+        const res = result.value as ApprovalsTrackerDoc<JSPrimitiveNumberType>;
+        const convertedAddressMappingDoc = convertApprovalsTrackerDoc(res, BigIntify);
+        approvalsTrackerData[approvalsTrackerId] = convertedAddressMappingDoc;
       }
     }
 
 
-
-    return { accounts: accountsData, collections: collectionData, balances: balanceData, claims: claimData };
+    return { accounts: accountsData, collections: collectionData, balances: balanceData, claims: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData }
   } catch (error) {
     throw `Error in fetchDocsForCache(): ${error}`;
   }
@@ -164,7 +195,7 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
     const accountDocs = Object.values(docs.accounts) as (AccountDoc<bigint>)[];
     const collectionDocs = Object.values(docs.collections) as (CollectionDoc<bigint>)[];
     const balanceDocs = Object.values(docs.balances) as (BalanceDoc<bigint>)[];
-    const claimDocs = Object.values(docs.claims) as (ClaimDoc<bigint>)[];
+    const claimDocs = Object.values(docs.claims) as (MerkleChallengeDoc<bigint>)[];
     const refreshDocs = Object.values(docs.refreshes) as (RefreshDoc<bigint>)[];
     const activityDocs = docs.activityToAdd;
     const queueDocs = docs.queueDocsToAdd;
