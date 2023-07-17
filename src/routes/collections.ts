@@ -1,12 +1,12 @@
-import { BadgeUri, IdRange, JSPrimitiveNumberType, NumberType, convertBadgeUri, convertIdRange } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BigIntify, BitBadgesCollection, BitBadgesUserInfo, ClaimDetails, ClaimDoc, ClaimInfo, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertClaimDetails, convertCollectionDoc, convertMetadata, getBadgeIdsForMetadataId, getMetadataIdForBadgeId, getMetadataIdForUri, getUrisForMetadataIds, removeIdsFromIdRange, updateBadgeMetadata } from "bitbadgesjs-utils";
+import { BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertApprovalTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertManagerTimeline, convertUintRange } from "bitbadgesjs-proto";
+import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BigIntify, BitBadgesCollection, BitBadgesUserInfo, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueIdxForTimeline, getMetadataIdForBadgeId, getMetadataIdForUri, getUrisForMetadataIds, removeUintsFromUintRange, updateBadgeMetadata } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
 import { fetchUriFromDb } from "../metadata-queue";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { executeBadgeActivityQuery, executeClaimByIdsQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionBalancesQuery, executeCollectionClaimsQuery, executeCollectionReviewsQuery } from "./activityHelpers";
+import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAccountByAddress } from "./users";
 
@@ -39,13 +39,27 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
     const collection = baseCollections.find((collection) => collection.collectionId === query.collectionId.toString());
     if (!collection) throw new Error(`Collection ${query.collectionId} does not exist`);
 
-    promises.push(getMetadata(collection.collectionId.toString(), collection.collectionUri, collection.badgeUris, query.metadataToFetch));
+    const collectionIdx = getCurrentValueIdxForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)));
+    let collectionUri = "";
+    if (collectionIdx !== -1n) {
+      collectionUri = collection.collectionMetadataTimeline[Number(collectionIdx)].collectionMetadata.uri;
+    }
+
+    const badgeMetadataIdx = getCurrentValueIdxForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)));
+    let badgeMetadata: BadgeMetadata<bigint>[] = [];
+    if (badgeMetadataIdx !== -1n) {
+      badgeMetadata = collection.badgeMetadataTimeline[Number(badgeMetadataIdx)].badgeMetadata.map(x => convertBadgeMetadata(x, BigIntify));
+    }
+
+
+    promises.push(getMetadata(collection.collectionId.toString(), collectionUri, badgeMetadata, query.metadataToFetch));
 
     const activityBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestActivity')?.bookmark;
     const announcementsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestAnnouncements')?.bookmark;
     const reviewsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestReviews')?.bookmark;
     const ownersBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'owners')?.bookmark;
-    const claimsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'claimsById')?.bookmark;
+    const claimsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'merkleChallenges')?.bookmark;
+    const approvalsTrackerBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'approvalsTrackers')?.bookmark;
 
     if (activityBookmark !== undefined) {
       promises.push(executeCollectionActivityQuery(`${query.collectionId}`, activityBookmark));
@@ -72,15 +86,31 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
     }
 
     if (claimsBookmark !== undefined) {
-      promises.push(executeCollectionClaimsQuery(`${query.collectionId}`, claimsBookmark));
+      promises.push(executeCollectionMerkleChallengesQuery(`${query.collectionId}`, claimsBookmark));
     } else {
       promises.push(Promise.resolve({ docs: [] }));
     }
 
-    if (query.claimIdsToFetch?.length) {
-      promises.push(executeClaimByIdsQuery(`${query.collectionId}`, query.claimIdsToFetch));
+    if (query.merkleChallengeIdsToFetch?.length) {
+      promises.push(executeMerkleChallengeByIdsQuery(`${query.collectionId}`, query.merkleChallengeIdsToFetch));
     } else {
       promises.push(Promise.resolve({ docs: [] }));
+    }
+
+    if (query.approvalsTrackerIdsToFetch?.length) {
+      promises.push(executeApprovalsTrackersByIdsQuery(`${query.collectionId}`, query.approvalsTrackerIdsToFetch.map(x => convertApprovalTrackerIdDetails(x, BigIntify))));
+    } else {
+      promises.push(Promise.resolve({ docs: [] }));
+    }
+
+    if (query.fetchTotalAndMintBalances) {
+      promises.push(fetchTotalAndUnmintedBalancesQuery(`${query.collectionId}`));
+    } else {
+      promises.push(Promise.resolve({ docs: [] }));
+    }
+
+    if (approvalsTrackerBookmark !== undefined) {
+      promises.push(executeCollectionApprovalsTrackersQuery(`${query.collectionId}`, approvalsTrackerBookmark));
     }
   }
 
@@ -89,18 +119,22 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
   const responses = await Promise.all(promises);
 
 
-  for (let i = 0; i < responses.length; i += 7) {
-    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i) / 7].collectionId.toString());
+  for (let i = 0; i < responses.length; i += 9) {
+    const collectionRes = baseCollections.find((collection) => collection.collectionId === collectionQueries[(i) / 9].collectionId.toString());
     if (!collectionRes) continue;
 
-    const query = collectionQueries[(i) / 7];
+    const query = collectionQueries[(i) / 9];
     const metadataRes: { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] } = responses[i] as { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] };
     const activityRes = responses[i + 1] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
     const announcementsRes = responses[i + 2] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
     const reviewsRes = responses[i + 3] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
     const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
-    const claimsRes = responses[i + 5] as nano.MangoResponse<ClaimDoc<JSPrimitiveNumberType>>;
-    const specificClaimsRes = responses[i + 6] as nano.MangoResponse<ClaimDoc<JSPrimitiveNumberType>>;
+    const claimsRes = responses[i + 5] as nano.MangoResponse<MerkleChallengeDoc<JSPrimitiveNumberType>>;
+    const specificMerkleChallengesRes = responses[i + 6] as nano.MangoResponse<MerkleChallengeDoc<JSPrimitiveNumberType>>;
+    const specificApprovalsTrackersRes = responses[i + 7] as (ApprovalsTrackerInfoBase<JSPrimitiveNumberType> & nano.Document & DeletableDocument)[];
+    const mintAndTotalBalancesRes = responses[i + 8] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+    const approvalsTrackersRes = responses[i + 9] as nano.MangoResponse<ApprovalsTrackerDoc<JSPrimitiveNumberType>>;
+
 
     let collectionToReturn: BitBadgesCollection<JSPrimitiveNumberType> = {
       ...collectionRes,
@@ -109,12 +143,18 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
       activity: activityRes.docs.map(removeCouchDBDetails) as TransferActivityInfo<JSPrimitiveNumberType>[],
       announcements: announcementsRes.docs.map(removeCouchDBDetails) as AnnouncementInfo<JSPrimitiveNumberType>[],
       reviews: reviewsRes.docs.map(removeCouchDBDetails) as ReviewInfo<JSPrimitiveNumberType>[],
-      owners: balancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[],
-      claims: [
-        ...claimsRes.docs.map(removeCouchDBDetails) as ClaimInfo<JSPrimitiveNumberType>[],
-        ...specificClaimsRes.docs.map(removeCouchDBDetails) as ClaimInfo<JSPrimitiveNumberType>[]
-      ].filter((claim, idx, self) => self.findIndex((c) => c.claimId === claim.claimId) === idx),
-
+      owners: [
+        ...balancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[],
+        ...mintAndTotalBalancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[]
+      ].filter((balance, idx, self) => self.findIndex((b) => b.cosmosAddress !== balance.cosmosAddress) === idx),
+      merkleChallenges: [
+        ...claimsRes.docs.map(removeCouchDBDetails) as MerkleChallengeInfo<JSPrimitiveNumberType>[],
+        ...specificMerkleChallengesRes.docs.map(removeCouchDBDetails) as MerkleChallengeInfo<JSPrimitiveNumberType>[]
+      ].filter((claim, idx, self) => self.findIndex((c) => JSON.stringify(c) === JSON.stringify(claim)) === idx),
+      approvalsTrackers: [
+        ...specificApprovalsTrackersRes.map(removeCouchDBDetails) as ApprovalsTrackerInfo<JSPrimitiveNumberType>[],
+        ...approvalsTrackersRes.docs.map(removeCouchDBDetails) as ApprovalsTrackerInfo<JSPrimitiveNumberType>[]
+      ].filter((approval, idx, self) => self.findIndex((a) => JSON.stringify(a) === JSON.stringify(approval)) === idx),
       //Placeholders to be replaced later in function
       badgeMetadata: [],
       managerInfo: {} as BitBadgesUserInfo<JSPrimitiveNumberType>,
@@ -151,12 +191,20 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
             hasMore: balancesRes.docs.length === 25
           }
         } : undefined,
-        'claimsById': query.viewsToFetch?.find(x => x.viewKey === 'claimsById') ? {
+        'merkleChallenges': query.viewsToFetch?.find(x => x.viewKey === 'merkleChallenges') ? {
           ids: claimsRes.docs.map((doc) => doc._id),
-          type: 'Claim',
+          type: 'MerkleChallenge',
           pagination: {
             bookmark: claimsRes.bookmark || '',
             hasMore: claimsRes.docs.length === 25
+          }
+        } : undefined,
+        'approvalsTrackers': query.viewsToFetch?.find(x => x.viewKey === 'approvalsTrackers') ? {
+          ids: approvalsTrackersRes.docs.map((doc) => doc._id),
+          type: 'ApprovalsTracker',
+          pagination: {
+            bookmark: approvalsTrackersRes.bookmark || '',
+            hasMore: approvalsTrackersRes.docs.length === 25
           }
         } : undefined,
       }
@@ -169,26 +217,48 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
   }
 
-  const claimPromises = [];
+  //For all claims in the collection approved transfers, fetch the merkleChallengeDetails
+  //TODO: paginate this somehow, we currently fetch all
+  //TODO: Fetch non-Mint as well
+  const uris = [];
   for (const collectionRes of collectionResponses) {
-    for (const claim of collectionRes.claims) {
-      claimPromises.push(FETCHES_DB.get(claim.uri));
+    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
+      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
+        if (approvedTransfer.fromMappingId == "Mint") {
+          for (const approval of approvedTransfer.approvalDetails) {
+            uris.push(approval.merkleChallenges.map(x => x.uri));
+          }
+        }
+      }
     }
   }
 
-  const claimFetches = await Promise.all(claimPromises);
+  const claimFetches = await Promise.all([...new Set(uris.flat())].map((uri) => FETCHES_DB.get(uri)));
 
   for (const collectionRes of collectionResponses) {
-    for (const claim of collectionRes.claims) {
-      const claimFetch = claimFetches.find((fetch) => fetch._id === claim.uri);
-      if (claimFetch && claimFetch.content) {
-        claim.details = convertClaimDetails(claimFetch.content as ClaimDetails<JSPrimitiveNumberType>, Stringify);
+    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
+      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
+        if (approvedTransfer.fromMappingId == "Mint") {
+          for (const approval of approvedTransfer.approvalDetails) {
+            for (const merkleChallenge of approval.merkleChallenges) {
+              const claimFetch = claimFetches.find((fetch) => fetch._id === merkleChallenge.uri);
+              if (!claimFetch) continue;
+
+              merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
+            }
+          }
+        }
       }
     }
   }
 
 
-  const managerKeys = [...new Set(collectionResponses.map((collectionRes) => collectionRes.manager))];
+  const managerKeys = [...new Set(collectionResponses.map((collectionRes) => {
+    const _managerTimeline = collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify));
+    const idx = getCurrentValueIdxForTimeline(_managerTimeline);
+    if (idx == -1n) return undefined;
+    return collectionRes.managerTimeline[Number(idx)].manager;
+  }).filter((x) => x !== undefined) as string[])];
 
   if (managerKeys.length > 0) {
     const managerInfoRes = await PROFILES_DB.fetch({
@@ -198,8 +268,13 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
 
 
     for (const collectionRes of collectionResponses) {
-      const managerInfo = docs.find((doc) => doc._id === collectionRes.manager);
-      const cosmosAccountDetails = await getAccountByAddress(collectionRes.manager);
+      const _managerTimeline = collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify));
+      const idx = getCurrentValueIdxForTimeline(_managerTimeline);
+      if (idx == -1n) continue;
+      const manager = collectionRes.managerTimeline[Number(idx)].manager;
+
+      const managerInfo = docs.find((doc) => doc._id === manager);
+      const cosmosAccountDetails = await getAccountByAddress(manager);
 
       if (managerInfo) {
         collectionRes.managerInfo = await convertToBitBadgesUserInfo([managerInfo], [cosmosAccountDetails])[0];
@@ -276,8 +351,8 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
   }
 }
 
-const getMetadata = async (collectionId: NumberType, collectionUri: string, _badgeUris: BadgeUri<NumberType>[], fetchOptions?: MetadataFetchOptions) => {
-  const badgeUris = _badgeUris.map((uri) => convertBadgeUri(uri, BigIntify));
+const getMetadata = async (collectionId: NumberType, collectionUri: string, _badgeUris: BadgeMetadata<NumberType>[], fetchOptions?: MetadataFetchOptions) => {
+  const badgeUris = _badgeUris.map((uri) => convertBadgeMetadata(uri, BigIntify));
 
   const doNotFetchCollectionMetadata = fetchOptions?.doNotFetchCollectionMetadata;
   const metadataIds = fetchOptions?.metadataIds ? fetchOptions.metadataIds : [];
@@ -295,11 +370,11 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
 
 
   for (const metadataId of metadataIds) {
-    const metadataIdCastedAsIdRange = metadataId as IdRange<NumberType>;
+    const metadataIdCastedAsUintRange = metadataId as UintRange<NumberType>;
     const metadataIdCastedAsNumber = metadataId as NumberType;
-    if (typeof metadataId === 'object' && metadataIdCastedAsIdRange.start && metadataIdCastedAsIdRange.end) {
-      const start = BigInt(metadataIdCastedAsIdRange.start);
-      const end = BigInt(metadataIdCastedAsIdRange.end);
+    if (typeof metadataId === 'object' && metadataIdCastedAsUintRange.start && metadataIdCastedAsUintRange.end) {
+      const start = BigInt(metadataIdCastedAsUintRange.start);
+      const end = BigInt(metadataIdCastedAsUintRange.end);
       for (let i = start; i <= end; i++) {
         metadataIdsToFetch.push(i);
         uris.push(...getUrisForMetadataIds([BigInt(i)], collectionUri, badgeUris));
@@ -311,26 +386,26 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   }
 
   for (const badgeId of badgeIdsToFetch) {
-    const badgeIdCastedAsIdRange = badgeId as IdRange<NumberType>;
+    const badgeIdCastedAsUintRange = badgeId as UintRange<NumberType>;
     const badgeIdCastedAsNumber = badgeId as NumberType;
-    if (typeof badgeId === 'object' && badgeIdCastedAsIdRange.start && badgeIdCastedAsIdRange.end) {
-      const badgeIdsLeft = [convertIdRange(badgeIdCastedAsIdRange, BigIntify)]
+    if (typeof badgeId === 'object' && badgeIdCastedAsUintRange.start && badgeIdCastedAsUintRange.end) {
+      const badgeIdsLeft = [convertUintRange(badgeIdCastedAsUintRange, BigIntify)]
 
       while (badgeIdsLeft.length > 0) {
-        const currBadgeIdRange = badgeIdsLeft.pop();
-        if (!currBadgeIdRange) continue; //For TS
+        const currBadgeUintRange = badgeIdsLeft.pop();
+        if (!currBadgeUintRange) continue; //For TS
 
-        const metadataId = getMetadataIdForBadgeId(BigInt(currBadgeIdRange.start), badgeUris);
-        if (metadataId === -1) throw new Error(`BadgeId ${currBadgeIdRange.start} does not exist in collection ${collectionId}`);
+        const metadataId = getMetadataIdForBadgeId(BigInt(currBadgeUintRange.start), badgeUris);
+        if (metadataId === -1) throw new Error(`BadgeId ${currBadgeUintRange.start} does not exist in collection ${collectionId}`);
 
         metadataIdsToFetch.push(metadataId);
         uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
 
-        const otherMatchingBadgeIdRanges = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
-        for (const badgeIdRange of otherMatchingBadgeIdRanges) {
-          const updatedBadgeIdRanges = removeIdsFromIdRange(badgeIdRange, currBadgeIdRange);
-          if (updatedBadgeIdRanges.length > 0) {
-            badgeIdsLeft.push(...updatedBadgeIdRanges);
+        const otherMatchingBadgeUintRanges = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
+        for (const badgeUintRange of otherMatchingBadgeUintRanges) {
+          const [updatedBadgeUintRanges, _] = removeUintsFromUintRange(badgeUintRange, currBadgeUintRange);
+          if (updatedBadgeUintRanges.length > 0) {
+            badgeIdsLeft.push(...updatedBadgeUintRanges);
           }
         }
       }
@@ -424,7 +499,19 @@ export const getMetadataForCollection = async (req: Request, res: Response<GetMe
     const _collection = await COLLECTIONS_DB.get(req.params.collectionId);
     const collection = convertCollectionDoc(_collection, BigIntify);
 
-    const metadata = await getMetadata(collection.collectionId, collection.collectionUri, collection.badgeUris, reqBody.metadataToFetch);
+    const collectionIdx = getCurrentValueIdxForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)));
+    let collectionUri = "";
+    if (collectionIdx !== -1n) {
+      collectionUri = collection.collectionMetadataTimeline[Number(collectionIdx)].collectionMetadata.uri;
+    }
+
+    const badgeMetadataIdx = getCurrentValueIdxForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)));
+    let badgeMetadata: BadgeMetadata<bigint>[] = [];
+    if (badgeMetadataIdx !== -1n) {
+      badgeMetadata = collection.badgeMetadataTimeline[Number(badgeMetadataIdx)].badgeMetadata.map(x => convertBadgeMetadata(x, BigIntify));
+    }
+
+    const metadata = await getMetadata(collection.collectionId, collectionUri, badgeMetadata, reqBody.metadataToFetch);
     return res.json({
       collectionMetadata: metadata.collectionMetadata ? convertMetadata(metadata.collectionMetadata, Stringify) : undefined,
       badgeMetadata: metadata.badgeMetadata ? metadata.badgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, Stringify)) : undefined
@@ -442,10 +529,20 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
   try {
     const reqBody = req.body as GetOwnersForBadgeRouteRequestBody;
 
-    const collection = await COLLECTIONS_DB.get(req.params.collectionId);
-    if (BigInt(collection.nextBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
+    const totalSupplys = await BALANCES_DB.get(`${req.params.collectionId}:Total`);
+
+    let maxBadgeId = 1n;
+    for (const balance of totalSupplys.balances) {
+      for (const badgeId of balance.badgeIds) {
+        if (BigInt(badgeId.end) > maxBadgeId) {
+          maxBadgeId = BigInt(badgeId.end);
+        }
+      }
+    }
+
+    if (BigInt(maxBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
       //TODO: Support string-number queries
-      throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us in the event that you see this error.');
+      throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
     }
 
     const ownersResOverview = await BALANCES_DB.partitionInfo(`${req.params.collectionId}`);

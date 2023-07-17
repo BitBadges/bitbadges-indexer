@@ -1,10 +1,10 @@
 import { AES } from "crypto-js";
 import { Request, Response } from "express";
 import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
-import { addBalancesToIpfs, addClaimToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
+import { addBalancesToIpfs, addMerkleChallengeToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { serializeError } from "serialize-error";
-import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddClaimToIpfsRouteRequestBody, AddClaimToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
+import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddMerkleChallengeToIpfsRouteRequestBody, AddMerkleChallengeToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
 import { cleanBalances } from "../utils/dataCleaners";
 
 const IPFS_UPLOAD_KB_LIMIT = 100000; //100MB
@@ -101,43 +101,74 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
   }
 }
 
-export const addClaimToIpfsHandler = async (expressReq: Request, res: Response<AddClaimToIpfsRouteResponse<NumberType>>) => {
+export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: Response<AddMerkleChallengeToIpfsRouteResponse<NumberType>>) => {
   const req = expressReq as AuthenticatedRequest;
-  const reqBody = req.body as AddClaimToIpfsRouteRequestBody;
+  const reqBody = req.body as AddMerkleChallengeToIpfsRouteRequestBody;
 
   if (req.session.ipfsTotal > IPFS_UPLOAD_KB_LIMIT) {
     return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
   }
 
   try {
-    const challengeDetails = reqBody.challengeDetails ? reqBody.challengeDetails.map(x => convertChallengeDetails(x, BigIntify)) : [];
-    const result = await addClaimToIpfs(reqBody.name, reqBody.description, challengeDetails ?? []);
+    const challengeDetails = reqBody.challengeDetails ? convertChallengeDetails(reqBody.challengeDetails, BigIntify) : undefined;
+    const result = await addMerkleChallengeToIpfs(reqBody.name, reqBody.description, challengeDetails);
     if (!result) {
       throw new Error('No addAll result received');
     }
 
-
     const { path, cid } = result;
+
+    const duplicateCheckRes = await PASSWORDS_DB.find({
+      selector: {
+        createdBy: {
+          "$eq": req.session.cosmosAddress
+        },
+        challengeLevel: {
+          "$eq": "collection"
+        },
+        cid: {
+          "$eq": cid.toString()
+        }
+      }
+    });
+
+
+    if (duplicateCheckRes.docs.length > 0) {
+      return res.status(400).send({ message: 'You have already added a challenge with an equivalent CID to IPFS. We do not allow duplicate CIDs.' });
+    }
 
     const SYM_KEY = process.env.SYM_KEY;
 
     await insertToDB(PASSWORDS_DB, {
+      createdBy: req.session.cosmosAddress,
+      challengeLevel: "collection",
       collectionId: "-1",
-      claimId: "-1",
       challengeId: "-1",
       docClaimedByCollection: false,
       cid: cid.toString(),
-      challengeDetails: challengeDetails.map(x => {
-        return {
-          ...x,
-          password: x.password ? AES.encrypt(x.password, SYM_KEY).toString() : "",
-          leavesDetails: {
-            ...x.leavesDetails,
-            preimages: x.leavesDetails.preimages ? x.leavesDetails.preimages.map((preimage: string) => AES.encrypt(preimage, SYM_KEY).toString()) : undefined
-          }
+      claimedUsers: {},
+      challengeDetails: challengeDetails ? {
+        ...challengeDetails,
+        password: challengeDetails.password ? AES.encrypt(challengeDetails.password, SYM_KEY).toString() : "",
+        leavesDetails: {
+          ...challengeDetails.leavesDetails,
+          preimages: challengeDetails.leavesDetails.preimages ? challengeDetails.leavesDetails.preimages.map((preimage: string) => AES.encrypt(preimage, SYM_KEY).toString()) : undefined
         }
-      })
+      } : undefined
     });
+
+
+    //   challengeDetails: challengeDetails.map(x => {
+    //     return {
+    //       ...x,
+    //       password: x.password ? AES.encrypt(x.password, SYM_KEY).toString() : "",
+    //       leavesDetails: {
+    //         ...x.leavesDetails,
+    //         preimages: x.leavesDetails.preimages ? x.leavesDetails.preimages.map((preimage: string) => AES.encrypt(preimage, SYM_KEY).toString()) : undefined
+    //       }
+    //     }
+    //   })
+    // });
 
 
     let size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;

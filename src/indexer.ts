@@ -16,15 +16,18 @@ import { getBrowseCollections } from './routes/browse'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForBadge } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
-import { addBalancesToIpfsHandler, addClaimToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
+import { addBalancesToIpfsHandler, addMerkleChallengeToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, refreshMetadata } from "./routes/metadata"
-import { getClaimCodeViaPassword } from "./routes/passwords"
+import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
 import { addReviewForCollection, addReviewForUser } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 import _ from 'environment'
 import axios from 'axios'
+import { getAddressMappings } from './routes/addressMappings'
+import { getApprovals } from './routes/approvalTrackers'
+import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
 
 var fs = require("fs");
 var https = require("https");
@@ -127,7 +130,7 @@ app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity)
 app.post('/api/v0/collection/:collectionId/refreshMetadata', refreshMetadata); //Write route
 
 app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
-app.post('/api/v0/collection/:collectionId/password/:claimId/:password', authorizeBlockinRequest, getClaimCodeViaPassword); //Write route
+app.post('/api/v0/collection/:collectionId/password/:cid/:password', authorizeBlockinRequest, getMerkleChallengeCodeViaPassword); //Write route
 
 app.post('/api/v0/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
 app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
@@ -141,7 +144,7 @@ app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInf
 
 //IPFS
 app.post('/api/v0/addMetadataToIpfs', authorizeBlockinRequest, addMetadataToIpfsHandler); //
-app.post('/api/v0/addClaimToIpfs', authorizeBlockinRequest, addClaimToIpfsHandler); //
+app.post('/api/v0/addMerkleChallengeToIpfs', authorizeBlockinRequest, addMerkleChallengeToIpfsHandler); //
 app.post('/api/v0/addBalancesToIpfs', authorizeBlockinRequest, addBalancesToIpfsHandler); //
 
 //Blockin Auth
@@ -161,6 +164,16 @@ app.post('/api/v0/metadata', fetchMetadataDirectly);
 
 //Faucet
 app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
+
+//Address Mappings
+app.post('/api/v0/addressMappings', getAddressMappings);
+
+//Approvals
+app.post('/api/v0/approvals', getApprovals);
+
+//Merkle Challenge Tracker
+app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
+
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

@@ -2,30 +2,24 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
+import { Balance, convertBalance, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovedTransfers } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import { convertFromProtoToMsgClaimBadge, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgMintAndDistributeBadges, convertFromProtoToMsgNewCollection, convertFromProtoToMsgRequestTransferManager, convertFromProtoToMsgSetApproval, convertFromProtoToMsgTransferBadge, convertFromProtoToMsgTransferManager, convertFromProtoToMsgUpdateAllowedTransfers, convertFromProtoToMsgUpdateBytes, convertFromProtoToMsgUpdatePermissions, convertFromProtoToMsgUpdateUris } from 'bitbadgesjs-transactions'
 import { BigIntify, StatusDoc, DocsCache, convertStatusDoc } from "bitbadgesjs-utils"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { ERRORS_DB } from "./db/db"
 import { getStatus } from "./db/status"
 import { client, setClient, setTimer } from "./indexer"
 import { fetchUrisFromQueue, purgeQueueDocs } from "./metadata-queue"
-import { handleMsgClaimBadge } from "./tx-handlers/handleMsgClaimBadge"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
-import { handleMsgMintAndDistributeBadges } from "./tx-handlers/handleMsgMintAndDistributeBadges"
-import { handleMsgNewCollection } from "./tx-handlers/handleMsgNewCollection"
-import { handleMsgRequestTransferManager } from "./tx-handlers/handleMsgRequestTransferManager"
-import { handleMsgSetApproval } from "./tx-handlers/handleMsgSetApproval"
-import { handleMsgTransferBadge } from "./tx-handlers/handleMsgTransferBadge"
-import { handleMsgTransferManager } from "./tx-handlers/handleMsgTransferManager"
-import { handleMsgUpdateAllowedTransfers } from "./tx-handlers/handleMsgUpdateAllowedTransfers"
-import { handleMsgUpdateBytes } from "./tx-handlers/handleMsgUpdateBytes"
-import { handleMsgUpdatePermissions } from "./tx-handlers/handleMsgUpdatePermissions"
-import { handleMsgUpdateUris } from "./tx-handlers/handleMsgUpdateUris"
+import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
+import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
+import { handleMsgUpdateUserApprovedTransfers } from "./tx-handlers/handleMsgUpdateUserApprovedTransfers"
+import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { flushCachedDocs } from "./db/cache"
+import { StringEvent, Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 
 
-const pollIntervalMs = 1_000
+const pollIntervalMs = 1000
 let outageTime: Date | undefined
 
 const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
@@ -65,7 +59,9 @@ export const poll = async () => {
         refreshes: {},
         activityToAdd: [],
         queueDocsToAdd: [],
-        claims: {},
+        merkleChallenges: {},
+        addressMappings: {},
+        approvalsTrackers: {},
         balances: {},
       };
 
@@ -145,7 +141,76 @@ export const poll = async () => {
   setTimer(newTimer);
 }
 
+const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+  try {
+    let eventIndex = 0
+    while (eventIndex < events.length) {
+      await handleEvent(events[eventIndex], status, docs)
+      eventIndex++
+    }
+  } catch (e) {
+    // Skipping if the handling failed. Most likely the transaction failed.
+  }
+}
 
+
+//TODO: Do this natively via Msgs instead of events
+const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+  if (getAttributeValueByKey(event.attributes, "approvalId")) {
+    const approvalId = getAttributeValueByKey(event.attributes, "approvalId");
+    const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress");
+    const collectionId = getAttributeValueByKey(event.attributes, "collectionId");
+    const approvalLevel = getAttributeValueByKey(event.attributes, "approvalLevel") as "collection" | "incoming" | "outgoing" | "" | undefined;
+    const trackerType = getAttributeValueByKey(event.attributes, "trackerType");
+    const approvedAddress = getAttributeValueByKey(event.attributes, "approvedAddress");
+    const amountsJsonStr = getAttributeValueByKey(event.attributes, "amounts");
+    const numTransfersJsonStr = getAttributeValueByKey(event.attributes, "numTransfers");
+
+    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${trackerType}-${approvedAddress}`;
+    const amounts = JSON.parse(amountsJsonStr ? amountsJsonStr : '[]') as Balance<string>[];
+    const numTransfers = numTransfersJsonStr ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
+
+    docs.approvalsTrackers[docId] = {
+      _id: docId,
+      _rev: '',
+      collectionId: collectionId ? BigIntify(collectionId) : 0n,
+      approvalLevel: approvalLevel ? approvalLevel : '',
+      approverAddress: approverAddress ? approverAddress : '',
+      approvalId: approvalId ? approvalId : '',
+      trackerType: trackerType as "overall" | "to" | "from" | "initiatedBy",
+      approvedAddress: approvedAddress ? approvedAddress : '',
+      numTransfers: BigInt(numTransfers),
+      amounts: amounts.map(x => convertBalance(x, BigIntify)),
+    }
+  }
+
+  if (getAttributeValueByKey(event.attributes, "challengeId")) {
+    const challengeId = getAttributeValueByKey(event.attributes, "challengeId");
+    const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress");
+    const collectionId = getAttributeValueByKey(event.attributes, "collectionId");
+    const challengeLevel = getAttributeValueByKey(event.attributes, "challengeLevel") as "collection" | "incoming" | "outgoing" | "" | undefined;
+    const leafIndex = getAttributeValueByKey(event.attributes, "leafIndex");
+
+    const docId = `${collectionId}:${challengeLevel}-${approverAddress}-${challengeId}`;
+    const currDoc = docs.merkleChallenges[docId];
+    const newLeafIndices = currDoc ? currDoc.usedLeafIndices : [];
+    newLeafIndices.push(BigIntify(leafIndex ? leafIndex : 0n));
+
+    docs.merkleChallenges[docId] = {
+      _id: docId,
+      _rev: '',
+      collectionId: collectionId ? BigIntify(collectionId) : 0n,
+      challengeId: challengeId ? challengeId : '',
+      challengeLevel: challengeLevel ? challengeLevel : '' as "collection" | "incoming" | "outgoing" | "",
+      approverAddress: approverAddress ? approverAddress : '',
+      usedLeafIndices: newLeafIndices,
+    }
+  }
+}
+
+const getAttributeValueByKey = (attributes: Attribute[], key: string): string | undefined => {
+  return attributes.find((attribute: Attribute) => attribute.key === key)?.value
+}
 
 const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCache) => {
   if (0 < block.txs.length) console.log("")
@@ -158,6 +223,10 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
     await handleTx(indexed, status, docs)
     status.block.txIndex++
   }
+
+  const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
+  if (0 < events.length) console.log("")
+  await handleEvents(events, status, docs)
 }
 
 const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: DocsCache) => {
@@ -203,53 +272,25 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     const value = message.value;
 
     switch (typeUrl) {
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdateUris":
-        const urisMsg = convertFromProtoToMsgUpdateUris(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUris.deserialize(value));
-        await handleMsgUpdateUris(urisMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdatePermissions":
-        const permissionsMsg = convertFromProtoToMsgUpdatePermissions(tx.bitbadges.bitbadgeschain.badges.MsgUpdatePermissions.deserialize(value));
-        await handleMsgUpdatePermissions(permissionsMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdateAllowedTransfers":
-        const allowedMsg = convertFromProtoToMsgUpdateAllowedTransfers(tx.bitbadges.bitbadgeschain.badges.MsgUpdateAllowedTransfers.deserialize(value))
-        await handleMsgUpdateAllowedTransfers(allowedMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdateBytes":
-        const bytesMsg = convertFromProtoToMsgUpdateBytes(tx.bitbadges.bitbadgeschain.badges.MsgUpdateBytes.deserialize(value))
-        await handleMsgUpdateBytes(bytesMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgTransferManager":
-        const transferManagerMsg = convertFromProtoToMsgTransferManager(tx.bitbadges.bitbadgeschain.badges.MsgTransferManager.deserialize(value))
-        await handleMsgTransferManager(transferManagerMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgSetApproval":
-        const setApprovalMsg = convertFromProtoToMsgSetApproval(tx.bitbadges.bitbadgeschain.badges.MsgSetApproval.deserialize(value))
-        await handleMsgSetApproval(setApprovalMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgRequestTransferManager":
-        const requestTransferManagerMsg = convertFromProtoToMsgRequestTransferManager(tx.bitbadges.bitbadgeschain.badges.MsgRequestTransferManager.deserialize(value))
-        await handleMsgRequestTransferManager(requestTransferManagerMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgClaimBadge":
-        const claimMsg = convertFromProtoToMsgClaimBadge(tx.bitbadges.bitbadgeschain.badges.MsgClaimBadge.deserialize(value))
-        await handleMsgClaimBadge(claimMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgTransferBadge":
-        const transferMsg = convertFromProtoToMsgTransferBadge(tx.bitbadges.bitbadgeschain.badges.MsgTransferBadge.deserialize(value))
-        await handleMsgTransferBadge(transferMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgNewCollection":
-        const newCollectionMsg = convertFromProtoToMsgNewCollection(tx.bitbadges.bitbadgeschain.badges.MsgNewCollection.deserialize(value))
-        await handleMsgNewCollection(newCollectionMsg, status, docs);
-        break;
-      case "/bitbadges.bitbadgeschain.badges.MsgMintAndDistributeBadges":
-        const newMintMsg = convertFromProtoToMsgMintAndDistributeBadges(tx.bitbadges.bitbadgeschain.badges.MsgMintAndDistributeBadges.deserialize(value))
-        await handleMsgMintAndDistributeBadges(newMintMsg, status, docs);
+      case "/bitbadges.bitbadgeschain.badges.MsgTransferBadges":
+        const transferMsg = convertFromProtoToMsgTransferBadges(tx.bitbadges.bitbadgeschain.badges.MsgTransferBadges.deserialize(value))
+        await handleMsgTransferBadges(transferMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgDeleteCollection":
         const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value))
         await handleMsgDeleteCollection(newDeleteMsg, status, docs);
+        break;
+      case "/bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings":
+        const newAddressMappingsMsg = (tx.bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings.deserialize(value))
+        await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs);
+        break;
+      case "/bitbadges.bitbadgeschain.badges.MsgUpdateCollection":
+        const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.bitbadges.bitbadgeschain.badges.MsgUpdateCollection.deserialize(value))
+        await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs);
+        break;
+      case "/bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers":
+        const newUpdateUserApprovedTransfersMsg = convertFromProtoToMsgUpdateUserApprovedTransfers(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers.deserialize(value))
+        await handleMsgUpdateUserApprovedTransfers(newUpdateUserApprovedTransfersMsg, status, docs);
         break;
       default:
         break;

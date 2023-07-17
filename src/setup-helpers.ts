@@ -18,13 +18,15 @@ export async function deleteDatabases() {
   await nano.db.destroy('passwords').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('airdrop').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('balances').catch((e) => { if (e.statusCode !== 404) throw e });
-  await nano.db.destroy('claims').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('merkle-challenges').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('queue').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('ipfs-totals').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('refreshes').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('announcements').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('reviews').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('load-balance').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('address-mappings').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('approvals-trackers').catch((e) => { if (e.statusCode !== 404) throw e });
 
   //_utils, _replicator, _global_changes, _metadata
   await nano.db.destroy('_users').catch((e) => { if (e.statusCode !== 404) throw e });
@@ -46,13 +48,16 @@ export async function createDatabases() {
   await nano.db.create('passwords');
   await nano.db.create('airdrop');
   await nano.db.create('balances', { partitioned: true });
-  await nano.db.create('claims', { partitioned: true });
+  await nano.db.create('merkle-challenges', { partitioned: true });
   await nano.db.create('queue');
   await nano.db.create('ipfs-totals');
   await nano.db.create('refreshes');
   await nano.db.create('announcements', { partitioned: true });
   await nano.db.create('reviews', { partitioned: true });
   await nano.db.create('load-balance');
+  await nano.db.create('address-mappings');
+  await nano.db.create('approvals-trackers', { partitioned: true });
+
 
   //_utils, _replicator, _global_changes, _metadata
   await nano.db.create('_users');

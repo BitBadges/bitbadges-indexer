@@ -18,7 +18,7 @@ export function cleanMetadata(res: any): any {
   }
 }
 
-export function cleanClaims(res: any): any {
+export function cleanMerkleChallenges(res: any): any {
   return {
     name: res.name && typeof res.name === 'string' ? res.name : '',
     description: res.description && typeof res.name === 'string' ? res.description : '',
@@ -51,6 +51,12 @@ export function cleanBalances(res: OffChainBalancesMap<NumberType>): OffChainBal
           badgeIds: balance.badgeIds && Array.isArray(balance.badgeIds)
             && balance.badgeIds.every((badgeId: any) => typeof badgeId === 'object')
             ? balance.badgeIds.map((badgeId: any) => ({
+              start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
+              end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
+            })) : [],
+          ownedTimes: balance.ownedTimes && Array.isArray(balance.ownedTimes)
+            && balance.ownedTimes.every((badgeId: any) => typeof badgeId === 'object')
+            ? balance.ownedTimes.map((badgeId: any) => ({
               start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
               end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
             })) : [],

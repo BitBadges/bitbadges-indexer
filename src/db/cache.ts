@@ -1,7 +1,7 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
 import { AccountDoc, AccountDocs, BalanceDoc, BalanceDocs, BigIntify, MerkleChallengeDoc, MerkleChallengeDocs, CollectionDoc, CollectionDocs, DocsCache, RefreshDoc, StatusDoc, convertAccountDoc, convertBalanceDoc, convertMerkleChallengeDoc, convertCollectionDoc, ApprovalsTrackerDocs, AddressMappingsDocs, AddressMappingDoc, ApprovalsTrackerDoc, convertApprovalsTrackerDoc } from "bitbadgesjs-utils";
 import { serializeError } from "serialize-error";
-import { ACCOUNTS_DB, TRANSFER_ACTIVITY_DB, BALANCES_DB, CLAIMS_DB, COLLECTIONS_DB, ERRORS_DB, QUEUE_DB, REFRESHES_DB, insertMany, insertToDB } from "./db";
+import { ACCOUNTS_DB, TRANSFER_ACTIVITY_DB, BALANCES_DB, MERKLE_CHALLENGES_DB, COLLECTIONS_DB, ERRORS_DB, QUEUE_DB, REFRESHES_DB, insertMany, insertToDB, APPROVALS_TRACKER_DB, ADDRESS_MAPPINGS_DB } from "./db";
 import { setStatus } from "./status";
 
 /**
@@ -18,7 +18,7 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
 
     //Partitioned IDs (collectionId:___)
     const newBalanceIds = balanceIds.filter((id) => !currDocs.balances[id]);
-    const newMerkleChallengeIds = merkleChallengeIds.filter((id) => !currDocs.claims[id]);
+    const newMerkleChallengeIds = merkleChallengeIds.filter((id) => !currDocs.merkleChallenges[id]);
 
     if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length) {
       const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds);
@@ -97,7 +97,15 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     }
 
     for (const claimId of claimDocIds) {
-      promises.push(CLAIMS_DB.get(claimId));
+      promises.push(MERKLE_CHALLENGES_DB.get(claimId));
+    }
+
+    for (const addressMappingId of addressMappingIds) {
+      promises.push(ADDRESS_MAPPINGS_DB.get(addressMappingId));
+    }
+
+    for (const approvalsTrackerId of approvalsTrackerIds) {
+      promises.push(APPROVALS_TRACKER_DB.get(approvalsTrackerId));
     }
 
 
@@ -140,16 +148,6 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         const res = result.value as BalanceDoc<JSPrimitiveNumberType>;
         const convertedBalanceDoc = convertBalanceDoc(res, BigIntify);
         balanceData[balanceId] = convertedBalanceDoc;
-      } else {
-        balanceData[balanceId] = {
-          _id: balanceId,
-          _rev: '',
-          balances: [],
-          approvals: [],
-          collectionId: BigInt(balanceId.split(':')[0]),
-          cosmosAddress: balanceId.split(':')[1],
-          onChain: true //HACK: Must be set to false if not on chain. True is just default
-        }
       }
     }
 
@@ -181,7 +179,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     }
 
 
-    return { accounts: accountsData, collections: collectionData, balances: balanceData, claims: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData }
+    return { accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData }
   } catch (error) {
     throw `Error in fetchDocsForCache(): ${error}`;
   }
@@ -195,8 +193,10 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
     const accountDocs = Object.values(docs.accounts) as (AccountDoc<bigint>)[];
     const collectionDocs = Object.values(docs.collections) as (CollectionDoc<bigint>)[];
     const balanceDocs = Object.values(docs.balances) as (BalanceDoc<bigint>)[];
-    const claimDocs = Object.values(docs.claims) as (MerkleChallengeDoc<bigint>)[];
+    const claimDocs = Object.values(docs.merkleChallenges) as (MerkleChallengeDoc<bigint>)[];
     const refreshDocs = Object.values(docs.refreshes) as (RefreshDoc<bigint>)[];
+    const approvalsTrackerDocs = Object.values(docs.approvalsTrackers) as (ApprovalsTrackerDoc<bigint>)[];
+    const addressMappingDocs = Object.values(docs.addressMappings) as (AddressMappingDoc)[];
     const activityDocs = docs.activityToAdd;
     const queueDocs = docs.queueDocsToAdd;
 
@@ -222,11 +222,19 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
     }
 
     if (claimDocs.length) {
-      promises.push(insertMany(CLAIMS_DB, claimDocs));
+      promises.push(insertMany(MERKLE_CHALLENGES_DB, claimDocs));
     }
 
     if (refreshDocs.length) {
       promises.push(insertMany(REFRESHES_DB, refreshDocs));
+    }
+
+    if (approvalsTrackerDocs.length) {
+      promises.push(insertMany(APPROVALS_TRACKER_DB, approvalsTrackerDocs));
+    }
+
+    if (addressMappingDocs.length) {
+      promises.push(insertMany(ADDRESS_MAPPINGS_DB, addressMappingDocs));
     }
 
     if (status) {

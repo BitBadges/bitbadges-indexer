@@ -1,12 +1,12 @@
-import { MsgDeleteCollection } from "bitbadgesjs-transactions"
+import { MsgDeleteCollection } from "bitbadgesjs-proto"
 import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
-import { BALANCES_DB, CLAIMS_DB } from "../db/db"
+import { APPROVALS_TRACKER_DB, BALANCES_DB, MERKLE_CHALLENGES_DB } from "../db/db"
 
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   //Safe to cast because MsgDeleteCollection can only be called if the collection exists
@@ -16,14 +16,19 @@ export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>
 
   //Delete all relevant docs from DB
   const allBalancesDocs = await BALANCES_DB.partitionedList(`${msg.collectionId.toString()}`);
-  const allClaimsDocs = await CLAIMS_DB.partitionedList(`${msg.collectionId.toString()}`);
+  const allMerkleChallengesDocs = await MERKLE_CHALLENGES_DB.partitionedList(`${msg.collectionId.toString()}`);
+  const allApprovalDocs = await APPROVALS_TRACKER_DB.partitionedList(`${msg.collectionId.toString()}:`);
 
   const promises = [];
   for (const doc of allBalancesDocs.rows) {
     promises.push(BALANCES_DB.destroy(doc.id, doc.value.rev));
   }
-  for (const doc of allClaimsDocs.rows) {
-    promises.push(CLAIMS_DB.destroy(doc.id, doc.value.rev));
+  for (const doc of allMerkleChallengesDocs.rows) {
+    promises.push(MERKLE_CHALLENGES_DB.destroy(doc.id, doc.value.rev));
+  }
+
+  for (const doc of allApprovalDocs.rows) {
+    promises.push(APPROVALS_TRACKER_DB.destroy(doc.id, doc.value.rev));
   }
 
   await Promise.all(promises);
@@ -34,9 +39,15 @@ export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>
     }
   }
 
-  for (const key of Object.keys(docs.claims)) {
+  for (const key of Object.keys(docs.merkleChallenges)) {
     if (key.split(':')[0] === `${msg.collectionId}`) {
-      delete docs.claims[key];
+      delete docs.merkleChallenges[key];
+    }
+  }
+
+  for (const key of Object.keys(docs.approvalsTrackers)) {
+    if (key.split(':')[0] === `${msg.collectionId}`) {
+      delete docs.approvalsTrackers[key];
     }
   }
 }

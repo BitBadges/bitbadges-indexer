@@ -1,20 +1,24 @@
 import { Transfer } from "bitbadgesjs-proto";
-import { BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, addBalancesForIdRanges, getBalancesAfterTransfers } from "bitbadgesjs-utils";
+import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, addBalances, getBlankBalance, subtractBalances } from "bitbadgesjs-utils";
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 ;
 
-export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, from: (string | 'Mint')[], transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>) => {
+export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>) => {
   //Handle new acocunts, if empty 
-  for (const address of from) {
-    if (address === 'Mint') continue;
 
-    await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${address}`], []);
-  }
+
+
 
   for (const transfer of transfers) {
+    if (transfer.from === 'Mint') {
+
+    } else {
+      await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${transfer.from}`], [], [], []);
+    }
+
     await fetchDocsForCacheIfEmpty(docs, [], [], [
       ...transfer.toAddresses.map((address) => `${collection.collectionId}:${address}`),
-    ], []);
+    ], [], [], []);
   }
 
 
@@ -23,39 +27,57 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     const transfer = transfers[idx];
     for (let j = 0; j < transfer.toAddresses.length; j++) {
       const address = transfer.toAddresses[j];
-
-      let currBalance = docs.balances[`${collection.collectionId}:${address}`];
-      for (const transferBalanceObj of transfer.balances) {
-        currBalance = {
-          ...currBalance,
-          ...addBalancesForIdRanges(currBalance, transferBalanceObj.badgeIds, transferBalanceObj.amount),
+      const balanceDoc = docs.balances[`${collection.collectionId}:${address}`];
+      let currBalance: BalanceDoc<bigint> = balanceDoc ? balanceDoc :
+        {
+          ...getBlankBalance(true, collection),
           cosmosAddress: address,
+          collectionId: collection.collectionId,
+          onChain: collection.balancesType === 'Standard',
+          _id: `${collection.collectionId}:${address}`,
+          _rev: '',
         };
-      }
+
+      currBalance = {
+        ...currBalance,
+        ...addBalances(transfer.balances, currBalance.balances),
+        cosmosAddress: address,
+      };
+
+      docs.balances[`${collection.collectionId}:${address}`] = currBalance;
     }
+
+    const fromBalanceDoc = docs.balances[`${collection.collectionId}:${transfer.from}`];
+    let fromAddressBalanceDoc: BalanceDoc<bigint> = fromBalanceDoc ? fromBalanceDoc :
+      {
+        ...getBlankBalance(true, collection),
+        cosmosAddress: transfer.from,
+        collectionId: collection.collectionId,
+        onChain: collection.balancesType === 'Standard',
+        _id: `${collection.collectionId}:${transfer.from}`,
+        _rev: '',
+      };
+
+    fromAddressBalanceDoc = {
+      ...fromAddressBalanceDoc,
+      ...subtractBalances(transfer.balances, fromAddressBalanceDoc.balances),
+      cosmosAddress: transfer.from,
+    }
+
+    docs.balances[`${collection.collectionId}:${transfer.from}`] = fromAddressBalanceDoc;
 
     docs.activityToAdd.push({
       _id: `collection-${collection.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
-      from: from,
+      from: [transfer.from],
       to: transfer.toAddresses,
       balances: transfer.balances,
-      method: JSON.stringify(from) === JSON.stringify(['Mint']) ? 'Mint' : 'Transfer',
+      method: 'Transfer',
       block: status.block.height,
       collectionId: collection.collectionId,
       timestamp: BigInt(Date.now()),
+      memo: transfer.memo,
+      precalculationDetails: transfer.precalculationDetails,
     });
-  }
-
-  for (const fromAddress of from) {
-    if (fromAddress === 'Mint') continue;
-
-
-    let fromAddressBalanceDoc = docs.balances[`${collection.collectionId}:${fromAddress}`];
-    fromAddressBalanceDoc = {
-      ...fromAddressBalanceDoc,
-      ...getBalancesAfterTransfers(fromAddressBalanceDoc.balances, transfers),
-      cosmosAddress: fromAddress,
-    }
   }
 }
 

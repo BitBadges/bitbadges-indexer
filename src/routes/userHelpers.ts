@@ -45,6 +45,8 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       activity: [],
       announcements: [],
       reviews: [],
+      merkleChallenges: [],
+      approvalsTrackers: [],
       views: {},
       //We don't want to return these to the user
       _id: accountInfo.cosmosAddress,

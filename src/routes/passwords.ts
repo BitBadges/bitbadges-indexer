@@ -1,5 +1,5 @@
 import { Mutex } from "async-mutex";
-import { BigIntify, GetClaimCodeViaPasswordRouteResponse, NumberType, convertPasswordDoc } from "bitbadgesjs-utils";
+import { BigIntify, GetMerkleChallengeCodeViaPasswordRouteResponse, NumberType, convertPasswordDoc } from "bitbadgesjs-utils";
 import { AES } from "crypto-js";
 import { Request, Response } from "express";
 import nano from "nano";
@@ -16,7 +16,7 @@ const documentMutexesMutex = new Mutex();
 
 //TODO: In the future, we should probably look to change this approach to a more scalable and high throughput approach
 //This is a simple approach that will work 99% of the time for now
-export const getClaimCodeViaPassword = async (expressReq: Request, res: Response<GetClaimCodeViaPasswordRouteResponse<NumberType>>) => {
+export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res: Response<GetMerkleChallengeCodeViaPasswordRouteResponse<NumberType>>) => {
   try {
     let documentMutex: Mutex | undefined = undefined;
     // acquire the mutex for the documentMutexes map
@@ -50,8 +50,7 @@ export const getClaimCodeViaPassword = async (expressReq: Request, res: Response
       }
 
       const collectionId = req.params.collectionId;
-      const claimId = req.params.claimId;
-      const challengeId = req.params.challengeId;
+      const cid = req.params.cid;
       const password = req.params.password;
 
       const query: nano.MangoQuery = {
@@ -59,8 +58,8 @@ export const getClaimCodeViaPassword = async (expressReq: Request, res: Response
           collectionId: {
             "$eq": Number(collectionId)
           },
-          claimId: {
-            "$eq": Number(claimId)
+          cid: {
+            "$eq": cid
           },
           docClaimedByCollection: {
             "$eq": true
@@ -75,12 +74,12 @@ export const getClaimCodeViaPassword = async (expressReq: Request, res: Response
 
       const passwordDoc = convertPasswordDoc(passwordDocResponse.docs[0], BigIntify);
 
-      const challengeDetails = passwordDoc.challengeDetails[Number(challengeId)];
+      const challengeDetails = passwordDoc.challengeDetails;
 
-      const currCode = challengeDetails.currCode ? challengeDetails.currCode : 0n;
-      const claimedUsers = challengeDetails.claimedUsers ? challengeDetails.claimedUsers : {};
+      const currCode = challengeDetails?.currCode ? challengeDetails.currCode : 0n;
+      const claimedUsers = passwordDoc.claimedUsers ? passwordDoc.claimedUsers : {};
 
-      if (!challengeDetails.leavesDetails.preimages) {
+      if (!challengeDetails?.leavesDetails.preimages) {
         return Promise.reject({ message: 'No codes found' });
       }
 
@@ -97,8 +96,8 @@ export const getClaimCodeViaPassword = async (expressReq: Request, res: Response
 
       challengeDetails.currCode = challengeDetails.currCode ? challengeDetails.currCode + 1n : 1n;
 
-      challengeDetails.claimedUsers = {
-        ...challengeDetails.claimedUsers,
+      passwordDoc.claimedUsers = {
+        ...passwordDoc.claimedUsers,
         [req.session.cosmosAddress]: currCode
       }
 

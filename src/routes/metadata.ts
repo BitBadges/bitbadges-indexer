@@ -21,7 +21,9 @@ export const refreshMetadata = async (req: Request, res: Response<RefreshMetadat
       collections: {},
       accounts: {},
       balances: {},
-      claims: {},
+      merkleChallenges: {},
+      approvalsTrackers: {},
+      addressMappings: {},
       refreshes: {},
       activityToAdd: [],
       queueDocsToAdd: [],
@@ -32,7 +34,7 @@ export const refreshMetadata = async (req: Request, res: Response<RefreshMetadat
     const validRefresh = await updateRefreshDoc(docs, collection.collectionId.toString(), refreshTime);
 
     await pushCollectionFetchToQueue(docs, collection, getLoadBalancerId(), refreshTime);
-    if (collection.balancesUri) {
+    if (collection.balancesType === 'Off-Chain') {
       await pushBalancesFetchToQueue(docs, collection, getLoadBalancerId(), refreshTime);
     }
 

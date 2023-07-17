@@ -17,7 +17,7 @@ import { client } from "../indexer";
 export const handleNewAccountByAddress = async (cosmosAddress: string, docs: DocsCache): Promise<void> => {
 
   if (!docs.accounts[cosmosAddress]) {
-    await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], [], []);
   }
 
   //If we already have an account doc, we don't need to do anything

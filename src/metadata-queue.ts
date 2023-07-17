@@ -1,12 +1,12 @@
 import axios from "axios";
-import { Claim, JSPrimitiveNumberType, convertBalance } from "bitbadgesjs-proto";
-import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalancesForIdRanges } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType, MerkleChallenge, convertBalance } from "bitbadgesjs-proto";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
-import { COLLECTIONS_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
+import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
 import { LOAD_BALANCER_ID } from "./indexer";
 import { getFromIpfs } from "./ipfs/ipfs";
-import { cleanBalances, cleanClaims, cleanMetadata } from "./utils/dataCleaners";
+import { cleanBalances, cleanMerkleChallenges, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
 
 //1. Upon initial TX (new collection or URIs updating): 
@@ -115,7 +115,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
 export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>) => {
   let fetchDoc: (FetchDoc<bigint> & nano.Document) | undefined;
   let needsRefresh = false;
-  let dbType: 'Claim' | 'Metadata' | 'Balances' = 'Metadata';
+  let dbType: 'MerkleChallenge' | 'Metadata' | 'Balances' = 'Metadata';
 
   //Get document from cache if it exists
   try {
@@ -160,8 +160,8 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       dbType = 'Metadata';
       res = cleanMetadata(res);
     } else if (res.hasPassword) { //hasPassword is required for all claims and not included in any other type
-      dbType = 'Claim';
-      res = cleanClaims(res);
+      dbType = 'MerkleChallenge';
+      res = cleanMerkleChallenges(res);
     } else if (Object.keys(res).every((key) => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS)) { //If it has at least one valid address as a key, it is a balances doc
       dbType = 'Balances';
       res = cleanBalances(res);
@@ -202,13 +202,13 @@ export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, re
 }
 
 
-export const getClaimIdForQueueDb = (entropy: string, collectionId: string, claimId: string) => {
+export const getMerkleChallengeIdForQueueDb = (entropy: string, collectionId: string, claimId: string) => {
   return entropy + "-claim-" + collectionId.toString() + "-" + claimId.toString()
 }
 
-export const pushClaimFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, claim: Claim<bigint>, claimId: bigint, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
+export const pushMerkleChallengeFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, claim: MerkleChallenge<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _id: deterministicEntropy ? getClaimIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), claimId.toString()) : undefined,
+    _id: deterministicEntropy ? getMerkleChallengeIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), claim.uri.toString()) : undefined,
     uri: claim.uri,
     collectionId: BigInt(collection.collectionId),
     numRetries: 0n,
@@ -221,32 +221,44 @@ export const getCollectionIdForQueueDb = (entropy: string, collectionId: string,
   return entropy + "-collection-" + collectionId.toString() + metadataId ? "-" + metadataId : ''
 }
 
-const NUM_BADGE_METADATAs_FECTHED_ON_EVENT = 10000;
+const NUM_BADGE_METADATAS_FECTHED_ON_EVENT = 10000;
 export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
-  docs.queueDocsToAdd.push({
-    _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString()) : undefined,
-    uri: collection.collectionUri,
-    collectionId: BigInt(collection.collectionId),
-    numRetries: 0n,
-    refreshRequestTime: refreshTime,
-    loadBalanceId: BigInt(loadBalanceId)
-  });
+  //TODO: only future values
 
-  const maxMetadataId = getMaxMetadataId(collection);
-  const maxIdx = maxMetadataId < NUM_BADGE_METADATAs_FECTHED_ON_EVENT ? maxMetadataId : NUM_BADGE_METADATAs_FECTHED_ON_EVENT;
+  const uris = collection.collectionMetadataTimeline.map(x => x.collectionMetadata.uri);
+  const nonDuplicates = [...new Set(uris)];
 
-  for (let i = 1; i <= maxIdx; i++) {
-    const uris = getUrisForMetadataIds([BigInt(i)], collection.collectionUri, collection.badgeUris);
-    const uri = uris[0];
-    if (uri) {
-      docs.queueDocsToAdd.push({
-        _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), `${i}`) : undefined,
-        uri: uri,
-        collectionId: collection.collectionId,
-        numRetries: 0n,
-        refreshRequestTime: refreshTime,
-        loadBalanceId: BigInt(loadBalanceId)
-      })
+  for (const uri of nonDuplicates) {
+    docs.queueDocsToAdd.push({
+      _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString()) : undefined,
+      uri: uri,
+      collectionId: BigInt(collection.collectionId),
+      numRetries: 0n,
+      refreshRequestTime: refreshTime,
+      loadBalanceId: BigInt(loadBalanceId)
+    });
+  }
+
+  //TODO: Should probably restrict NUM_BADGE_METADATAS_FECTHED_ON_EVENT based on how many loops, not x10000 each time
+  for (const timelineVal of collection.badgeMetadataTimeline) {
+    const badgeMetadata = timelineVal.badgeMetadata;
+
+    const maxMetadataId = getMaxMetadataId(badgeMetadata);
+    const maxIdx = maxMetadataId < NUM_BADGE_METADATAS_FECTHED_ON_EVENT ? maxMetadataId : NUM_BADGE_METADATAS_FECTHED_ON_EVENT;
+
+    for (let i = 1; i <= maxIdx; i++) {
+      const uris = getUrisForMetadataIds([BigInt(i)], "", badgeMetadata); //Can be "" bc metadataId is never 0
+      const uri = uris[0];
+      if (uri) {
+        docs.queueDocsToAdd.push({
+          _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), `${i}`) : undefined,
+          uri: uri,
+          collectionId: collection.collectionId,
+          numRetries: 0n,
+          refreshRequestTime: refreshTime,
+          loadBalanceId: BigInt(loadBalanceId)
+        })
+      }
     }
   }
 }
@@ -256,30 +268,48 @@ export const getBalancesIdForQueueDb = (entropy: string, collectionId: string) =
 }
 
 export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
-  docs.queueDocsToAdd.push({
-    _id: deterministicEntropy ? deterministicEntropy + "-balances" : undefined,
-    uri: collection.balancesUri,
-    collectionId: collection.collectionId,
-    refreshRequestTime: refreshTime,
-    numRetries: 0n,
-    loadBalanceId: BigInt(loadBalanceId)
-  })
+
+
+  let uriToFetch = '';
+  for (const timelineVal of collection.offChainBalancesMetadataTimeline) {
+    if (!uriToFetch) uriToFetch = timelineVal.offChainBalancesMetadata.uri;
+
+    const offChainBalancesMetadata = timelineVal.offChainBalancesMetadata;
+
+
+
+    docs.queueDocsToAdd.push({
+      _id: deterministicEntropy ? deterministicEntropy + "-balances" : undefined,
+      uri: offChainBalancesMetadata.uri,
+      collectionId: collection.collectionId,
+      refreshRequestTime: refreshTime,
+      numRetries: 0n,
+      loadBalanceId: BigInt(loadBalanceId)
+    })
+
+    //TODO: Support pre-loading future values (i.e. if we know the balancesUri for the next collection, we can preload it). We currently only take first.
+    //      But, note that they can currently just specify the ownership times within the balances, so there really is no need to have multiple here
+    break;
+  }
 }
 
 const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>) => {
+  //TODO: This overwrites everything each time
+
   const docs: DocsCache = {
     accounts: {},
     collections: {},
     balances: {},
     refreshes: {},
-    claims: {},
+    merkleChallenges: {},
+    approvalsTrackers: {},
+    addressMappings: {},
     activityToAdd: [],
     queueDocsToAdd: [],
   };
 
-
-  const res = await COLLECTIONS_DB.get(queueObj.collectionId.toString());
-  let remainingSupplys = res.maxSupplys.map(x => convertBalance(x, BigIntify));
+  const totalSupplysDoc = await BALANCES_DB.get(`${queueObj.collectionId}:Total`);
+  let remainingSupplys = totalSupplysDoc.balances.map(x => convertBalance(x, BigIntify));
 
   //Handle balance doc creation
   let balanceMap = balancesMap;
@@ -287,16 +317,24 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
   await fetchDocsForCacheIfEmpty(docs, [], [], [
     ...Object.keys(balanceMap).filter(key => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS).map((key) => `${queueObj.collectionId}:${key}`),
-  ], []);
+  ], [], [], []);
 
   //Update the balance documents
   for (const [key, val] of Object.entries(balanceMap)) {
     if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
+
+
       docs.balances[`${queueObj.collectionId}:${key}`] = {
-        _rev: docs.balances[`${queueObj.collectionId}:${key}`]._rev || '',
-        _id: docs.balances[`${queueObj.collectionId}:${key}`]._id,
+        _rev: docs.balances[`${queueObj.collectionId}:${key}`]?._rev || '',
+        _id: `${queueObj.collectionId}:${key}`,
         balances: val,
-        approvals: [],
+        //Off-Chain Balances so we don't care ab approvals or permissions
+        approvedIncomingTransfersTimeline: [],
+        approvedOutgoingTransfersTimeline: [],
+        userPermissions: {
+          canUpdateApprovedIncomingTransfers: [],
+          canUpdateApprovedOutgoingTransfers: [],
+        },
         collectionId: queueObj.collectionId,
         cosmosAddress: key,
         fetchedAt: BigInt(Date.now()),
@@ -308,7 +346,11 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       //Will throw if underflow and the URI speecifies more badges than what is denoted on the blockchain
       //This is to enforce that the balancesUri is not lying or overallocating balances 
       for (const balance of val) {
-        remainingSupplys = subtractBalancesForIdRanges({ balances: remainingSupplys, approvals: [] }, balance.badgeIds, balance.amount).balances;
+        remainingSupplys = subtractBalances([{
+          badgeIds: balance.badgeIds,
+          amount: balance.amount,
+          ownedTimes: balance.ownedTimes
+        }], remainingSupplys);
       }
     }
   }

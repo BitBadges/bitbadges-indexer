@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { NumberType } from 'bitbadgesjs-proto';
-import { BadgeMetadataDetails, BigIntify, ChallengeDetails, ClaimDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
+import { BadgeMetadataDetails, BigIntify, ChallengeDetails, MerkleChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
 import last from 'it-last';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { FETCHES_DB, insertToDB } from '../db/db';
@@ -158,19 +158,23 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   return { allResults: results, collectionMetadataResult, badgeMetadataResults };
 }
 
-export const addClaimToIpfs = async (name: string, description: string, challengeDetails: ChallengeDetails<bigint>[]) => {
+export const addMerkleChallengeToIpfs = async (name: string, description: string, challengeDetails?: ChallengeDetails<bigint>) => {
+
+  const hasPassword = challengeDetails && challengeDetails.password && challengeDetails.password.length > 0;
+
   //Remove preimages and passwords from challengeDetails
-  const convertedChallengeDetails: ChallengeDetails<bigint>[] = challengeDetails.map(x => {
-    return {
-      ...x,
+  let convertedChallengeDetails: ChallengeDetails<bigint> | undefined = undefined;
+
+  if (challengeDetails) {
+    convertedChallengeDetails = {
+      ...challengeDetails,
       password: undefined,
-      hasPassword: x.password ? true : false,
       leavesDetails: {
-        ...x.leavesDetails,
+        ...challengeDetails.leavesDetails,
         preimages: undefined
       }
     }
-  })
+  }
 
   const files = [];
   files.push({
@@ -187,9 +191,10 @@ export const addClaimToIpfs = async (name: string, description: string, challeng
     content: {
       name,
       description,
+      hasPassword,
       challengeDetails: convertedChallengeDetails,
-    } as ClaimDetails<bigint>,
-    db: 'Claim',
+    } as MerkleChallengeDetails<bigint>,
+    db: 'MerkleChallenge',
     isPermanent: true
   });
 
