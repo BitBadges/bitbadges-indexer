@@ -1,5 +1,5 @@
 import { NumberType } from "bitbadgesjs-proto";
-import { AddReviewForCollectionRouteRequestBody, AddReviewForCollectionRouteResponse, AddReviewForUserRouteRequestBody, AddReviewForUserRouteResponse, ReviewInfoBase, convertToCosmosAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AddReviewForCollectionRouteRequestBody, AddReviewForCollectionRouteResponse, AddReviewForUserRouteRequestBody, AddReviewForUserRouteResponse, ReviewDoc, convertToCosmosAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
@@ -26,10 +26,12 @@ export const addReviewForCollection = async (expressReq: Request, res: Response<
 
     const { review } = req.body;
     //number because nothng should overflow here
-    const activityDoc: ReviewInfoBase<number> & {
-      partition: string
-    } = {
-      partition: `collection-${collectionId}`,
+    //random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
+    const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
+
+    const activityDoc: ReviewDoc<number> = {
+
+      _id: `collection-${collectionId}:${id}`,
       method: 'Review',
       collectionId: Number(collectionId),
       stars: Number(stars),
@@ -46,7 +48,7 @@ export const addReviewForCollection = async (expressReq: Request, res: Response<
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error adding announcement. Please try again later."
+      message: "Error adding review. Please try again later."
     })
   }
 }
@@ -78,12 +80,11 @@ export const addReviewForUser = async (expressReq: Request, res: Response<AddRev
     const status = await getStatus();
 
     const { review } = req.body;
+    //random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
+    const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
 
-
-    const activityDoc: ReviewInfoBase<number> & {
-      partition: string
-    } = {
-      partition: `user-${cosmosAddress}`,
+    const activityDoc = {
+      _id: `user-${cosmosAddress}:${id}`,
       method: 'Review',
       reviewedAddress: cosmosAddress,
       stars: Number(stars),

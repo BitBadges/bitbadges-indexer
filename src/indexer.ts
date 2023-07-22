@@ -33,6 +33,9 @@ var fs = require("fs");
 var https = require("https");
 const cors = require('cors');
 
+
+export const OFFLINE_MODE = true;
+
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 
 config()
@@ -138,9 +141,9 @@ app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, 
 
 //User
 app.post('/api/v0/user/batch', getAccounts);
+app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
 app.post('/api/v0/user/:addressOrUsername', getAccount);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
-app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
 
 //IPFS
 app.post('/api/v0/addMetadataToIpfs', authorizeBlockinRequest, addMetadataToIpfsHandler); //
@@ -177,7 +180,9 @@ app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {
-  setTimeout(poll, 1)
+  if (!OFFLINE_MODE) {
+    setTimeout(poll, 1)
+  }
 }
 
 process.on("SIGINT", () => {

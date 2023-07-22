@@ -1,9 +1,9 @@
-import { AddAnnouncementRouteRequestBody, AddAnnouncementRouteResponse, AnnouncementInfoBase, NumberType } from "bitbadgesjs-utils";
+import { AddAnnouncementRouteRequestBody, AddAnnouncementRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
+import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
 import { ANNOUNCEMENTS_DB, insertToDB } from "../db/db";
 import { getStatus } from "../db/status";
-import { serializeError } from "serialize-error";
 
 export const addAnnouncement = async (expressReq: Request, res: Response<AddAnnouncementRouteResponse<NumberType>>) => {
   try {
@@ -20,10 +20,11 @@ export const addAnnouncement = async (expressReq: Request, res: Response<AddAnno
 
     const status = await getStatus();
 
-    const activityDoc: AnnouncementInfoBase<bigint> & {
-      partition: string
-    } = {
-      partition: `collection-${collectionId}`,
+    //random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
+    const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
+
+    const activityDoc = {
+      _id: `collection-${collectionId}:${id}`,
       method: 'Announcement',
       collectionId: collectionId,
       announcement: reqBody.announcement,

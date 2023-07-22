@@ -3,18 +3,22 @@ import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleMerkleChallenges } from "./merkleChallenges"
 
-import { getBalancesIdForQueueDb, getCollectionIdForQueueDb, pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../metadata-queue"
-import { getLoadBalancerId } from "../utils/loadBalancer"
+import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../metadata-queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
+  console.log("MsgUpdateCollection: ", msg);
+
+  let collectionId = BigInt(msg.collectionId);
   if (msg.collectionId === 0n) {
-    docs.collections[msg.collectionId.toString()] = {
-      _id: msg.collectionId.toString(),
-      _rev: '',
+    collectionId = status.nextCollectionId;
+
+    docs.collections[status.nextCollectionId.toString()] = {
+      _id: status.nextCollectionId.toString(),
+      _rev: undefined,
       collectionId: status.nextCollectionId,
 
       managerTimeline: [{
@@ -55,7 +59,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
 
     docs.balances[`${status.nextCollectionId}:Total`] = {
       _id: `${status.nextCollectionId.toString()}:Total`,
-      _rev: '',
+      _rev: undefined,
       balances: [],
       cosmosAddress: "Total",
       collectionId: status.nextCollectionId,
@@ -70,7 +74,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
 
     docs.balances[`${status.nextCollectionId}:Mint`] = {
       _id: `${status.nextCollectionId.toString()}:Mint`,
-      _rev: '',
+      _rev: undefined,
       balances: [],
       cosmosAddress: "Mint",
       collectionId: status.nextCollectionId,
@@ -83,32 +87,32 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
       }
     }
 
+
+
   } else {
     if (msg.badgesToCreate && msg.badgesToCreate.length > 0) {
-      await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
-        `${msg.collectionId}:Total`,
-        `${msg.collectionId}:Mint`,
+      await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [
+        `${collectionId}:Total`,
+        `${collectionId}:Mint`,
       ], [], [], []);
     }
   }
 
-  const collection = docs.collections[msg.collectionId.toString()];
-  if (!collection) throw new Error(`Collection ${msg.collectionId} does not exist`);
+  const collection = docs.collections[collectionId.toString()];
+  if (!collection) throw new Error(`Collection ${collectionId} does not exist`);
 
-  const totalBalance = docs.balances[`${msg.collectionId}:Total`];
-  if (!totalBalance) throw new Error(`Total balance for collection ${msg.collectionId} does not exist`);
+  const totalBalance = docs.balances[`${collectionId}:Total`];
+  if (!totalBalance) throw new Error(`Total balance for collection ${collectionId} does not exist`);
 
-  const mintBalance = docs.balances[`${msg.collectionId}:Mint`];
-  if (!mintBalance) throw new Error(`Mint balance for collection ${msg.collectionId} does not exist`);
+  const mintBalance = docs.balances[`${collectionId}:Mint`];
+  if (!mintBalance) throw new Error(`Mint balance for collection ${collectionId} does not exist`);
 
   if (msg.badgesToCreate && msg.badgesToCreate.length > 0) {
     totalBalance.balances = addBalances(msg.badgesToCreate, totalBalance.balances);
     mintBalance.balances = addBalances(msg.badgesToCreate, mintBalance.balances);
   }
 
-  const entropy = status.block.height + "-" + status.block.txIndex;
-  const docId = getCollectionIdForQueueDb(entropy, collection.collectionId.toString());
-  const balanceDocId = getBalancesIdForQueueDb(entropy, collection.collectionId.toString());
+  const entropy = status.block.height.toString() + "-" + status.block.txIndex.toString();
 
   if (msg.updateCollectionPermissions) {
     collection.collectionPermissions = msg.collectionPermissions;
@@ -127,12 +131,12 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
   }
 
   if (msg.updateCollectionMetadataTimeline || msg.updateBadgeMetadataTimeline) {
-    await pushCollectionFetchToQueue(docs, collection, getLoadBalancerId(docId), status.block.timestamp, entropy);
+    await pushCollectionFetchToQueue(docs, collection, status.block.timestamp, entropy);
   }
 
   if (msg.updateOffChainBalancesMetadataTimeline) {
     collection.offChainBalancesMetadataTimeline = msg.offChainBalancesMetadataTimeline;
-    await pushBalancesFetchToQueue(docs, collection, getLoadBalancerId(balanceDocId), status.block.timestamp, entropy);
+    await pushBalancesFetchToQueue(docs, collection, status.block.timestamp, entropy);
   }
 
   if (msg.updateCustomDataTimeline) {
@@ -170,7 +174,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
 
   docs.refreshes[collection.collectionId.toString()] = {
     _id: collection.collectionId.toString(),
-    _rev: '',
+    _rev: undefined,
     collectionId: collection.collectionId,
     refreshRequestTime: status.block.timestamp,
   }

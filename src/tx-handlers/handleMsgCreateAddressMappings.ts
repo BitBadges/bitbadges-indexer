@@ -11,7 +11,7 @@ export const handleMsgCreateAddressMappings = async (msg: MsgCreateAddressMappin
   for (const addressMapping of msg.addressMappings) {
     docs.addressMappings[`${addressMapping.mappingId}`] = {
       _id: `${addressMapping.mappingId}`,
-      _rev: '',
+      _rev: undefined,
       ...addressMapping,
       createdBy: msg.creator,
     };

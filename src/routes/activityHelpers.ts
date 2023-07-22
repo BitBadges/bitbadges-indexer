@@ -1,4 +1,4 @@
-import { GetBadgeActivityRouteResponse, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
+import { GetBadgeActivityRouteResponse, MerkleChallengeTrackerIdDetails, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { ANNOUNCEMENTS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, MERKLE_CHALLENGES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { removeCouchDBDetails } from "../utils/couchdb-utils";
 import { ApprovalTrackerIdDetails } from "bitbadgesjs-proto";
@@ -149,7 +149,6 @@ export async function fetchTotalAndUnmintedBalancesQuery(collectionId: string) {
     },
   });
 
-
   return res;
 }
 
@@ -182,19 +181,33 @@ export async function executeCollectionMerkleChallengesQuery(collectionId: strin
   return claimsRes;
 }
 
-export async function executeMerkleChallengeByIdsQuery(collectionId: string, challengeIdsToFetch: string[]) {
-  const claimsRes = await MERKLE_CHALLENGES_DB.partitionedFind(collectionId, {
-    selector: {
-      collectionId: {
-        $eq: Number(collectionId)
-      },
-      challengeId: {
-        $in: challengeIdsToFetch
-      }
-    },
-  });
+export async function executeMerkleChallengeByIdsQuery(collectionId: string, challengeIdsToFetch: MerkleChallengeTrackerIdDetails<NumberType>[]) {
 
-  return claimsRes;
+  const docs = [];
+
+  for (const idObj of challengeIdsToFetch) {
+    const res = await MERKLE_CHALLENGES_DB.partitionedFind(collectionId, {
+      selector: {
+        collectionId: {
+          $eq: Number(collectionId)
+        },
+        challengeId: {
+          $eq: idObj.challengeId
+        },
+        challengeLevel: {
+          $eq: idObj.challengeLevel
+        },
+        approverAddress: {
+          $eq: idObj.approverAddress
+        },
+      },
+      limit: 1,
+    });
+
+    docs.push(...res.docs);
+  }
+
+  return docs;
 }
 
 export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: ApprovalTrackerIdDetails<bigint>[]) {

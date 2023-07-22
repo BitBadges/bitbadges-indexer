@@ -6,7 +6,7 @@ import { client } from "../indexer";
  * This is a little tricky because we need to handle the case where a user registers
  * with the blockchain, but we already cached a -1 or null accountNumber.
  * 
- * Rare case but it can happen when indexer is catching up.
+ * Rare case but it can happen when indexer is catching up. 
  * 
  * Solution: Always query the blockchain when this function is called until we have a valid account number.
  */
@@ -30,9 +30,10 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
   if (accountInfo) {
     docs.accounts[cosmosAddress] = convertAccountDoc({
       _id: `${cosmosAddress}`,
-      _rev: '',
+      _rev: undefined,
       ...docs.accounts[cosmosAddress],
       ...accountInfo,
+      sequence: undefined, //We dynamically fetch this currently. Can maybe do it here in the future.
     }, BigIntify);
   }
 }

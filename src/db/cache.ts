@@ -1,7 +1,7 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, BalanceDoc, BalanceDocs, BigIntify, MerkleChallengeDoc, MerkleChallengeDocs, CollectionDoc, CollectionDocs, DocsCache, RefreshDoc, StatusDoc, convertAccountDoc, convertBalanceDoc, convertMerkleChallengeDoc, convertCollectionDoc, ApprovalsTrackerDocs, AddressMappingsDocs, AddressMappingDoc, ApprovalsTrackerDoc, convertApprovalsTrackerDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc } from "bitbadgesjs-utils";
 import { serializeError } from "serialize-error";
-import { ACCOUNTS_DB, TRANSFER_ACTIVITY_DB, BALANCES_DB, MERKLE_CHALLENGES_DB, COLLECTIONS_DB, ERRORS_DB, QUEUE_DB, REFRESHES_DB, insertMany, insertToDB, APPROVALS_TRACKER_DB, ADDRESS_MAPPINGS_DB } from "./db";
+import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, COLLECTIONS_DB, ERRORS_DB, MERKLE_CHALLENGES_DB, QUEUE_DB, REFRESHES_DB, TRANSFER_ACTIVITY_DB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
 /**

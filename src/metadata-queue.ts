@@ -97,7 +97,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
 
     await insertToDB(QUEUE_DB, {
       _id: `${uri}-${refreshDoc._rev}`,
-      _rev: '',
+      _rev: undefined,
       uri: uri,
       collectionId: collectionId,
       refreshRequestTime,
@@ -113,7 +113,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
 }
 
 export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>) => {
-  let fetchDoc: (FetchDoc<bigint> & nano.Document) | undefined;
+  let fetchDoc: (FetchDoc<bigint> & nano.IdentifiedDocument & nano.MaybeRevisionedDocument) | undefined;
   let needsRefresh = false;
   let dbType: 'MerkleChallenge' | 'Metadata' | 'Balances' = 'Metadata';
 
@@ -173,7 +173,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     await insertToDB(FETCHES_DB, {
       ...fetchDoc,
       _id: uri,
-      _rev: '',
+      _rev: undefined,
       content: dbType !== 'Balances' ? res : undefined, //We already stored balances in a separate DB so it makes no sense to doubly store content here
       fetchedAt: BigInt(Date.now()),
       db: dbType,
@@ -217,20 +217,22 @@ export const pushMerkleChallengeFetchToQueue = async (docs: DocsCache, collectio
   })
 }
 
-export const getCollectionIdForQueueDb = (entropy: string, collectionId: string, metadataId?: string) => {
-  return entropy + "-collection-" + collectionId.toString() + metadataId ? "-" + metadataId : ''
+export const getCollectionIdForQueueDb = (entropy: string, collectionId: string, timelineTimeStart: string, metadataId?: string) => {
+  return entropy + "-collection-" + collectionId.toString() + "-" + timelineTimeStart + (metadataId ? "-" + metadataId : '')
 }
 
 const NUM_BADGE_METADATAS_FECTHED_ON_EVENT = 10000;
-export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
+export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, refreshTime: bigint, deterministicEntropy?: string) => {
   //TODO: only future values
 
   const uris = collection.collectionMetadataTimeline.map(x => x.collectionMetadata.uri);
   const nonDuplicates = [...new Set(uris)];
 
+
   for (const uri of nonDuplicates) {
+    const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "")) : 0;
     docs.queueDocsToAdd.push({
-      _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString()) : undefined,
+      _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "") : undefined,
       uri: uri,
       collectionId: BigInt(collection.collectionId),
       numRetries: 0n,
@@ -250,8 +252,9 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
       const uris = getUrisForMetadataIds([BigInt(i)], "", badgeMetadata); //Can be "" bc metadataId is never 0
       const uri = uris[0];
       if (uri) {
+        const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`)) : 0;
         docs.queueDocsToAdd.push({
-          _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), `${i}`) : undefined,
+          _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`) : undefined,
           uri: uri,
           collectionId: collection.collectionId,
           numRetries: 0n,
@@ -263,11 +266,11 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
   }
 }
 
-export const getBalancesIdForQueueDb = (entropy: string, collectionId: string) => {
-  return entropy + "-balances-" + collectionId.toString()
+export const getBalancesIdForQueueDb = (entropy: string, collectionId: string, timelineTime: string) => {
+  return entropy + "-balances-" + collectionId.toString() + "-" + timelineTime
 }
 
-export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
+export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, refreshTime: bigint, deterministicEntropy?: string) => {
 
 
   let uriToFetch = '';
@@ -275,11 +278,10 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
     if (!uriToFetch) uriToFetch = timelineVal.offChainBalancesMetadata.uri;
 
     const offChainBalancesMetadata = timelineVal.offChainBalancesMetadata;
-
-
-
+    const docId = deterministicEntropy ? getBalancesIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "") : undefined;
+    const loadBalanceId = getLoadBalancerId(docId ?? "");
     docs.queueDocsToAdd.push({
-      _id: deterministicEntropy ? deterministicEntropy + "-balances" : undefined,
+      _id: docId,
       uri: offChainBalancesMetadata.uri,
       collectionId: collection.collectionId,
       refreshRequestTime: refreshTime,
@@ -390,7 +392,7 @@ export const fetchUrisFromQueue = async () => {
       if (currQueueDoc.lastFetchedAt && Number(currQueueDoc.lastFetchedAt) + delay > Date.now()) {
         //If we have fetched this URI recently, do not spam it
       } else {
-        queueItems.push(convertQueueDoc(currQueueDoc, BigIntify)); //Used for a deep copy
+        queueItems.push(convertQueueDoc(currQueueDoc, BigIntify) as any); //Used for a deep copy
       }
     }
     queue.shift()

@@ -7,7 +7,7 @@ import { serializeError } from "serialize-error";
 import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddMerkleChallengeToIpfsRouteRequestBody, AddMerkleChallengeToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
 import { cleanBalances } from "../utils/dataCleaners";
 
-const IPFS_UPLOAD_KB_LIMIT = 100000; //100MB
+const IPFS_UPLOAD_BYTES_LIMIT = 100000000; //100MB
 
 export const updateIpfsTotals = async (address: string, size: number, req: AuthenticatedRequest) => {
   let ipfsTotalsDoc = undefined;
@@ -24,7 +24,7 @@ export const updateIpfsTotals = async (address: string, size: number, req: Authe
   if (!ipfsTotalsDoc) {
     ipfsTotalsDoc = {
       _id: address,
-      _rev: '',
+      _rev: undefined,
       kbUploaded: size,
     }
   } else {
@@ -41,7 +41,7 @@ export const addBalancesToIpfsHandler = async (expressReq: Request, res: Respons
   const req = expressReq as AuthenticatedRequest;
   const reqBody = req.body as AddBalancesToIpfsRouteRequestBody;
 
-  if (req.session.ipfsTotal > IPFS_UPLOAD_KB_LIMIT) {
+  if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
     return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
   }
 
@@ -52,7 +52,7 @@ export const addBalancesToIpfsHandler = async (expressReq: Request, res: Respons
       const balances = cleanBalances(reqBody.balances);
       result = await addBalancesToIpfs(balances);
       //get size of req.body in KB
-      size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;
+      size = Buffer.byteLength(JSON.stringify(req.body));
     }
 
     if (!result) {
@@ -75,7 +75,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
   const req = expressReq as AuthenticatedRequest;
   const reqBody = req.body as AddMetadataToIpfsRouteRequestBody;
 
-  if (req.session.ipfsTotal > IPFS_UPLOAD_KB_LIMIT) {
+  if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
     return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
   }
 
@@ -83,7 +83,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
     let size = 0;
     const { allResults, collectionMetadataResult, badgeMetadataResults } = await addMetadataToIpfs(reqBody.collectionMetadata, reqBody.badgeMetadata);
     //get size of req.body in KB
-    size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;
+    size = Buffer.byteLength(JSON.stringify(req.body));
 
     if (allResults.length === 0) {
       throw new Error('No result received');
@@ -105,7 +105,7 @@ export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: 
   const req = expressReq as AuthenticatedRequest;
   const reqBody = req.body as AddMerkleChallengeToIpfsRouteRequestBody;
 
-  if (req.session.ipfsTotal > IPFS_UPLOAD_KB_LIMIT) {
+  if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
     return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
   }
 
@@ -116,7 +116,7 @@ export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: 
       throw new Error('No addAll result received');
     }
 
-    const { path, cid } = result;
+    const { cid } = result;
 
     const duplicateCheckRes = await PASSWORDS_DB.find({
       selector: {
@@ -171,10 +171,10 @@ export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: 
     // });
 
 
-    let size = Buffer.byteLength(JSON.stringify(req.body)) / 1000;
+    let size = Buffer.byteLength(JSON.stringify(req.body));
     await updateIpfsTotals(req.session.cosmosAddress, size, req);
 
-    return res.status(200).send({ result: { cid: cid.toString(), path } });
+    return res.status(200).send({ result: { cid: cid.toString() } });
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),

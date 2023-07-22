@@ -1,8 +1,8 @@
 import { GetMerkleChallengeTrackersRouteRequestBody, GetMerkleChallengeTrackersRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { MERKLE_CHALLENGES_DB } from "src/db/db";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { MERKLE_CHALLENGES_DB } from "../db/db";
+import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export const getMerkleChallengeTrackers = async (req: Request, res: Response<GetMerkleChallengeTrackersRouteResponse<NumberType>>) => {
   try {

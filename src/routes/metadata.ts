@@ -1,12 +1,11 @@
 import axios from "axios";
 import { BigIntify, DocsCache, FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType, RefreshMetadataRouteResponse, convertCollectionDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import { getFromIpfs } from "../ipfs/ipfs";
-import { getLoadBalancerId } from "../utils/loadBalancer";
-import { COLLECTIONS_DB } from "../db/db";
-import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from "../metadata-queue";
 import { serializeError } from "serialize-error";
 import { flushCachedDocs } from "../db/cache";
+import { COLLECTIONS_DB } from "../db/db";
+import { getFromIpfs } from "../ipfs/ipfs";
+import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from "../metadata-queue";
 
 export const refreshMetadata = async (req: Request, res: Response<RefreshMetadataRouteResponse<NumberType>>) => {
   /**
@@ -33,9 +32,9 @@ export const refreshMetadata = async (req: Request, res: Response<RefreshMetadat
 
     const validRefresh = await updateRefreshDoc(docs, collection.collectionId.toString(), refreshTime);
 
-    await pushCollectionFetchToQueue(docs, collection, getLoadBalancerId(), refreshTime);
+    await pushCollectionFetchToQueue(docs, collection, refreshTime);
     if (collection.balancesType === 'Off-Chain') {
-      await pushBalancesFetchToQueue(docs, collection, getLoadBalancerId(), refreshTime);
+      await pushBalancesFetchToQueue(docs, collection, refreshTime);
     }
 
     await flushCachedDocs(docs);

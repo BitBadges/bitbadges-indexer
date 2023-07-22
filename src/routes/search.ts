@@ -8,6 +8,7 @@ import { ACCOUNTS_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
 import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
+import { removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
@@ -32,6 +33,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     }
 
+    console.log(resolvedEnsAddress);
+
     // Search metadata of collections for matching names
     const collectionMetadataQuery: nano.MangoQuery = {
       selector: {
@@ -44,16 +47,25 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       },
     }
 
+    const selectorCriteria: any[] = [
+      { "address": { "$regex": `(?i)${searchValue}` } },
+      // { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
+      // { "_id": { "$regex": `(?i)${convertToCosmosAddress(searchValue)}:` } },
+      { "username": { "$regex": `(?i)${searchValue}` } }
+    ];
+
+    if (resolvedEnsAddress) {
+      selectorCriteria.push({ "address": { "$regex": `(?i)${resolvedEnsAddress}` } });
+      // selectorCriteria.push({ "cosmosAddress": { "$regex": `(?i)${resolvedEnsAddress}` } });
+    }
+
+    // if (searchValue.startsWith('cosmos')) {
+    //   selectorCriteria.push({ "cosmosAddress": { "$regex": `(?i)${searchValue}` } });
+    // }
+
     const accountQuery = {
       selector: {
-        "$or": [
-          { "address": { "$regex": `(?i)${resolvedEnsAddress}` } },
-          { "cosmosAddress": { "$regex": `(?i)${resolvedEnsAddress}` } },
-          { "address": { "$regex": `(?i)${searchValue}` } },
-          { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
-          { "_id": { "$regex": `(?i)${convertToCosmosAddress(searchValue)}:` } },
-          { "username": { "$regex": `(?i)${searchValue}` } },
-        ]
+        "$or": selectorCriteria,
       },
     }
 
@@ -63,10 +75,12 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       ACCOUNTS_DB.find(accountQuery),
     ]);
 
+    console.log(results);
+
     const metadataResponseDocs = results[0].docs;
     const accountsResponseDocs = results[1].docs;
 
-    const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [];
+    const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [...accountsResponseDocs.map(removeCouchDBDetails)];
     if (isAddressValid(searchValue)
       && !accountsResponseDocs.find((account) => account.address === searchValue || account.cosmosAddress === searchValue)) {
       allAccounts.push({
@@ -79,6 +93,18 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       });
     }
 
+    if (resolvedEnsAddress
+      && !accountsResponseDocs.find((account) => account.address === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress)) {
+      allAccounts.push({
+        _id: convertToCosmosAddress(resolvedEnsAddress),
+        address: resolvedEnsAddress,
+        cosmosAddress: convertToCosmosAddress(resolvedEnsAddress),
+        chain: getChainForAddress(resolvedEnsAddress),
+        publicKey: '',
+        accountNumber: '-1',
+      });
+    }
+
     allAccounts.sort((a, b) => a.address.localeCompare(b.address));
 
     const uris = metadataResponseDocs.map((doc) => doc._id);
@@ -86,14 +112,31 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       selector: {
         "$or": [
           {
-            collectionUri: {
-              "$in": uris
+            collectionId: {
+              "$eq": Number(searchValue)
+            },
+          },
+          {
+            collectionMetadataTimeline: {
+              "$elemMatch": {
+                collectionMetadata: {
+                  uri: {
+                    "$in": uris
+                  }
+                }
+              }
             }
           },
           {
             badgeUris: {
               "$elemMatch": {
-                "$in": uris
+                badgeMetadata: {
+                  "$elemMatch": {
+                    uri: {
+                      "$in": uris
+                    }
+                  }
+                }
               }
             }
           }
@@ -102,12 +145,16 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     });
 
     const collectionsResponses = await executeAdditionalCollectionQueries(collectionsRes.docs, collectionsRes.docs.map((doc) => {
-      return { collectionId: doc._id };
+      return { collectionId: doc.collectionId };
     }));
+
+    const accounts = (await convertToBitBadgesUserInfo(allAccounts.map(() => { return {} }), allAccounts)).map((account) => convertBitBadgesUserInfo(account, Stringify));
+
+    console.log(accounts);
 
     return res.json({
       collections: collectionsResponses,
-      accounts: (await convertToBitBadgesUserInfo(allAccounts.map(() => { return {} }), allAccounts)).map((account) => convertBitBadgesUserInfo(account, Stringify)),
+      accounts
     })
   } catch (e) {
     console.error(e);

@@ -1,8 +1,8 @@
 import { GetApprovalsRouteRequestBody, GetApprovalsRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { APPROVALS_TRACKER_DB } from "src/db/db";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { APPROVALS_TRACKER_DB } from "../db/db";
+import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export const getApprovals = async (req: Request, res: Response<GetApprovalsRouteResponse<NumberType>>) => {
   try {

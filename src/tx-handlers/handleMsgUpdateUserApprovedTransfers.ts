@@ -17,7 +17,7 @@ export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApp
   if (!balancesDoc) {
     balancesDoc = {
       _id: `${msg.collectionId}:${msg.creator}`,
-      _rev: '',
+      _rev: undefined,
       balances: [],
       cosmosAddress: msg.creator,
       collectionId: msg.collectionId,

@@ -1,8 +1,8 @@
 import { GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, getReservedAddressMapping } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { ADDRESS_MAPPINGS_DB } from "src/db/db";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "src/utils/couchdb-utils";
+import { ADDRESS_MAPPINGS_DB } from "../db/db";
+import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export const getAddressMappings = async (req: Request, res: Response<GetAddressMappingsRouteResponse<NumberType>>) => {
   try {

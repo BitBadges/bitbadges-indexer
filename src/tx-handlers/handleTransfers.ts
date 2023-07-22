@@ -5,10 +5,6 @@ import { fetchDocsForCacheIfEmpty } from "../db/cache";
 
 export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>) => {
   //Handle new acocunts, if empty 
-
-
-
-
   for (const transfer of transfers) {
     if (transfer.from === 'Mint') {
 
@@ -35,7 +31,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
           collectionId: collection.collectionId,
           onChain: collection.balancesType === 'Standard',
           _id: `${collection.collectionId}:${address}`,
-          _rev: '',
+          _rev: undefined,
         };
 
       currBalance = {
@@ -55,7 +51,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
         collectionId: collection.collectionId,
         onChain: collection.balancesType === 'Standard',
         _id: `${collection.collectionId}:${transfer.from}`,
-        _rev: '',
+        _rev: undefined,
       };
 
     fromAddressBalanceDoc = {
@@ -68,7 +64,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
 
     docs.activityToAdd.push({
       _id: `collection-${collection.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
-      from: [transfer.from],
+      from: transfer.from,
       to: transfer.toAddresses,
       balances: transfer.balances,
       method: 'Transfer',

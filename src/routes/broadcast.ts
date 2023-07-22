@@ -11,14 +11,23 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
     const broadcastPost = await axios.post(
       `${process.env.API_URL}${generateEndpointBroadcast()}`,
       reqBody,
-    );
+    ).catch((e) => {
+      if (e && e.response && e.response.data) {
+        return Promise.reject(e.response.data);
+      }
+      return Promise.reject(e);
+    });
 
     return res.status(200).send(broadcastPost.data);
   } catch (e) {
     console.error(e);
+
+    //Return message up until first '['
+    const message = e.message.split('[')[0];
+
     return res.status(500).send({
       error: serializeError(e),
-      message: 'Error broadcasting'
+      message: 'Error broadcasting transaction: ' + message
     });
   }
 }
@@ -30,14 +39,22 @@ export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResp
     const simulatePost = await axios.post(
       `${process.env.API_URL}${"/cosmos/tx/v1beta1/simulate"}`,
       reqBody,
-    );
+    ).catch((e) => {
+      if (e && e.response && e.response.data) {
+        return Promise.reject(e.response.data);
+      }
+      return Promise.reject(e);
+    });
 
     return res.status(200).send(simulatePost.data);
   } catch (e) {
     console.error(e);
+    //Return message up until first '['
+    const message = e.message.split('[')[0];
+
     return res.status(500).send({
       error: serializeError(e),
-      message: 'Error simulating transaction'
+      message: 'Error simulating transaction: ' + message
     });
   }
 }

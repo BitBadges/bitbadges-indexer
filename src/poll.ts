@@ -2,7 +2,7 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { Balance, convertBalance, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovedTransfers } from "bitbadgesjs-proto"
+import { Balance, convertBalance, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovedTransfers } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
 import { BigIntify, StatusDoc, DocsCache, convertStatusDoc } from "bitbadgesjs-utils"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
@@ -19,7 +19,7 @@ import { flushCachedDocs } from "./db/cache"
 import { StringEvent, Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 
 
-const pollIntervalMs = 1000
+const pollIntervalMs = 1_000
 let outageTime: Date | undefined
 
 const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
@@ -53,6 +53,8 @@ export const poll = async () => {
       // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
       const _status = await getStatus();
       const status = convertStatusDoc(_status, BigIntify);
+
+
       let docs: DocsCache = {
         accounts: {},
         collections: {},
@@ -98,12 +100,13 @@ export const poll = async () => {
       await flushCachedDocs(docs, status);
 
 
+
+
     } while (!caughtUp);
 
 
   } catch (e) {
     //Error handling
-
     //Attempt to reconnect to chain client
     try {
       outageTime = outageTime || new Date();
@@ -127,7 +130,8 @@ export const poll = async () => {
 
     //Log error to DB, unless it is a connection refused error
     if (e && e.code !== 'ECONNREFUSED') {
-      console.log(e);
+      console.error(e);
+
       await ERRORS_DB.bulk({
         docs: [{
           error: e,
@@ -172,7 +176,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
 
     docs.approvalsTrackers[docId] = {
       _id: docId,
-      _rev: '',
+      _rev: undefined,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       approvalLevel: approvalLevel ? approvalLevel : '',
       approverAddress: approverAddress ? approverAddress : '',
@@ -198,7 +202,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
 
     docs.merkleChallenges[docId] = {
       _id: docId,
-      _rev: '',
+      _rev: undefined,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       challengeId: challengeId ? challengeId : '',
       challengeLevel: challengeLevel ? challengeLevel : '' as "collection" | "incoming" | "outgoing" | "",
@@ -232,13 +236,17 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
 const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: DocsCache) => {
   let decodedTx: DecodedTxRaw;
   try {
-    JSON.parse(indexed.rawLog)
-
+    try {
+      JSON.parse(indexed.rawLog)
+    } catch (e) {
+      throw new Error(`Error parsing rawLog for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
+    }
     if (indexed.code) {
       throw new Error(`Non-zero error code for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
     }
   } catch (e) {
-    console.log(`Error parsing rawLog for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
+    console.log(e);
+    return;
   }
 
   decodedTx = decodeTxRaw(indexed.tx);
@@ -281,7 +289,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         await handleMsgDeleteCollection(newDeleteMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings":
-        const newAddressMappingsMsg = (tx.bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings.deserialize(value))
+        const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings.deserialize(value))
         await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs);
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateCollection":

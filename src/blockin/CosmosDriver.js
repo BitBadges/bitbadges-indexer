@@ -1,4 +1,4 @@
-coneimport { SupportedChain, getChainForAddress } from "bitbadgesjs-utils"
+import { SupportedChain, getChainForAddress } from "bitbadgesjs-utils"
 import { Buffer } from "buffer"
 import { recoverPersonalSignature } from "eth-sig-util"
 import { verifyADR36Amino } from "@keplr-wallet/cosmos"

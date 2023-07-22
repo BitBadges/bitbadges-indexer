@@ -1,8 +1,9 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase } from "bitbadgesjs-utils";
 import { AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
-import { client } from "../indexer";
+import { OFFLINE_MODE, client } from "../indexer";
 import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
+import { catch404 } from "../utils/couchdb-utils";
 
 export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[], accountInfos: AccountInfoBase<JSPrimitiveNumberType>[]): Promise<BitBadgesUserInfo<JSPrimitiveNumberType>[]> => {
   if (profileInfos.length !== accountInfos.length) {
@@ -12,9 +13,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
-    promises.push(getNameAndAvatar(cosmosAccountInfo.address));
-    promises.push(client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
-    promises.push(AIRDROP_DB.head(cosmosAccountInfo.cosmosAddress).then(() => true).catch((e) => {
+    promises.push(OFFLINE_MODE ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.address));
+    promises.push(OFFLINE_MODE ? { amount: '1000', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
+    promises.push(AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).then(() => true).catch((e) => {
       if (e.statusCode === 404) {
         return false;
       }
@@ -68,6 +69,7 @@ export async function getNameAndAvatar(address: string) {
         details = await getEnsDetails(resolver);
       }
     }
+    console.log(ensName, details);
     return { avatar: details.avatar, resolvedName: ensName };
   } catch (e) {
     return { resolvedName: '', avatar: '' };
@@ -80,12 +82,16 @@ export async function executeActivityQuery(cosmosAddress: string, bookmark?: str
     selector: {
       "$or": [{
         "to": {
-          "$elemMatch": cosmosAddress,
+          "$elemMatch": {
+            "$eq": cosmosAddress,
+          }
         },
       },
       {
         "from": {
-          "$elemMatch": cosmosAddress,
+          "$elemMatch": {
+            "$eq": cosmosAddress,
+          }
         },
       }],
       timestamp: {
@@ -104,8 +110,8 @@ export async function getAllCollectionIdsOwned(cosmosAddress: string) {
   const designDocName = '_design/balances_by_address';
   const viewName = 'byCosmosAddress';
 
-  const docs = await BALANCES_DB.view(designDocName, viewName);
-  const collections = docs.rows.map((row) => row.id.split(':')[1]);
+  const docs = await BALANCES_DB.view(designDocName, viewName).catch(catch404);
+  const collections = docs?.rows.map((row) => row.id.split(':')[1]) ?? [];
   return collections;
 }
 

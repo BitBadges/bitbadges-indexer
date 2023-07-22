@@ -6,7 +6,7 @@ import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
-import { client } from "../indexer";
+import { OFFLINE_MODE, client } from "../indexer";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeReviewsQuery } from "./userHelpers";
 
@@ -15,7 +15,7 @@ type AccountFetchOptions = GetAccountRouteRequestBody;
 
 export const getAccountByAddress = async (address: string, fetchOptions?: AccountFetchOptions) => {
   let accountInfo: AccountInfoBase<JSPrimitiveNumberType>;
-  if (fetchOptions?.fetchSequence) {
+  if (!OFFLINE_MODE && fetchOptions?.fetchSequence) {
     const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(convertToCosmosAddress(address));
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
     accountInfo = cleanedCosmosAccountInfo;
@@ -31,8 +31,9 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
           publicKey: '',
           accountNumber: -1,
         }
+      } else {
+        throw e;
       }
-      throw e;
     }
   }
 
@@ -158,6 +159,8 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     }
 
     const userInfos = await Promise.all(promises);
+
+    console.log(userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)));
     return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
   } catch (e) {
     console.error(e);
@@ -223,7 +226,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
     reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
     views: {
-      'latestActivity': activityBookmark ? {
+      'latestActivity': reqBody.viewsToFetch.find(x => x.viewKey === 'latestActivity') ? {
         ids: activityRes.docs.map(x => x._id),
         type: 'Activity',
         pagination: {
@@ -231,7 +234,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
           hasMore: activityRes.docs.length === 25
         }
       } : undefined,
-      'badgesCollected': collectedBookmark ? {
+      'badgesCollected': reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected') ? {
         ids: response.docs.map(x => x._id),
         type: 'Balances',
         pagination: {
@@ -239,7 +242,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
           hasMore: response.docs.length === 25
         }
       } : undefined,
-      'latestAnnouncements': announcementsBookmark ? {
+      'latestAnnouncements': reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements') ? {
         ids: announcementsRes.docs.map(x => x._id),
         type: 'Announcements',
         pagination: {
@@ -247,7 +250,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
           hasMore: announcementsRes.docs.length === 25
         }
       } : undefined,
-      'latestReviews': reviewsBookmark ? {
+      'latestReviews': reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews') ? {
         ids: reviewsRes.docs.map(x => x._id),
         type: 'Reviews',
         pagination: {
@@ -262,15 +265,16 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
 
 export const updateAccountInfo = async (expressReq: Request, res: Response<UpdateAccountInfoRouteResponse<NumberType>>) => {
   try {
+    console.log("TEST");
     const req = expressReq as AuthenticatedRequest
     const reqBody = req.body as UpdateAccountInfoRouteRequestBody;
 
     const cosmosAddress = req.session.cosmosAddress;
-    let accountInfo = await PROFILES_DB.get(cosmosAddress).catch(catch404);
+    let accountInfo: ProfileDoc<JSPrimitiveNumberType> | undefined = await PROFILES_DB.get(cosmosAddress).catch(catch404);
     if (!accountInfo) {
       accountInfo = {
         _id: cosmosAddress,
-        _rev: '',
+        _rev: undefined,
       }
     }
 
@@ -284,12 +288,15 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       readme: reqBody.readme ? reqBody.readme : accountInfo.readme,
     };
 
+    console.log("TEST");
+
     await insertToDB(PROFILES_DB, newAccountInfo);
 
     return res.status(200).send(
       { message: 'Account info updated successfully' }
     );
   } catch (e) {
+    console.log("Error updating account info", e);
     return res.status(500).send({
       error: serializeError(e),
       message: "Error updating account info. Please try again later."

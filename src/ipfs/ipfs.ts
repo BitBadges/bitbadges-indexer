@@ -44,7 +44,7 @@ export const addBalancesToIpfs = async (_balances: OffChainBalancesMap<NumberTyp
       db: 'Balances',
       isPermanent: true
     });
-    return { path: result.path, cid: result.cid.toString() };
+    return { cid: result.cid.toString() };
   } else {
     return undefined;
   }
@@ -95,7 +95,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     const cids = [];
     for await (const imageResult of imageResults) {
       cids.push(imageResult.cid.toString());
-      results.push({ path: imageResult.path, cid: imageResult.cid.toString() });
+      results.push({ cid: imageResult.cid.toString() });
     }
 
     if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
@@ -113,39 +113,50 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     }
   }
 
-  const files: { path: string, content: Uint8Array }[] = [];
+  const files: { path?: string, content: Uint8Array, name?: string }[] = [];
   if (collectionMetadata) {
     files.push({
-      path: 'collection',
-      content: uint8ArrayFromString(JSON.stringify(collectionMetadata))
+      // path: 'collection',
+      content: uint8ArrayFromString(JSON.stringify(collectionMetadata)),
+      // name: 'collection'
+    });
+
+    files.push({
+      // path: 'collection2',
+      content: uint8ArrayFromString(JSON.stringify(collectionMetadata) + 'sdfasfdgahdg'),
+      // name: 'collection2'
     });
   }
 
-  let i = 0;
+  // let i = 0;
 
   for (const metadata of badgeMetadata) {
     files.push(
       {
-        path: 'badges/' + i,
-        content: uint8ArrayFromString(JSON.stringify(metadata))
+        // path: 'badges-' + i,
+        content: uint8ArrayFromString(JSON.stringify(metadata)),
+        // name: 'badges-' + i
       }
     );
-    i++;
+    // i++;
   }
-  const metadataResults = ipfsClient.addAll(files);
+
+  console.log("ADDING FILES: ", files);
+  const metadataResults = ipfsClient.addAll(files, { wrapWithDirectory: true });
 
   let idx = 0;
   for await (const result of metadataResults) {
-    results.push({ path: result.path, cid: result.cid.toString() });
+    results.push({ cid: result.cid.toString() });
+
     if (result) {
       if (idx === 0 && collectionMetadata) {
-        collectionMetadataResult = { path: result.path, cid: result.cid.toString() };
+        collectionMetadataResult = { cid: result.cid.toString() };
       } else {
-        badgeMetadataResults.push({ path: result.path, cid: result.cid.toString() });
+        badgeMetadataResults.push({ cid: result.cid.toString() });
       }
 
       await insertToDB(FETCHES_DB, {
-        _id: `ipfs://${result.cid.toString()}/${result.path}`,
+        _id: `ipfs://${result.cid.toString()}`,
         fetchedAt: BigInt(Date.now()),
         content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
         db: 'Metadata',

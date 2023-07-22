@@ -8,6 +8,7 @@ import { generateNonce } from 'siwe';
 import { COLLECTIONS_DB, IPFS_TOTALS_DB } from '../db/db';
 import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
+import { catch404 } from '../utils/couchdb-utils';
 
 export interface BlockinSession extends Session {
   nonce: string | null;
@@ -168,8 +169,8 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
       req.session.cookie.expires = new Date(challenge.expirationDate);
     }
 
-    const _doc = await IPFS_TOTALS_DB.get(req.session.cosmosAddress)
-    const doc = convertIPFSTotalsDoc(_doc, Numberify);
+    const _doc = await IPFS_TOTALS_DB.get(req.session.cosmosAddress).catch(catch404);
+    const doc = _doc ? convertIPFSTotalsDoc(_doc, Numberify) : null;
     req.session.ipfsTotal = doc ? doc.kbUploaded : 0;
 
     req.session.save();
@@ -191,6 +192,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 }
 
 export async function authorizeBlockinRequest(expressReq: Request, res: Response<ErrorResponse>, next: NextFunction) {
+  console.log("TEST");
   const req = expressReq as AuthenticatedRequest;
   if (!checkIfAuthenticated(req)) return returnUnauthorized(res);
   return next();
