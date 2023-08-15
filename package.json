@@ -14,6 +14,7 @@
     "indexer": "node build/dist/indexer.js",
     "setup": "npx ts-node src/setup.ts",
     "setup-and-run": "npm run setup && npm run indexer",
+    "setup-and-run-bootstrap": "npm run setup && npm run bootstrap && npm run indexer",
     "bootstrap": "npx ts-node src/bootstrap.ts"
   },
   "repository": {
