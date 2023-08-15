@@ -27,6 +27,7 @@ export async function bootstrapCollections() {
   //Step 1. Get Tokens from faucet into our new account
 
   //Get cosmos address form mnemonic
+  console.log(fromMnemonic);
   const wallet = await DirectSecp256k1HdWallet.fromMnemonic(fromMnemonic);
   const [firstAccount] = await wallet.getAccounts();
 
