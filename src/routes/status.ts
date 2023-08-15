@@ -6,6 +6,7 @@ import { serializeError } from "serialize-error";
 import { Stringify } from "bitbadgesjs-proto";
 import { removeCouchDBDetails } from "../utils/couchdb-utils";
 
+
 export const getStatusHandler = async (req: Request, res: Response<GetStatusRouteResponse<NumberType>>) => {
   try {
     const status = await getStatus();

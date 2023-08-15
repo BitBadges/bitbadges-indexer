@@ -49,8 +49,7 @@ export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResp
     return res.status(200).send(simulatePost.data);
   } catch (e) {
     console.error(e);
-    //Return message up until first '['
-    const message = e.message.split('[')[0];
+    const message = e.message;
 
     return res.status(500).send({
       error: serializeError(e),

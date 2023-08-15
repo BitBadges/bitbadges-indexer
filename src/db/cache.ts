@@ -22,39 +22,36 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
 
     if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length) {
       const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds);
+      currDocs.accounts = {
+        ...currDocs.accounts,
+        ...newDocs.accounts
+      }
 
-      currDocs = {
-        accounts: {
-          ...currDocs.accounts,
-          ...newDocs.accounts
-        },
-        collections: {
-          ...currDocs.collections,
-          ...newDocs.collections
-        },
-        balances: {
-          ...currDocs.balances,
-          ...newDocs.balances
-        },
-        merkleChallenges: {
-          ...currDocs.merkleChallenges,
-          ...newDocs.merkleChallenges
-        },
-        approvalsTrackers: {
-          ...currDocs.approvalsTrackers,
-          ...newDocs.approvalsTrackers
-        },
-        addressMappings: {
-          ...currDocs.addressMappings,
-          ...newDocs.addressMappings
-        },
-        activityToAdd: currDocs.activityToAdd,
-        queueDocsToAdd: currDocs.queueDocsToAdd,
-        //Within the poller, we never require fetching a refresh doc (only adding new ones)
-        refreshes: {
-          ...currDocs.refreshes,
-        }
-      };
+      currDocs.collections = {
+        ...currDocs.collections,
+        ...newDocs.collections
+      }
+
+      currDocs.balances = {
+        ...currDocs.balances,
+        ...newDocs.balances
+      }
+      currDocs.merkleChallenges = {
+        ...currDocs.merkleChallenges,
+        ...newDocs.merkleChallenges
+      }
+      currDocs.approvalsTrackers = {
+        ...currDocs.approvalsTrackers,
+        ...newDocs.approvalsTrackers
+      }
+      currDocs.addressMappings = {
+        ...currDocs.addressMappings,
+        ...newDocs.addressMappings
+      }
+      currDocs.activityToAdd = currDocs.activityToAdd
+      currDocs.queueDocsToAdd = currDocs.queueDocsToAdd
+      //Within the poller, we never require fetching a refresh doc (only adding new ones)
+      currDocs.refreshes = currDocs.refreshes
     }
   } catch (error) {
     throw `Error in fetchDocsForCacheIfEmpty(): ${error}`;

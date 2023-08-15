@@ -1,9 +1,9 @@
 import axios from "axios";
 import { JSPrimitiveNumberType, MerkleChallenge, convertBalance } from "bitbadgesjs-proto";
-import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
-import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
+import { FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
 import { LOAD_BALANCER_ID } from "./indexer";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { cleanBalances, cleanMerkleChallenges, cleanMetadata } from "./utils/dataCleaners";
@@ -109,6 +109,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   return {
     content: fetchDoc ? fetchDoc.content : undefined,
     updating: alreadyInQueue || needsRefresh,
+    fetchedAt: fetchDoc ? fetchDoc.fetchedAt : 0n,
   };
 }
 
@@ -134,6 +135,12 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       ...fetchDoc,
       fetchedAt: BigInt(Date.now()),
     });
+
+    //TODO: This is pretty overkill if URI / content is the same as last handleBalances call (only updates fetchedAt).
+    //We can optimize to dynamically update fetchedAt if permanent and URI / content is the same as last handleBalances call
+    if (fetchDoc.db === 'Balances') {
+      await handleBalances(fetchDoc.content as OffChainBalancesMap<bigint>, queueObj);
+    }
     return;
   }
 
@@ -148,33 +155,35 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     let isPermanent = false;
     //If we are here, we need to fetch from the source
     if (uri.startsWith('ipfs://')) {
-      const _res = await getFromIpfs(uri.replace('ipfs://', ''));
+      const _res: any = await getFromIpfs(uri.replace('ipfs://', ''));
+
       res = JSON.parse(_res.file);
       isPermanent = true;
     } else {
       const _res = await axios.get(uri).then((res) => res.data);
-      res = JSON.parse(_res);
+      res = _res;
     }
 
     if (res.image) { //res.image is required for all metadata and not included in any other type
       dbType = 'Metadata';
       res = cleanMetadata(res);
-    } else if (res.hasPassword) { //hasPassword is required for all claims and not included in any other type
-      dbType = 'MerkleChallenge';
-      res = cleanMerkleChallenges(res);
     } else if (Object.keys(res).every((key) => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS)) { //If it has at least one valid address as a key, it is a balances doc
       dbType = 'Balances';
       res = cleanBalances(res);
+      res = convertOffChainBalancesMap(res, BigIntify);
+
       await handleBalances(res, queueObj);
     } else {
-      throw new Error('Invalid content. Must be metadata, claim, or balances.');
+      dbType = 'MerkleChallenge';
+      res = cleanMerkleChallenges(res);
     }
 
     await insertToDB(FETCHES_DB, {
       ...fetchDoc,
       _id: uri,
-      _rev: undefined,
-      content: dbType !== 'Balances' ? res : undefined, //We already stored balances in a separate DB so it makes no sense to doubly store content here
+      _rev: fetchDoc ? fetchDoc._rev : undefined,
+      // content: dbType != 'Balances' ? res : undefined, //We already stored balances in a separate DB so it makes no sense to doubly store content here
+      content: res,
       fetchedAt: BigInt(Date.now()),
       db: dbType,
       isPermanent
@@ -310,16 +319,22 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
     queueDocsToAdd: [],
   };
 
-  const totalSupplysDoc = await BALANCES_DB.get(`${queueObj.collectionId}:Total`);
-  let remainingSupplys = totalSupplysDoc.balances.map(x => convertBalance(x, BigIntify));
+
 
   //Handle balance doc creation
   let balanceMap = balancesMap;
   //We have to update the existing balances with the new balances, if the collection already exists
   //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
   await fetchDocsForCacheIfEmpty(docs, [], [], [
+    `${queueObj.collectionId}:Mint`,
+    `${queueObj.collectionId}:Total`,
     ...Object.keys(balanceMap).filter(key => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS).map((key) => `${queueObj.collectionId}:${key}`),
   ], [], [], []);
+
+  const totalSupplysDoc = docs.balances[`${queueObj.collectionId}:Total`];
+  if (!totalSupplysDoc) throw new Error('Total supplys doc not found');
+
+  let remainingSupplys = totalSupplysDoc.balances.map(x => convertBalance(x, BigIntify));
 
   //Update the balance documents
   for (const [key, val] of Object.entries(balanceMap)) {
@@ -327,7 +342,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
 
 
       docs.balances[`${queueObj.collectionId}:${key}`] = {
-        _rev: docs.balances[`${queueObj.collectionId}:${key}`]?._rev || '',
+        _rev: docs.balances[`${queueObj.collectionId}:${key}`]?._rev ?? undefined,
         _id: `${queueObj.collectionId}:${key}`,
         balances: val,
         //Off-Chain Balances so we don't care ab approvals or permissions
@@ -348,14 +363,36 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       //Will throw if underflow and the URI speecifies more badges than what is denoted on the blockchain
       //This is to enforce that the balancesUri is not lying or overallocating balances 
       for (const balance of val) {
+        // console.log(JSON.stringify(remainingSupplys));
         remainingSupplys = subtractBalances([{
           badgeIds: balance.badgeIds,
           amount: balance.amount,
-          ownedTimes: balance.ownedTimes
+          ownershipTimes: balance.ownershipTimes
         }], remainingSupplys);
       }
     }
   }
+
+
+
+  docs.balances[`${queueObj.collectionId}:Mint`] = {
+    _rev: docs.balances[`${queueObj.collectionId}:Mint`]?._rev ?? undefined,
+    _id: `${queueObj.collectionId}:Mint`,
+    balances: remainingSupplys.map(x => convertBalance(x, BigIntify)),
+    //Off-Chain Balances so we don't care ab approvals or permissions
+    approvedIncomingTransfersTimeline: [],
+    approvedOutgoingTransfersTimeline: [],
+    userPermissions: {
+      canUpdateApprovedIncomingTransfers: [],
+      canUpdateApprovedOutgoingTransfers: [],
+    },
+    collectionId: queueObj.collectionId,
+    cosmosAddress: "Mint",
+    fetchedAt: BigInt(Date.now()),
+    onChain: false,
+    uri: queueObj.uri,
+    isPermanent: queueObj.uri.startsWith('ipfs://')
+  };
 
   //TODO: Eventually, we should make this a transactional all-or-nothing update with QUEUE_DB.destroy
   await flushCachedDocs(docs);
@@ -369,6 +406,13 @@ export const fetchUrisFromQueue = async () => {
 
   let numFetchesLeft = NUM_METADATA_FETCHES_PER_BLOCK;
 
+  //Random skip amount so we don't fetch the same every time
+  const numDocsInDB = await QUEUE_DB.info().then((res) => res.doc_count);
+  const skip = Math.floor(Math.random() * (numDocsInDB - NUM_METADATA_FETCHES_PER_BLOCK));
+
+  if (numDocsInDB == 0) return
+
+
   const queueRes = await QUEUE_DB.find({
     selector: {
       _id: { $gt: null },
@@ -376,6 +420,7 @@ export const fetchUrisFromQueue = async () => {
         "$eq": LOAD_BALANCER_ID
       }
     },
+    skip: skip > 0 ? skip : undefined,
     limit: NUM_METADATA_FETCHES_PER_BLOCK
   });
 
@@ -398,7 +443,6 @@ export const fetchUrisFromQueue = async () => {
     queue.shift()
     numFetchesLeft--;
   }
-
   const promises = [];
   for (const queueObj of queueItems) {
     promises.push(fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj));
@@ -407,6 +451,7 @@ export const fetchUrisFromQueue = async () => {
   //If fulfilled, delete from queue (after creating balance docs if necessary).
   //If rejected, do nothing (it will remain in queue)
   const results = await Promise.allSettled(promises);
+
   for (let i = 0; i < results.length; i++) {
     let queueObj = queueItems[i];
     let result = results[i];

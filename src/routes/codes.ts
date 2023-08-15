@@ -1,11 +1,14 @@
 import { JSPrimitiveNumberType, NumberType } from "bitbadgesjs-proto";
 import { CodesAndPasswords, GetAllCodesAndPasswordsRouteResponse, PasswordDoc } from "bitbadgesjs-utils";
-import { AES } from "crypto-js";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
 import { PASSWORDS_DB } from "../db/db";
+import { AES } from "crypto-js";
+
+const CryptoJS = require("crypto-js");
+
 
 export const getAllCodesAndPasswords = async (expressReq: Request, res: Response<GetAllCodesAndPasswordsRouteResponse<NumberType>>) => {
   try {
@@ -35,7 +38,8 @@ export const getAllCodesAndPasswords = async (expressReq: Request, res: Response
       codesDocsArr.push(..._codesDocsArr.docs);
       docsLength = _codesDocsArr.docs.length;
       bookmark = docQuery.bookmark;
-    } while (docsLength !== 200);
+    } while (docsLength == 200);
+
 
     const docs = codesDocsArr.filter(doc => doc.docClaimedByCollection);
 
@@ -44,8 +48,8 @@ export const getAllCodesAndPasswords = async (expressReq: Request, res: Response
       codesAndPasswords.push({
         cid: doc.cid,
         codes: challengeDetails?.leavesDetails.preimages ?
-          challengeDetails.leavesDetails.preimages.map(code => AES.decrypt(code, process.env.SYM_KEY).toString()) : [],
-        password: challengeDetails?.password ? AES.decrypt(challengeDetails.password ?? '', process.env.SYM_KEY).toString() : '',
+          challengeDetails.leavesDetails.preimages.map(code => AES.decrypt(code, process.env.SYM_KEY).toString(CryptoJS.enc.Utf8)) : [],
+        password: challengeDetails?.password ? AES.decrypt(challengeDetails.password ?? '', process.env.SYM_KEY).toString(CryptoJS.enc.Utf8) : '',
       });
     }
 

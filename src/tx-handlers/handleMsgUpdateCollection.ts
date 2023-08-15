@@ -10,10 +10,9 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
-  console.log("MsgUpdateCollection: ", msg);
 
   let collectionId = BigInt(msg.collectionId);
-  if (msg.collectionId === 0n) {
+  if (msg.collectionId == 0n) {
     collectionId = status.nextCollectionId;
 
     docs.collections[status.nextCollectionId.toString()] = {
@@ -90,14 +89,11 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
 
 
   } else {
-    if (msg.badgesToCreate && msg.badgesToCreate.length > 0) {
-      await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [
-        `${collectionId}:Total`,
-        `${collectionId}:Mint`,
-      ], [], [], []);
-    }
+    await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [
+      `${collectionId}:Total`,
+      `${collectionId}:Mint`,
+    ], [], [], []);
   }
-
   const collection = docs.collections[collectionId.toString()];
   if (!collection) throw new Error(`Collection ${collectionId} does not exist`);
 
@@ -166,11 +162,6 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
   await handleMerkleChallenges(docs, collection, status);
 
   status.nextCollectionId++;
-
-
-
-
-
 
   docs.refreshes[collection.collectionId.toString()] = {
     _id: collection.collectionId.toString(),

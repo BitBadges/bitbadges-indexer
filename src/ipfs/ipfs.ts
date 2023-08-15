@@ -11,14 +11,31 @@ export const getFromIpfs = async (path: string) => {
 
   const getRes = ipfsClient.cat(path);
 
-  const decoder = new TextDecoder();
-  let fileContents = '';
-  for await (const file of getRes) {
-    let chunk = decoder.decode(file);
-    fileContents += chunk;
-  }
+  //Make sure fetch doesn't take longer than timeout
 
-  return { file: fileContents };
+  const timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000;
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Fetch operation timed out')), timeout)
+  );
+
+  try {
+    const decoder = new TextDecoder();
+    let fileContents = '';
+    const fetchPromise = (async () => {
+      for await (const file of getRes) {
+        let chunk = decoder.decode(file);
+        fileContents += chunk;
+      }
+
+      return { file: fileContents };
+    })();
+
+    const res = await Promise.race([fetchPromise, timeoutPromise]);
+    return res;
+  } catch (e) {
+    throw e;
+  }
 }
 
 export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
@@ -37,13 +54,16 @@ export const addBalancesToIpfs = async (_balances: OffChainBalancesMap<NumberTyp
 
   const result = await last(ipfsClient.addAll(files));
   if (result) {
-    insertToDB(FETCHES_DB, {
-      _id: `ipfs://${result.cid.toString()}`,
-      fetchedAt: BigInt(Date.now()),
-      content: balances,
-      db: 'Balances',
-      isPermanent: true
-    });
+    //TODO: We should be able to cache it here, but if we do, then in metadata-queue.ts, it sees fetchDoc = truthy and never calls await handleBalances()
+    // Keeping it commented out for now
+
+    // insertToDB(FETCHES_DB, {
+    //   _id: `ipfs://${result.cid.toString()}`,
+    //   fetchedAt: BigInt(Date.now()),
+    //   content: balances,
+    //   db: 'Balances',
+    //   isPermanent: true
+    // });
     return { cid: result.cid.toString() };
   } else {
     return undefined;
@@ -120,12 +140,6 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
       content: uint8ArrayFromString(JSON.stringify(collectionMetadata)),
       // name: 'collection'
     });
-
-    files.push({
-      // path: 'collection2',
-      content: uint8ArrayFromString(JSON.stringify(collectionMetadata) + 'sdfasfdgahdg'),
-      // name: 'collection2'
-    });
   }
 
   // let i = 0;
@@ -141,8 +155,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     // i++;
   }
 
-  console.log("ADDING FILES: ", files);
-  const metadataResults = ipfsClient.addAll(files, { wrapWithDirectory: true });
+  const metadataResults = ipfsClient.addAll(files);
 
   let idx = 0;
   for await (const result of metadataResults) {

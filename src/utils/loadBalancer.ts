@@ -3,5 +3,5 @@
 
 //Determinstically choose which node to assign the fetch too
 export function getLoadBalancerId(str?: string) {
-  return 1
+  return 0
 }

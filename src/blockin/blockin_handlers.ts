@@ -1,5 +1,5 @@
 import { BigIntify } from 'bitbadgesjs-proto';
-import { convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getCurrentValueIdxForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
+import { CheckSignInStatusResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getCurrentValueIdxForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
@@ -116,15 +116,29 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
   }
 }
 
+export async function checkifSignedInHandler(expressReq: Request, res: Response<CheckSignInStatusResponse<NumberType>>) {
+  const req = expressReq as AuthenticatedRequest;
+
+  if (!checkIfAuthenticated(req)) {
+    return res.status(200).send({ signedIn: false });
+  }
+  return res.status(200).send({ signedIn: true });
+}
+
 export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest;
 
-  const session = req.session as BlockinSession;
-  session.blockin = null;
-  session.nonce = null;
-  session.blockinParams = null;
-  session.cosmosAddress = null;
-  session.address = null;
+  let session = req.session as BlockinSession | null;
+  if (session) {
+    session.blockin = null;
+    session.nonce = null;
+    session.blockinParams = null;
+    session.cosmosAddress = null;
+    session.address = null;
+    session = null;
+  } else {
+    session = null
+  }
 
   req.session.save();
 
@@ -171,7 +185,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 
     const _doc = await IPFS_TOTALS_DB.get(req.session.cosmosAddress).catch(catch404);
     const doc = _doc ? convertIPFSTotalsDoc(_doc, Numberify) : null;
-    req.session.ipfsTotal = doc ? doc.kbUploaded : 0;
+    req.session.ipfsTotal = doc ? doc.bytesUploaded : 0;
 
     req.session.save();
 
@@ -179,12 +193,17 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
   } catch (err) {
     console.log(err);
 
-    const session = req.session as BlockinSession;
-    session.blockin = null;
-    session.nonce = null;
-    session.blockinParams = null;
-    session.address = null;
-    session.cosmosAddress = null;
+    let session = req.session as BlockinSession | null;
+    if (session) {
+      session.blockin = null;
+      session.nonce = null;
+      session.blockinParams = null;
+      session.address = null;
+      session.cosmosAddress = null;
+      session = null;
+    } else {
+      session = null
+    }
     req.session.save();
 
     return res.status(401).json({ success: false, message: `${err}` });
@@ -192,8 +211,8 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 }
 
 export async function authorizeBlockinRequest(expressReq: Request, res: Response<ErrorResponse>, next: NextFunction) {
-  console.log("TEST");
   const req = expressReq as AuthenticatedRequest;
+
   if (!checkIfAuthenticated(req)) return returnUnauthorized(res);
   return next();
 }

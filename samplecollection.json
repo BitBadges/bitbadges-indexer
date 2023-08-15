@@ -1,0 +1,177 @@
+{
+  "_id": "2",
+  "_rev": "1-bc8d1f15fe2ef24c23be75f087aece68",
+  "collectionId": 2,
+  "managerTimeline": [
+    {
+      "manager": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+      "timelineTimes": [
+        {
+          "start": 1,
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "createdBlock": 10957,
+  "defaultUserApprovedIncomingTransfersTimeline": [],
+  "defaultUserApprovedOutgoingTransfersTimeline": [],
+  "defaultUserPermissions": {
+    "canUpdateApprovedOutgoingTransfers": [],
+    "canUpdateApprovedIncomingTransfers": []
+  },
+  "createdBy": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+  "balancesType": "Standard",
+  "collectionApprovedTransfersTimeline": [
+    {
+      "collectionApprovedTransfers": [],
+      "timelineTimes": [
+        {
+          "start": 1,
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "collectionMetadataTimeline": [
+    {
+      "collectionMetadata": {
+        "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
+        "customData": ""
+      },
+      "timelineTimes": [
+        {
+          "start": 1,
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "badgeMetadataTimeline": [
+    {
+      "badgeMetadata": [
+        {
+          "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 1,
+              "end": 1
+            }
+          ]
+        }
+      ],
+      "timelineTimes": [
+        {
+          "start": 1,
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "offChainBalancesMetadataTimeline": [],
+  "customDataTimeline": [],
+  "inheritedBalancesTimeline": [],
+  "standardsTimeline": [],
+  "contractAddressTimeline": [],
+  "isArchivedTimeline": [],
+  "collectionPermissions": {
+    "canDeleteCollection": [],
+    "canArchiveCollection": [
+      {
+        "defaultValues": {
+          "timelineTimes": [
+            {
+              "start": 1,
+              "end": "18446744073709551615"
+            }
+          ],
+          "permittedTimes": [],
+          "forbiddenTimes": [
+            {
+              "start": 1,
+              "end": "18446744073709551615"
+            }
+          ]
+        },
+        "combinations": [
+          {
+            "timelineTimesOptions": {
+              "invertDefault": false,
+              "allValues": false,
+              "noValues": false
+            },
+            "permittedTimesOptions": {
+              "invertDefault": false,
+              "allValues": false,
+              "noValues": false
+            },
+            "forbiddenTimesOptions": {
+              "invertDefault": false,
+              "allValues": false,
+              "noValues": false
+            }
+          }
+        ]
+      }
+    ],
+    "canUpdateContractAddress": [],
+    "canUpdateOffChainBalancesMetadata": [],
+    "canUpdateStandards": [],
+    "canUpdateCustomData": [],
+    "canUpdateManager": [],
+    "canUpdateCollectionMetadata": [],
+    "canCreateMoreBadges": [
+      {
+        "defaultValues": {
+          "badgeIds": [
+            {
+              "start": 1,
+              "end": "18446744073709551615"
+            }
+          ],
+          "ownershipTimes": [
+            {
+              "start": 1,
+              "end": "18446744073709551615"
+            }
+          ],
+          "permittedTimes": [],
+          "forbiddenTimes": [
+            {
+              "start": 1,
+              "end": "18446744073709551615"
+            }
+          ]
+        },
+        "combinations": [
+          {
+            "badgeIdsOptions": {
+              "invertDefault": false,
+              "allValues": false,
+              "noValues": false
+            },
+            "ownershipTimesOptions": {
+              "invertDefault": false,
+              "allValues": false,
+              "noValues": false
+            },
+            "permittedTimesOptions": {
+              "invertDefault": false,
+              "allValues": false,
+              "noValues": false
+            },
+            "forbiddenTimesOptions": {
+              "invertDefault": false,
+              "allValues": false,
+              "noValues": false
+            }
+          }
+        ]
+      }
+    ],
+    "canUpdateBadgeMetadata": [],
+    "canUpdateInheritedBalances": [],
+    "canUpdateCollectionApprovedTransfers": []
+  }
+}

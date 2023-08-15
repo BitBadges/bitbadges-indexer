@@ -3,9 +3,8 @@ import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase } from 
 import { AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
-import { catch404 } from "../utils/couchdb-utils";
 
-export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[], accountInfos: AccountInfoBase<JSPrimitiveNumberType>[]): Promise<BitBadgesUserInfo<JSPrimitiveNumberType>[]> => {
+export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[], accountInfos: AccountInfoBase<JSPrimitiveNumberType>[], fetchName = true): Promise<BitBadgesUserInfo<JSPrimitiveNumberType>[]> => {
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
   }
@@ -13,7 +12,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
-    promises.push(OFFLINE_MODE ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.address));
+    promises.push(OFFLINE_MODE || !fetchName ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.address));
     promises.push(OFFLINE_MODE ? { amount: '1000', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
     promises.push(AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).then(() => true).catch((e) => {
       if (e.statusCode === 404) {
@@ -22,8 +21,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       return true;
     }));
   }
-
   const results = await Promise.all(promises);
+  // console.log(accountInfos);
+
   const resultsToReturn: BitBadgesUserInfo<JSPrimitiveNumberType>[] = [];
 
   for (let i = 0; i < results.length; i += 3) {
@@ -62,6 +62,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
 export async function getNameAndAvatar(address: string) {
   try {
     const ensName = await getNameForAddress(address);
+
     let details: { avatar?: string } = {};
     if (ensName) {
       const resolver = await getEnsResolver(ensName);
@@ -69,7 +70,6 @@ export async function getNameAndAvatar(address: string) {
         details = await getEnsDetails(resolver);
       }
     }
-    console.log(ensName, details);
     return { avatar: details.avatar, resolvedName: ensName };
   } catch (e) {
     return { resolvedName: '', avatar: '' };
@@ -107,18 +107,29 @@ export async function executeActivityQuery(cosmosAddress: string, bookmark?: str
 
 
 export async function getAllCollectionIdsOwned(cosmosAddress: string) {
-  const designDocName = '_design/balances_by_address';
-  const viewName = 'byCosmosAddress';
-
-  const docs = await BALANCES_DB.view(designDocName, viewName).catch(catch404);
-  const collections = docs?.rows.map((row) => row.id.split(':')[1]) ?? [];
+  const docs = await BALANCES_DB.find({
+    selector: {
+      "cosmosAddress": {
+        "$eq": cosmosAddress,
+      },
+      "balances": {
+        "$elemMatch": {
+          "amount": {
+            "$gt": 0,
+          }
+        }
+      },
+    },
+    limit: 100000,
+    fields: ["_id"],
+  });
+  const collections = docs.docs.map((row) => row._id.split(':')[0]) ?? [];
   return collections;
 }
 
 
 export async function executeAnnouncementsQuery(cosmosAddress: string, bookmark?: string) {
   const collections: string[] = await getAllCollectionIdsOwned(cosmosAddress);
-
 
   const announcementsRes = await ANNOUNCEMENTS_DB.find({
     selector: {
@@ -158,7 +169,7 @@ export async function executeCollectedQuery(cosmosAddress: string, bookmark?: st
       },
       "balances": {
         "$elemMatch": {
-          "balance": {
+          "amount": {
             "$gt": 0,
           }
         }

@@ -12,6 +12,8 @@ async function main() {
     await createDatabases(); //If there is an error, we assume the database already exists and continue
     await initStatus();
     await createIndexesAndViews();
+
+    // await bootstrapCollections();
   } catch (e) {
     console.log(e);
   }

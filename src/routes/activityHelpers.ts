@@ -203,8 +203,22 @@ export async function executeMerkleChallengeByIdsQuery(collectionId: string, cha
       },
       limit: 1,
     });
+    // const docId = `${collectionId}:${challengeLevel}-${approverAddress}-${challengeId}`;
+    const docId = `${collectionId}:${idObj.challengeLevel}-${idObj.approverAddress}-${idObj.challengeId}`;
 
-    docs.push(...res.docs);
+    if (res.docs.length > 0) {
+      docs.push(...res.docs);
+    } else {
+      docs.push({
+        _id: docId,
+        collectionId: Number(collectionId),
+        challengeId: idObj.challengeId,
+        challengeLevel: idObj.challengeLevel,
+        approverAddress: idObj.approverAddress,
+        usedLeafIndices: [],
+      });
+    }
+
   }
 
   return docs;
@@ -212,8 +226,6 @@ export async function executeMerkleChallengeByIdsQuery(collectionId: string, cha
 
 export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: ApprovalTrackerIdDetails<bigint>[]) {
   //TODO: Optimize this query because it isn't quite correct.
-
-
   const docs = [];
 
   for (const idObj of idsToFetch) {
@@ -241,7 +253,24 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
       limit: 1,
     });
 
-    docs.push(...res.docs);
+
+    if (res.docs.length > 0) {
+      docs.push(...res.docs);
+    } else {
+      // const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${trackerType}-${approvedAddress}`;
+      const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.trackerType}-${idObj.approvedAddress}`;
+      docs.push({
+        _id: docId,
+        collectionId: Number(collectionId),
+        approvalLevel: idObj.approvalLevel,
+        approverAddress: idObj.approverAddress,
+        approvalId: idObj.approvalId,
+        trackerType: idObj.trackerType,
+        approvedAddress: idObj.approvedAddress,
+        numTransfers: 0,
+        amounts: [],
+      });
+    }
   }
 
   return docs;

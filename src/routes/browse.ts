@@ -24,6 +24,11 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     const collections = await executeCollectionsQuery(latestCollections.docs.map(doc => {
       return {
         collectionId: doc._id,
+        fetchTotalAndMintBalances: true,
+        handleAllAndAppendDefaults: true,
+        metadataToFetch: {
+          badgeIds: [{ start: 1n, end: 10n }],
+        },
       }
     }));
 

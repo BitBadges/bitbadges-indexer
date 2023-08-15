@@ -75,49 +75,54 @@ export async function initStatus() {
       "timestamp": 0
     },
     "nextCollectionId": "1",
-    "gasPrice": "1",
-    "lastXGasPrices": [
+    "gasPrice": 1,
+    "lastXGasAmounts": [
       "1"
-    ]
+    ],
+    "lastXGasLimits": [
+      "1"
+    ],
   })
 }
 
 export async function createIndexesAndViews() {
   await TRANSFER_ACTIVITY_DB.createIndex({
     index: {
-      fields: ['timestamp']
+      fields: [{ 'timestamp': 'desc' }]
     },
     partitioned: true
   })
   await TRANSFER_ACTIVITY_DB.createIndex({
     index: {
-      fields: ['timestamp']
+      fields: [{ 'timestamp': 'desc' }]
     },
     partitioned: false
   })
 
   await ANNOUNCEMENTS_DB.createIndex({
     index: {
-      fields: ['timestamp']
+      fields: [{
+        timestamp: 'desc'
+      }]
     },
     partitioned: true
   })
   await ANNOUNCEMENTS_DB.createIndex({
     index: {
-      fields: ['timestamp']
+      fields: [{ 'timestamp': 'desc' }]
     },
     partitioned: false
   })
 
   await REVIEWS_DB.createIndex({
     index: {
-      fields: ['timestamp']
+      fields: [{ 'timestamp': 'desc' }]
     },
     partitioned: true
   })
   await REVIEWS_DB.createIndex({
     index: {
-      fields: ['timestamp']
+      fields: [{ 'timestamp': 'desc' }]
     },
     partitioned: false
   })
@@ -147,3 +152,4 @@ export async function createIndexesAndViews() {
 
   await BALANCES_DB.insert(view);
 }
+

@@ -2,21 +2,22 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { Balance, convertBalance, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovedTransfers } from "bitbadgesjs-proto"
+import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovedTransfers, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import { BigIntify, StatusDoc, DocsCache, convertStatusDoc } from "bitbadgesjs-utils"
+import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertStatusDoc } from "bitbadgesjs-utils"
+import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
+import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
 import { ERRORS_DB } from "./db/db"
 import { getStatus } from "./db/status"
 import { client, setClient, setTimer } from "./indexer"
 import { fetchUrisFromQueue, purgeQueueDocs } from "./metadata-queue"
+import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
 import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
 import { handleMsgUpdateUserApprovedTransfers } from "./tx-handlers/handleMsgUpdateUserApprovedTransfers"
-import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
-import { flushCachedDocs } from "./db/cache"
-import { StringEvent, Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import { handleTransfers } from "./tx-handlers/handleTransfers"
 
 
 const pollIntervalMs = 1_000
@@ -88,11 +89,13 @@ export const poll = async () => {
       process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
       status.block.timestamp = BigInt(new Date(block.header.time).getTime());
 
+
       await handleBlock(block, status, docs)
       status.block.height++;
       status.block.txIndex = 0n;
 
       await fetchUrisFromQueue();
+
       await purgeQueueDocs();
 
       //Right now, we are banking on all these DB updates succeeding together every time. 
@@ -160,19 +163,20 @@ const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, do
 
 //TODO: Do this natively via Msgs instead of events
 const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+
   if (getAttributeValueByKey(event.attributes, "approvalId")) {
-    const approvalId = getAttributeValueByKey(event.attributes, "approvalId");
-    const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress");
-    const collectionId = getAttributeValueByKey(event.attributes, "collectionId");
-    const approvalLevel = getAttributeValueByKey(event.attributes, "approvalLevel") as "collection" | "incoming" | "outgoing" | "" | undefined;
-    const trackerType = getAttributeValueByKey(event.attributes, "trackerType");
-    const approvedAddress = getAttributeValueByKey(event.attributes, "approvedAddress");
-    const amountsJsonStr = getAttributeValueByKey(event.attributes, "amounts");
-    const numTransfersJsonStr = getAttributeValueByKey(event.attributes, "numTransfers");
+    const approvalId = getAttributeValueByKey(event.attributes, "approvalId") ?? '';
+    const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress") ?? '';
+    const collectionId = getAttributeValueByKey(event.attributes, "collectionId") ?? '';
+    const approvalLevel = getAttributeValueByKey(event.attributes, "approvalLevel") as "collection" | "incoming" | "outgoing" | "" | undefined ?? '';
+    const trackerType = getAttributeValueByKey(event.attributes, "trackerType") ?? '';
+    const approvedAddress = getAttributeValueByKey(event.attributes, "approvedAddress") ?? '';
+    const amountsJsonStr = getAttributeValueByKey(event.attributes, "amounts") ?? '';
+    const numTransfersJsonStr = getAttributeValueByKey(event.attributes, "numTransfers") ?? '';
 
     const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${trackerType}-${approvedAddress}`;
-    const amounts = JSON.parse(amountsJsonStr ? amountsJsonStr : '[]') as Balance<string>[];
-    const numTransfers = numTransfersJsonStr ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
+    const amounts = JSON.parse(amountsJsonStr && amountsJsonStr != "null" ? amountsJsonStr : '[]') as Balance<string>[];
+    const numTransfers = numTransfersJsonStr && numTransfersJsonStr != "null" ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
 
     docs.approvalsTrackers[docId] = {
       _id: docId,
@@ -189,11 +193,11 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
   }
 
   if (getAttributeValueByKey(event.attributes, "challengeId")) {
-    const challengeId = getAttributeValueByKey(event.attributes, "challengeId");
-    const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress");
-    const collectionId = getAttributeValueByKey(event.attributes, "collectionId");
-    const challengeLevel = getAttributeValueByKey(event.attributes, "challengeLevel") as "collection" | "incoming" | "outgoing" | "" | undefined;
-    const leafIndex = getAttributeValueByKey(event.attributes, "leafIndex");
+    const challengeId = getAttributeValueByKey(event.attributes, "challengeId") ?? '';
+    const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress") ?? '';
+    const collectionId = getAttributeValueByKey(event.attributes, "collectionId") ?? '';
+    const challengeLevel = getAttributeValueByKey(event.attributes, "challengeLevel") as "collection" | "incoming" | "outgoing" | "" | undefined ?? '';
+    const leafIndex = getAttributeValueByKey(event.attributes, "leafIndex") ?? '';
 
     const docId = `${collectionId}:${challengeLevel}-${approverAddress}-${challengeId}`;
     const currDoc = docs.merkleChallenges[docId];
@@ -209,6 +213,18 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
       approverAddress: approverAddress ? approverAddress : '',
       usedLeafIndices: newLeafIndices,
     }
+  }
+
+  if (getAttributeValueByKey(event.attributes, "transfer")) {
+
+    const _transfer = JSON.parse(getAttributeValueByKey(event.attributes, "transfer") as string) as Transfer<string>;
+    const transfer = convertTransfer(_transfer, BigIntify);
+    const collectionId = getAttributeValueByKey(event.attributes, "collectionId");
+    if (!collectionId || !transfer) throw new Error(`Missing collectionId or transfer in event: ${JSON.stringify(event)}`)
+
+    await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], []);
+
+    await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, true);
   }
 }
 
@@ -228,9 +244,10 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
     status.block.txIndex++
   }
 
-  const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
-  if (0 < events.length) console.log("")
-  await handleEvents(events, status, docs)
+  // We currently don't read any end blockers (only tx events)
+  // const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
+  // if (0 < events.length) console.log("HAS EVENTS")
+  // await handleEvents(events, status, docs)
 }
 
 const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: DocsCache) => {
@@ -262,14 +279,15 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       const feeDenom = coin.denom;
 
       if (feeDenom === "badge") {
-        const gasPrice = BigInt(feeAmount) / BigInt(gasLimit.toString());
+        status.lastXGasAmounts.push(BigInt(feeAmount));
+        status.lastXGasLimits.push(BigInt(gasLimit.toString()));
 
-        status.lastXGasPrices.push(gasPrice);
-        if (status.lastXGasPrices.length > NUM_TXS_TO_AVERAGE) {
-          status.lastXGasPrices.shift();
+        if (status.lastXGasAmounts.length > NUM_TXS_TO_AVERAGE) {
+          status.lastXGasAmounts.shift();
+          status.lastXGasLimits.shift();
         }
 
-        status.gasPrice = status.lastXGasPrices.reduce((a, b) => a + b, 0n) / BigInt(status.lastXGasPrices.length);
+        status.gasPrice = Number(status.lastXGasAmounts.reduce((a, b) => a + b, 0n)) / Number(status.lastXGasLimits.reduce((a, b) => a + b, 0n));
       }
     }
   }
@@ -303,5 +321,13 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       default:
         break;
     }
+  }
+
+  try {
+    const rawLog: any = JSON.parse(indexed.rawLog)
+    const events: StringEvent[] = rawLog.flatMap((log: any) => log.events)
+    await handleEvents(events, status, docs)
+  } catch (e) {
+    // Skipping if the handling failed. Most likely the transaction failed.
   }
 }

@@ -4,16 +4,13 @@ import { convertOffChainBalancesMap, isAddressValid, getChainForAddress, Support
 export function cleanMetadata(res: any): any {
   return {
     name: res.name && typeof res.name === 'string' ? res.name : '',
-    description: res.description && typeof res.name === 'string' ? res.description : '',
-    // image: res.image, //We do not want to store the image in the DB
-    creator: res.creator && typeof res.name === 'string' ? res.creator : undefined,
-    validFrom: res.validFrom ? {
-      start: res.validFrom.start ? BigInt(res.validFrom.start).toString() : "-1",
-      end: res.validFrom.end ? BigInt(res.validFrom.end).toString() : "-1",
-    } : undefined,
-    color: res.color && typeof res.name === 'string' ? res.color : undefined,
-    category: res.category && typeof res.name === 'string' ? res.category : undefined,
-    externalUrl: res.externalUrl && typeof res.name === 'string' ? res.externalUrl : undefined,
+    description: res.description && typeof res.description === 'string' ? res.description : '',
+    image: res.image && typeof res.image === 'string' ? res.image : '',
+    creator: res.creator && typeof res.creator === 'string' ? res.creator : undefined,
+    validFrom: res.validFrom ? [] : undefined,
+    color: res.color && typeof res.color === 'string' ? res.color : undefined,
+    category: res.category && typeof res.category === 'string' ? res.category : undefined,
+    externalUrl: res.externalUrl && typeof res.externalUrl === 'string' ? res.externalUrl : undefined,
     tags: res.tags && Array.isArray(res.tags) && res.tags.every((tag: any) => typeof tag === 'string') ? res.tags : undefined,
   }
 }
@@ -21,21 +18,10 @@ export function cleanMetadata(res: any): any {
 export function cleanMerkleChallenges(res: any): any {
   return {
     name: res.name && typeof res.name === 'string' ? res.name : '',
-    description: res.description && typeof res.name === 'string' ? res.description : '',
+    description: res.description && typeof res.description === 'string' ? res.description : '',
     hasPassword: res.hasPassword && typeof res.hasPassword === 'boolean' ? res.hasPassword : false,
     password: res.password && typeof res.password === 'string' ? res.password : undefined,
-    challengeDetails: res.challengeDetails
-      && Array.isArray(res.challengeDetails)
-      && res.challengeDetails.every((challenge: any) => typeof challenge === 'object')
-      && res.challengeDetails.every((challenge: any) => typeof challenge.leavesDetails === 'object'
-        && typeof challenge.leavesDetails.isHashed === 'boolean' && Array.isArray(challenge.leavesDetails.leaves)
-        && challenge.leavesDetails.leaves.every((leaf: any) => typeof leaf === 'string'))
-      ? res.challengeDetails.map((challenge: any) => ({
-        leavesDetails: {
-          isHashed: challenge.leavesDetails.isHashed,
-          leaves: challenge.leavesDetails.leaves,
-        }
-      })) : undefined,
+    challengeDetails: res.challengeDetails //TODO:
   }
 }
 
@@ -54,9 +40,9 @@ export function cleanBalances(res: OffChainBalancesMap<NumberType>): OffChainBal
               start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
               end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
             })) : [],
-          ownedTimes: balance.ownedTimes && Array.isArray(balance.ownedTimes)
-            && balance.ownedTimes.every((badgeId: any) => typeof badgeId === 'object')
-            ? balance.ownedTimes.map((badgeId: any) => ({
+          ownershipTimes: balance.ownershipTimes && Array.isArray(balance.ownershipTimes)
+            && balance.ownershipTimes.every((badgeId: any) => typeof badgeId === 'object')
+            ? balance.ownershipTimes.map((badgeId: any) => ({
               start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
               end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
             })) : [],

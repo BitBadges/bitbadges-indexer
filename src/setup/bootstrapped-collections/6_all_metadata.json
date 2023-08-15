@@ -1,0 +1,110 @@
+{
+  "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+  "collectionId": "0",
+  "defaultApprovedIncomingTransfersTimeline": [],
+  "defaultApprovedOutgoingTransfersTimeline": [],
+  "defaultUserPermissions": {
+    "canUpdateApprovedIncomingTransfers": [],
+    "canUpdateApprovedOutgoingTransfers": []
+  },
+  "badgesToCreate": [
+    {
+      "amount": "1",
+      "badgeIds": [
+        {
+          "start": "1",
+          "end": "100"
+        }
+      ],
+      "ownershipTimes": [
+        {
+          "start": "1692028800000",
+          "end": "1723564800000"
+        }
+      ]
+    }
+  ],
+  "updateCollectionPermissions": true,
+  "balancesType": "Off-Chain",
+  "collectionPermissions": {
+    "canArchiveCollection": [],
+    "canCreateMoreBadges": [],
+    "canDeleteCollection": [],
+    "canUpdateBadgeMetadata": [],
+    "canUpdateCollectionApprovedTransfers": [],
+    "canUpdateCollectionMetadata": [],
+    "canUpdateContractAddress": [],
+    "canUpdateCustomData": [],
+    "canUpdateInheritedBalances": [],
+    "canUpdateManager": [],
+    "canUpdateOffChainBalancesMetadata": [],
+    "canUpdateStandards": []
+  },
+  "updateManagerTimeline": true,
+  "managerTimeline": [],
+  "updateCollectionMetadataTimeline": true,
+  "collectionMetadataTimeline": [
+    {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "collectionMetadata": {
+        "uri": "ipfs://QmXknVUvpMYms5JSkUcD2q3AW4GQ8nWHNwxxoqR2dsnT7r",
+        "customData": ""
+      }
+    }
+  ],
+  "updateBadgeMetadataTimeline": true,
+  "badgeMetadataTimeline": [
+    {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "badgeMetadata": [
+        {
+          "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
+          "badgeIds": [
+            {
+              "start": "1",
+              "end": "10000000000000"
+            }
+          ],
+          "customData": ""
+        }
+      ]
+    }
+  ],
+  "updateOffChainBalancesMetadataTimeline": true,
+  "offChainBalancesMetadataTimeline": [
+    {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "offChainBalancesMetadata": {
+        "uri": "ipfs://QmTL2b9ebCW6ifrtxdVkYLz7oSKAzNC2hXLsDDN6YG6uyY",
+        "customData": ""
+      }
+    }
+  ],
+  "updateCustomDataTimeline": true,
+  "customDataTimeline": [],
+  "updateInheritedBalancesTimeline": true,
+  "inheritedBalancesTimeline": [],
+  "updateCollectionApprovedTransfersTimeline": false,
+  "collectionApprovedTransfersTimeline": [],
+  "updateStandardsTimeline": true,
+  "standardsTimeline": [],
+  "updateContractAddressTimeline": true,
+  "contractAddressTimeline": [],
+  "updateIsArchivedTimeline": true,
+  "isArchivedTimeline": []
+}

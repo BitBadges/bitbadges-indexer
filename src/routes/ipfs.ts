@@ -1,11 +1,11 @@
-import { AES } from "crypto-js";
+import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddMerkleChallengeToIpfsRouteRequestBody, AddMerkleChallengeToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
+import { serializeError } from "serialize-error";
+import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
 import { addBalancesToIpfs, addMerkleChallengeToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
-import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { serializeError } from "serialize-error";
-import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddMerkleChallengeToIpfsRouteRequestBody, AddMerkleChallengeToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
 import { cleanBalances } from "../utils/dataCleaners";
+import { AES } from "crypto-js";
 
 const IPFS_UPLOAD_BYTES_LIMIT = 100000000; //100MB
 
@@ -25,15 +25,15 @@ export const updateIpfsTotals = async (address: string, size: number, req: Authe
     ipfsTotalsDoc = {
       _id: address,
       _rev: undefined,
-      kbUploaded: size,
+      bytesUploaded: size,
     }
   } else {
-    ipfsTotalsDoc.kbUploaded += size;
+    ipfsTotalsDoc.bytesUploaded += size;
   }
 
   await insertToDB(IPFS_TOTALS_DB, ipfsTotalsDoc);
 
-  req.session.ipfsTotal = ipfsTotalsDoc.kbUploaded;
+  req.session.ipfsTotal = ipfsTotalsDoc.bytesUploaded;
   req.session.save();
 }
 
@@ -143,16 +143,18 @@ export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: 
       createdBy: req.session.cosmosAddress,
       challengeLevel: "collection",
       collectionId: "-1",
-      challengeId: "-1",
+      // challengeId: "-1",
       docClaimedByCollection: false,
       cid: cid.toString(),
       claimedUsers: {},
       challengeDetails: challengeDetails ? {
         ...challengeDetails,
         password: challengeDetails.password ? AES.encrypt(challengeDetails.password, SYM_KEY).toString() : "",
+        // password: challengeDetails.password ? challengeDetails.password : "",
         leavesDetails: {
           ...challengeDetails.leavesDetails,
           preimages: challengeDetails.leavesDetails.preimages ? challengeDetails.leavesDetails.preimages.map((preimage: string) => AES.encrypt(preimage, SYM_KEY).toString()) : undefined
+          // preimages: challengeDetails.leavesDetails.preimages ? challengeDetails.leavesDetails.preimages : undefined
         }
       } : undefined
     });

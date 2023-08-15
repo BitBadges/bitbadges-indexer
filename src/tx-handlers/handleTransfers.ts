@@ -1,16 +1,11 @@
 import { Transfer } from "bitbadgesjs-proto";
 import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, addBalances, getBlankBalance, subtractBalances } from "bitbadgesjs-utils";
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
-;
 
-export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>) => {
+export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, fromEvent?: boolean) => {
   //Handle new acocunts, if empty 
   for (const transfer of transfers) {
-    if (transfer.from === 'Mint') {
-
-    } else {
-      await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${transfer.from}`], [], [], []);
-    }
+    await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${transfer.from}`], [], [], []);
 
     await fetchDocsForCacheIfEmpty(docs, [], [], [
       ...transfer.toAddresses.map((address) => `${collection.collectionId}:${address}`),
@@ -18,15 +13,23 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
   }
 
 
+
   //For each transfer, 1) calculate new balances of the toAddresses and 2) add to activity (each as separate transfer)
   for (let idx = 0; idx < transfers.length; idx++) {
     const transfer = transfers[idx];
+
+    if (transfer.precalculationDetails && !fromEvent && transfer.precalculationDetails.approvalId) {
+      continue //We process these with the end block events
+    }
+
     for (let j = 0; j < transfer.toAddresses.length; j++) {
       const address = transfer.toAddresses[j];
       const balanceDoc = docs.balances[`${collection.collectionId}:${address}`];
       let currBalance: BalanceDoc<bigint> = balanceDoc ? balanceDoc :
         {
           ...getBlankBalance(true, collection),
+          approvedIncomingTransfersTimeline: [],
+          approvedOutgoingTransfersTimeline: [],
           cosmosAddress: address,
           collectionId: collection.collectionId,
           onChain: collection.balancesType === 'Standard',
@@ -36,7 +39,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
 
       currBalance = {
         ...currBalance,
-        ...addBalances(transfer.balances, currBalance.balances),
+        balances: addBalances(transfer.balances, currBalance.balances),
         cosmosAddress: address,
       };
 
@@ -47,6 +50,8 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     let fromAddressBalanceDoc: BalanceDoc<bigint> = fromBalanceDoc ? fromBalanceDoc :
       {
         ...getBlankBalance(true, collection),
+        approvedIncomingTransfersTimeline: [],
+        approvedOutgoingTransfersTimeline: [],
         cosmosAddress: transfer.from,
         collectionId: collection.collectionId,
         onChain: collection.balancesType === 'Standard',
@@ -56,7 +61,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
 
     fromAddressBalanceDoc = {
       ...fromAddressBalanceDoc,
-      ...subtractBalances(transfer.balances, fromAddressBalanceDoc.balances),
+      balances: subtractBalances(transfer.balances, fromAddressBalanceDoc.balances),
       cosmosAddress: transfer.from,
     }
 

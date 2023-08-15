@@ -18,13 +18,14 @@ export async function getAddressesForNames(names: string[]) {
   return addresses;
 }
 
-export async function getNameForAddress(address: string) {
-  const provider = new ethers.InfuraProvider(
-    'homestead',
-    process.env.INFURA_API_KEY
-  );
+const provider = new ethers.providers.InfuraProvider(
+  'homestead',
+  process.env.INFURA_API_KEY
+);
 
-  if (ethers.isAddress(address)) {
+
+export async function getNameForAddress(address: string) {
+  if (ethers.utils.isAddress(address)) {
     const ensAddress = await provider.lookupAddress(address);
     if (ensAddress) return ensAddress;
   }
@@ -33,11 +34,6 @@ export async function getNameForAddress(address: string) {
 
 export async function getAddressForName(name: string) {
   try {
-    const provider = new ethers.InfuraProvider(
-      'homestead',
-      process.env.INFURA_API_KEY
-    );
-
     const resolvedAddress = await provider.resolveName(name);
     if (resolvedAddress) return resolvedAddress;
     return '';
@@ -48,11 +44,6 @@ export async function getAddressForName(name: string) {
 
 export async function getEnsResolver(name: string) {
   try {
-    const provider = new ethers.InfuraProvider(
-      'homestead',
-      process.env.INFURA_API_KEY
-    );
-
     const ensResolver = await provider.getResolver(name);
     if (ensResolver) return ensResolver;
     return null;
@@ -76,7 +67,8 @@ export async function getEnsResolversForNames(names: string[]) {
   }
 }
 
-export async function getEnsDetails(resolver: ethers.EnsResolver) {
+
+export async function getEnsDetails(resolver: ethers.providers.Resolver) {
   try {
 
     const ensAvatar = await resolver.getAvatar();
@@ -86,7 +78,7 @@ export async function getEnsDetails(resolver: ethers.EnsResolver) {
     // const telegram = await resolver.getText('org.telegram');
 
     return {
-      avatar: ensAvatar ? ensAvatar : '',
+      avatar: ensAvatar ? ensAvatar.url : '',
       // twitter: twitter ? twitter : '',
       // github: github ? github : '',
       // discord: discord ? discord : '',
@@ -104,7 +96,7 @@ export async function getEnsDetails(resolver: ethers.EnsResolver) {
   }
 }
 
-export async function getDetailsForNames(resolvers: ethers.EnsResolver[]) {
+export async function getDetailsForNames(resolvers: ethers.providers.Resolver[]) {
   const promises = [];
   for (const resolver of resolvers) {
     if (resolver) {

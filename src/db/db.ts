@@ -29,6 +29,7 @@ export const ADDRESS_MAPPINGS_DB = nano.db.use<AddressMappingDoc>('address-mappi
 export const APPROVALS_TRACKER_DB = nano.db.use<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
+  
   await insertMany(db, [doc]);
 }
 

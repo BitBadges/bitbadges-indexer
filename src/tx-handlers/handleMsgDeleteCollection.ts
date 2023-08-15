@@ -17,7 +17,7 @@ export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>
   //Delete all relevant docs from DB
   const allBalancesDocs = await BALANCES_DB.partitionedList(`${msg.collectionId.toString()}`);
   const allMerkleChallengesDocs = await MERKLE_CHALLENGES_DB.partitionedList(`${msg.collectionId.toString()}`);
-  const allApprovalDocs = await APPROVALS_TRACKER_DB.partitionedList(`${msg.collectionId.toString()}:`);
+  const allApprovalDocs = await APPROVALS_TRACKER_DB.partitionedList(`${msg.collectionId.toString()}`);
 
   const promises = [];
   for (const doc of allBalancesDocs.rows) {

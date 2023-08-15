@@ -33,8 +33,6 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     }
 
-    console.log(resolvedEnsAddress);
-
     // Search metadata of collections for matching names
     const collectionMetadataQuery: nano.MangoQuery = {
       selector: {
@@ -74,8 +72,6 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       FETCHES_DB.find(collectionMetadataQuery),
       ACCOUNTS_DB.find(accountQuery),
     ]);
-
-    console.log(results);
 
     const metadataResponseDocs = results[0].docs;
     const accountsResponseDocs = results[1].docs;
@@ -149,8 +145,6 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }));
 
     const accounts = (await convertToBitBadgesUserInfo(allAccounts.map(() => { return {} }), allAccounts)).map((account) => convertBitBadgesUserInfo(account, Stringify));
-
-    console.log(accounts);
 
     return res.json({
       collections: collectionsResponses,

@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfo, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfoBase, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -9,6 +9,7 @@ import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeReviewsQuery } from "./userHelpers";
+import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
 
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
@@ -18,7 +19,11 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
   if (!OFFLINE_MODE && fetchOptions?.fetchSequence) {
     const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(convertToCosmosAddress(address));
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
-    accountInfo = cleanedCosmosAccountInfo;
+    accountInfo = {
+      ...cleanedCosmosAccountInfo,
+      chain: cleanedCosmosAccountInfo.chain === SupportedChain.UNKNOWN ? getChainForAddress(address) : cleanedCosmosAccountInfo.chain,
+
+    };
   } else {
     try {
       accountInfo = await ACCOUNTS_DB.get(`${convertToCosmosAddress(address)}`);
@@ -50,7 +55,12 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
     }
   }
 
-  const userInfos = await convertToBitBadgesUserInfo([{ ...profileInfo }], [{ ...accountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
+  let fetchName = true;
+  if (fetchOptions?.noExternalCalls) {
+    fetchName = false;
+  }
+
+  const userInfos = await convertToBitBadgesUserInfo([{ ...profileInfo }], [{ ...accountInfo }], fetchName); //Newly queried account isw added after bc there may be newer info (sequence, etc)
   let account = userInfos[0];
   if (fetchOptions) {
     //account is currently a BitBadgesUserInfo with no portfolio info
@@ -100,8 +110,12 @@ export const getAccountByUsername = async (username: string, fetchOptions?: Acco
     }
   }
 
+  let fetchName = true;
+  if (fetchOptions?.noExternalCalls) {
+    fetchName = false;
+  }
 
-  const userInfos = await convertToBitBadgesUserInfo([{ ...profileDoc }], [{ ...accountInfo }]); //Newly queried account isw added after bc there may be newer info (sequence, etc)
+  const userInfos = await convertToBitBadgesUserInfo([{ ...profileDoc }], [{ ...accountInfo }], fetchName); //Newly queried account isw added after bc there may be newer info (sequence, etc)
   let account = userInfos[0];
 
   if (fetchOptions) {
@@ -141,14 +155,22 @@ export const getAccount = async (req: Request, res: Response<GetAccountRouteResp
 //ENS names are not supported. Convert to address first
 export const getAccounts = async (req: Request, res: Response<GetAccountsRouteResponse<NumberType>>) => {
   try {
-    if (req.body.accountsToFetch.length > 250) {
+    const reqBody = req.body as GetAccountsRouteRequestBody;
+    const allDoNotHaveExternalCalls = reqBody.accountsToFetch.every(x => x.noExternalCalls);
+
+    if (!allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 250) {
       return res.status(400).send({
-        message: 'You can only fetch up to 250 accounts at a time. Please structure your request accordingly.'
+        message: 'You can only fetch up to 250 accounts with external calls at a time. Please structure your request accordingly.'
+      })
+    } else if (allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 10000) {
+      return res.status(400).send({
+        message: 'You can only fetch up to 10,000 accounts without external calls at a time. Please structure your request accordingly.'
       })
     }
+    // console.log(req.body.accountsToFetch);
 
     const promises = [];
-    const reqBody = req.body as GetAccountsRouteRequestBody;
+
     for (const accountFetchOptions of reqBody.accountsToFetch) {
       if (accountFetchOptions.username) {
         promises.push(getAccountByUsername(accountFetchOptions.username, accountFetchOptions));
@@ -157,10 +179,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         promises.push(getAccountByAddress(accountFetchOptions.address, accountFetchOptions));
       }
     }
-
     const userInfos = await Promise.all(promises);
-
-    console.log(userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)));
     return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
   } catch (e) {
     console.error(e);
@@ -172,7 +191,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
 }
 
 const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetchOptions): Promise<{
-  collected: BalanceInfo<JSPrimitiveNumberType>[],
+  collected: BalanceInfoWithDetails<JSPrimitiveNumberType>[],
   activity: TransferActivityInfo<JSPrimitiveNumberType>[],
   announcements: AnnouncementInfo<JSPrimitiveNumberType>[],
   reviews: ReviewInfo<JSPrimitiveNumberType>[],
@@ -219,9 +238,37 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
     reviewsRes = await executeReviewsQuery(cosmosAddress, reviewsBookmark);
   }
 
+  let addressMappingIdsToFetch: { collectionId: NumberType; mappingId: string }[] = [];
+
+  for (const balance of response.docs) {
+    for (const incomingTimeline of balance.approvedIncomingTransfersTimeline) {
+      for (const incoming of incomingTimeline.approvedIncomingTransfers) {
+        addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
+        addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
+      }
+    }
+
+    for (const outgoingTimeline of balance.approvedOutgoingTransfersTimeline) {
+      for (const outgoing of outgoingTimeline.approvedOutgoingTransfers) {
+        addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
+        addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
+      }
+    }
+  }
+
+  const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch);
+
 
   return {
-    collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails),
+    collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails).map((collected) => {
+      return {
+        ...collected,
+        approvedIncomingTransfersTimeline: appendDefaultForIncomingUserApprovedTransfers(collected.approvedIncomingTransfersTimeline, addressMappings, cosmosAddress),
+        approvedOutgoingTransfersTimeline: appendDefaultForOutgoingUserApprovedTransfers(collected.approvedOutgoingTransfersTimeline, addressMappings, cosmosAddress),
+      };
+    }),
+
+
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
     reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -265,7 +312,6 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
 
 export const updateAccountInfo = async (expressReq: Request, res: Response<UpdateAccountInfoRouteResponse<NumberType>>) => {
   try {
-    console.log("TEST");
     const req = expressReq as AuthenticatedRequest
     const reqBody = req.body as UpdateAccountInfoRouteRequestBody;
 
@@ -287,8 +333,6 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       seenActivity: reqBody.seenActivity ? BigInt(reqBody.seenActivity).toString() : accountInfo.seenActivity,
       readme: reqBody.readme ? reqBody.readme : accountInfo.readme,
     };
-
-    console.log("TEST");
 
     await insertToDB(PROFILES_DB, newAccountInfo);
 
