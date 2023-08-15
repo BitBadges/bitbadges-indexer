@@ -72,6 +72,7 @@ export async function getNameAndAvatar(address: string) {
     }
     return { avatar: details.avatar, resolvedName: ensName };
   } catch (e) {
+    console.log(e);
     return { resolvedName: '', avatar: '' };
   }
 }

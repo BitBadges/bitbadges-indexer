@@ -96,6 +96,13 @@ app.use(cors({
   credentials: true,
 }));
 
+var websiteOnlyCorsOptions = {
+  //localhost or deployed
+  origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL : 'https://bitbadges.io',
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+}
+
+
 //Use limiter but provide a custom error response
 app.use(limiter);
 // app.use(timeout('30s'));
@@ -161,9 +168,9 @@ app.post('/api/v0/user/:addressOrUsername', getAccount);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 
 //IPFS
-app.post('/api/v0/addMetadataToIpfs', authorizeBlockinRequest, addMetadataToIpfsHandler); //
-app.post('/api/v0/addMerkleChallengeToIpfs', authorizeBlockinRequest, addMerkleChallengeToIpfsHandler); //
-app.post('/api/v0/addBalancesToIpfs', authorizeBlockinRequest, addBalancesToIpfsHandler); //
+app.post('/api/v0/addMetadataToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addMetadataToIpfsHandler); //
+app.post('/api/v0/addMerkleChallengeToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addMerkleChallengeToIpfsHandler); //
+app.post('/api/v0/addBalancesToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addBalancesToIpfsHandler); //
 
 //Blockin Auth
 app.post('/api/v0/auth/getChallenge', getChallenge);

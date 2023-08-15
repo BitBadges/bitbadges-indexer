@@ -1,6 +1,7 @@
 declare global {
   namespace NodeJS {
     interface ProcessEnv {
+      FRONTEND_URL: string // ex: "https://localhost:3000"
       RPC_URLS: string // ex: "https://blockchain:26657"
       API_URL: string // ex: "https://blockchain:1317"
       INFURA_ID: string //IPFS details
