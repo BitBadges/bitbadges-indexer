@@ -11,6 +11,8 @@ import { ethers } from "ethers";
 const fs = require('fs');
 const path = require('path');
 
+//require .env
+require('dotenv').config();
 
 async function main() {
   try {
@@ -27,7 +29,6 @@ export async function bootstrapCollections() {
   //Step 1. Get Tokens from faucet into our new account
 
   //Get cosmos address form mnemonic
-  console.log(fromMnemonic);
   const wallet = await DirectSecp256k1HdWallet.fromMnemonic(fromMnemonic);
   const [firstAccount] = await wallet.getAccounts();
 

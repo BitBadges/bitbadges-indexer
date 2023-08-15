@@ -2,6 +2,8 @@
 # Production
 /build
 
+.env
+
 # Testing
 /coverage
 
