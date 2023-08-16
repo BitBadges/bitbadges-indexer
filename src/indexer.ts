@@ -16,9 +16,9 @@ import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForBadge } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
 import { addBalancesToIpfsHandler, addMerkleChallengeToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
-import { fetchMetadataDirectly, refreshMetadata } from "./routes/metadata"
+import { fetchMetadataDirectly, getRefreshStatus, refreshMetadata } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
-import { addReviewForCollection, addReviewForUser } from './routes/reviews'
+import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteReview } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
@@ -29,6 +29,7 @@ import { getApprovals } from './routes/approvalTrackers'
 import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
 import rateLimit from 'express-rate-limit'
 import { ErrorResponse } from 'bitbadgesjs-utils'
+import { API_KEYS_DB, insertToDB } from './db/db'
 
 var responseTime = require('response-time')
 
@@ -90,14 +91,57 @@ export const setTimer = (newTimer: NodeJS.Timer) => {
 const app: Express = express()
 const port = process.env.port ? Number(process.env.port) : 3001
 
-//TODO: secure these / API keys?
 app.use(cors({
   origin: true,
   credentials: true,
 }));
 
+app.use(async (req, res, next) => {
+  //Check if trusted origin
+  const origin = req.headers.origin;
+  if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io')) {
+    return next();
+  } else {
+    //Validate API key
+    const apiKey = req.headers['x-api-key'];
+    try {
+      console.log('API key', apiKey);
+      if (!apiKey) {
+        throw new Error('Unauthorized request. API key is required.');
+      }
+
+      const doc = await API_KEYS_DB.get(apiKey as string);
+
+      const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
+      if (lastRequestWasYesterday) {
+        doc.numRequests = 0;
+      }
+
+      if (doc.numRequests > 10000) {
+        throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+      }
+
+      await insertToDB(API_KEYS_DB, {
+        ...doc,
+        numRequests: doc.numRequests + 1,
+        lastRequest: Date.now(),
+      });
+
+      return next();
+    } catch (error) {
+      console.log(error);
+      const errorResponse: ErrorResponse = {
+        message: 'Unauthorized request. API key is required.',
+      }
+      return res.status(401).json(errorResponse);
+    }
+  }
+});
+
+
 var websiteOnlyCorsOptions = {
   //localhost or deployed
+
   origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL : 'https://bitbadges.io',
   optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
 }
@@ -128,7 +172,7 @@ app.use(express.json({ limit: '10mb' }))
 app.use((req, res, next) => {
   console.log();
   console.log(req.method, req.url);
-  console.log(JSON.stringify(req.body, null, 2));
+  // console.log(JSON.stringify(req.body, null, 2));
   next();
 });
 
@@ -152,13 +196,18 @@ app.post("/api/v0/collection/:collectionId/metadata", getMetadataForCollection)
 app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
 app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
 
-app.post('/api/v0/collection/:collectionId/refreshMetadata', refreshMetadata); //Write route
+app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata); //Write route
+app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus); //Write route
 
 app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
 app.post('/api/v0/collection/:collectionId/password/:cid/:password', authorizeBlockinRequest, getMerkleChallengeCodeViaPassword); //Write route
 
 app.post('/api/v0/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
 app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
+
+// `/api/v0/collection/${collectionId.toString()}/deleteReview/${reviewId}`;
+app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest, deleteReview); //Write route
+app.post('/api/v0/deleteAnnouncement/:announcementId', authorizeBlockinRequest, deleteAnnouncement); //Write route
 
 
 //User

@@ -17,7 +17,7 @@ type AccountFetchOptions = GetAccountRouteRequestBody;
 export const getAccountByAddress = async (address: string, fetchOptions?: AccountFetchOptions) => {
   let accountInfo: AccountInfoBase<JSPrimitiveNumberType>;
   if (!OFFLINE_MODE && fetchOptions?.fetchSequence) {
-    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(convertToCosmosAddress(address));
+    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(address);
     if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
     accountInfo = {
       ...cleanedCosmosAccountInfo,

@@ -7,8 +7,14 @@ config();
 
 const nano = Nano(`${process.env.DB_URL}`);
 
-export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc;
+interface ApiKeyDoc {
+  numRequests: number;
+  lastRequest: number;
+}
 
+export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc | ApiKeyDoc;
+
+export const API_KEYS_DB = nano.db.use<ApiKeyDoc>('api-keys');
 export const TRANSFER_ACTIVITY_DB = nano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
 export const PROFILES_DB = nano.db.use<ProfileDoc<JSPrimitiveNumberType>>('profiles');
 export const ACCOUNTS_DB = nano.db.use<AccountDoc<JSPrimitiveNumberType>>('accounts');
@@ -29,7 +35,7 @@ export const ADDRESS_MAPPINGS_DB = nano.db.use<AddressMappingDoc>('address-mappi
 export const APPROVALS_TRACKER_DB = nano.db.use<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
-  
+
   await insertMany(db, [doc]);
 }
 
@@ -78,6 +84,8 @@ export async function convertDocsToStoreInDb(db: Nano.DocumentScope<BitBadgesDoc
       convertedDoc = doc as AddressMappingDoc;
     } else if (db.config.db === APPROVALS_TRACKER_DB.config.db) {
       convertedDoc = convertApprovalsTrackerDoc(doc as ApprovalsTrackerDoc<NumberType>, NumberifyIfPossible);
+    } else if (db.config.db === API_KEYS_DB.config.db) {
+      convertedDoc = doc as ApiKeyDoc;
     }
 
     convertedDocs.push(convertedDoc as BitBadgesDocumentBase<JSPrimitiveNumberType> & Nano.Document);

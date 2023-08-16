@@ -64,9 +64,10 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
   return {
     badges: {
       getAccountInfo: async (address: string): Promise<CleanedCosmosAccountInformation> => {
+        const cosmosAddress = convertToCosmosAddress(address);
         try {
           //Native Cosmos SDK x/auth query for account information
-          const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address }).serialize();
+          const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address: cosmosAddress }).serialize();
           const accountPromise = await rpc.request(
             'cosmos.auth.v1beta1.Query',
             'Account',
@@ -75,9 +76,10 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
           return getAccountInfoToReturn(accountPromise);
         } catch (error) {
-          console.log(error);
           if (isAddressValid(address)) {
-            console.log("Error fetching account: invalid address");
+            console.log("Account not found on chain so returning empty account");
+          } else {
+            console.log(error);
           }
 
 

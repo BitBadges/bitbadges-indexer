@@ -1,12 +1,55 @@
 import axios from "axios";
-import { BigIntify, DocsCache, FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType, RefreshMetadataRouteResponse, convertCollectionDoc } from "bitbadgesjs-utils";
+import { BigIntify, DocsCache, FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType, RefreshMetadataRouteResponse, RefreshStatusRouteResponse, convertCollectionDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { flushCachedDocs } from "../db/cache";
-import { COLLECTIONS_DB, FETCHES_DB } from "../db/db";
+import { COLLECTIONS_DB, FETCHES_DB, QUEUE_DB } from "../db/db";
 import { getFromIpfs } from "../ipfs/ipfs";
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from "../metadata-queue";
-import { catch404 } from "../utils/couchdb-utils";
+import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
+
+export const getRefreshStatus = async (req: Request, res: Response<RefreshStatusRouteResponse<NumberType>>) => {
+  try {
+    const collectionId = req.params.collectionId;
+
+    const errorDocs = await QUEUE_DB.find({
+      selector: {
+        collectionId: {
+          $eq: Number(collectionId),
+        },
+        error: {
+          $gt: null,
+        }
+      },
+    });
+    let inQueue = errorDocs.docs.length > 0;
+
+    if (!inQueue) {
+      const docs = await QUEUE_DB.find({
+        selector: {
+          collectionId: {
+            $eq: Number(collectionId),
+          },
+        },
+        limit: 1,
+      });
+
+      inQueue = docs.docs.length > 0;
+    }
+
+    return res.status(200).send({
+      inQueue,
+      errorDocs: errorDocs.docs.map((doc) => removeCouchDBDetails(doc)),
+    });
+
+
+  } catch (e) {
+    return res.status(500).send({
+      error: serializeError(e),
+      message: `Error getting refresh status: ${e.message}`
+    });
+  }
+}
 
 export const refreshMetadata = async (req: Request, res: Response<RefreshMetadataRouteResponse<NumberType>>) => {
   /**

@@ -638,8 +638,6 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     fetchedAt: bigint
   }[];
 
-  console.log(results.map(x => x.fetchedAt));
-
   let collectionMetadata: Metadata<bigint> | undefined = undefined;
   if (!doNotFetchCollectionMetadata) {
     const collectionMetadataResult = results[0];
@@ -658,7 +656,6 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     const uri = getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris)[0];
     const badgeIds = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
     const resultIdx = uris.indexOf(uri);
-    console.log(results[resultIdx]);
     badgeMetadata = updateBadgeMetadata(badgeMetadata, {
       metadataId: BigInt(metadataId),
       uri,
@@ -671,8 +668,6 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       }
     });
   }
-
-  console.log(collectionMetadata, badgeMetadata);
 
   return {
     collectionMetadata: collectionMetadata ? convertMetadata(collectionMetadata, Stringify) : undefined,

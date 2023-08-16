@@ -1,12 +1,13 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ANNOUNCEMENTS_DB, BALANCES_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
+import { ANNOUNCEMENTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
 const nano = Nano(`${process.env.DB_URL}`);
 
 export async function deleteDatabases() {
+  await nano.db.destroy('api-keys').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('transfer-activity').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('profiles').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('fetches').catch((e) => { if (e.statusCode !== 404) throw e });
@@ -37,6 +38,7 @@ export async function deleteDatabases() {
 
 
 export async function createDatabases() {
+  await nano.db.create('api-keys');
   await nano.db.create('transfer-activity', { partitioned: true });
   await nano.db.create('accounts');
   await nano.db.create('profiles');
@@ -83,6 +85,8 @@ export async function initStatus() {
       "1"
     ],
   })
+
+  
 }
 
 export async function createIndexesAndViews() {
@@ -134,22 +138,22 @@ export async function createIndexesAndViews() {
     partitioned: false
   })
 
-  const designDocName = '_design/balances_by_address';
+  // const designDocName = '_design/balances_by_address';
 
-  const view = {
-    _id: designDocName,
-    views: {
-      byCosmosAddress: {
-        map: `function (doc) {
-          if (doc._id) {
-            emit(doc.cosmosAddress, null);
-          }
-        }`
-      }
-    }
-  };
+  // const view = {
+  //   _id: designDocName,
+  //   views: {
+  //     byCosmosAddress: {
+  //       map: `function (doc) {
+  //         if (doc._id) {
+  //           emit(doc.cosmosAddress, null);
+  //         }
+  //       }`
+  //     }
+  //   }
+  // };
 
 
-  await BALANCES_DB.insert(view);
+  // await BALANCES_DB.insert(view);
 }
 
