@@ -73,6 +73,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
             'Account',
             accountData
           )
+          
 
           return getAccountInfoToReturn(accountPromise);
         } catch (error) {

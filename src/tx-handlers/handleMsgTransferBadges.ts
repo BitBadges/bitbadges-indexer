@@ -15,5 +15,5 @@ export const handleMsgTransferBadges = async (msg: MsgTransferBadges<bigint>, st
   const collectionDoc = docs.collections[collectionIdString];
   if (!collectionDoc) throw new Error(`Collection ${collectionIdString} does not exist`);
 
-  await handleTransfers(collectionDoc, msg.transfers, docs, status);
+  await handleTransfers(collectionDoc, msg.transfers, docs, status, msg.creator);
 }

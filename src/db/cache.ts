@@ -1,5 +1,5 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc } from "bitbadgesjs-utils";
 import { serializeError } from "serialize-error";
 import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, COLLECTIONS_DB, ERRORS_DB, MERKLE_CHALLENGES_DB, QUEUE_DB, REFRESHES_DB, TRANSFER_ACTIVITY_DB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
@@ -160,8 +160,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     for (const addressMappingId of addressMappingIds) {
       const result = results[idx++];
       if (result.status === 'fulfilled') {
-        const res = result.value as AddressMappingDoc;
-        const convertedAddressMappingDoc = res;
+        const res = result.value as AddressMappingDoc<JSPrimitiveNumberType>
+        const convertedAddressMappingDoc = convertAddressMappingDoc(res, BigIntify);
         addressMappingsData[addressMappingId] = convertedAddressMappingDoc;
       }
     }
@@ -193,7 +193,7 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
     const claimDocs = Object.values(docs.merkleChallenges) as (MerkleChallengeDoc<bigint>)[];
     const refreshDocs = Object.values(docs.refreshes) as (RefreshDoc<bigint>)[];
     const approvalsTrackerDocs = Object.values(docs.approvalsTrackers) as (ApprovalsTrackerDoc<bigint>)[];
-    const addressMappingDocs = Object.values(docs.addressMappings) as (AddressMappingDoc)[];
+    const addressMappingDocs = Object.values(docs.addressMappings) as (AddressMappingDoc<bigint>)[];
     const activityDocs = docs.activityToAdd;
     const queueDocs = docs.queueDocsToAdd;
 

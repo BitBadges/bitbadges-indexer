@@ -26,6 +26,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         timelineTimes: [{ start: 1n, end: BigInt("18446744073709551615") }],
       }],
       createdBlock: status.block.height,
+      createdTimestamp: status.block.timestamp,
       defaultUserApprovedIncomingTransfersTimeline: msg.defaultApprovedIncomingTransfersTimeline,
       defaultUserApprovedOutgoingTransfersTimeline: msg.defaultApprovedOutgoingTransfersTimeline,
       defaultUserPermissions: msg.defaultUserPermissions,

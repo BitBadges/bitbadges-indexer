@@ -3,6 +3,7 @@ import { generateEndpointBroadcast } from "bitbadgesjs-provider";
 import { BroadcastTxRouteRequestBody, BroadcastTxRouteResponse, SimulateTxRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
+import { DEV_MODE } from "../constants";
 
 export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteResponse<NumberType>>) => {
   try {
@@ -22,8 +23,7 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
   } catch (e) {
     console.error(e);
 
-    //Return message up until first '['
-    const message = e.message.split('[')[0];
+    const message = DEV_MODE ? e.message : e.message.split("[/")[0];
 
     return res.status(500).send({
       error: serializeError(e),
@@ -49,7 +49,7 @@ export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResp
     return res.status(200).send(simulatePost.data);
   } catch (e) {
     console.error(e);
-    const message = e.message;
+    const message = DEV_MODE ? e.message : e.message.split("[/")[0];
 
     return res.status(500).send({
       error: serializeError(e),

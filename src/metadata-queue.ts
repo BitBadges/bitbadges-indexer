@@ -1,5 +1,5 @@
 import axios from "axios";
-import { JSPrimitiveNumberType, MerkleChallenge, convertBalance } from "bitbadgesjs-proto";
+import { AddressMapping, JSPrimitiveNumberType, MerkleChallenge, convertBalance } from "bitbadgesjs-proto";
 import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
@@ -103,6 +103,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
       refreshRequestTime,
       numRetries: 0,
       loadBalanceId,
+      nextFetchTime: BigInt(Date.now(),)
     });
   }
 
@@ -110,10 +111,11 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
     content: fetchDoc ? fetchDoc.content : undefined,
     updating: alreadyInQueue || needsRefresh,
     fetchedAt: fetchDoc ? fetchDoc.fetchedAt : 0n,
+    fetchedAtBlock: fetchDoc ? fetchDoc.fetchedAtBlock : 0n,
   };
 }
 
-export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>) => {
+export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>, block: bigint) => {
   let fetchDoc: (FetchDoc<bigint> & nano.IdentifiedDocument & nano.MaybeRevisionedDocument) | undefined;
   let needsRefresh = false;
   let dbType: 'MerkleChallenge' | 'Metadata' | 'Balances' = 'Metadata';
@@ -134,12 +136,13 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     await insertToDB(FETCHES_DB, {
       ...fetchDoc,
       fetchedAt: BigInt(Date.now()),
+      fetchedAtBlock: block
     });
 
     //TODO: This is pretty overkill if URI / content is the same as last handleBalances call (only updates fetchedAt).
     //We can optimize to dynamically update fetchedAt if permanent and URI / content is the same as last handleBalances call
     if (fetchDoc.db === 'Balances') {
-      await handleBalances(fetchDoc.content as OffChainBalancesMap<bigint>, queueObj);
+      await handleBalances(fetchDoc.content as OffChainBalancesMap<bigint>, queueObj, block);
     }
     return;
   }
@@ -172,7 +175,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       res = cleanBalances(res);
       res = convertOffChainBalancesMap(res, BigIntify);
 
-      await handleBalances(res, queueObj);
+      await handleBalances(res, queueObj, block);
     } else {
       dbType = 'MerkleChallenge';
       res = cleanMerkleChallenges(res);
@@ -185,6 +188,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       // content: dbType != 'Balances' ? res : undefined, //We already stored balances in a separate DB so it makes no sense to doubly store content here
       content: res,
       fetchedAt: BigInt(Date.now()),
+      fetchedAtBlock: block,
       db: dbType,
       isPermanent
     });
@@ -222,7 +226,8 @@ export const pushMerkleChallengeFetchToQueue = async (docs: DocsCache, collectio
     collectionId: BigInt(collection.collectionId),
     numRetries: 0n,
     refreshRequestTime: refreshTime,
-    loadBalanceId: BigInt(loadBalanceId)
+    loadBalanceId: BigInt(loadBalanceId),
+    nextFetchTime: BigInt(Date.now()),
   })
 }
 
@@ -246,7 +251,9 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
       collectionId: BigInt(collection.collectionId),
       numRetries: 0n,
       refreshRequestTime: refreshTime,
-      loadBalanceId: BigInt(loadBalanceId)
+      loadBalanceId: BigInt(loadBalanceId),
+
+      nextFetchTime: BigInt(Date.now(),)
     });
   }
 
@@ -268,12 +275,32 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
           collectionId: collection.collectionId,
           numRetries: 0n,
           refreshRequestTime: refreshTime,
-          loadBalanceId: BigInt(loadBalanceId)
+          loadBalanceId: BigInt(loadBalanceId),
+
+          nextFetchTime: BigInt(Date.now(),
+          )
         })
       }
     }
   }
 }
+
+export const getAddressMappingIdForQueueDb = (entropy: string, mappingId: string) => {
+  return entropy + "-addressMapping-" + mappingId.toString()
+}
+
+export const pushAddressMappingFetchToQueue = async (docs: DocsCache, mapping: AddressMapping, refreshTime: bigint, deterministicEntropy?: string) => {
+  docs.queueDocsToAdd.push({
+    _id: deterministicEntropy ? getAddressMappingIdForQueueDb(deterministicEntropy, mapping.mappingId) : undefined,
+    uri: mapping.uri,
+    numRetries: 0n,
+    collectionId: 0n,
+    refreshRequestTime: refreshTime,
+    loadBalanceId: BigInt(getLoadBalancerId(deterministicEntropy ?? "")),
+    nextFetchTime: BigInt(Date.now()),
+  })
+}
+
 
 export const getBalancesIdForQueueDb = (entropy: string, collectionId: string, timelineTime: string) => {
   return entropy + "-balances-" + collectionId.toString() + "-" + timelineTime
@@ -295,7 +322,9 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
       collectionId: collection.collectionId,
       refreshRequestTime: refreshTime,
       numRetries: 0n,
-      loadBalanceId: BigInt(loadBalanceId)
+      loadBalanceId: BigInt(loadBalanceId),
+
+      nextFetchTime: BigInt(Date.now()),
     })
 
     //TODO: Support pre-loading future values (i.e. if we know the balancesUri for the next collection, we can preload it). We currently only take first.
@@ -304,7 +333,7 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
   }
 }
 
-const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>) => {
+const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>, block: bigint) => {
   //TODO: This overwrites everything each time
 
   const docs: DocsCache = {
@@ -355,6 +384,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
         collectionId: queueObj.collectionId,
         cosmosAddress: key,
         fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: block,
         onChain: false,
         uri: queueObj.uri,
         isPermanent: queueObj.uri.startsWith('ipfs://')
@@ -389,6 +419,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
     collectionId: queueObj.collectionId,
     cosmosAddress: "Mint",
     fetchedAt: BigInt(Date.now()),
+    fetchedAtBlock: block,
     onChain: false,
     uri: queueObj.uri,
     isPermanent: queueObj.uri.startsWith('ipfs://')
@@ -398,7 +429,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   await flushCachedDocs(docs);
 }
 
-export const fetchUrisFromQueue = async () => {
+export const fetchUrisFromQueue = async (block: bigint) => {
   //To prevent spam and bloated metadata, we set the following parameters.
   //If we cannot fetch within the parameters, it will remain in the queue and will be fetched again.
   const NUM_METADATA_FETCHES_PER_BLOCK = process.env.NUM_METADATA_FETCHES_PER_BLOCK ? Number(process.env.NUM_METADATA_FETCHES_PER_BLOCK) : 25;
@@ -408,19 +439,18 @@ export const fetchUrisFromQueue = async () => {
 
   //Random skip amount so we don't fetch the same every time
   const numDocsInDB = await QUEUE_DB.info().then((res) => res.doc_count);
-  const skip = Math.floor(Math.random() * (numDocsInDB - NUM_METADATA_FETCHES_PER_BLOCK));
-
-  if (numDocsInDB == 0) return
-
+  if (numDocsInDB == 0) return;
 
   const queueRes = await QUEUE_DB.find({
     selector: {
       _id: { $gt: null },
       loadBalanceId: {
         "$eq": LOAD_BALANCER_ID
-      }
+      },
+      nextFetchTime: {
+        "$lte": Date.now()
+      },
     },
-    skip: skip > 0 ? skip : undefined,
     limit: NUM_METADATA_FETCHES_PER_BLOCK
   });
 
@@ -430,22 +460,14 @@ export const fetchUrisFromQueue = async () => {
   while (numFetchesLeft > 0 && queue.length > 0) {
     const currQueueDoc = queue[0];
     if (currQueueDoc) {
-      const delay = BASE_DELAY * Math.pow(2, Number(currQueueDoc.numRetries));
-
-      //This uses exponential backoff to prevent spamming the source
-      //Delay = BASE_DELAY * 2^numRetries
-      if (currQueueDoc.lastFetchedAt && Number(currQueueDoc.lastFetchedAt) + delay > Date.now()) {
-        //If we have fetched this URI recently, do not spam it
-      } else {
-        queueItems.push(convertQueueDoc(currQueueDoc, BigIntify) as any); //Used for a deep copy
-      }
+      queueItems.push(convertQueueDoc(currQueueDoc, BigIntify) as any); //Used for a deep copy
     }
     queue.shift()
     numFetchesLeft--;
   }
   const promises = [];
   for (const queueObj of queueItems) {
-    promises.push(fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj));
+    promises.push(fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj, block));
   }
 
   //If fulfilled, delete from queue (after creating balance docs if necessary).
@@ -477,12 +499,14 @@ export const fetchUrisFromQueue = async () => {
           reason = 'Could not stringify error message';
         }
       }
+      const delay = BASE_DELAY * Math.pow(2, Number(queueObj.numRetries + 1n));
 
       await insertToDB(QUEUE_DB, {
         ...queueObj,
         lastFetchedAt: BigInt(Date.now()),
         error: reason,
         numRetries: BigInt(queueObj.numRetries + 1n),
+        nextFetchTime: BigInt(delay) + BigInt(Date.now()),
       });
 
       console.error(result.reason);

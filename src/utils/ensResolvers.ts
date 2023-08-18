@@ -18,7 +18,7 @@ export async function getAddressesForNames(names: string[]) {
   return addresses;
 }
 
-const provider = new ethers.providers.InfuraProvider(
+export const provider = new ethers.providers.InfuraProvider(
   'homestead',
   process.env.INFURA_API_KEY
 );

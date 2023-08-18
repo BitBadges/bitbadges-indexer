@@ -635,7 +635,8 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   const results = await Promise.all(promises) as {
     content: Metadata<JSPrimitiveNumberType> | undefined,
     updating: boolean,
-    fetchedAt: bigint
+    fetchedAt: bigint,
+    fetchedAtBlock: bigint
   }[];
 
   let collectionMetadata: Metadata<bigint> | undefined = undefined;
@@ -647,6 +648,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
         ...convertMetadata(collectionMetadataResult.content ?? DefaultPlaceholderMetadata, BigIntify),
         _isUpdating: collectionMetadataResult.updating,
         fetchedAt: collectionMetadataResult.fetchedAt,
+        fetchedAtBlock: collectionMetadataResult.fetchedAtBlock
       }
     }
   }
@@ -665,6 +667,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
         ...convertMetadata(results[resultIdx].content ?? DefaultPlaceholderMetadata, BigIntify),
         _isUpdating: results[resultIdx].updating,
         fetchedAt: results[resultIdx].fetchedAt,
+        fetchedAtBlock: results[resultIdx].fetchedAtBlock
       }
     });
   }

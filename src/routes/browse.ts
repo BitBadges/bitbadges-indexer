@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import nano from "nano";
-import { COLLECTIONS_DB, FETCHES_DB } from "../db/db";
+import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { serializeError } from "serialize-error";
-import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType } from "bitbadgesjs-utils";
+import { AddressMappingDoc, AddressMappingWithMetadata, BitBadgesCollection, GetBrowseCollectionsRouteResponse, JSPrimitiveNumberType, Metadata, NumberType, Stringify, convertMetadata } from "bitbadgesjs-utils";
 import { executeCollectionsQuery } from "./collections";
+import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
@@ -88,17 +89,70 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     }));
 
+    //latest activity
+    const activity = await TRANSFER_ACTIVITY_DB.find({
+      selector: {
+        timestamp: {
+          "$gt": null,
+        }
+      },
+      sort: [{ "timestamp": "desc" }],
+      limit: 100,
+    });
+
+    const addressMappings = await ADDRESS_MAPPINGS_DB.find({
+      selector: {
+        createdBlock: {
+          "$gt": null,
+        }
+      },
+      sort: [{ "createdBlock": "desc" }],
+      limit: 100,
+    });
+
+    let addressMappingsToReturn: AddressMappingWithMetadata<string>[] = [...addressMappings.docs.map(x => x as AddressMappingDoc<string>).map(removeCouchDBDetails)];
+    let mappingUris: string[] = addressMappingsToReturn.map(x => x.uri);
+    if (mappingUris.length > 0) {
+      for (const uri of mappingUris) {
+        if (!uri) continue;
+        const doc = await FETCHES_DB.get(uri).catch(catch404);
+        console.log(doc);
+        if (doc) {
+          addressMappingsToReturn = addressMappingsToReturn.map(x => {
+            if (x.uri === uri) {
+              return {
+                ...x,
+                metadata: convertMetadata(doc.content as Metadata<JSPrimitiveNumberType>, Stringify),
+              }
+            } else {
+              return x;
+            }
+          })
+        }
+      }
+    }
+
+    console.log(addressMappingsToReturn);
+
 
     return res.status(200).send({
-      // 'featured': collections,
-      'latest': latestCollections.docs.map(x => collections.find(y => y.collectionId === x._id)).filter(x => x) as BitBadgesCollection<NumberType>[],
-      'attendance': attendanceCollections.docs.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-        attendanceCollections.docs.map(x => x._id).includes(x.collectionMetadata.uri)
-      ))).filter(x => x) as BitBadgesCollection<NumberType>[],
-      'certifications': certificationsCollections.docs.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-        certificationsCollections.docs.map(x => x._id).includes(x.collectionMetadata.uri)
-      ))).filter(x => x) as BitBadgesCollection<NumberType>[],
-
+      collections: {
+        // 'featured': collections,
+        'latest': latestCollections.docs.map(x => collections.find(y => y.collectionId === x._id)).filter(x => x) as BitBadgesCollection<NumberType>[],
+        'attendance': attendanceCollections.docs.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
+          attendanceCollections.docs.map(x => x._id).includes(x.collectionMetadata.uri)
+        ))).filter(x => x) as BitBadgesCollection<NumberType>[],
+        'certifications': certificationsCollections.docs.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
+          certificationsCollections.docs.map(x => x._id).includes(x.collectionMetadata.uri)
+        ))).filter(x => x) as BitBadgesCollection<NumberType>[],
+      },
+      activity: activity.docs.map(x => removeCouchDBDetails(x)),
+      addressMappings: {
+        'latest': addressMappingsToReturn,
+      },
+      profiles: {
+        'latest': [],
+      },
     });
   } catch (e) {
     console.error(e);

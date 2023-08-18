@@ -90,7 +90,7 @@ export async function bootstrapCollections() {
   const compressedPublicKey = Secp256k1.compressPubkey(new Uint8Array(Buffer.from(pubKeyHex, 'hex')));
   const base64PubKey = Buffer.from(compressedPublicKey).toString('base64');
 
-  function getAndParseJsonFiles(directoryPath: string, jsonObjects: any[]): void {
+  function getAndParseJsonFiles(directoryPath: string, jsonObjects: any[], jsonFileNames: string[]): void {
     const files = fs.readdirSync(directoryPath);
 
     files.forEach((file: any) => {
@@ -98,12 +98,13 @@ export async function bootstrapCollections() {
       const fileStat = fs.statSync(filePath);
 
       if (fileStat.isDirectory()) {
-        getAndParseJsonFiles(filePath, jsonObjects); // Recurse into subdirectory
+        getAndParseJsonFiles(filePath, jsonObjects, jsonFileNames); // Recurse into subdirectory
       } else if (file.endsWith('.json')) {
         try {
           const fileContent = fs.readFileSync(filePath, 'utf-8');
           const jsonObject = JSON.parse(fileContent);
           jsonObjects.push(jsonObject);
+          jsonFileNames.push(file);
         } catch (error) {
           console.error(`Error parsing ${filePath}: ${error.message}`);
         }
@@ -116,13 +117,14 @@ export async function bootstrapCollections() {
 
   // Initialize an array to store the parsed JSON objects
   const jsonObjects: any[] = [];
+  const jsonFileNames: string[] = [];
 
   // Call the function to get and parse .json files from the subdirectory
-  getAndParseJsonFiles(subdirectoryPath, jsonObjects);
+  getAndParseJsonFiles(subdirectoryPath, jsonObjects, jsonFileNames);
 
 
   //Step 3. Buiild andbroadcast transactions
-  const manualTransfers = false;
+  const manualTransfers = true;
   let sequence = 0;
   // console.log(jsonObjects.length);
   for (let i = 0; i < jsonObjects.length; i++) {
@@ -149,10 +151,11 @@ export async function bootstrapCollections() {
       {
         ...jsonObjects[i],
         creator: convertToCosmosAddress(ethWallet.address),
-        managerTimeline: i == 8 ? [{
-          timelineTimes: [{ start: "1", end: Number.MAX_SAFE_INTEGER.toString() }],
-          manager: convertToCosmosAddress(ethWallet.address)
-        }] : jsonObjects[i].managerTimeline
+        managerTimeline: jsonFileNames[i] === "9_10000_manual_transfers.json"
+          ? [{
+            timelineTimes: [{ start: "1", end: Number.MAX_SAFE_INTEGER.toString() }],
+            manager: convertToCosmosAddress(ethWallet.address)
+          }] : jsonObjects[i].managerTimeline
       }
     );
 
@@ -204,9 +207,11 @@ export async function bootstrapCollections() {
     const collectionId = rawLog[0].events[0].attributes.find((log: any) => log.key === 'collectionId').value;
     // console.log(collectionId);
 
-    if (i === 8 && !manualTransfers) continue;
-    else if (i === 8) {
-      for (let j = 1; j <= 10000; j++) {
+    console.log(jsonFileNames[i]);
+
+    if (jsonFileNames[i] === "9_10000_manual_transfers.json" && !manualTransfers) continue;
+    else if (jsonFileNames[i] === "9_10000_manual_transfers.json") {
+      for (let j = 1; j <= 20; j++) {
         if (j % 10 === 0) console.log("Transfer", j);
         const toWallet = ethers.Wallet.createRandom();
 
@@ -275,21 +280,21 @@ export async function bootstrapCollections() {
 
         // console.log(sequence);
 
-        // const res = 
-        await axios.post(
-          `${process.env.API_URL}${generateEndpointBroadcast()}`,
-          generatePostBodyBroadcast(rawTx, BroadcastMode.Block),
-        ).catch((e) => {
-          if (e && e.response && e.response.data) {
-            console.log(e.response.data);
+        const res =
+          await axios.post(
+            `${process.env.API_URL}${generateEndpointBroadcast()}`,
+            generatePostBodyBroadcast(rawTx, BroadcastMode.Block),
+          ).catch((e) => {
+            if (e && e.response && e.response.data) {
+              console.log(e.response.data);
 
-            return Promise.reject(e.response.data);
-          }
-          console.log(e);
-          return Promise.reject(e);
-        });
+              return Promise.reject(e.response.data);
+            }
+            console.log(e);
+            return Promise.reject(e);
+          });
 
-        // console.log(res);
+        console.log(res);
 
         // assertIsDeliverTxSuccess(result);
       }

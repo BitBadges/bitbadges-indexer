@@ -1,6 +1,6 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase } from "bitbadgesjs-utils";
-import { AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
+import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
 
@@ -41,9 +41,11 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
 
       balance: balanceInfo,
       airdropped: airdropInfo,
+      fetchedProfile: true,
 
       collected: [],
       activity: [],
+      addressMappings: [],
       announcements: [],
       reviews: [],
       merkleChallenges: [],
@@ -182,3 +184,47 @@ export async function executeCollectedQuery(cosmosAddress: string, bookmark?: st
   return collectedRes;
 }
 
+export async function executeListsQuery(cosmosAddress: string, bookmark?: string) {
+  const collectedRes = await ADDRESS_MAPPINGS_DB.find({
+    selector: {
+      "$or": [
+        {
+          "$and": [{
+            "addresses": {
+              "$elemMatch": {
+                "$eq": cosmosAddress,
+              },
+            },
+          },
+          {
+            "includeAddresses": {
+              "$eq": true,
+            },
+          }],
+        },
+        {
+          "$and": [{
+            //Is not in the list
+            "addresses": {
+              "$not": {
+                "$elemMatch": {
+                  "$eq": cosmosAddress,
+                },
+              },
+            },
+          },
+          {
+            "includeAddresses": {
+              "$eq": false,
+            },
+          }],
+        }
+      ]
+    },
+    bookmark: bookmark ? bookmark : undefined
+  });
+
+  console.log(collectedRes);
+
+  return collectedRes;
+}

@@ -90,11 +90,11 @@ export const poll = async () => {
       status.block.timestamp = BigInt(new Date(block.header.time).getTime());
 
 
-      await handleBlock(block, status, docs)
+      await handleBlock(block, status, docs);
+      await fetchUrisFromQueue(status.block.height);
+
       status.block.height++;
       status.block.txIndex = 0n;
-
-      await fetchUrisFromQueue();
 
       await purgeQueueDocs();
 
@@ -216,6 +216,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
   }
 
   if (getAttributeValueByKey(event.attributes, "transfer")) {
+    const creator = getAttributeValueByKey(event.attributes, "creator") as string;
 
     const _transfer = JSON.parse(getAttributeValueByKey(event.attributes, "transfer") as string) as Transfer<string>;
     const transfer = convertTransfer(_transfer, BigIntify);
@@ -224,7 +225,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
 
     await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], []);
 
-    await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, true);
+    await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, creator, true);
   }
 }
 

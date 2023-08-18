@@ -2,6 +2,7 @@ import axios from 'axios';
 import { NumberType } from 'bitbadgesjs-proto';
 import { BadgeMetadataDetails, BigIntify, ChallengeDetails, MerkleChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
 import last from 'it-last';
+import { getStatus } from '../db/status';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { FETCHES_DB, insertToDB } from '../db/db';
 import { ipfsClient } from "../indexer";
@@ -157,6 +158,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
 
   const metadataResults = ipfsClient.addAll(files);
 
+  const status = await getStatus();
   let idx = 0;
   for await (const result of metadataResults) {
     results.push({ cid: result.cid.toString() });
@@ -171,6 +173,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
       await insertToDB(FETCHES_DB, {
         _id: `ipfs://${result.cid.toString()}`,
         fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: status.block.height,
         content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
         db: 'Metadata',
         isPermanent: true
@@ -209,9 +212,11 @@ export const addMerkleChallengeToIpfs = async (name: string, description: string
   const result = await last(ipfsClient.addAll(files));
   if (!result) return undefined;
 
+  const status = await getStatus();
   await insertToDB(FETCHES_DB, {
     _id: `ipfs://${result.cid.toString()}`,
     fetchedAt: BigInt(Date.now()),
+    fetchedAtBlock: status.block.height,
     content: {
       name,
       description,

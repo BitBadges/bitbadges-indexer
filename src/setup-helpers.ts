@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ANNOUNCEMENTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
+import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
@@ -86,7 +86,7 @@ export async function initStatus() {
     ],
   })
 
-  
+
 }
 
 export async function createIndexesAndViews() {
@@ -137,6 +137,14 @@ export async function createIndexesAndViews() {
     },
     partitioned: false
   })
+
+  await ADDRESS_MAPPINGS_DB.createIndex({
+    index: {
+      fields: ['createdBlock']
+    },
+    partitioned: false
+  })
+
 
   // const designDocName = '_design/balances_by_address';
 

@@ -1,14 +1,16 @@
 
+import { cosmosToEth } from "bitbadgesjs-address-converter";
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, Metadata, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertMetadata, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
+import { ACCOUNTS_DB, FETCHES_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeReviewsQuery } from "./userHelpers";
+import { provider } from "../utils/ensResolvers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
 
 
@@ -28,13 +30,29 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
     try {
       accountInfo = await ACCOUNTS_DB.get(`${convertToCosmosAddress(address)}`);
     } catch (e) {
+
+
+
       if (e.statusCode === 404) {
+        let ethTxCount = 0;
+        const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
+        if (isAddressValid(address)) {
+          console.log("Account not found on chain so returning empty account");
+          try {
+            ethTxCount = await provider.getTransactionCount(ethAddress);
+            console.log(ethTxCount);
+          } catch (e) {
+            console.log("Error fetching tx count", e);
+          }
+        }
+
         accountInfo = {
-          cosmosAddress: convertToCosmosAddress(address),
-          address: address,
-          chain: getChainForAddress(address),
-          publicKey: '',
+          address: ethTxCount > 0 ? ethAddress : address,
+          sequence: "0",
           accountNumber: -1,
+          cosmosAddress: convertToCosmosAddress(address),
+          chain: ethTxCount > 0 ? SupportedChain.ETH : getChainForAddress(address),
+          publicKey: '',
         }
       } else {
         throw e;
@@ -195,6 +213,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
   activity: TransferActivityInfo<JSPrimitiveNumberType>[],
   announcements: AnnouncementInfo<JSPrimitiveNumberType>[],
   reviews: ReviewInfo<JSPrimitiveNumberType>[],
+  addressMappings: AddressMappingWithMetadata<JSPrimitiveNumberType>[],
   views: {
     [viewKey: string]: {
       ids: string[],
@@ -208,6 +227,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
     activity: [],
     announcements: [],
     reviews: [],
+    addressMappings: [],
     views: {},
   };
 
@@ -215,12 +235,14 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
   const collectedBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected')?.bookmark;
   const announcementsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements')?.bookmark;
   const reviewsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews')?.bookmark;
+  const addressMappingsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings')?.bookmark;
 
 
   let response: nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>> = { docs: [] };
   let activityRes: nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>> = { docs: [] };
   let announcementsRes: nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>> = { docs: [] };
   let reviewsRes: nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>> = { docs: [] };
+  let addressMappingsRes: nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>> = { docs: [] };
 
   if (activityBookmark !== undefined) {
     activityRes = await executeActivityQuery(cosmosAddress, activityBookmark);
@@ -236,6 +258,10 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
 
   if (reviewsBookmark !== undefined) {
     reviewsRes = await executeReviewsQuery(cosmosAddress, reviewsBookmark);
+  }
+
+  if (addressMappingsBookmark !== undefined) {
+    addressMappingsRes = await executeListsQuery(cosmosAddress, addressMappingsBookmark);
   }
 
   let addressMappingIdsToFetch: { collectionId: NumberType; mappingId: string }[] = [];
@@ -258,6 +284,26 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
 
   const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch);
 
+  let addressMappingsToReturn: AddressMappingWithMetadata<string>[] = [...addressMappingsRes.docs.map(x => x).map(removeCouchDBDetails)];
+  let mappingUris: string[] = addressMappingsToReturn.map(x => x.uri);
+  if (mappingUris.length > 0) {
+    for (const uri of mappingUris) {
+      const doc = await FETCHES_DB.get(uri).catch(catch404);
+      if (doc) {
+        addressMappingsToReturn = addressMappingsToReturn.map(x => {
+          if (x.uri === uri) {
+            return {
+              ...x,
+              metadata: convertMetadata(doc.content as Metadata<JSPrimitiveNumberType>, Stringify),
+            }
+          } else {
+            return x;
+          }
+        })
+      }
+    }
+  }
+
 
   return {
     collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails).map((collected) => {
@@ -268,7 +314,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
       };
     }),
 
-
+    addressMappings: addressMappingsToReturn,
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
     reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -305,6 +351,14 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
           hasMore: reviewsRes.docs.length === 25
         }
       } : undefined,
+      'addressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings') ? {
+        ids: addressMappingsRes.docs.map(x => x._id),
+        type: 'Address Mappings',
+        pagination: {
+          bookmark: addressMappingsRes.bookmark ? addressMappingsRes.bookmark : '',
+          hasMore: addressMappingsRes.docs.length === 25
+        }
+      } : undefined,
     }
   }
 }
@@ -313,7 +367,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
 export const updateAccountInfo = async (expressReq: Request, res: Response<UpdateAccountInfoRouteResponse<NumberType>>) => {
   try {
     const req = expressReq as AuthenticatedRequest
-    const reqBody = req.body as UpdateAccountInfoRouteRequestBody;
+    const reqBody = req.body as UpdateAccountInfoRouteRequestBody<JSPrimitiveNumberType>
 
     const cosmosAddress = req.session.cosmosAddress;
     let accountInfo: ProfileDoc<JSPrimitiveNumberType> | undefined = await PROFILES_DB.get(cosmosAddress).catch(catch404);
@@ -324,14 +378,20 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       }
     }
 
+
     const newAccountInfo: ProfileDoc<JSPrimitiveNumberType> = {
       ...accountInfo,
-      discord: reqBody.discord ? reqBody.discord : accountInfo.discord,
-      twitter: reqBody.twitter ? reqBody.twitter : accountInfo.twitter,
-      github: reqBody.github ? reqBody.github : accountInfo.github,
-      telegram: reqBody.telegram ? reqBody.telegram : accountInfo.telegram,
-      seenActivity: reqBody.seenActivity ? BigInt(reqBody.seenActivity).toString() : accountInfo.seenActivity,
-      readme: reqBody.readme ? reqBody.readme : accountInfo.readme,
+      discord: reqBody.discord ?? accountInfo.discord,
+      twitter: reqBody.twitter ?? accountInfo.twitter,
+      github: reqBody.github ?? accountInfo.github,
+      telegram: reqBody.telegram ?? accountInfo.telegram,
+      seenActivity: reqBody.seenActivity?.toString() ?? accountInfo.seenActivity,
+      readme: reqBody.readme ?? accountInfo.readme,
+      showAllByDefault: reqBody.showAllByDefault ?? accountInfo.showAllByDefault,
+      shownBadges: reqBody.shownBadges ?? accountInfo.shownBadges,
+      hiddenBadges: reqBody.hiddenBadges ?? accountInfo.hiddenBadges,
+      customPages: reqBody.customPages ?? accountInfo.customPages,
+      profilePicUrl: reqBody.profilePicUrl ?? accountInfo.profilePicUrl,
     };
 
     await insertToDB(PROFILES_DB, newAccountInfo);

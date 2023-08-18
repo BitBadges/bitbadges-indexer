@@ -2,7 +2,7 @@ import { Transfer } from "bitbadgesjs-proto";
 import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, addBalances, getBlankBalance, subtractBalances } from "bitbadgesjs-utils";
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 
-export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, fromEvent?: boolean) => {
+export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, creator: string, fromEvent?: boolean) => {
   //Handle new acocunts, if empty 
   for (const transfer of transfers) {
     await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${transfer.from}`], [], [], []);
@@ -78,6 +78,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       timestamp: BigInt(Date.now()),
       memo: transfer.memo,
       precalculationDetails: transfer.precalculationDetails,
+      initiatedBy: creator
     });
   }
 }
