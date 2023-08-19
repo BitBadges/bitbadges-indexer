@@ -111,6 +111,7 @@ export const addReviewForUser = async (expressReq: Request, res: Response<AddRev
       return res.status(400).send({ message: 'Review must be 1 to 2048 characters long.' });
     }
 
+
     const stars = Number(reqBody.stars);
     if (isNaN(stars) || stars < 0 || stars > 5) {
       return res.status(400).send({ message: 'Stars must be a number between 0 and 5.' });
@@ -120,8 +121,12 @@ export const addReviewForUser = async (expressReq: Request, res: Response<AddRev
     if (isAddressValid(req.params.addressOrUsername)) {
       cosmosAddress = convertToCosmosAddress(req.params.addressOrUsername);
     } else {
-      const account = await getAccountByUsername(req.params.addressOrUsername);
+      const account = await getAccountByUsername(req, req.params.addressOrUsername);
       cosmosAddress = account.cosmosAddress;
+    }
+
+    if (cosmosAddress === req.session.cosmosAddress) {
+      return res.status(400).send({ message: 'You cannot review yourself.' });
     }
 
     const status = await getStatus();

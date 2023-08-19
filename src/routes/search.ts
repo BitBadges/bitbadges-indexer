@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfo, AddressMappingWithMetadata, GetSearchRouteResponse, Metadata, NumberType, Stringify, convertBitBadgesUserInfo, convertMetadata, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfo, AddressMappingWithMetadata, GetSearchRouteResponse, MINT_ACCOUNT, Metadata, NumberType, Stringify, convertBitBadgesUserInfo, convertMetadata, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -89,7 +89,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [...accountsResponseDocs.map(removeCouchDBDetails)];
     if (isAddressValid(searchValue)
       && !accountsResponseDocs.find((account) => account.address === searchValue || account.cosmosAddress === searchValue)) {
-      allAccounts.push({
+      if (searchValue === 'Mint') allAccounts.push(convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify));
+      else allAccounts.push({
         _id: convertToCosmosAddress(searchValue),
         address: searchValue,
         cosmosAddress: convertToCosmosAddress(searchValue),
@@ -150,7 +151,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       }
     });
 
-    const collectionsResponses = await executeAdditionalCollectionQueries(collectionsRes.docs, collectionsRes.docs.map((doc) => {
+    const collectionsResponses = await executeAdditionalCollectionQueries(req, collectionsRes.docs, collectionsRes.docs.map((doc) => {
       return { collectionId: doc.collectionId };
     }));
 

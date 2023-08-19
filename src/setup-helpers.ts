@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
+import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
@@ -28,6 +28,7 @@ export async function deleteDatabases() {
   await nano.db.destroy('load-balance').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('address-mappings').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('approvals-trackers').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('claim-alerts').catch((e) => { if (e.statusCode !== 404) throw e });
 
   //_utils, _replicator, _global_changes, _metadata
   await nano.db.destroy('_users').catch((e) => { if (e.statusCode !== 404) throw e });
@@ -59,6 +60,7 @@ export async function createDatabases() {
   await nano.db.create('load-balance');
   await nano.db.create('address-mappings');
   await nano.db.create('approvals-trackers', { partitioned: true });
+  await nano.db.create('claim-alerts', { partitioned: true });
 
 
   //_utils, _replicator, _global_changes, _metadata
@@ -143,6 +145,13 @@ export async function createIndexesAndViews() {
       fields: ['createdBlock']
     },
     partitioned: false
+  })
+
+  await CLAIM_ALERTS_DB.createIndex({
+    index: {
+      fields: ['createdTimestamp']
+    },
+    partitioned: true
   })
 
 

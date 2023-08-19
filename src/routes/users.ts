@@ -1,22 +1,24 @@
 
 import { cosmosToEth } from "bitbadgesjs-address-converter";
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, Metadata, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertMetadata, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, Metadata, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertMetadata, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { AuthenticatedRequest } from "../blockin/blockin_handlers";
+import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB, FETCHES_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { provider } from "../utils/ensResolvers";
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeCollectedQuery, executeListsQuery, executeReviewsQuery } from "./userHelpers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
 
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
-export const getAccountByAddress = async (address: string, fetchOptions?: AccountFetchOptions) => {
+export const getAccountByAddress = async (req: Request, address: string, fetchOptions?: AccountFetchOptions) => {
+  if (address === 'Mint') return convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify);
+
   let accountInfo: AccountInfoBase<JSPrimitiveNumberType>;
   if (!OFFLINE_MODE && fetchOptions?.fetchSequence) {
     const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(address);
@@ -27,12 +29,17 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
 
     };
   } else {
+    console.log(convertToCosmosAddress(address));
     try {
-      accountInfo = await ACCOUNTS_DB.get(`${convertToCosmosAddress(address)}`);
+      const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(address);
+      if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
+      accountInfo = {
+        ...cleanedCosmosAccountInfo,
+        chain: cleanedCosmosAccountInfo.chain === SupportedChain.UNKNOWN ? getChainForAddress(address) : cleanedCosmosAccountInfo.chain,
+      };
+      //TODO: Switch back to this. Was failing in the case we airdropped (i.e. recipient was address) thus had an account number but was not in ACCOUNTS_DB yet
+      // accountInfo = await ACCOUNTS_DB.get(`${convertToCosmosAddress(address)}`);
     } catch (e) {
-
-
-
       if (e.statusCode === 404) {
         let ethTxCount = 0;
         const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
@@ -82,7 +89,7 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
   let account = userInfos[0];
   if (fetchOptions) {
     //account is currently a BitBadgesUserInfo with no portfolio info
-    const portfolioRes = await getAdditionalUserInfo(account.cosmosAddress, fetchOptions);
+    const portfolioRes = await getAdditionalUserInfo(req, account.cosmosAddress, fetchOptions);
     account = {
       ...account,
       ...portfolioRes
@@ -92,7 +99,7 @@ export const getAccountByAddress = async (address: string, fetchOptions?: Accoun
   return account;
 }
 
-export const getAccountByUsername = async (username: string, fetchOptions?: AccountFetchOptions) => {
+export const getAccountByUsername = async (req: Request, username: string, fetchOptions?: AccountFetchOptions) => {
   const accountRes = await ACCOUNTS_DB.find({
     selector: {
       username: { "$eq": username },
@@ -138,7 +145,7 @@ export const getAccountByUsername = async (username: string, fetchOptions?: Acco
 
   if (fetchOptions) {
     //account is currently a BitBadgesUserInfo with no portfolio info
-    const portfolioRes = await getAdditionalUserInfo(account.cosmosAddress, fetchOptions);
+    const portfolioRes = await getAdditionalUserInfo(req, account.cosmosAddress, fetchOptions);
     account = {
       ...account,
       ...portfolioRes
@@ -155,9 +162,9 @@ export const getAccount = async (req: Request, res: Response<GetAccountRouteResp
 
     let account: BitBadgesUserInfo<JSPrimitiveNumberType>;
     if (isAddressValid(req.params.addressOrUsername)) {
-      account = await getAccountByAddress(req.params.addressOrUsername, reqBody);
+      account = await getAccountByAddress(req, req.params.addressOrUsername, reqBody);
     } else {
-      account = await getAccountByUsername(req.params.addressOrUsername, reqBody);
+      account = await getAccountByUsername(req, req.params.addressOrUsername, reqBody);
     }
 
     return res.status(200).send(convertBitBadgesUserInfo(account, Stringify));
@@ -191,10 +198,10 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
 
     for (const accountFetchOptions of reqBody.accountsToFetch) {
       if (accountFetchOptions.username) {
-        promises.push(getAccountByUsername(accountFetchOptions.username, accountFetchOptions));
+        promises.push(getAccountByUsername(req, accountFetchOptions.username, accountFetchOptions));
       }
       else if (accountFetchOptions.address) {
-        promises.push(getAccountByAddress(accountFetchOptions.address, accountFetchOptions));
+        promises.push(getAccountByAddress(req, accountFetchOptions.address, accountFetchOptions));
       }
     }
     const userInfos = await Promise.all(promises);
@@ -208,12 +215,13 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
   }
 }
 
-const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetchOptions): Promise<{
+const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBody: AccountFetchOptions): Promise<{
   collected: BalanceInfoWithDetails<JSPrimitiveNumberType>[],
   activity: TransferActivityInfo<JSPrimitiveNumberType>[],
   announcements: AnnouncementInfo<JSPrimitiveNumberType>[],
   reviews: ReviewInfo<JSPrimitiveNumberType>[],
   addressMappings: AddressMappingWithMetadata<JSPrimitiveNumberType>[],
+  claimAlerts: ClaimAlertInfo<JSPrimitiveNumberType>[],
   views: {
     [viewKey: string]: {
       ids: string[],
@@ -228,6 +236,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
     announcements: [],
     reviews: [],
     addressMappings: [],
+    claimAlerts: [],
     views: {},
   };
 
@@ -236,6 +245,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
   const announcementsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements')?.bookmark;
   const reviewsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews')?.bookmark;
   const addressMappingsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings')?.bookmark;
+  const claimAlertsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestClaimAlerts')?.bookmark;
 
 
   let response: nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>> = { docs: [] };
@@ -243,6 +253,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
   let announcementsRes: nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>> = { docs: [] };
   let reviewsRes: nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>> = { docs: [] };
   let addressMappingsRes: nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>> = { docs: [] };
+  let claimAlertsRes: nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>> = { docs: [] };
 
   if (activityBookmark !== undefined) {
     activityRes = await executeActivityQuery(cosmosAddress, activityBookmark);
@@ -262,6 +273,23 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
 
   if (addressMappingsBookmark !== undefined) {
     addressMappingsRes = await executeListsQuery(cosmosAddress, addressMappingsBookmark);
+  }
+
+  if (claimAlertsBookmark !== undefined) {
+    console.log("CLAIM ALERTS", claimAlertsBookmark);
+    const authReq = req as AuthenticatedRequest;
+    console.log(authReq.session);
+    if (authReq.session && checkIfAuthenticated(authReq)) {
+      if (authReq.session.cosmosAddress !== cosmosAddress) {
+        throw new Error('You can only fetch claim alerts for your own account.');
+      }
+
+      claimAlertsRes = await executeClaimAlertsQuery(cosmosAddress, claimAlertsBookmark);
+
+      console.log(claimAlertsRes);
+    } else {
+      throw new Error('You must be authenticated to fetch claim alerts.');
+    }
   }
 
   let addressMappingIdsToFetch: { collectionId: NumberType; mappingId: string }[] = [];
@@ -313,7 +341,7 @@ const getAdditionalUserInfo = async (cosmosAddress: string, reqBody: AccountFetc
         approvedOutgoingTransfersTimeline: appendDefaultForOutgoingUserApprovedTransfers(collected.approvedOutgoingTransfersTimeline, addressMappings, cosmosAddress),
       };
     }),
-
+    claimAlerts: claimAlertsRes.docs.map(x => convertClaimAlertDoc(x, Stringify)).map(removeCouchDBDetails),
     addressMappings: addressMappingsToReturn,
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),

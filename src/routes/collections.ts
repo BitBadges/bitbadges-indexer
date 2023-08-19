@@ -31,7 +31,7 @@ import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoing
  */
 type CollectionQueryOptions = ({ collectionId: NumberType } & GetMetadataForCollectionRequestBody & GetAdditionalCollectionDetailsRequestBody);
 
-export async function executeAdditionalCollectionQueries(baseCollections: CollectionDoc<JSPrimitiveNumberType>[], collectionQueries: CollectionQueryOptions[]) {
+export async function executeAdditionalCollectionQueries(req: Request, baseCollections: CollectionDoc<JSPrimitiveNumberType>[], collectionQueries: CollectionQueryOptions[]) {
   const promises = [];
   const collectionResponses: BitBadgesCollection<JSPrimitiveNumberType>[] = [];
 
@@ -475,7 +475,7 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
       const idx = getCurrentValueIdxForTimeline(_managerTimeline);
       if (idx == -1n) continue;
       const manager = collectionRes.managerTimeline[Number(idx)].manager;
-      collectionRes.managerInfo = manager ? await getAccountByAddress(manager) : convertBitBadgesUserInfo(BLANK_USER_INFO, Stringify);
+      collectionRes.managerInfo = manager ? await getAccountByAddress(req, manager) : convertBitBadgesUserInfo(BLANK_USER_INFO, Stringify);
 
       // if (managerInfo) {
       //   collectionRes.managerInfo = await convertToBitBadgesUserInfo([managerInfo], [cosmosAccountDetails])[0];
@@ -485,18 +485,18 @@ export async function executeAdditionalCollectionQueries(baseCollections: Collec
   return collectionResponses;
 }
 
-export async function executeCollectionsQuery(collectionQueries: CollectionQueryOptions[]) {
+export async function executeCollectionsQuery(req: Request, collectionQueries: CollectionQueryOptions[]) {
   const collectionsResponse = await COLLECTIONS_DB.fetch({ keys: collectionQueries.map((query) => `${query.collectionId.toString()}`) }, { include_docs: true });
   const baseCollections = getDocsFromNanoFetchRes(collectionsResponse);
 
-  return await executeAdditionalCollectionQueries(baseCollections, collectionQueries);
+  return await executeAdditionalCollectionQueries(req, baseCollections, collectionQueries);
 }
 
 export const getCollectionById = async (req: Request, res: Response<GetCollectionRouteResponse<NumberType>>) => {
   try {
     const reqBody = req.body as GetCollectionByIdRouteRequestBody;
 
-    const collectionsReponse = await executeCollectionsQuery([{
+    const collectionsReponse = await executeCollectionsQuery(req, [{
       collectionId: BigInt(req.params.collectionId),
       metadataToFetch: reqBody.metadataToFetch,
       viewsToFetch: reqBody.viewsToFetch,
@@ -538,7 +538,7 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
     }
 
     const reqBody = req.body as GetCollectionBatchRouteRequestBody;
-    const collectionResponses = await executeCollectionsQuery(reqBody.collectionsToFetch);
+    const collectionResponses = await executeCollectionsQuery(req, reqBody.collectionsToFetch);
     return res.status(200).send({
       collections: collectionResponses
     });

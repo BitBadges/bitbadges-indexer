@@ -1,6 +1,6 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase } from "bitbadgesjs-utils";
-import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
+import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
 
@@ -12,8 +12,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
-    promises.push(OFFLINE_MODE || !fetchName ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.address));
-    promises.push(OFFLINE_MODE ? { amount: '1000', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
+    let isMint = accountInfos[i].cosmosAddress === 'Mint';
+    promises.push(isMint || OFFLINE_MODE || !fetchName ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.address));
+    promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
     promises.push(AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).then(() => true).catch((e) => {
       if (e.statusCode === 404) {
         return false;
@@ -49,6 +50,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       announcements: [],
       reviews: [],
       merkleChallenges: [],
+      claimAlerts: [],
       approvalsTrackers: [],
       views: {},
       //We don't want to return these to the user
@@ -225,6 +227,20 @@ export async function executeListsQuery(cosmosAddress: string, bookmark?: string
   });
 
   console.log(collectedRes);
+
+  return collectedRes;
+}
+
+export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: string) {
+  const collectedRes = await CLAIM_ALERTS_DB.partitionedFind(cosmosAddress, {
+    selector: {
+      "createdTimestamp": {
+        "$gt": null,
+      }
+    },
+    sort: ["createdTimestamp"],
+    bookmark: bookmark ? bookmark : undefined,
+  });
 
   return collectedRes;
 }

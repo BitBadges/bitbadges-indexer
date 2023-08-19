@@ -1,10 +1,11 @@
+import { AddressMappingDoc, AddressMappingWithMetadata, BitBadgesCollection, GetBrowseCollectionsRouteResponse, JSPrimitiveNumberType, Metadata, NumberType, Stringify, convertMetadata } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
-import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { serializeError } from "serialize-error";
-import { AddressMappingDoc, AddressMappingWithMetadata, BitBadgesCollection, GetBrowseCollectionsRouteResponse, JSPrimitiveNumberType, Metadata, NumberType, Stringify, convertMetadata } from "bitbadgesjs-utils";
-import { executeCollectionsQuery } from "./collections";
+import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { executeCollectionsQuery } from "./collections";
+import { getAccountByAddress } from "./users";
 
 export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
@@ -75,7 +76,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     });
 
 
-    const collections = await executeCollectionsQuery([
+    const collections = await executeCollectionsQuery(req, [
       ...latestCollections.docs,
       ...urisForCollectionQuery.docs,
     ].map(doc => {
@@ -132,13 +133,35 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     }
 
-    console.log(addressMappingsToReturn);
+    const profiles = await PROFILES_DB.find({
+      selector: {
+        "profilePicUrl": {
+          "$gt": null,
+        }
+      },
+      limit: 25
+    });
+
+    const promises = [];
+    for (const profile of profiles.docs) {
+      promises.push(getAccountByAddress(req, profile._id, {
+        viewsToFetch: [{
+          viewKey: 'badgesCollected',
+          bookmark: '',
+        }],
+      }));
+    }
+
+    const allAccounts = await Promise.all(promises);
+
+
+
 
 
     return res.status(200).send({
       collections: {
         // 'featured': collections,
-        'latest': latestCollections.docs.map(x => collections.find(y => y.collectionId === x._id)).filter(x => x) as BitBadgesCollection<NumberType>[],
+        'latest': latestCollections.docs.map(x => collections.find(y => y.collectionId.toString() === x._id.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
         'attendance': attendanceCollections.docs.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
           attendanceCollections.docs.map(x => x._id).includes(x.collectionMetadata.uri)
         ))).filter(x => x) as BitBadgesCollection<NumberType>[],
@@ -151,7 +174,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
         'latest': addressMappingsToReturn,
       },
       profiles: {
-        'latest': [],
+        'featured': allAccounts.map(x => removeCouchDBDetails(x)),
       },
     });
   } catch (e) {

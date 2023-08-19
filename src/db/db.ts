@@ -1,5 +1,5 @@
 import { JSPrimitiveNumberType, NumberType } from 'bitbadgesjs-proto';
-import { convertAddressMappingDoc, AccountDoc, AccountInfoBase, ActivityInfoBase, AddressMappingDoc, AirdropDoc, AirdropInfoBase, AnnouncementDoc, AnnouncementInfoBase, ApprovalsTrackerDoc, BalanceDoc, BalanceInfoBase, CollectionDoc, CollectionInfoBase, ErrorDoc, FetchDoc, FetchInfoBase, IPFSTotalsDoc, IPFSTotalsInfoBase, MerkleChallengeDoc, MerkleChallengeInfoBase, NumberifyIfPossible, PasswordDoc, PasswordInfoBase, ProfileDoc, ProfileInfoBase, QueueDoc, QueueInfoBase, RefreshDoc, RefreshInfoBase, ReviewDoc, ReviewInfoBase, StatusDoc, StatusInfoBase, TransferActivityDoc, TransferActivityInfoBase, convertAccountDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertFetchDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc } from "bitbadgesjs-utils";
+import { convertAddressMappingDoc, AccountDoc, AccountInfoBase, ActivityInfoBase, AddressMappingDoc, AirdropDoc, AirdropInfoBase, AnnouncementDoc, AnnouncementInfoBase, ApprovalsTrackerDoc, BalanceDoc, BalanceInfoBase, CollectionDoc, CollectionInfoBase, ErrorDoc, FetchDoc, FetchInfoBase, IPFSTotalsDoc, IPFSTotalsInfoBase, MerkleChallengeDoc, MerkleChallengeInfoBase, NumberifyIfPossible, PasswordDoc, PasswordInfoBase, ProfileDoc, ProfileInfoBase, QueueDoc, QueueInfoBase, RefreshDoc, RefreshInfoBase, ReviewDoc, ReviewInfoBase, StatusDoc, StatusInfoBase, TransferActivityDoc, TransferActivityInfoBase, convertAccountDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertFetchDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc, ClaimAlertDoc, convertClaimAlertDoc } from "bitbadgesjs-utils";
 import { config } from "dotenv";
 import Nano from "nano";
 
@@ -12,7 +12,7 @@ interface ApiKeyDoc {
   lastRequest: number;
 }
 
-export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc;
+export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T>
 
 export const API_KEYS_DB = nano.db.use<ApiKeyDoc>('api-keys');
 export const TRANSFER_ACTIVITY_DB = nano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
@@ -33,6 +33,7 @@ export const ANNOUNCEMENTS_DB = nano.db.use<AnnouncementDoc<JSPrimitiveNumberTyp
 export const REVIEWS_DB = nano.db.use<ReviewDoc<JSPrimitiveNumberType>>('reviews');
 export const ADDRESS_MAPPINGS_DB = nano.db.use<AddressMappingDoc<JSPrimitiveNumberType>>('address-mappings');
 export const APPROVALS_TRACKER_DB = nano.db.use<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers');
+export const CLAIM_ALERTS_DB = nano.db.use<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
 
@@ -86,6 +87,8 @@ export async function convertDocsToStoreInDb(db: Nano.DocumentScope<BitBadgesDoc
       convertedDoc = convertApprovalsTrackerDoc(doc as ApprovalsTrackerDoc<NumberType>, NumberifyIfPossible);
     } else if (db.config.db === API_KEYS_DB.config.db) {
       convertedDoc = doc as ApiKeyDoc;
+    } else if (db.config.db === CLAIM_ALERTS_DB.config.db) {
+      convertedDoc = convertClaimAlertDoc(doc as ClaimAlertDoc<NumberType>, NumberifyIfPossible);
     }
 
     convertedDocs.push(convertedDoc as BitBadgesDocumentBase<JSPrimitiveNumberType> & Nano.Document);

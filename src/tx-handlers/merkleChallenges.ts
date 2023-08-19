@@ -1,6 +1,6 @@
-import { CollectionDoc, DocsCache, StatusDoc } from "bitbadgesjs-utils";
+import { CollectionDoc, DocsCache, StatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils";
 import nano from "nano";
-import { PASSWORDS_DB, insertToDB } from "../db/db";
+import { CLAIM_ALERTS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
 import { getMerkleChallengeIdForQueueDb, pushMerkleChallengeFetchToQueue } from "../metadata-queue";
 import { getLoadBalancerId } from "../utils/loadBalancer";
 
@@ -56,6 +56,25 @@ export const handleMerkleChallenges = async (docs: DocsCache, collectionDoc: Col
                       docClaimedByCollection: true,
                       collectionId: collectionDoc.collectionId.toString(),
                     });
+
+
+                    if (merkleChallenge.useCreatorAddressAsLeaf) {
+                      if (doc.challengeDetails?.leavesDetails.isHashed == false) {
+                        const addresses = doc.challengeDetails?.leavesDetails.leaves.map(leaf => convertToCosmosAddress(leaf));
+                        const orderMatters = merkleChallenge.useLeafIndexForTransferOrder == true;
+
+                        let idx = 0;
+                        for (const address of addresses) {
+                          await insertToDB(CLAIM_ALERTS_DB, {
+                            _id: `${address}:${status.block.height}-${status.block.txIndex}-${idx}`,
+                            createdTimestamp: status.block.timestamp,
+                            collectionId: collectionDoc.collectionId.toString(),
+                            message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${!!orderMatters && `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}`}`,
+                          });
+                          idx++;
+                        }
+                      }
+                    }
                   }
                 }
               }
