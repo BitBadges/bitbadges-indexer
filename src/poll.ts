@@ -4,6 +4,7 @@ import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovedTransfers, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
+import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx'
 import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertStatusDoc } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
@@ -18,6 +19,7 @@ import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
 import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
 import { handleMsgUpdateUserApprovedTransfers } from "./tx-handlers/handleMsgUpdateUserApprovedTransfers"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
+import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 
 
 const pollIntervalMs = 1_000
@@ -292,7 +294,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       }
     }
   }
-
+  // console.log(decodedTx.body);
 
   for (const message of decodedTx.body.messages) {
     const typeUrl = message.typeUrl;
@@ -319,7 +321,16 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const newUpdateUserApprovedTransfersMsg = convertFromProtoToMsgUpdateUserApprovedTransfers(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers.deserialize(value))
         await handleMsgUpdateUserApprovedTransfers(newUpdateUserApprovedTransfersMsg, status, docs);
         break;
+      case "/cosmos.bank.v1beta1.MsgSend":
+        const newMsgSend = bank.cosmos.bank.v1beta1.MsgSend.deserialize(value);
+        const fromAddress = newMsgSend.toObject().from_address;
+        const toAddress = newMsgSend.toObject().to_address;
+        if (fromAddress && fromAddress != "") await handleNewAccountByAddress(fromAddress, docs)
+        if (toAddress && toAddress != "") await handleNewAccountByAddress(toAddress, docs)
+
       default:
+
+
         break;
     }
   }

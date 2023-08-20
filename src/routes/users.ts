@@ -6,7 +6,7 @@ import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
-import { ACCOUNTS_DB, FETCHES_DB, PROFILES_DB, insertToDB } from "../db/db";
+import { FETCHES_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { provider } from "../utils/ensResolvers";
@@ -100,40 +100,24 @@ export const getAccountByAddress = async (req: Request, address: string, fetchOp
 }
 
 export const getAccountByUsername = async (req: Request, username: string, fetchOptions?: AccountFetchOptions) => {
-  const accountRes = await ACCOUNTS_DB.find({
+  const profilesRes = await PROFILES_DB.find({
     selector: {
       username: { "$eq": username },
     },
     limit: 1,
   });
 
-  if (accountRes.docs.length == 0) {
+  if (profilesRes.docs.length == 0) {
     return Promise.reject('No doc with username found');
   }
 
-  const accountDoc = accountRes.docs[0];
+  const profileDoc = profilesRes.docs[0];
 
-  let accountInfo: AccountInfoBase<JSPrimitiveNumberType> = accountDoc;
-  let fetchSequence = fetchOptions?.fetchSequence;
-  if (fetchSequence) {
-    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(accountDoc.cosmosAddress);
-    if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
-    accountInfo = {
-      ...cleanedCosmosAccountInfo,
-      ...accountDoc
-    };
-  }
+  //TODO: Readd fetch sequence option
+  // let accountInfo = await ACCOUNTS_DB.get(`${profileDoc._id}`).catch(catch404);
+  const accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(profileDoc._id);
+  if (!accountInfo) throw new Error('Account not found'); // For TS, should never happen
 
-  let profileDoc: ProfileInfoBase<JSPrimitiveNumberType> | undefined = undefined;
-  try {
-    profileDoc = await PROFILES_DB.get(`${accountInfo.cosmosAddress}`);
-  } catch (e) {
-    if (e.statusCode !== 404) {
-      throw e;
-    } else {
-      profileDoc = {}
-    }
-  }
 
   let fetchName = true;
   if (fetchOptions?.noExternalCalls) {
@@ -387,6 +371,14 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
           hasMore: addressMappingsRes.docs.length === 25
         }
       } : undefined,
+      'latestClaimAlerts': reqBody.viewsToFetch.find(x => x.viewKey === 'latestClaimAlerts') ? {
+        ids: addressMappingsRes.docs.map(x => x._id),
+        type: 'Claim Alerts',
+        pagination: {
+          bookmark: claimAlertsRes.bookmark ? claimAlertsRes.bookmark : '',
+          hasMore: claimAlertsRes.docs.length === 25
+        }
+      } : undefined,
     }
   }
 }
@@ -406,6 +398,27 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       }
     }
 
+    if (reqBody.username) {
+      //No . in username allowed
+      //Do standard username regex
+      if (!/^[a-zA-Z0-9_]{1,15}$/.test(reqBody.username)) {
+        return res.status(400).send({
+          message: 'Username must be 1 to 15 characters long and can only contain letters, numbers, and underscores.'
+        })
+      }
+
+      const doc = await PROFILES_DB.find({
+        selector: {
+          username: { "$eq": reqBody.username },
+        },
+        limit: 1,
+      });
+      if (doc.docs.length > 0) {
+        return res.status(400).send({
+          message: 'Username already taken'
+        })
+      }
+    }
 
     const newAccountInfo: ProfileDoc<JSPrimitiveNumberType> = {
       ...accountInfo,
@@ -420,6 +433,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       hiddenBadges: reqBody.hiddenBadges ?? accountInfo.hiddenBadges,
       customPages: reqBody.customPages ?? accountInfo.customPages,
       profilePicUrl: reqBody.profilePicUrl ?? accountInfo.profilePicUrl,
+      username: reqBody.username ?? accountInfo.username,
     };
 
     await insertToDB(PROFILES_DB, newAccountInfo);

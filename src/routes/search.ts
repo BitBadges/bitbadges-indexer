@@ -4,7 +4,7 @@ import { AccountInfo, AddressMappingWithMetadata, GetSearchRouteResponse, MINT_A
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
+import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
 import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
@@ -46,12 +46,30 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       },
     }
 
+    const usernameRes = await PROFILES_DB.find({
+      selector: {
+        username: {
+          "$regex": `(?i)${searchValue}`
+        }
+      }
+    });
+
+    console.log(usernameRes);
+
+    const cosmosAddresses = usernameRes.docs.map((doc) => doc._id);
+
     const selectorCriteria: any[] = [
       { "address": { "$regex": `(?i)${searchValue}` } },
+      { "cosmosAddress": { "$in": cosmosAddresses } },
+
       // { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
       // { "_id": { "$regex": `(?i)${convertToCosmosAddress(searchValue)}:` } },
-      { "username": { "$regex": `(?i)${searchValue}` } }
+      // { "username": { "$regex": `(?i)${searchValue}` } }
     ];
+
+    console.log(selectorCriteria);
+
+
 
     if (resolvedEnsAddress) {
       selectorCriteria.push({ "address": { "$regex": `(?i)${resolvedEnsAddress}` } });
@@ -67,6 +85,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         "$or": selectorCriteria,
       },
     }
+
+
 
     const addressMappingsQuery = {
       selector: {
@@ -85,6 +105,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const metadataResponseDocs = results[0].docs;
     const accountsResponseDocs = results[1].docs;
     const addressMappingsResponseDocs = results[2].docs;
+
+    console.log(accountsResponseDocs);
 
     const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [...accountsResponseDocs.map(removeCouchDBDetails)];
     if (isAddressValid(searchValue)
@@ -155,7 +177,17 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       return { collectionId: doc.collectionId };
     }));
 
-    const accounts = (await convertToBitBadgesUserInfo(allAccounts.map(() => { return {} }), allAccounts)).map((account) => convertBitBadgesUserInfo(account, Stringify));
+    const profileDocs = [];
+    for (const account of allAccounts) {
+      const doc = await PROFILES_DB.get(account.cosmosAddress).catch(catch404);
+      if (doc) {
+        profileDocs.push(doc);
+      } else {
+        profileDocs.push({})
+      }
+    }
+
+    const accounts = (await convertToBitBadgesUserInfo(profileDocs, allAccounts)).map((account) => convertBitBadgesUserInfo(account, Stringify));
 
 
     let addressMappingsToReturn: AddressMappingWithMetadata<string>[] = [...addressMappingsResponseDocs.map(x => removeCouchDBDetails(x))];

@@ -119,12 +119,14 @@ export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res
       // return { code: challengeDetails.leavesDetails.preimages[currCodeIdx] };
     });
 
+    console.log(returnValue);
+
     return res.status(200).send(returnValue);
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting codes. Please try again later."
+      message: "Error getting codes. Please try again later. " + e.message,
     });
   }
 }
