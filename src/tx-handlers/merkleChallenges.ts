@@ -69,7 +69,7 @@ export const handleMerkleChallenges = async (docs: DocsCache, collectionDoc: Col
                             _id: `${address}:${status.block.height}-${status.block.txIndex}-${idx}`,
                             createdTimestamp: status.block.timestamp,
                             collectionId: collectionDoc.collectionId.toString(),
-                            message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${!!orderMatters && `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}`}`,
+                            message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`,
                           });
                           idx++;
                         }

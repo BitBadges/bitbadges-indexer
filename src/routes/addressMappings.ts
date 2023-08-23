@@ -8,7 +8,7 @@ import { getStatus } from "../db/status";
 
 export const createAddressMappings = async (expressReq: Request, res: Response<CreateAddressMappingsRouteResponse<bigint>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest;
+    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as CreateAddressMappingsRouteRequestBody;
     const mappings = reqBody.addressMappings;
     const cosmosAddress = req.session.cosmosAddress

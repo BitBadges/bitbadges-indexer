@@ -7,7 +7,7 @@ import { getStatus } from "../db/status";
 
 export const addAnnouncement = async (expressReq: Request, res: Response<AddAnnouncementRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest;
+    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as AddAnnouncementRouteRequestBody;
     const collectionId = BigInt(req.params.collectionId);
 

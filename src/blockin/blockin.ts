@@ -1,8 +1,7 @@
-// import AlgoDriver from 'blockin-algo-driver';
-import CosmosDriver from './CosmosDriver';
-import EthDriver from './EthDriver'; //TODO: get from npm modules
+import EthDriver from 'blockin-eth-driver';
+import CosmosDriver from 'blockin-cosmos-driver';
 
-const ethDriver = new EthDriver('eth');
+const ethDriver = new EthDriver('0x1', undefined);
 const cosmosDriver = new CosmosDriver('bitbadges_1-1');
 
 export const getChainDriver = (chain: string) => {

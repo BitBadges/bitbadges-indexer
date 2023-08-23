@@ -22,11 +22,11 @@ const faucetMutex = new Mutex();
 
 export const getTokensFromFaucet = async (expressReq: Request, res: Response<GetTokensFromFaucetRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest;
+    const req = expressReq as AuthenticatedRequest<NumberType>;
 
     // acquire the mutex for the documentMutexes map
     const returnValue = await faucetMutex.runExclusive(async () => {
-      const req = expressReq as AuthenticatedRequest;
+      const req = expressReq as AuthenticatedRequest<NumberType>;
       if (!req.session.blockin || !req.session.cosmosAddress) {
         return { authenticated: false, message: 'You must Sign In w/ Ethereum.' };
       }

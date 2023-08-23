@@ -5,9 +5,9 @@ import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { PASSWORDS_DB, insertToDB } from "../db/db";
-import { AES } from "crypto-js";
+import CryptoJS from "crypto-js";
 
-const CryptoJS = require("crypto-js");
+const { AES } = CryptoJS;
 
 // create a map to store the document-specific mutexes
 const documentMutexes = new Map();
@@ -46,7 +46,7 @@ export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res
 
 
     const returnValue = await documentMutex.runExclusive(async () => {
-      const req = expressReq as AuthenticatedRequest;
+      const req = expressReq as AuthenticatedRequest<NumberType>;
       if (!req.session.blockin || !req.session.cosmosAddress) {
         return Promise.reject({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
       }

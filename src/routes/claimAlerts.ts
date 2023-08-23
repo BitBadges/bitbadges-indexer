@@ -7,8 +7,7 @@ import { CLAIM_ALERTS_DB, insertToDB } from "../db/db";
 
 export const sendClaimAlert = async (expressReq: Request, res: Response<SendClaimAlertsRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest
-    const reqBody = req.body as SendClaimAlertsRouteRequestBody<NumberType>;
+    const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as SendClaimAlertsRouteRequestBody<NumberType>;
 
     const isManager = await checkIfManager(req, reqBody.collectionId);
     if (!isManager) {

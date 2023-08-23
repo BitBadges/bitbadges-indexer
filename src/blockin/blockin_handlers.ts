@@ -5,39 +5,39 @@ import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
-import { COLLECTIONS_DB, IPFS_TOTALS_DB } from '../db/db';
+import { COLLECTIONS_DB, insertToDB, IPFS_TOTALS_DB, PROFILES_DB } from '../db/db';
 import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
 import { catch404 } from '../utils/couchdb-utils';
 
-export interface BlockinSession extends Session {
+export interface BlockinSession<T extends NumberType> extends Session {
   nonce: string | null;
   blockin: string | null;
-  blockinParams: ChallengeParams | null;
+  blockinParams: ChallengeParams<T> | null;
   cosmosAddress: string | null;
   address: string | null;
   ipfsTotal: number | null;
 }
 
-export interface BlockinSessionAuthenticated extends BlockinSession {
+export interface BlockinSessionAuthenticated<T extends NumberType> extends BlockinSession<T> {
   nonce: string;
   blockin: string;
-  blockinParams: ChallengeParams;
+  blockinParams: ChallengeParams<T>;
   cosmosAddress: string;
   address: string;
   ipfsTotal: number;
 }
 
-export interface AuthenticatedRequest extends Request {
-  session: BlockinSessionAuthenticated
+export interface AuthenticatedRequest<T extends NumberType> extends Request {
+  session: BlockinSessionAuthenticated<T>;
 }
 
-export function checkIfAuthenticated(req: AuthenticatedRequest) {
+export function checkIfAuthenticated(req: AuthenticatedRequest<NumberType>) {
   return req.session.blockin && req.session.nonce && req.session.blockinParams && req.session.cosmosAddress && req.session.address;
 }
 
 
-export async function checkIfManager(req: AuthenticatedRequest, collectionId: NumberType) {
+export async function checkIfManager(req: AuthenticatedRequest<NumberType>, collectionId: NumberType) {
   if (!checkIfAuthenticated(req)) return false;
 
   const collectionIdStr = BigInt(collectionId).toString();
@@ -63,7 +63,7 @@ export async function returnUnauthorized(res: Response<ErrorResponse>, managerRo
 
 export async function getChallenge(expressReq: Request, res: Response<GetSignInChallengeRouteResponse<NumberType>>) {
   try {
-    const req = expressReq as AuthenticatedRequest;
+    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetSignInChallengeRouteRequestBody;
 
     const chainDriver = getChainDriver(reqBody.chain);
@@ -78,6 +78,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
     req.session.cosmosAddress = cosmosAddress;
     req.session.address = reqBody.address;
     req.session.save();
+    console.log(req.session.nonce);
 
     const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 24;
     if (isNaN(hours)) {
@@ -91,16 +92,18 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
     const challengeParams = {
       domain: 'https://bitbadges.io',
-      statement: `BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet. You will stay signed in for ${hours} hours.`,
+      statement: `BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet.`,
       address: reqBody.address,
       uri: 'https://bitbadges.io',
       nonce: req.session.nonce,
       expirationDate: iso8601,
       notBefore: undefined,
-      resources: []
+      resources: [],
+      assets: [],
     }
 
     const blockinMessage = await createChallenge(challengeParams, reqBody.chain);
+    console.log(blockinMessage);
 
     return res.status(200).json({
       nonce: req.session.nonce,
@@ -117,7 +120,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 }
 
 export async function checkifSignedInHandler(expressReq: Request, res: Response<CheckSignInStatusResponse<NumberType>>) {
-  const req = expressReq as AuthenticatedRequest;
+  const req = expressReq as AuthenticatedRequest<NumberType>;
 
   if (!checkIfAuthenticated(req)) {
     return res.status(200).send({ signedIn: false });
@@ -126,9 +129,9 @@ export async function checkifSignedInHandler(expressReq: Request, res: Response<
 }
 
 export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse<NumberType>>) {
-  const req = expressReq as AuthenticatedRequest;
+  const req = expressReq as AuthenticatedRequest<NumberType>;
 
-  let session = req.session as BlockinSession | null;
+  let session = req.session as BlockinSession<NumberType> | null;
   if (session) {
     session.blockin = null;
     session.nonce = null;
@@ -146,7 +149,7 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
 }
 
 export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
-  const req = expressReq as AuthenticatedRequest;
+  const req = expressReq as AuthenticatedRequest<NumberType>;
 
   const body = parse(JSON.stringify(req.body)) as VerifySignInRouteRequestBody;
 
@@ -156,11 +159,15 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
   try {
     const generatedEIP4361ChallengeStr: string = await chainDriver.parseChallengeStringFromBytesToSign(body.originalBytes);
 
-    const challenge: ChallengeParams = constructChallengeObjectFromString(generatedEIP4361ChallengeStr);
-
+    const challenge: ChallengeParams<NumberType> = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
+    console.log(challenge);
     const verificationResponse = await verifyChallenge(
       body.originalBytes,
-      body.signatureBytes
+      body.signatureBytes,
+      BigIntify,
+      {
+        expectedChallengeParams: {},
+      }
     );
 
     if (challenge.nonce !== req.session.nonce) {
@@ -169,6 +176,13 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
         message: 'Invalid nonce.',
       });
     }
+
+    // if (req.session.blockin !== generatedEIP4361ChallengeStr) {
+    //   console.log(req.session.blockin, "does not equal", generatedEIP4361ChallengeStr);
+    //   return res.status(422).json({
+    //     message: 'Challenge was not generated by this server.',
+    //   });
+    // }
 
     if (convertToCosmosAddress(challenge.address) !== req.session.cosmosAddress) {
       console.log(req.session.cosmosAddress, "does not equal", challenge.address);
@@ -187,13 +201,20 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     const doc = _doc ? convertIPFSTotalsDoc(_doc, Numberify) : null;
     req.session.ipfsTotal = doc ? doc.bytesUploaded : 0;
 
+    const profileDoc = await PROFILES_DB.get(req.session.cosmosAddress).catch(catch404);
+    await insertToDB(PROFILES_DB, {
+      ...profileDoc,
+      _id: req.session.cosmosAddress,
+      latestSignedInChain: body.chain,
+    });
+
     req.session.save();
 
     return res.status(200).json({ success: true, successMessage: verificationResponse.message });
   } catch (err) {
     console.log(err);
 
-    let session = req.session as BlockinSession | null;
+    let session = req.session as BlockinSession<NumberType> | null;
     if (session) {
       session.blockin = null;
       session.nonce = null;
@@ -206,12 +227,12 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     }
     req.session.save();
 
-    return res.status(401).json({ success: false, message: `${err}` });
+    return res.status(401).json({ success: false, message: `${err.message}` });
   }
 }
 
 export async function authorizeBlockinRequest(expressReq: Request, res: Response<ErrorResponse>, next: NextFunction) {
-  const req = expressReq as AuthenticatedRequest;
+  const req = expressReq as AuthenticatedRequest<NumberType>;
 
   if (!checkIfAuthenticated(req)) return returnUnauthorized(res);
   return next();

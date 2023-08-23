@@ -5,15 +5,14 @@ import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
 import { PASSWORDS_DB } from "../db/db";
-import { AES } from "crypto-js";
+import CryptoJS from "crypto-js";
 
-const CryptoJS = require("crypto-js");
+const { AES } = CryptoJS;
 
 
 export const getAllCodesAndPasswords = async (expressReq: Request, res: Response<GetAllCodesAndPasswordsRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest
-    const collectionId = Number(req.params.collectionId);
+    const req = expressReq as AuthenticatedRequest<NumberType>; const collectionId = Number(req.params.collectionId);
 
     const isManager = await checkIfManager(req, collectionId);
     if (!isManager) return returnUnauthorized(res, true);

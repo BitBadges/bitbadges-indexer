@@ -37,6 +37,7 @@ export const getAccountByAddress = async (req: Request, address: string, fetchOp
         ...cleanedCosmosAccountInfo,
         chain: cleanedCosmosAccountInfo.chain === SupportedChain.UNKNOWN ? getChainForAddress(address) : cleanedCosmosAccountInfo.chain,
       };
+
       //TODO: Switch back to this. Was failing in the case we airdropped (i.e. recipient was address) thus had an account number but was not in ACCOUNTS_DB yet
       // accountInfo = await ACCOUNTS_DB.get(`${convertToCosmosAddress(address)}`);
     } catch (e) {
@@ -46,8 +47,15 @@ export const getAccountByAddress = async (req: Request, address: string, fetchOp
         if (isAddressValid(address)) {
           console.log("Account not found on chain so returning empty account");
           try {
-            ethTxCount = await provider.getTransactionCount(ethAddress);
-            console.log(ethTxCount);
+            const profileDoc = await PROFILES_DB.get(`${convertToCosmosAddress(address)}`).catch(catch404);
+            if (profileDoc && profileDoc.latestSignedInChain) {
+              if (profileDoc.latestSignedInChain === SupportedChain.ETH) {
+                ethTxCount = 1 // just posititve so it triggers the ETH conversion
+              }
+            } else {
+              ethTxCount = await provider.getTransactionCount(ethAddress);
+              console.log(ethTxCount);
+            }
           } catch (e) {
             console.log("Error fetching tx count", e);
           }
@@ -261,7 +269,7 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
 
   if (claimAlertsBookmark !== undefined) {
     console.log("CLAIM ALERTS", claimAlertsBookmark);
-    const authReq = req as AuthenticatedRequest;
+    const authReq = req as AuthenticatedRequest<NumberType>;
     console.log(authReq.session);
     if (authReq.session && checkIfAuthenticated(authReq)) {
       if (authReq.session.cosmosAddress !== cosmosAddress) {
@@ -386,8 +394,7 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
 
 export const updateAccountInfo = async (expressReq: Request, res: Response<UpdateAccountInfoRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest
-    const reqBody = req.body as UpdateAccountInfoRouteRequestBody<JSPrimitiveNumberType>
+    const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as UpdateAccountInfoRouteRequestBody<JSPrimitiveNumberType>
 
     const cosmosAddress = req.session.cosmosAddress;
     let accountInfo: ProfileDoc<JSPrimitiveNumberType> | undefined = await PROFILES_DB.get(cosmosAddress).catch(catch404);

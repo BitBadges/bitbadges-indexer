@@ -5,11 +5,13 @@ import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
 import { addBalancesToIpfs, addMerkleChallengeToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
 import { cleanBalances } from "../utils/dataCleaners";
-import { AES } from "crypto-js";
+import CryptoJS from "crypto-js";
+
+const { AES } = CryptoJS;
 
 const IPFS_UPLOAD_BYTES_LIMIT = 100000000; //100MB
 
-export const updateIpfsTotals = async (address: string, size: number, req: AuthenticatedRequest) => {
+export const updateIpfsTotals = async (address: string, size: number, req: AuthenticatedRequest<NumberType>) => {
   let ipfsTotalsDoc = undefined;
   try {
     const _ipfsTotalsDoc = await IPFS_TOTALS_DB.get(address);
@@ -38,7 +40,7 @@ export const updateIpfsTotals = async (address: string, size: number, req: Authe
 }
 
 export const addBalancesToIpfsHandler = async (expressReq: Request, res: Response<AddBalancesToIpfsRouteResponse<NumberType>>) => {
-  const req = expressReq as AuthenticatedRequest;
+  const req = expressReq as AuthenticatedRequest<NumberType>;
   const reqBody = req.body as AddBalancesToIpfsRouteRequestBody;
 
   if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
@@ -72,7 +74,7 @@ export const addBalancesToIpfsHandler = async (expressReq: Request, res: Respons
 }
 
 export const addMetadataToIpfsHandler = async (expressReq: Request, res: Response<AddMetadataToIpfsRouteResponse<NumberType>>) => {
-  const req = expressReq as AuthenticatedRequest;
+  const req = expressReq as AuthenticatedRequest<NumberType>;
   const reqBody = req.body as AddMetadataToIpfsRouteRequestBody;
 
   if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
@@ -102,7 +104,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
 }
 
 export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: Response<AddMerkleChallengeToIpfsRouteResponse<NumberType>>) => {
-  const req = expressReq as AuthenticatedRequest;
+  const req = expressReq as AuthenticatedRequest<NumberType>;
   const reqBody = req.body as AddMerkleChallengeToIpfsRouteRequestBody;
 
   if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {

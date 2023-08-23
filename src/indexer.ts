@@ -30,12 +30,10 @@ import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
 import rateLimit from 'express-rate-limit'
 import { ErrorResponse } from 'bitbadgesjs-utils'
 import { API_KEYS_DB, insertToDB } from './db/db'
-
-var responseTime = require('response-time')
-
-var fs = require("fs");
-var https = require("https");
-const cors = require('cors');
+import responseTime from 'response-time';
+import cors from 'cors';
+import https from 'https';
+import fs from 'fs';
 
 export const OFFLINE_MODE = false;
 
@@ -157,7 +155,7 @@ app.use(expressSession({
   name: 'blockin',
   secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
   resave: true,
-  saveUninitialized: true,
+  saveUninitialized: false,
   cookie: { secure: true, sameSite: 'none' }
 }));
 

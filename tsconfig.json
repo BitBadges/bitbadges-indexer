@@ -14,7 +14,7 @@
         "esModuleInterop": true,
         "baseUrl": ".",
         "outDir": "build/dist",
-        "module": "esnext",
+        "module": "ESNext",
         "lib": ["es6", "dom"],
         "sourceMap": true,
         "allowJs": true,

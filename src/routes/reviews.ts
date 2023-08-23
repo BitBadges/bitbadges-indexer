@@ -9,7 +9,7 @@ import { getAccountByUsername } from "./users";
 
 export const deleteReview = async (expressReq: Request, res: Response<DeleteReviewRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest
+    const req = expressReq as AuthenticatedRequest<NumberType>;
 
     const reviewId = req.params.reviewId;
     const reviewDoc = await REVIEWS_DB.get(reviewId);
@@ -32,7 +32,7 @@ export const deleteReview = async (expressReq: Request, res: Response<DeleteRevi
 
 export const deleteAnnouncement = async (expressReq: Request, res: Response<DeleteAnnouncementRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest
+    const req = expressReq as AuthenticatedRequest<NumberType>;
 
     const announcementId = req.params.announcementId;
     const announcementDoc = await ANNOUNCEMENTS_DB.get(announcementId);
@@ -56,8 +56,7 @@ export const deleteAnnouncement = async (expressReq: Request, res: Response<Dele
 
 export const addReviewForCollection = async (expressReq: Request, res: Response<AddReviewForCollectionRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest
-    const reqBody = req.body as AddReviewForCollectionRouteRequestBody;
+    const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as AddReviewForCollectionRouteRequestBody;
 
     if (!reqBody.review || reqBody.review.length > 2048) {
       return res.status(400).send({ message: 'Review must be 1 to 2048 characters long.' });
@@ -104,8 +103,7 @@ export const addReviewForCollection = async (expressReq: Request, res: Response<
 
 export const addReviewForUser = async (expressReq: Request, res: Response<AddReviewForUserRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest
-    const reqBody = req.body as AddReviewForUserRouteRequestBody;
+    const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as AddReviewForUserRouteRequestBody;
 
     if (!reqBody.review || reqBody.review.length > 2048) {
       return res.status(400).send({ message: 'Review must be 1 to 2048 characters long.' });
