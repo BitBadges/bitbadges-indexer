@@ -11,7 +11,7 @@
     "eject": "react-scripts eject",
     "deploy": "ren .\\build\\index.html 200.html & surge .\\build",
     "indexer-dev": "npx ts-node src/indexer.ts",
-    "indexer": "node build/dist/indexer.js",
+    "indexer": "node --experimental-specifier-resolution=node build/dist/indexer.js",
     "setup": "npx ts-node src/setup.ts",
     "setup-and-run": "npm run setup && npm run indexer",
     "setup-and-run-bootstrap": "npm run setup && npm run bootstrap && npm run indexer",

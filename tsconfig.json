@@ -32,6 +32,7 @@
         "allowSyntheticDefaultImports": true,
         "downlevelIteration": true,
         "skipLibCheck": true,
+        
     },
     "ts-node": {
         "esm": true,
