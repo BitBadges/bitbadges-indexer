@@ -6,13 +6,13 @@ import { Numberify, createTxMsgTransferBadges, createTxMsgUpdateCollection, crea
 import { BroadcastMode, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-provider";
 import { BETANET_CHAIN_DETAILS, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { ethers } from "ethers";
+import fs from 'fs';
+import path from 'path';
+import env from 'dotenv';
+
+env.config();
+
 // import { connect } from '@wagmi/core'
-
-const fs = require('fs');
-const path = require('path');
-
-//require .env
-require('dotenv').config();
 
 async function main() {
   try {
