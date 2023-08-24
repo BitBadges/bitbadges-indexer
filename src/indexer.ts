@@ -154,7 +154,7 @@ app.use(responseTime())
 app.use(expressSession({
   name: 'blockin',
   secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
-  resave: true,
+  resave: false,
   saveUninitialized: false,
   cookie: { secure: true, sameSite: 'none' }
 }));

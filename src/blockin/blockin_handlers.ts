@@ -80,9 +80,9 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
       req.session.cosmosAddress = cosmosAddress;
       req.session.address = reqBody.address;
       req.session.save();
-      console.log(req.session.nonce);
+      console.log("New nonce generated");
     }
-
+    console.log(req.session.nonce);
     const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 24;
     if (isNaN(hours)) {
       return res.status(400).json({ message: 'Invalid hours' });
@@ -106,7 +106,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
     }
 
     const blockinMessage = await createChallenge(challengeParams, reqBody.chain);
-    console.log(blockinMessage);
+    // console.log(blockinMessage);
 
     return res.status(200).json({
       nonce: req.session.nonce,
