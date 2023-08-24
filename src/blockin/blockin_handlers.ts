@@ -69,16 +69,19 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
     const chainDriver = getChainDriver(reqBody.chain);
     setChainDriver(chainDriver);
 
-    req.session.nonce = generateNonce();
+
     const cosmosAddress = convertToCosmosAddress(reqBody.address);
     if (!cosmosAddress) {
       return res.status(400).json({ message: 'Invalid address' });
     }
 
-    req.session.cosmosAddress = cosmosAddress;
-    req.session.address = reqBody.address;
-    req.session.save();
-    console.log(req.session.nonce);
+    if (cosmosAddress !== req.session.cosmosAddress) {
+      req.session.nonce = generateNonce();
+      req.session.cosmosAddress = cosmosAddress;
+      req.session.address = reqBody.address;
+      req.session.save();
+      console.log(req.session.nonce);
+    }
 
     const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 24;
     if (isNaN(hours)) {
