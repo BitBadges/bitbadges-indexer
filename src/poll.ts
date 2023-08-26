@@ -19,6 +19,7 @@ import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollecti
 import { handleMsgUpdateUserApprovedTransfers } from "./tx-handlers/handleMsgUpdateUserApprovedTransfers"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
+import { fetchUrisFromQueue, purgeQueueDocs } from "./metadata-queue"
 
 
 const pollIntervalMs = 1_000
@@ -28,45 +29,45 @@ let outageTime: Date | undefined
 const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
 
 export const pollUris = async () => {
-  // try {
-  //   // We fetch initial status at beginning of block and do not write anything in DB until end of block
-  //   // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
-  //   const _status = await getStatus();
-  //   const status = convertStatusDoc(_status, BigIntify);
+  try {
+    // We fetch initial status at beginning of block and do not write anything in DB until end of block
+    // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
+    const _status = await getStatus();
+    const status = convertStatusDoc(_status, BigIntify);
 
 
-  //   let docs: DocsCache = {
-  //     accounts: {},
-  //     collections: {},
-  //     refreshes: {},
-  //     activityToAdd: [],
-  //     queueDocsToAdd: [],
-  //     merkleChallenges: {},
-  //     addressMappings: {},
-  //     approvalsTrackers: {},
-  //     balances: {},
-  //   };
+    let docs: DocsCache = {
+      accounts: {},
+      collections: {},
+      refreshes: {},
+      activityToAdd: [],
+      queueDocsToAdd: [],
+      merkleChallenges: {},
+      addressMappings: {},
+      approvalsTrackers: {},
+      balances: {},
+    };
 
-  //   await fetchUrisFromQueue(status.block.height);
+    await fetchUrisFromQueue(status.block.height);
 
-  //   await purgeQueueDocs();
+    await purgeQueueDocs();
 
-  //   //Right now, we are banking on all these DB updates succeeding together every time. 
-  //   //If there is a failure in the middle, it could be bad.
-  //   await flushCachedDocs(docs);
-  // } catch (e) {
-  //   //Log error to DB, unless it is a connection refused error
-  //   if (e && e.code !== 'ECONNREFUSED') {
-  //     console.error(e);
+    //Right now, we are banking on all these DB updates succeeding together every time. 
+    //If there is a failure in the middle, it could be bad.
+    await flushCachedDocs(docs);
+  } catch (e) {
+    //Log error to DB, unless it is a connection refused error
+    if (e && e.code !== 'ECONNREFUSED') {
+      console.error(e);
 
-  //     await ERRORS_DB.bulk({
-  //       docs: [{
-  //         error: e,
-  //         function: 'poll',
-  //       }]
-  //     });
-  //   }
-  // }
+      await ERRORS_DB.bulk({
+        docs: [{
+          error: e,
+          function: 'poll',
+        }]
+      });
+    }
+  }
 
   const newTimer = setTimeout(pollUris, uriPollIntervalMs) //TODO: We can probably just make this 1 ms and it'll just trigger upon completion of the last one.
   setTimer(newTimer);

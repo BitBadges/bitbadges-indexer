@@ -1,14 +1,15 @@
 
 import { cosmosToEth } from "bitbadgesjs-address-converter";
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
+import { CleanedCosmosAccountInformation } from "src/chain-client/queries";
 import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
 import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
-import { OFFLINE_MODE, client } from "../indexer";
-import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { client } from "../indexer";
+import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { provider } from "../utils/ensResolvers";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
@@ -16,75 +17,102 @@ import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoing
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
+async function getBatchAccountInformation(queries: { address: string, fetchOptions?: AccountFetchOptions }[]) {
+  const accountInfos: AccountInfoBase<JSPrimitiveNumberType>[] = [];
+  const addressesToFetchWithSequence = queries.filter(x => x.fetchOptions?.fetchSequence).map(x => x.address);
+  const addressesToFetchWithoutSequence = queries.filter(x => !x.fetchOptions?.fetchSequence).map(x => x.address);
+
+  const promises = [];
+  for (const address of addressesToFetchWithSequence) {
+    promises.push(client.badgesQueryClient?.badges.getAccountInfo(address));
+  }
+  if (addressesToFetchWithoutSequence.length > 0) promises.push(ACCOUNTS_DB.fetch({ keys: addressesToFetchWithoutSequence }, { include_docs: true }));
+  const results = await Promise.all(promises);
+
+  for (let i = 0; i < addressesToFetchWithSequence.length; i++) {
+    let result = results[i] as CleanedCosmosAccountInformation;
+    result = {
+      ...result,
+      chain: result.chain === SupportedChain.UNKNOWN ? getChainForAddress(addressesToFetchWithSequence[i]) : result.chain,
+    };
+    accountInfos.push(result);
+  }
+
+  if (addressesToFetchWithoutSequence.length > 0) {
+    const fetchResult = results[addressesToFetchWithSequence.length] as nano.DocumentFetchResponse<AccountDoc<JSPrimitiveNumberType>>;
+    const docs = getDocsFromNanoFetchRes(fetchResult, true);
+
+    const resolveChainPromises = [];
+    for (const address of addressesToFetchWithoutSequence) {
+      const doc = docs.find(x => x._id === convertToCosmosAddress(address));
+      if (doc) {
+        accountInfos.push(doc);
+      } else {
+        resolveChainPromises.push(async () => {
+          let ethTxCount = 0;
+          const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
+          if (isAddressValid(address)) {
+            try {
+              const profileDoc = await PROFILES_DB.get(`${convertToCosmosAddress(address)}`).catch(catch404);
+              if (profileDoc && profileDoc.latestSignedInChain) {
+                if (profileDoc.latestSignedInChain === SupportedChain.ETH) {
+                  ethTxCount = 1 // just posititve so it triggers the ETH conversion
+                }
+              } else {
+                ethTxCount = await provider.getTransactionCount(ethAddress);
+              }
+            } catch (e) {
+              console.log("Error fetching tx count", e);
+            }
+          }
+
+          return {
+            address: ethTxCount > 0 ? ethAddress : address,
+            sequence: "0",
+            accountNumber: -1,
+            cosmosAddress: convertToCosmosAddress(address),
+            chain: ethTxCount > 0 ? SupportedChain.ETH : getChainForAddress(address),
+            publicKey: '',
+          }
+        });
+      }
+    }
+
+    if (resolveChainPromises.length > 0) {
+      const resolvedChainResults = await Promise.all(resolveChainPromises.map(x => x()));
+      accountInfos.push(...resolvedChainResults);
+    }
+  }
+  return accountInfos;
+}
+
+async function getBatchProfileInformation(queries: { address: string, fetchOptions?: AccountFetchOptions }[]) {
+  const profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[] = [];
+  const addressesToFetch = queries.map(x => convertToCosmosAddress(x.address));
+
+  if (addressesToFetch.length === 0) return addressesToFetch.map(x => ({}));
+
+  const fetchResult = await PROFILES_DB.fetch({ keys: addressesToFetch }, { include_docs: true });
+  const docs = getDocsFromNanoFetchRes(fetchResult, true);
+
+  for (const address of addressesToFetch) {
+    const doc = docs.find(x => x._id === address);
+    if (doc) {
+      profileInfos.push(doc);
+    } else {
+      profileInfos.push({});
+    }
+  }
+
+  return profileInfos;
+}
+
+
+
 export const getAccountByAddress = async (req: Request, address: string, fetchOptions?: AccountFetchOptions) => {
   if (address === 'Mint') return convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify);
-
-  let accountInfo: AccountInfoBase<JSPrimitiveNumberType>;
-  if (!OFFLINE_MODE && fetchOptions?.fetchSequence) {
-    const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(address);
-    if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
-    accountInfo = {
-      ...cleanedCosmosAccountInfo,
-      chain: cleanedCosmosAccountInfo.chain === SupportedChain.UNKNOWN ? getChainForAddress(address) : cleanedCosmosAccountInfo.chain,
-
-    };
-  } else {
-    try {
-      // const cleanedCosmosAccountInfo = await client.badgesQueryClient?.badges.getAccountInfo(address);
-      // if (!cleanedCosmosAccountInfo) throw new Error('Account not found'); // For TS, should never happen
-      // accountInfo = {
-      //   ...cleanedCosmosAccountInfo,
-      //   chain: cleanedCosmosAccountInfo.chain === SupportedChain.UNKNOWN ? getChainForAddress(address) : cleanedCosmosAccountInfo.chain,
-      // };`
-
-      accountInfo = await ACCOUNTS_DB.get(`${convertToCosmosAddress(address)}`);
-    } catch (e) {
-      if (e.statusCode === 404) {
-        let ethTxCount = 0;
-        const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
-        if (isAddressValid(address)) {
-          // console.log("Account not found on chain so returning empty account");
-          try {
-            const profileDoc = await PROFILES_DB.get(`${convertToCosmosAddress(address)}`).catch(catch404);
-            if (profileDoc && profileDoc.latestSignedInChain) {
-              if (profileDoc.latestSignedInChain === SupportedChain.ETH) {
-                ethTxCount = 1 // just truthy so it triggers the ETH conversion
-              }
-            } else {
-              ethTxCount = await provider.getTransactionCount(ethAddress);
-              // console.log(ethTxCount);
-            }
-          } catch (e) {
-            console.log("Error fetching tx count", e);
-          }
-        }
-
-        accountInfo = {
-          address: ethTxCount > 0 ? ethAddress : address,
-          sequence: "0",
-          accountNumber: -1,
-          cosmosAddress: convertToCosmosAddress(address),
-          chain: ethTxCount > 0 ? SupportedChain.ETH : getChainForAddress(address),
-          publicKey: '',
-        }
-      } else {
-        throw e;
-      }
-    }
-  }
-
-
-  // Attempt to fetch the account from the DB
-  let profileInfo: ProfileInfoBase<JSPrimitiveNumberType> = {}
-  if (accountInfo?.cosmosAddress) {
-    try {
-      profileInfo = await PROFILES_DB.get(`${accountInfo.cosmosAddress}`);
-    } catch (e) {
-      if (e.statusCode !== 404) {
-        throw e;
-      }
-    }
-  }
+  let accountInfo = (await getBatchAccountInformation([{ address, fetchOptions }]))[0];
+  let profileInfo = (await getBatchProfileInformation([{ address, fetchOptions }]))[0];
 
   let fetchName = true;
   if (fetchOptions?.noExternalCalls) {
@@ -105,25 +133,30 @@ export const getAccountByAddress = async (req: Request, address: string, fetchOp
   return account;
 }
 
-export const getAccountByUsername = async (req: Request, username: string, fetchOptions?: AccountFetchOptions) => {
-  const profilesRes = await PROFILES_DB.find({
-    selector: {
-      username: { "$eq": username },
-    },
-    limit: 1,
-  });
-
-  if (profilesRes.docs.length == 0) {
-    return Promise.reject('No doc with username found');
+const resolveUsernames = async (usernames: string[]) => {
+  const promises = [];
+  for (const username of usernames) {
+    promises.push(PROFILES_DB.find({
+      selector: {
+        username: { "$eq": username },
+      },
+      limit: 1,
+    }));
   }
 
-  const profileDoc = profilesRes.docs[0];
+  const results = await Promise.all(promises);
+  const docs = results.map(x => x.docs[0]);
 
-  //TODO: Readd fetch sequence option
-  // let accountInfo = await ACCOUNTS_DB.get(`${profileDoc._id}`).catch(catch404);
-  const accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(profileDoc._id);
-  if (!accountInfo) throw new Error('Account not found'); // For TS, should never happen
+  return docs;
+}
 
+
+
+export const getAccountByUsername = async (req: Request, username: string, fetchOptions?: AccountFetchOptions) => {
+  const profilesRes = await resolveUsernames([username]);
+  const profileDoc = profilesRes[0];
+
+  const accountInfo = (await getBatchAccountInformation([{ address: profileDoc._id, fetchOptions }]))[0];
 
   let fetchName = true;
   if (fetchOptions?.noExternalCalls) {
@@ -183,17 +216,40 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
       })
     }
 
-    const promises = [];
+    const usernames = reqBody.accountsToFetch.filter(x => x.username).map(x => x.username).filter(x => x !== undefined) as string[];
+    const profileDocs = await resolveUsernames(usernames);
+
+    const allQueries = profileDocs.map(x => { return { address: x._id, fetchOptions: reqBody.accountsToFetch.find(y => y.username === x.username) } });
 
     for (const accountFetchOptions of reqBody.accountsToFetch) {
-      if (accountFetchOptions.username) {
-        promises.push(getAccountByUsername(req, accountFetchOptions.username, accountFetchOptions));
-      }
-      else if (accountFetchOptions.address) {
-        promises.push(getAccountByAddress(req, accountFetchOptions.address, accountFetchOptions));
+      if (accountFetchOptions.address) {
+        allQueries.push({ address: accountFetchOptions.address, fetchOptions: accountFetchOptions });
       }
     }
-    const userInfos = await Promise.all(promises);
+
+    const accountInfos = await getBatchAccountInformation(allQueries);
+    const profileInfos = await getBatchProfileInformation(allQueries);
+
+    const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
+
+    for (const query of allQueries) {
+      if (query.fetchOptions) {
+        let idx = userInfos.findIndex(x => query.address ? x.cosmosAddress === convertToCosmosAddress(query.address) : x.username === query.fetchOptions?.username);
+        if (idx === -1) {
+          throw new Error('Could not find account');
+        }
+        let account = userInfos[idx];
+
+        const portfolioRes = await getAdditionalUserInfo(req, account.cosmosAddress, query.fetchOptions);
+        account = {
+          ...account,
+          ...portfolioRes
+        }
+
+        userInfos[idx] = account;
+      }
+    }
+
     return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
   } catch (e) {
     console.error(e);

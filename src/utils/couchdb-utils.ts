@@ -11,18 +11,22 @@ export const catch404 = async (reason: any) => {
   return Promise.resolve(undefined);
 }
 
-export function getDocsFromNanoFetchRes<T>(response: nano.DocumentFetchResponse<T>, doNotThrowOnError?: boolean): Array<T & Document> {
+export function getDocsFromNanoFetchRes<T>(response: nano.DocumentFetchResponse<T>, doNotThrowOnNotFound?: boolean): Array<T & Document> {
   if (!response) {
     throw new Error('Document not found');
   }
 
-  if (!doNotThrowOnError) {
-    for (const row of response.rows) {
-      if (row.error) {
-        throw new Error(row.error);
+
+  for (const row of response.rows) {
+    if (row.error) {
+      if (doNotThrowOnNotFound && row.error === 'not_found') {
+        continue;
       }
+
+      throw new Error(row.error);
     }
   }
+
 
   const rows = response.rows.filter((row) => !row.error) as DocumentResponseRow<T>[];
   return rows.map((row) => row.doc).filter((doc) => doc !== undefined) as (T & Document)[];
