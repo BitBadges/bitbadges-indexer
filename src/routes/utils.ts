@@ -1,19 +1,22 @@
-import { AddressMapping, BigIntify, NumberType, Stringify, UserApprovedIncomingTransferTimeline, UserApprovedOutgoingTransferTimeline, convertManagerTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { UserApprovedIncomingTransferTimelineWithDetails, UserApprovedOutgoingTransferTimelineWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getCurrentValueIdxForTimeline, getFirstMatchForUserIncomingApprovedTransfers, getFirstMatchForUserOutgoingApprovedTransfers, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getReservedAddressMapping } from "bitbadgesjs-utils";
-import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB } from "../db/db";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { AddressMapping, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserApprovedIncomingTransferTimeline, UserApprovedOutgoingTransferTimeline, convertManagerTimeline, convertUintRange } from "bitbadgesjs-proto";
+import { AddressMappingWithMetadata, Metadata, UserApprovedIncomingTransferTimelineWithDetails, UserApprovedOutgoingTransferTimelineWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getCurrentValueIdxForTimeline, getFirstMatchForUserIncomingApprovedTransfers, getFirstMatchForUserOutgoingApprovedTransfers, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getReservedAddressMapping } from "bitbadgesjs-utils";
+import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
+import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export async function getAddressMappingsFromDB(mappingIds: {
   mappingId: string;
-  collectionId: NumberType;
-}[], manager?: string) {
+  collectionId?: NumberType;
+}[], fetchMetadata: boolean, manager?: string) {
   let addressMappingIdsToFetch = [...new Set(mappingIds)];
-  const addressMappings: AddressMapping[] = [];
+  let addressMappings: AddressMappingWithMetadata<bigint>[] = [];
   for (const mappingIdObj of addressMappingIdsToFetch) {
     let managerVal = manager ?? '';
 
-
     if (mappingIdObj.mappingId === 'Manager' && !managerVal) {
+      if (!mappingIdObj.collectionId) {
+        throw new Error('Must specify collectionId or manager address in request, if you want to fetch the Manager mapping.');
+      }
+
       const collectionRes = await COLLECTIONS_DB.get(mappingIdObj.collectionId.toString());
       const managerIdx = getCurrentValueIdxForTimeline(collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify)));
 
@@ -35,6 +38,28 @@ export async function getAddressMappingsFromDB(mappingIds: {
     const fetchedAddressMappings = await ADDRESS_MAPPINGS_DB.fetch({ keys: addressMappingIdsToFetch.map(x => x.mappingId) }, { include_docs: true });
     const addressMappingDocs = getDocsFromNanoFetchRes(fetchedAddressMappings);
     addressMappings.push(...addressMappingDocs.map((doc) => removeCouchDBDetails(doc)));
+  }
+
+  if (fetchMetadata) {
+    let uris: string[] = [...new Set(addressMappings.map(x => x.uri))];
+
+    if (uris.length > 0) {
+      const fetchPromises = uris.map(async (uri) => {
+        if (!uri) {
+          return { uri, doc: undefined };
+        }
+        const doc = await FETCHES_DB.get(uri).catch(catch404);
+        return { uri, doc };
+      });
+
+      const results = await Promise.all(fetchPromises);
+
+      results.forEach(({ uri, doc }) => {
+        if (doc && doc.content) {
+          addressMappings = addressMappings.map(x => (x.uri === uri) ? { ...x, metadata: convertMetadata(doc.content as Metadata<JSPrimitiveNumberType>, BigIntify) } : x);
+        }
+      });
+    }
   }
 
 

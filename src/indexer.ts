@@ -7,7 +7,7 @@ import { Server } from "http"
 import { create } from 'ipfs-http-client'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { poll } from "./poll"
+import { poll, pollUris } from "./poll"
 import { addAnnouncement } from './routes/announcements'
 import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
@@ -233,7 +233,7 @@ app.post('/api/v0/broadcast', broadcastTx);
 app.post('/api/v0/simulate', simulateTx);
 
 //Fetch arbitrary metadata
-app.post('/api/v0/metadata', fetchMetadataDirectly);
+app.post('/api/v0/metadata', cors(websiteOnlyCorsOptions), fetchMetadataDirectly);
 
 //Faucet
 app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
@@ -254,6 +254,7 @@ app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
 const init = async () => {
   if (!OFFLINE_MODE) {
     setTimeout(poll, 1)
+    setTimeout(pollUris, 1)
   }
 }
 

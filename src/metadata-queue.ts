@@ -3,11 +3,12 @@ import { AddressMapping, JSPrimitiveNumberType, MerkleChallenge, convertBalance 
 import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, getChainForAddress, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
-import { FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
+import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
 import { LOAD_BALANCER_ID } from "./indexer";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { cleanBalances, cleanMerkleChallenges, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
+import { catch404 } from "./utils/couchdb-utils";
 
 //1. Upon initial TX (new collection or URIs updating): 
 // 	1. Trigger collection, claims, first X badges, and balances in QUEUE_DB
@@ -354,19 +355,35 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   let balanceMap = balancesMap;
   //We have to update the existing balances with the new balances, if the collection already exists
   //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
-  await fetchDocsForCacheIfEmpty(docs, [], [], [
+
+
+  //HACK: Basically, if we have not created a mint doc yet, we need to create it
+
+  const mapKeys = Object.keys(balanceMap).filter(key => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS)
+  if (mapKeys.length == 0) {
+    throw new Error('No valid addresses found in balances map');
+  }
+
+  //Check a single doc first. If undefined, we can assume the rest are undefined
+  //Saves us from fetching 10000+ or however many undefined docs if we dont need to
+  const sanityCheckDoc = await BALANCES_DB.head(`${queueObj.collectionId}:${mapKeys[0]}`).catch(catch404);
+
+  await fetchDocsForCacheIfEmpty(docs, [], [], sanityCheckDoc ? [
     `${queueObj.collectionId}:Mint`,
     `${queueObj.collectionId}:Total`,
-    ...Object.keys(balanceMap).filter(key => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS).map((key) => `${queueObj.collectionId}:${key}`),
+    ...mapKeys.map((key) => `${queueObj.collectionId}:${key}`),
+  ] : [
+    `${queueObj.collectionId}:Mint`,
+    `${queueObj.collectionId}:Total`,
   ], [], [], []);
-
   const totalSupplysDoc = docs.balances[`${queueObj.collectionId}:Total`];
   if (!totalSupplysDoc) throw new Error('Total supplys doc not found');
 
   let remainingSupplys = totalSupplysDoc.balances.map(x => convertBalance(x, BigIntify));
 
   //Update the balance documents
-  for (const [key, val] of Object.entries(balanceMap)) {
+  const entries = Object.entries(balanceMap);
+  for (const [key, val] of entries) {
     if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
 
 

@@ -1,15 +1,16 @@
-import { AddressMappingDoc, AddressMappingWithMetadata, BitBadgesCollection, GetBrowseCollectionsRouteResponse, JSPrimitiveNumberType, Metadata, NumberType, Stringify, convertMetadata } from "bitbadgesjs-utils";
+import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
-import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeCollectionsQuery } from "./collections";
 import { getAccountByAddress } from "./users";
+import { getAddressMappingsFromDB } from "./utils";
 
 export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
-    //TODO: populate with real data
+    //TODO: populate with better data
 
     const latestQuery: nano.MangoQuery = {
       selector: {
@@ -20,9 +21,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       limit: 24,
       update: true,
     }
-
-    const latestCollections = await COLLECTIONS_DB.find(latestQuery);
-
 
     const attendanceQuery: nano.MangoQuery = {
       selector: {
@@ -38,7 +36,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     }
 
-    const attendanceCollections = await FETCHES_DB.find(attendanceQuery);
+
 
     const certificationsQuery = {
       selector: {
@@ -55,11 +53,54 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     }
 
-    const certificationsCollections = await FETCHES_DB.find(certificationsQuery);
+    const transferActivityQuery: nano.MangoQuery = {
+      selector: {
+        timestamp: {
+          "$gt": null,
+        }
+      },
+      sort: [{ "timestamp": "desc" }],
+      limit: 100,
+    }
 
-    const uris = [...attendanceCollections.docs.map(x => x._id), ...certificationsCollections.docs.map(x => x._id)];
+    const profilePicUrlQuery: nano.MangoQuery = {
+      selector: {
+        "profilePicUrl": {
+          "$gt": null,
+        }
+      },
+      limit: 25
+    }
 
-    const urisForCollectionQuery = await COLLECTIONS_DB.find({
+    const addressMappingsQuery: nano.MangoQuery = {
+      selector: {
+        createdBlock: {
+          "$gt": null,
+        }
+      },
+      sort: [{ "createdBlock": "desc" }],
+      fields: ['_id', '_rev'],
+      limit: 100
+    };
+
+    const [
+      certificationsCollections,
+      latestCollections,
+      attendanceCollections,
+      activity,
+      profiles,
+      addressMappings
+    ] = await Promise.all([
+      FETCHES_DB.find(certificationsQuery),
+      COLLECTIONS_DB.find(latestQuery),
+      FETCHES_DB.find(attendanceQuery),
+      TRANSFER_ACTIVITY_DB.find(transferActivityQuery),
+      PROFILES_DB.find(profilePicUrlQuery),
+      ADDRESS_MAPPINGS_DB.find(addressMappingsQuery)
+    ]);
+
+    const uris = [...new Set([...attendanceCollections.docs.map(x => x._id), ...certificationsCollections.docs.map(x => x._id)])];
+    const urisQuery: nano.MangoQuery = {
       selector: {
         "_id": { "$gt": null },
         "collectionMetadataTimeline": {
@@ -73,7 +114,9 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
         }
       },
       limit: 100
-    });
+    }
+
+    const urisForCollectionQuery = await COLLECTIONS_DB.find(urisQuery);
 
 
     const collections = await executeCollectionsQuery(req, [
@@ -91,56 +134,15 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     }));
 
     //latest activity
-    const activity = await TRANSFER_ACTIVITY_DB.find({
-      selector: {
-        timestamp: {
-          "$gt": null,
-        }
-      },
-      sort: [{ "timestamp": "desc" }],
-      limit: 100,
-    });
 
-    const addressMappings = await ADDRESS_MAPPINGS_DB.find({
-      selector: {
-        createdBlock: {
-          "$gt": null,
-        }
-      },
-      sort: [{ "createdBlock": "desc" }],
-      limit: 100,
-    });
 
-    let addressMappingsToReturn: AddressMappingWithMetadata<string>[] = [...addressMappings.docs.map(x => x as AddressMappingDoc<string>).map(removeCouchDBDetails)];
-    let mappingUris: string[] = addressMappingsToReturn.map(x => x.uri);
-    if (mappingUris.length > 0) {
-      for (const uri of mappingUris) {
-        if (!uri) continue;
-        const doc = await FETCHES_DB.get(uri).catch(catch404);
-        console.log(doc);
-        if (doc) {
-          addressMappingsToReturn = addressMappingsToReturn.map(x => {
-            if (x.uri === uri) {
-              return {
-                ...x,
-                metadata: convertMetadata(doc.content as Metadata<JSPrimitiveNumberType>, Stringify),
-              }
-            } else {
-              return x;
-            }
-          })
-        }
+    let addressMappingsToReturn = await getAddressMappingsFromDB(addressMappings.docs.map(x => {
+      return {
+        mappingId: x._id,
       }
-    }
+    }), true);
 
-    const profiles = await PROFILES_DB.find({
-      selector: {
-        "profilePicUrl": {
-          "$gt": null,
-        }
-      },
-      limit: 25
-    });
+
 
     const promises = [];
     for (const profile of profiles.docs) {
@@ -153,9 +155,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     }
 
     const allAccounts = await Promise.all(promises);
-
-
-
 
 
     return res.status(200).send({

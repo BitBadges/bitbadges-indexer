@@ -12,20 +12,65 @@ import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
 import { ERRORS_DB } from "./db/db"
 import { getStatus } from "./db/status"
 import { client, setClient, setTimer } from "./indexer"
-import { fetchUrisFromQueue, purgeQueueDocs } from "./metadata-queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
 import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
 import { handleMsgUpdateUserApprovedTransfers } from "./tx-handlers/handleMsgUpdateUserApprovedTransfers"
-import { handleTransfers } from "./tx-handlers/handleTransfers"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
+import { handleTransfers } from "./tx-handlers/handleTransfers"
 
 
 const pollIntervalMs = 1_000
+const uriPollIntervalMs = 1_000
 let outageTime: Date | undefined
 
 const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
+
+export const pollUris = async () => {
+  // try {
+  //   // We fetch initial status at beginning of block and do not write anything in DB until end of block
+  //   // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
+  //   const _status = await getStatus();
+  //   const status = convertStatusDoc(_status, BigIntify);
+
+
+  //   let docs: DocsCache = {
+  //     accounts: {},
+  //     collections: {},
+  //     refreshes: {},
+  //     activityToAdd: [],
+  //     queueDocsToAdd: [],
+  //     merkleChallenges: {},
+  //     addressMappings: {},
+  //     approvalsTrackers: {},
+  //     balances: {},
+  //   };
+
+  //   await fetchUrisFromQueue(status.block.height);
+
+  //   await purgeQueueDocs();
+
+  //   //Right now, we are banking on all these DB updates succeeding together every time. 
+  //   //If there is a failure in the middle, it could be bad.
+  //   await flushCachedDocs(docs);
+  // } catch (e) {
+  //   //Log error to DB, unless it is a connection refused error
+  //   if (e && e.code !== 'ECONNREFUSED') {
+  //     console.error(e);
+
+  //     await ERRORS_DB.bulk({
+  //       docs: [{
+  //         error: e,
+  //         function: 'poll',
+  //       }]
+  //     });
+  //   }
+  // }
+
+  const newTimer = setTimeout(pollUris, uriPollIntervalMs) //TODO: We can probably just make this 1 ms and it'll just trigger upon completion of the last one.
+  setTimer(newTimer);
+}
 
 export const poll = async () => {
   try {
@@ -45,18 +90,27 @@ export const poll = async () => {
 
       if (!client) throw new Error('Could not connect to any chain client')
     }
-
+    // const _status = await getStatus();
+    // let status = convertStatusDoc(_status, BigIntify);
     const clientHeight = await client.getHeight();
     let caughtUp = false;
+    // let fastCatchUp = false;
 
     // If we are behind, go until we catch up
-    do {
+    //TODO: Implement a fast catch up if behind a lot where we do not write status to DB
 
+    const _status = await getStatus();
+    let status = convertStatusDoc(_status, BigIntify);
+
+    while (!caughtUp) {
+      // console.time('poll')
       // We fetch initial status at beginning of block and do not write anything in DB until end of block
       // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
-      const _status = await getStatus();
-      const status = convertStatusDoc(_status, BigIntify);
 
+      if (status.block.height >= clientHeight) {
+        caughtUp = true;
+        break;
+      }
 
       let docs: DocsCache = {
         accounts: {},
@@ -70,10 +124,6 @@ export const poll = async () => {
         balances: {},
       };
 
-      if (status.block.height >= clientHeight) {
-        caughtUp = true;
-        break;
-      }
 
       //Handle printing of status if there was an outage
       if (outageTime) {
@@ -91,25 +141,21 @@ export const poll = async () => {
       process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
       status.block.timestamp = BigInt(new Date(block.header.time).getTime());
 
-
       await handleBlock(block, status, docs);
-      await fetchUrisFromQueue(status.block.height);
 
       status.block.height++;
       status.block.txIndex = 0n;
 
-      await purgeQueueDocs();
 
       //Right now, we are banking on all these DB updates succeeding together every time. 
       //If there is a failure in the middle, it could be bad.
-      await flushCachedDocs(docs, status);
-
-
-
-
-    } while (!caughtUp);
-
-
+      const flushed = await flushCachedDocs(docs, status, status.block.height < clientHeight);
+      if (flushed) {
+        const status2 = await getStatus();
+        status = convertStatusDoc(status2, BigIntify);
+      }
+      // console.timeEnd('poll')
+    }
   } catch (e) {
     //Error handling
     //Attempt to reconnect to chain client

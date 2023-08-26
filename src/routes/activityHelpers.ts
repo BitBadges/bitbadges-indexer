@@ -225,7 +225,6 @@ export async function executeMerkleChallengeByIdsQuery(collectionId: string, cha
 }
 
 export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: ApprovalTrackerIdDetails<bigint>[]) {
-  //TODO: Optimize this query because it isn't quite correct.
   const docs = [];
 
   for (const idObj of idsToFetch) {
@@ -257,7 +256,6 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
     if (res.docs.length > 0) {
       docs.push(...res.docs);
     } else {
-      // const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${trackerType}-${approvedAddress}`;
       const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.trackerType}-${idObj.approvedAddress}`;
       docs.push({
         _id: docId,

@@ -103,7 +103,6 @@ export const refreshMetadata = async (req: Request, res: Response<RefreshMetadat
 
 export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMetadataDirectlyRouteResponse<NumberType>>) => {
   try {
-    //TODO: Only allow this from the BitBadges frontend or from a trusted source with CORS. Should also be rate limited.
 
 
     const reqBody = req.body as FetchMetadataDirectlyRouteRequestBody;

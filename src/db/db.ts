@@ -36,13 +36,14 @@ export const APPROVALS_TRACKER_DB = nano.db.use<ApprovalsTrackerDoc<JSPrimitiveN
 export const CLAIM_ALERTS_DB = nano.db.use<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
-
-  await insertMany(db, [doc]);
+  const res = await insertMany(db, [doc]);
+  return res;
 }
 
 export async function insertMany(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, docs: (BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean })[]) {
   const convertedDocs = await convertDocsToStoreInDb(db, docs);
-  await db.bulk({ docs: convertedDocs });
+  const res = await db.bulk({ docs: convertedDocs });
+  return res;
 }
 
 export async function convertDocsToStoreInDb(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, docs: (BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean })[]) {

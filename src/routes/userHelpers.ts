@@ -23,7 +23,6 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
     }));
   }
   const results = await Promise.all(promises);
-  // console.log(accountInfos);
 
   const resultsToReturn: BitBadgesUserInfo<JSPrimitiveNumberType>[] = [];
 
@@ -225,8 +224,6 @@ export async function executeListsQuery(cosmosAddress: string, bookmark?: string
     },
     bookmark: bookmark ? bookmark : undefined
   });
-
-  console.log(collectedRes);
 
   return collectedRes;
 }

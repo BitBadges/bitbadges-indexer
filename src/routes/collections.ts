@@ -1,15 +1,15 @@
 import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertApprovalTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertContractAddressTimeline, convertCustomDataTimeline, convertInheritedBalancesTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { getMetadataIdsForUri, AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BLANK_USER_INFO, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionApprovedTransferTimelineWithDetails, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertBitBadgesUserInfo, convertCollectionApprovedTransferTimelineWithDetails, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getBadgeIdsForMetadataId, getCurrentValueIdxForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionApprovedTransfersTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getInheritedBalancesTimeline, getMetadataIdForBadgeId, getOffChainBalancesMetadataTimeline, getReservedAddressMapping, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
+import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BLANK_USER_INFO, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionApprovedTransferTimelineWithDetails, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertBitBadgesUserInfo, convertCollectionApprovedTransferTimelineWithDetails, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getBadgeIdsForMetadataId, getCurrentValueIdxForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionApprovedTransfersTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getInheritedBalancesTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
 
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { ADDRESS_MAPPINGS_DB, BALANCES_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
+import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
 import { fetchUriFromDb } from "../metadata-queue";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { getAccountByAddress } from "./users";
-import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers } from "./utils";
+import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
 
 /**
  * The executeCollectionsQuery function is the main query function used to fetch all data for a collection in bulk.
@@ -51,7 +51,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     if (badgeMetadataIdx !== -1n) {
       badgeMetadata = collection.badgeMetadataTimeline[Number(badgeMetadataIdx)].badgeMetadata.map(x => convertBadgeMetadata(x, BigIntify));
     }
-
 
     promises.push(getMetadata(collection.collectionId.toString(), collectionUri, badgeMetadata, query.metadataToFetch));
 
@@ -121,6 +120,135 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   //Parse results and add to collectionResponses
   const responses = await Promise.all(promises);
 
+  const addressMappingIdsToFetch: { collectionId: NumberType, mappingId: string }[] = [];
+  for (let i = 0; i < responses.length; i += 10) {
+    const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === collectionQueries[(i) / 10].collectionId.toString());
+    if (!collectionRes) continue;
+
+    const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+    const mintAndTotalBalancesRes = responses[i + 8] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+
+    for (const collectionApprovedTransferTimelineVal of collectionRes.collectionApprovedTransfersTimeline) {
+      for (const collectionApprovedTransferVal of collectionApprovedTransferTimelineVal.collectionApprovedTransfers) {
+        addressMappingIdsToFetch.push({
+          collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.fromMappingId
+        });
+        addressMappingIdsToFetch.push({
+          collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.toMappingId
+        });
+        addressMappingIdsToFetch.push({
+          collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.initiatedByMappingId
+        });
+      }
+    }
+
+    for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovedTransfers) {
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: permission.defaultValues.fromMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: permission.defaultValues.toMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: permission.defaultValues.initiatedByMappingId
+      });
+    }
+
+    for (const balance of collectionRes.defaultUserApprovedIncomingTransfersTimeline) {
+      for (const transfer of balance.approvedIncomingTransfers) {
+        addressMappingIdsToFetch.push({
+          collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
+        });
+        addressMappingIdsToFetch.push({
+          collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+        });
+      }
+    }
+
+    for (const balance of collectionRes.defaultUserApprovedOutgoingTransfersTimeline) {
+      for (const transfer of balance.approvedOutgoingTransfers) {
+        addressMappingIdsToFetch.push({
+          collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
+        });
+        addressMappingIdsToFetch.push({
+          collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+        });
+      }
+    }
+
+
+    for (const balanceDoc of [...balancesRes.docs, ...mintAndTotalBalancesRes.docs]) {
+      for (const balance of balanceDoc.approvedIncomingTransfersTimeline) {
+        for (const transfer of balance.approvedIncomingTransfers) {
+          addressMappingIdsToFetch.push({
+            collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
+          });
+          addressMappingIdsToFetch.push({
+            collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+          });
+        }
+      }
+
+      for (const balance of balanceDoc.approvedOutgoingTransfersTimeline) {
+        for (const transfer of balance.approvedOutgoingTransfers) {
+          addressMappingIdsToFetch.push({
+            collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
+          });
+          addressMappingIdsToFetch.push({
+            collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+          });
+        }
+      }
+    }
+  }
+
+
+
+  //For all claims in the collection approved transfers, fetch the merkleChallengeDetails
+  //TODO: paginate this somehow, we currently fetch all
+  //TODO: Fetch non-Mint as well?
+  const uris = [];
+  for (const collectionRes of collectionResponses) {
+    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
+      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
+        if (approvedTransfer.fromMappingId == "Mint") {
+          for (const approval of approvedTransfer.approvalDetails) {
+            uris.push(approval.merkleChallenges.map(x => x.uri));
+          }
+        }
+      }
+    }
+  }
+
+  const addressMappingsPromise = getAddressMappingsFromDB(addressMappingIdsToFetch, false);
+
+  const uniqueUris = [...new Set(uris.flat())].filter(x => !!x);
+  const claimFetchesPromises = uniqueUris.map(uri => FETCHES_DB.get(uri));
+
+  const [addressMappings, claimFetches] = await Promise.all([
+    addressMappingsPromise,
+    Promise.all(claimFetchesPromises)
+  ]);
+
+
+  for (const collectionRes of collectionResponses) {
+    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
+      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
+        if (approvedTransfer.fromMappingId == "Mint") {
+          for (const approval of approvedTransfer.approvalDetails) {
+            for (const merkleChallenge of approval.merkleChallenges) {
+              const claimFetch = claimFetches.find((fetch) => fetch._id === merkleChallenge.uri);
+              if (!claimFetch) continue;
+
+              merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
+            }
+          }
+        }
+      }
+    }
+  }
+
+
 
   for (let i = 0; i < responses.length; i += 10) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === collectionQueries[(i) / 10].collectionId.toString());
@@ -137,79 +265,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     const specificApprovalsTrackersRes = responses[i + 7] as (ApprovalsTrackerInfoBase<JSPrimitiveNumberType> & nano.Document & DeletableDocument)[];
     const mintAndTotalBalancesRes = responses[i + 8] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
     const approvalsTrackersRes = responses[i + 9] as nano.MangoResponse<ApprovalsTrackerDoc<JSPrimitiveNumberType>>;
-
-
-    let addressMappingIdsToFetch = [];
-    for (const collectionApprovedTransferTimelineVal of collectionRes.collectionApprovedTransfersTimeline) {
-      for (const collectionApprovedTransferVal of collectionApprovedTransferTimelineVal.collectionApprovedTransfers) {
-        addressMappingIdsToFetch.push(collectionApprovedTransferVal.fromMappingId);
-        addressMappingIdsToFetch.push(collectionApprovedTransferVal.toMappingId);
-        addressMappingIdsToFetch.push(collectionApprovedTransferVal.initiatedByMappingId);
-      }
-    }
-
-    for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovedTransfers) {
-      addressMappingIdsToFetch.push(permission.defaultValues.fromMappingId);
-      addressMappingIdsToFetch.push(permission.defaultValues.toMappingId);
-      addressMappingIdsToFetch.push(permission.defaultValues.initiatedByMappingId);
-    }
-
-    for (const balance of collectionRes.defaultUserApprovedIncomingTransfersTimeline) {
-      for (const transfer of balance.approvedIncomingTransfers) {
-        addressMappingIdsToFetch.push(transfer.fromMappingId);
-        addressMappingIdsToFetch.push(transfer.initiatedByMappingId);
-      }
-    }
-
-    for (const balance of collectionRes.defaultUserApprovedOutgoingTransfersTimeline) {
-      for (const transfer of balance.approvedOutgoingTransfers) {
-        addressMappingIdsToFetch.push(transfer.toMappingId);
-        addressMappingIdsToFetch.push(transfer.initiatedByMappingId);
-      }
-    }
-
-
-    for (const balanceDoc of [...balancesRes.docs, ...mintAndTotalBalancesRes.docs]) {
-      for (const balance of balanceDoc.approvedIncomingTransfersTimeline) {
-        for (const transfer of balance.approvedIncomingTransfers) {
-          addressMappingIdsToFetch.push(transfer.fromMappingId);
-          addressMappingIdsToFetch.push(transfer.initiatedByMappingId);
-        }
-      }
-
-      for (const balance of balanceDoc.approvedOutgoingTransfersTimeline) {
-        for (const transfer of balance.approvedOutgoingTransfers) {
-          addressMappingIdsToFetch.push(transfer.toMappingId);
-          addressMappingIdsToFetch.push(transfer.initiatedByMappingId);
-        }
-      }
-    }
-
-
-    const managerIdx = getCurrentValueIdxForTimeline(collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify)));
-    let manager = '';
-    if (managerIdx !== -1n) {
-      manager = collectionRes.managerTimeline[Number(managerIdx)].manager;
-    }
-
-    //TODO: parallelize this
-    addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
-    const addressMappings: AddressMapping[] = [];
-    for (const mappingId of addressMappingIdsToFetch) {
-      const mapping = getReservedAddressMapping(mappingId, manager);
-      if (mapping) {
-        addressMappings.push(mapping);
-        addressMappingIdsToFetch = addressMappingIdsToFetch.filter((x) => x !== mappingId);
-      }
-    }
-
-    addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
-
-    if (addressMappingIdsToFetch.length > 0) {
-      const fetchedAddressMappings = await ADDRESS_MAPPINGS_DB.fetch({ keys: addressMappingIdsToFetch }, { include_docs: true });
-      const addressMappingDocs = getDocsFromNanoFetchRes(fetchedAddressMappings);
-      addressMappings.push(...addressMappingDocs.map((doc) => removeCouchDBDetails(doc)));
-    }
 
     let collectionToReturn: BitBadgesCollection<JSPrimitiveNumberType> = {
       ...collectionRes,
@@ -425,41 +480,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
   }
 
-  //For all claims in the collection approved transfers, fetch the merkleChallengeDetails
-  //TODO: paginate this somehow, we currently fetch all
-  //TODO: Fetch non-Mint as well
-  const uris = [];
-  for (const collectionRes of collectionResponses) {
-    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
-      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
-        if (approvedTransfer.fromMappingId == "Mint") {
-          for (const approval of approvedTransfer.approvalDetails) {
-            uris.push(approval.merkleChallenges.map(x => x.uri));
-          }
-        }
-      }
-    }
-  }
-
-  const claimFetches = await Promise.all([...new Set(uris.flat())].filter(x => !!x).map((uri) => FETCHES_DB.get(uri)));
-
-  for (const collectionRes of collectionResponses) {
-    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
-      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
-        if (approvedTransfer.fromMappingId == "Mint") {
-          for (const approval of approvedTransfer.approvalDetails) {
-            for (const merkleChallenge of approval.merkleChallenges) {
-              const claimFetch = claimFetches.find((fetch) => fetch._id === merkleChallenge.uri);
-              if (!claimFetch) continue;
-
-              merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
-            }
-          }
-        }
-      }
-    }
-  }
-
 
   const managerKeys = [...new Set(collectionResponses.map((collectionRes) => {
     const _managerTimeline = collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify));
@@ -476,12 +496,10 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       if (idx == -1n) continue;
       const manager = collectionRes.managerTimeline[Number(idx)].manager;
       collectionRes.managerInfo = manager ? await getAccountByAddress(req, manager) : convertBitBadgesUserInfo(BLANK_USER_INFO, Stringify);
-
-      // if (managerInfo) {
-      //   collectionRes.managerInfo = await convertToBitBadgesUserInfo([managerInfo], [cosmosAccountDetails])[0];
-      // }
     }
   }
+
+
   return collectionResponses;
 }
 
@@ -808,36 +826,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
 
     addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
 
-    const addressMappings: AddressMapping[] = [];
-
-    for (const mappingId of addressMappingIdsToFetch) {
-      let manager = '';
-
-      if (mappingId === 'Manager') {
-        const collection = await COLLECTIONS_DB.get(req.params.collectionId);
-        const collectionRes = convertCollectionDoc(collection, BigIntify);
-
-        const managerIdx = getCurrentValueIdxForTimeline(collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify)));
-        if (managerIdx !== -1n) {
-          manager = collectionRes.managerTimeline[Number(managerIdx)].manager;
-        }
-      }
-
-      const mapping = getReservedAddressMapping(mappingId, manager);
-      if (mapping) {
-        addressMappings.push(mapping);
-        addressMappingIdsToFetch = addressMappingIdsToFetch.filter((x) => x !== mappingId);
-      }
-    }
-
-    addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
-
-    if (addressMappingIdsToFetch.length > 0) {
-      const fetchedAddressMappings = await ADDRESS_MAPPINGS_DB.fetch({ keys: addressMappingIdsToFetch }, { include_docs: true });
-      const addressMappingDocs = getDocsFromNanoFetchRes(fetchedAddressMappings);
-      addressMappings.push(...addressMappingDocs.map((doc) => removeCouchDBDetails(doc)));
-    }
-
+    const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(x => { return { mappingId: x } }), false);
 
 
     return res.status(200).send({
@@ -876,7 +865,6 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
         hasMore: ownersRes.docs.length === 25,
         total: numOwners
       },
-
     });
   } catch (e) {
     return res.status(500).send({

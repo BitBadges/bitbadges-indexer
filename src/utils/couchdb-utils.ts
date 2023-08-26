@@ -11,14 +11,16 @@ export const catch404 = async (reason: any) => {
   return Promise.resolve(undefined);
 }
 
-export function getDocsFromNanoFetchRes<T>(response: nano.DocumentFetchResponse<T>): Array<T & Document> {
+export function getDocsFromNanoFetchRes<T>(response: nano.DocumentFetchResponse<T>, doNotThrowOnError?: boolean): Array<T & Document> {
   if (!response) {
     throw new Error('Document not found');
   }
 
-  for (const row of response.rows) {
-    if (row.error) {
-      throw new Error(row.error);
+  if (!doNotThrowOnError) {
+    for (const row of response.rows) {
+      if (row.error) {
+        throw new Error(row.error);
+      }
     }
   }
 

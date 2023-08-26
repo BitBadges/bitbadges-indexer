@@ -1,6 +1,8 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
 import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc } from "bitbadgesjs-utils";
+import { DocumentFetchResponse } from "nano";
 import { serializeError } from "serialize-error";
+import { getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
 import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, COLLECTIONS_DB, ERRORS_DB, MERKLE_CHALLENGES_DB, QUEUE_DB, REFRESHES_DB, TRANSFER_ACTIVITY_DB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
@@ -82,101 +84,91 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 
 
     const promises = [];
+    if (cosmosAddresses.length) promises.push(ACCOUNTS_DB.fetch({ keys: cosmosAddresses }, { include_docs: true }));
+    if (collectionDocIds.length) promises.push(COLLECTIONS_DB.fetch({ keys: collectionDocIds }, { include_docs: true }));
+    if (balanceDocIds.length) promises.push(BALANCES_DB.fetch({ keys: balanceDocIds }, { include_docs: true }));
+    if (claimDocIds.length) promises.push(MERKLE_CHALLENGES_DB.fetch({ keys: claimDocIds }, { include_docs: true }));
+    if (approvalsTrackerIds.length) promises.push(APPROVALS_TRACKER_DB.fetch({ keys: approvalsTrackerIds }, { include_docs: true }));
+    if (addressMappingIds.length) promises.push(ADDRESS_MAPPINGS_DB.fetch({ keys: addressMappingIds }, { include_docs: true }));
 
-    for (const address of cosmosAddresses) {
-      promises.push(ACCOUNTS_DB.get(address));
-    }
+    if (promises.length) {
+      const results = await Promise.allSettled(promises);
 
-    for (const collectionId of collectionDocIds) {
-      promises.push(COLLECTIONS_DB.get(collectionId));
-    }
-
-    for (const balanceId of balanceDocIds) {
-      promises.push(BALANCES_DB.get(balanceId));
-    }
-
-    for (const claimId of claimDocIds) {
-      promises.push(MERKLE_CHALLENGES_DB.get(claimId));
-    }
-
-    for (const addressMappingId of addressMappingIds) {
-      promises.push(ADDRESS_MAPPINGS_DB.get(addressMappingId));
-    }
-
-    for (const approvalsTrackerId of approvalsTrackerIds) {
-      promises.push(APPROVALS_TRACKER_DB.get(approvalsTrackerId));
-    }
+      //Throw if non-404 error
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          //TODO: check if this works
+          if (result.reason.statusCode === 404) {
+            continue;
+          } else {
+            throw result.reason;
+          }
+        }
+      }
 
 
-    const results = await Promise.allSettled(promises);
 
-    //Throw if non-404 error
-    for (const result of results) {
-      if (result.status === 'rejected') {
-        //TODO: check if this works
-        if (result.reason.statusCode === 404) {
-          continue;
-        } else {
-          throw result.reason;
+      let idx = 0;
+      if (cosmosAddresses.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<AccountDoc<JSPrimitiveNumberType>>, true).map(x => convertAccountDoc(x, BigIntify));
+          for (const address of cosmosAddresses) {
+            accountsData[address] = docs.find(x => x._id === address);
+          }
+        }
+      }
+
+      if (collectionDocIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<CollectionDoc<JSPrimitiveNumberType>>, true).map(x => convertCollectionDoc(x, BigIntify));
+          for (const collectionId of collectionDocIds) {
+            collectionData[collectionId] = docs.find(x => x._id === collectionId);
+          }
+        }
+      }
+
+      if (balanceDocIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<BalanceDoc<JSPrimitiveNumberType>>, true).map(x => convertBalanceDoc(x, BigIntify));
+          for (const balanceId of balanceDocIds) {
+            balanceData[balanceId] = docs.find(x => x._id === balanceId);
+          }
+        }
+      }
+
+      if (claimDocIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<MerkleChallengeDoc<JSPrimitiveNumberType>>, true).map(x => convertMerkleChallengeDoc(x, BigIntify));
+          for (const claimId of claimDocIds) {
+            claimData[claimId] = docs.find(x => x._id === claimId);
+          }
+        }
+      }
+
+      if (addressMappingIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<AddressMappingDoc<JSPrimitiveNumberType>>, true).map(x => convertAddressMappingDoc(x, BigIntify));
+          for (const addressMappingId of addressMappingIds) {
+            addressMappingsData[addressMappingId] = docs.find(x => x._id === addressMappingId);
+          }
+        }
+      }
+
+      if (approvalsTrackerIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<ApprovalsTrackerDoc<JSPrimitiveNumberType>>, true).map(x => convertApprovalsTrackerDoc(x, BigIntify));
+          for (const approvalsTrackerId of approvalsTrackerIds) {
+            approvalsTrackerData[approvalsTrackerId] = docs.find(x => x._id === approvalsTrackerId);
+          }
         }
       }
     }
-
-    let idx = 0;
-    for (const address of cosmosAddresses) {
-      const result = results[idx++];
-      if (result.status === 'fulfilled') {
-        const res = result.value as AccountDoc<JSPrimitiveNumberType>;
-        const convertedAccount = convertAccountDoc(res, BigIntify);
-        accountsData[address] = convertedAccount;
-      }
-    }
-
-    for (const collectionId of collectionDocIds) {
-      const result = results[idx++];
-      if (result.status === 'fulfilled') {
-        const res = result.value as CollectionDoc<JSPrimitiveNumberType>;
-        const convertedCollection = convertCollectionDoc(res, BigIntify);
-        collectionData[collectionId] = convertedCollection;
-      }
-    }
-
-    for (const balanceId of balanceDocIds) {
-      const result = results[idx++];
-      if (result.status === 'fulfilled') {
-        const res = result.value as BalanceDoc<JSPrimitiveNumberType>;
-        const convertedBalanceDoc = convertBalanceDoc(res, BigIntify);
-        balanceData[balanceId] = convertedBalanceDoc;
-      }
-    }
-
-    for (const claimId of claimDocIds) {
-      const result = results[idx++];
-      if (result.status === 'fulfilled') {
-        const res = result.value as MerkleChallengeDoc<JSPrimitiveNumberType>;
-        const convertedMerkleChallengeDoc = convertMerkleChallengeDoc(res, BigIntify);
-        claimData[claimId] = convertedMerkleChallengeDoc;
-      }
-    }
-
-    for (const addressMappingId of addressMappingIds) {
-      const result = results[idx++];
-      if (result.status === 'fulfilled') {
-        const res = result.value as AddressMappingDoc<JSPrimitiveNumberType>
-        const convertedAddressMappingDoc = convertAddressMappingDoc(res, BigIntify);
-        addressMappingsData[addressMappingId] = convertedAddressMappingDoc;
-      }
-    }
-
-    for (const approvalsTrackerId of approvalsTrackerIds) {
-      const result = results[idx++];
-      if (result.status === 'fulfilled') {
-        const res = result.value as ApprovalsTrackerDoc<JSPrimitiveNumberType>;
-        const convertedAddressMappingDoc = convertApprovalsTrackerDoc(res, BigIntify);
-        approvalsTrackerData[approvalsTrackerId] = convertedAddressMappingDoc;
-      }
-    }
-
 
     return { accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData }
   } catch (error) {
@@ -185,7 +177,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 }
 
 //Finalize docs at end of handling block(s)
-export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint>) {
+export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
   try {
     //If we reach here, we assume that all docs are valid and ready to be inserted into the DB (i.e. not undefined) so we can cast safely
     const promises = [];
@@ -236,14 +228,21 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
       promises.push(insertMany(ADDRESS_MAPPINGS_DB, addressMappingDocs));
     }
 
-    if (status) {
-      promises.push(setStatus(status));
-    }
 
+
+    // console.log(promises.length);
     //TODO: Handle if error in one of these but not the rest
-    if (promises.length) {
+    if (promises.length === 0 && status && skipStatusFlushIfEmptyBlock) {
+      // console.log('fast catch up');
+      return false;
+    } else if (promises.length || status) {
+      if (status) {
+        promises.push(setStatus(status));
+      }
       await Promise.all(promises);
     }
+
+    return true;
   } catch (error) {
     await insertToDB(ERRORS_DB, {
       function: 'flushCachedDocs',

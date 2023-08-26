@@ -16,7 +16,7 @@ export const getMerkleChallengeTrackers = async (req: Request, res: Response<Get
     }
 
 
-    const fetchRes = await MERKLE_CHALLENGES_DB.fetch({ keys: docIds });
+    const fetchRes = await MERKLE_CHALLENGES_DB.fetch({ keys: docIds }, { include_docs: true });
     const docs = getDocsFromNanoFetchRes(fetchRes);
 
 

@@ -43,14 +43,12 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
       }
     }
 
-    console.log("ADDRESS MAPPING IDS TO FETCH", addressMappingIdsToFetch);
-
     const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(id => {
       return {
         mappingId: id,
         collectionId: req.params.collectionId
       }
-    }));
+    }), false);
 
     const balanceToReturn = response ? removeCouchDBDetails(convertBalanceDoc(response, Stringify)) :
       {

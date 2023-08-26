@@ -12,7 +12,8 @@ const { AES } = CryptoJS;
 
 export const getAllCodesAndPasswords = async (expressReq: Request, res: Response<GetAllCodesAndPasswordsRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>; const collectionId = Number(req.params.collectionId);
+    const req = expressReq as AuthenticatedRequest<NumberType>; 
+    const collectionId = Number(req.params.collectionId);
 
     const isManager = await checkIfManager(req, collectionId);
     if (!isManager) return returnUnauthorized(res, true);

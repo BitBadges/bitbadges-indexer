@@ -1,18 +1,26 @@
-import { UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, getReservedAddressMapping, DeleteAddressMappingsRouteResponse } from "bitbadgesjs-utils";
+import { DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
-import { ADDRESS_MAPPINGS_DB, FETCHES_DB } from "../db/db";
-import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { ADDRESS_MAPPINGS_DB } from "../db/db";
 import { getStatus } from "../db/status";
+import { catch404, getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
+import { getAddressMappingsFromDB } from "./utils";
 
-export const deleteAddressMappings = async (req: Request, res: Response<DeleteAddressMappingsRouteResponse<bigint>>) => {
+export const deleteAddressMappings = async (expressReq: Request, res: Response<DeleteAddressMappingsRouteResponse<bigint>>) => {
   try {
+    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetAddressMappingsRouteRequestBody;
     const mappingIds = reqBody.mappingIds;
 
     const docs = await ADDRESS_MAPPINGS_DB.fetch({ keys: mappingIds });
     const docsToDelete = getDocsFromNanoFetchRes(docs);
+
+    for (const doc of docsToDelete) {
+      if (doc.createdBy !== req.session.cosmosAddress) {
+        throw new Error("You are not the owner of mapping with ID " + doc._id);
+      }
+    }
 
     await ADDRESS_MAPPINGS_DB.bulk({
       docs: docsToDelete.map(x => {
@@ -71,14 +79,11 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
       }
     }
 
-
-
     await ADDRESS_MAPPINGS_DB.bulk({
       docs: docs
     });
 
-    return res.status(200).send({
-    })
+    return res.status(200).send({})
   } catch (e) {
     console.log(e);
     return res.status(500).send({
@@ -95,45 +100,9 @@ export const getAddressMappings = async (req: Request, res: Response<GetAddressM
     const reqBody = req.body as GetAddressMappingsRouteRequestBody;
     let mappingIds = reqBody.mappingIds;
 
-    const reservedAddressMappings = [];
+    const docs = await getAddressMappingsFromDB(mappingIds.map(x => { return { mappingId: x } }), true, reqBody.managerAddress);
 
-    for (const mappingId of mappingIds) {
-      if (mappingId === "Manager" && !reqBody.managerAddress) return res.status(400).send({ message: "Must specify managerAddress in request, if you want to fetch the Manager mapping." });
-
-      const mapping = getReservedAddressMapping(mappingId, reqBody.managerAddress ?? "");
-      if (mapping) {
-        reservedAddressMappings.push(mapping);
-        mappingIds = mappingIds.filter(x => x !== mappingId);
-      }
-    }
-
-    let docs: any[] = [];
-    if (mappingIds.length > 0) {
-      const fetchRes = await ADDRESS_MAPPINGS_DB.fetch({ keys: mappingIds });
-      docs = getDocsFromNanoFetchRes(fetchRes);
-    }
-
-    let uris: string[] = docs.map(x => x.uri);
-    if (uris.length > 0) {
-      for (const uri of uris) {
-        const doc = await FETCHES_DB.get(uri).catch(catch404);
-        if (doc) {
-          docs = docs.map(x => {
-            if (x.uri === uri) {
-              return {
-                ...x,
-                metadata: doc.content,
-              }
-            } else {
-              return x;
-            }
-          })
-        }
-      }
-    }
-
-
-    return res.status(200).send({ addressMappings: [...docs.map(x => removeCouchDBDetails(x)), ...reservedAddressMappings] });
+    return res.status(200).send({ addressMappings: docs });
   } catch (e) {
     console.log(e);
     return res.status(500).send({
