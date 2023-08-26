@@ -79,6 +79,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     const approvalsTrackerData: ApprovalsTrackerDocs = {};
     const addressMappingsData: AddressMappingsDocs = {};
 
+
+
     const promises = [];
 
     for (const address of cosmosAddresses) {

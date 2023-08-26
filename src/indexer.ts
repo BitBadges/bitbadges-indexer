@@ -24,7 +24,7 @@ import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 import _ from 'environment'
 import axios from 'axios'
-import { createAddressMappings, getAddressMappings } from './routes/addressMappings'
+import { updateAddressMappings, deleteAddressMappings, getAddressMappings } from './routes/addressMappings'
 import { getApprovals } from './routes/approvalTrackers'
 import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
 import rateLimit from 'express-rate-limit'
@@ -240,7 +240,8 @@ app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
 
 //Address Mappings
 app.post('/api/v0/addressMappings', getAddressMappings);
-app.post('/api/v0/addressMappings/create', authorizeBlockinRequest, createAddressMappings);
+app.post('/api/v0/addressMappings/update', authorizeBlockinRequest, updateAddressMappings);
+app.post('/api/v0/addressMappings/delete', authorizeBlockinRequest, deleteAddressMappings);
 
 //Approvals
 app.post('/api/v0/approvals', getApprovals);

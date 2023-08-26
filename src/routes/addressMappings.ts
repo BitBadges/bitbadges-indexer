@@ -1,4 +1,4 @@
-import { CreateAddressMappingsRouteRequestBody, CreateAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, getReservedAddressMapping } from "bitbadgesjs-utils";
+import { UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, getReservedAddressMapping, DeleteAddressMappingsRouteResponse } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
@@ -6,37 +6,75 @@ import { ADDRESS_MAPPINGS_DB, FETCHES_DB } from "../db/db";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { getStatus } from "../db/status";
 
-export const createAddressMappings = async (expressReq: Request, res: Response<CreateAddressMappingsRouteResponse<bigint>>) => {
+export const deleteAddressMappings = async (req: Request, res: Response<DeleteAddressMappingsRouteResponse<bigint>>) => {
+  try {
+    const reqBody = req.body as GetAddressMappingsRouteRequestBody;
+    const mappingIds = reqBody.mappingIds;
+
+    const docs = await ADDRESS_MAPPINGS_DB.fetch({ keys: mappingIds });
+    const docsToDelete = getDocsFromNanoFetchRes(docs);
+
+    await ADDRESS_MAPPINGS_DB.bulk({
+      docs: docsToDelete.map(x => {
+        return {
+          ...x,
+          _deleted: true,
+        }
+      })
+    });
+
+    return res.status(200).send({})
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error deleting address mappings. Please try again later."
+    })
+  }
+}
+
+
+export const updateAddressMappings = async (expressReq: Request, res: Response<UpdateAddressMappingsRouteResponse<bigint>>) => {
   try {
     const req = expressReq as AuthenticatedRequest<NumberType>;
-    const reqBody = req.body as CreateAddressMappingsRouteRequestBody;
+    const reqBody = req.body as UpdateAddressMappingsRouteRequestBody;
     const mappings = reqBody.addressMappings;
     const cosmosAddress = req.session.cosmosAddress
 
     for (const mapping of mappings) {
-      if (!mapping.mappingId.startsWith(cosmosAddress + ':')) {
-        throw new Error("Mapping ID must start with your Cosmos address followed by a colon (e.g. cosmos1...:MyMappingID)");
+      if (!mapping.mappingId.startsWith('off-chain_')) {
+        throw new Error("Mapping ID must start with off-chain_ (e.g. off-chain_MyMappingID)");
+      }
+    }
+
+    const status = await getStatus();
+    const docs = [];
+    for (const mapping of mappings) {
+      const existingDoc = await ADDRESS_MAPPINGS_DB.get(mapping.mappingId).catch(catch404);
+      if (existingDoc) {
+        if (existingDoc.createdBy !== cosmosAddress) {
+          throw new Error("You are not the owner of mapping with ID " + mapping.mappingId);
+        }
+
+        docs.push({
+          ...existingDoc,
+          ...mapping,
+        })
+      } else {
+        docs.push({
+          ...mapping,
+          createdBy: cosmosAddress,
+          createdBlock: status.block.height,
+          createdTimestamp: status.block.timestamp,
+          _id: mapping.mappingId,
+        });
       }
     }
 
 
-    for (const mapping of mappings) {
-      const existingDoc = await ADDRESS_MAPPINGS_DB.get(mapping.mappingId).catch(catch404);
-      if (existingDoc) throw new Error("Mapping with ID already exists");
-    }
-
-    const status = await getStatus();
 
     await ADDRESS_MAPPINGS_DB.bulk({
-      docs: mappings.map(x => {
-        return {
-          ...x,
-          createdBy: cosmosAddress,
-          createdBlock: status.block.height,
-          createdTimestamp: status.block.timestamp,
-          _id: x.mappingId,
-        }
-      })
+      docs: docs
     });
 
     return res.status(200).send({

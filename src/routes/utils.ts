@@ -44,30 +44,38 @@ export async function getAddressMappingsFromDB(mappingIds: {
 
 export const appendDefaultForIncomingUserApprovedTransfers = (
   timeline: UserApprovedIncomingTransferTimeline<NumberType>[] | UserApprovedIncomingTransferTimelineWithDetails<NumberType>[],
-  addressMappings: AddressMapping[], cosmosAddress: string) => {
-  return getFullDefaultUserApprovedIncomingTransfersTimeline(
-    timeline.map((timeline) => {
-      return {
-        ...timeline,
-        approvedIncomingTransfers:
-          timeline.approvedIncomingTransfers.map((incoming) => {
-            const fromMapping = addressMappings.find((x) => x.mappingId === incoming.fromMappingId);
-            const initiatedByMapping = addressMappings.find((x) => x.mappingId === incoming.initiatedByMappingId);
+  addressMappings: AddressMapping[], cosmosAddress: string,
+  doNotAppendDefault?: boolean
 
-            return {
-              ...incoming,
-              fromMapping: fromMapping as AddressMapping,
-              initiatedByMapping: initiatedByMapping as AddressMapping,
-            };
-          }),
-      };
-    }).map(x => convertUserApprovedIncomingTransferTimelineWithDetails(x, BigIntify))
-  ).map((timeline) => {
+) => {
+  let timelineWithDetails = timeline.map((timeline) => {
+    return {
+      ...timeline,
+      approvedIncomingTransfers:
+        timeline.approvedIncomingTransfers.map((incoming) => {
+          const fromMapping = addressMappings.find((x) => x.mappingId === incoming.fromMappingId);
+          const initiatedByMapping = addressMappings.find((x) => x.mappingId === incoming.initiatedByMappingId);
+
+          return {
+            ...incoming,
+            fromMapping: fromMapping as AddressMapping,
+            initiatedByMapping: initiatedByMapping as AddressMapping,
+          };
+        }),
+    };
+  }).map(x => convertUserApprovedIncomingTransferTimelineWithDetails(x, BigIntify))
+
+  if (!doNotAppendDefault) {
+    timelineWithDetails = getFullDefaultUserApprovedIncomingTransfersTimeline(timelineWithDetails);
+  }
+
+  return timelineWithDetails.map((timeline) => {
 
     return {
       timelineTimes: timeline.timelineTimes.map(x => convertUintRange(x, BigIntify)),
       approvedIncomingTransfers: getFirstMatchForUserIncomingApprovedTransfers(
-        appendDefaultForIncoming(timeline.approvedIncomingTransfers, cosmosAddress),
+        doNotAppendDefault ? timeline.approvedIncomingTransfers :
+          appendDefaultForIncoming(timeline.approvedIncomingTransfers, cosmosAddress),
         cosmosAddress,
         true
       )
@@ -77,30 +85,35 @@ export const appendDefaultForIncomingUserApprovedTransfers = (
 
 export const appendDefaultForOutgoingUserApprovedTransfers = (
   timeline: UserApprovedOutgoingTransferTimeline<NumberType>[] | UserApprovedOutgoingTransferTimelineWithDetails<NumberType>[],
-  addressMappings: AddressMapping[], cosmosAddress: string) => {
-  return getFullDefaultUserApprovedOutgoingTransfersTimeline(
+  addressMappings: AddressMapping[], cosmosAddress: string,
+  doNotAppendDefault?: boolean
+) => {
+  let timelineWithDetails = timeline.map((timeline) => {
+    return {
+      ...timeline,
+      approvedOutgoingTransfers: timeline.approvedOutgoingTransfers.map((outgoing) => {
+        const toMapping = addressMappings.find((x) => x.mappingId === outgoing.toMappingId);
+        const initiatedByMapping = addressMappings.find((x) => x.mappingId === outgoing.initiatedByMappingId);
 
-    timeline.map((timeline) => {
-      return {
-        ...timeline,
-        approvedOutgoingTransfers: timeline.approvedOutgoingTransfers.map((outgoing) => {
-          const toMapping = addressMappings.find((x) => x.mappingId === outgoing.toMappingId);
-          const initiatedByMapping = addressMappings.find((x) => x.mappingId === outgoing.initiatedByMappingId);
+        return {
+          ...outgoing,
+          toMapping: toMapping as AddressMapping,
+          initiatedByMapping: initiatedByMapping as AddressMapping,
+        };
+      }),
+    };
+  }).map(x => convertUserApprovedOutgoingTransferTimelineWithDetails(x, BigIntify))
 
-          return {
-            ...outgoing,
-            toMapping: toMapping as AddressMapping,
-            initiatedByMapping: initiatedByMapping as AddressMapping,
-          };
-        }),
-      };
-    }).map(x => convertUserApprovedOutgoingTransferTimelineWithDetails(x, BigIntify))
-  ).map((timeline) => {
+  if (!doNotAppendDefault) {
+    timelineWithDetails = getFullDefaultUserApprovedOutgoingTransfersTimeline(timelineWithDetails);
+  }
 
+  return timelineWithDetails.map((timeline) => {
     return {
       timelineTimes: timeline.timelineTimes.map(x => convertUintRange(x, BigIntify)),
       approvedOutgoingTransfers: getFirstMatchForUserOutgoingApprovedTransfers(
-        appendDefaultForOutgoing(timeline.approvedOutgoingTransfers, cosmosAddress),
+        doNotAppendDefault ? timeline.approvedOutgoingTransfers :
+          appendDefaultForOutgoing(timeline.approvedOutgoingTransfers, cosmosAddress),
         cosmosAddress,
         true
       )

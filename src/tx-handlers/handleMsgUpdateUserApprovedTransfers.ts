@@ -5,9 +5,10 @@ import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApprovedTransfers<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
-  await fetchDocsForCacheIfEmpty(docs, [`${msg.collectionId}`], [], [], [
+  console.log(JSON.stringify(msg, null, 2));
+  await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
     `${msg.collectionId}:${msg.creator}`,
-  ], [], []);
+  ], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const collectionDoc = docs.collections[`${msg.collectionId}`];
@@ -39,4 +40,8 @@ export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApp
   if (msg.updateUserPermissions) {
     balancesDoc.userPermissions = msg.userPermissions;
   }
+
+  docs.balances[`${msg.collectionId}:${msg.creator}`] = balancesDoc;
+
+  console.log("BALANCES DOC", `${msg.collectionId}:${msg.creator}`, JSON.stringify(docs.balances[`${msg.collectionId}:${msg.creator}`], null, 2));
 }

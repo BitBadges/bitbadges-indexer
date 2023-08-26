@@ -1,4 +1,4 @@
-import { BalanceInfoWithDetails, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, convertBalanceDoc, convertCollectionDoc } from "bitbadgesjs-utils";
+import { BalanceInfoWithDetails, GetBadgeBalanceByAddressRouteRequestBody, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, convertBalanceDoc, convertCollectionDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { BALANCES_DB, COLLECTIONS_DB } from "../db/db";
@@ -8,6 +8,8 @@ import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoing
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBadgeBalanceByAddressRouteResponse<NumberType>>) => {
   //TODO: Support inherited balances
   try {
+
+    const reqBody = req.body as GetBadgeBalanceByAddressRouteRequestBody;
 
     const cosmosAddress = `${req.params.cosmosAddress.toString()}`;
     const docId = `${req.params.collectionId}:${cosmosAddress}`
@@ -29,6 +31,20 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
       }
     }
 
+    for (const incomingTimeline of response?.approvedIncomingTransfersTimeline ?? []) {
+      for (const incoming of incomingTimeline.approvedIncomingTransfers) {
+        addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
+      }
+    }
+
+    for (const outgoingTimeline of response?.approvedOutgoingTransfersTimeline ?? []) {
+      for (const outgoing of outgoingTimeline.approvedOutgoingTransfers) {
+        addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+      }
+    }
+
+    console.log("ADDRESS MAPPING IDS TO FETCH", addressMappingIdsToFetch);
+
     const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(id => {
       return {
         mappingId: id,
@@ -48,14 +64,16 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
         _id: req.params.collectionId + ':' + cosmosAddress
       }
 
+
+
     const balanceToReturnConverted: BalanceInfoWithDetails<string> = {
       ...balanceToReturn,
       approvedIncomingTransfersTimeline: [],
       approvedOutgoingTransfersTimeline: [],
     }
 
-    balanceToReturnConverted.approvedIncomingTransfersTimeline = appendDefaultForIncomingUserApprovedTransfers(balanceToReturn.approvedIncomingTransfersTimeline, addressMappings, req.params.cosmosAddress);
-    balanceToReturnConverted.approvedOutgoingTransfersTimeline = appendDefaultForOutgoingUserApprovedTransfers(balanceToReturn.approvedOutgoingTransfersTimeline, addressMappings, req.params.cosmosAddress);
+    balanceToReturnConverted.approvedIncomingTransfersTimeline = appendDefaultForIncomingUserApprovedTransfers(balanceToReturn.approvedIncomingTransfersTimeline, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
+    balanceToReturnConverted.approvedOutgoingTransfersTimeline = appendDefaultForOutgoingUserApprovedTransfers(balanceToReturn.approvedOutgoingTransfersTimeline, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
 
     return res.status(200).send({
       balance: balanceToReturnConverted,
@@ -63,6 +81,7 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
 
   } catch (e) {
+    console.error(e);
     return res.status(500).send({
       error: serializeError(e),
       message: "Error getting badge balances"

@@ -3,7 +3,7 @@ import { cosmosToEth } from "bitbadgesjs-address-converter";
 import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth";
 import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query";
 import * as ethermint from 'bitbadgesjs-proto/dist/proto/ethermint/crypto/v1/ethsecp256k1/keys';
-import { convertToCosmosAddress, getChainForAddress, isAddressValid, SupportedChain } from "bitbadgesjs-utils";
+import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-utils";
 
 /**
  * The chain will return a similar structure but with a pub_key object and account_number field (see CosmosAccountResponse from bitbadgesjs-utils)
@@ -65,7 +65,6 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
     badges: {
       getAccountInfo: async (address: string): Promise<CleanedCosmosAccountInformation> => {
         const cosmosAddress = convertToCosmosAddress(address);
-        // console.log("COSMOS", cosmosAddress);
         try {
           //Native Cosmos SDK x/auth query for account information
           const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address: cosmosAddress }).serialize();
@@ -75,17 +74,8 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
             accountData
           )
 
-
           return getAccountInfoToReturn(accountPromise);
         } catch (error) {
-          // console.log("ERROR", error);
-          if (isAddressValid(address)) {
-            // console.log("Account not found on chain so returning empty account");
-          } else {
-            // console.log(error);
-          }
-
-
           return {
             address: address,
             sequence: "0",
