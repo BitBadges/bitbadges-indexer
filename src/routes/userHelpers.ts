@@ -105,29 +105,16 @@ export async function executeActivityQuery(cosmosAddress: string, bookmark?: str
     sort: ["timestamp"],
     bookmark: bookmark ? bookmark : undefined,
   });
-
   return activityRes;
 }
 
+const designDocName = 'balances_by_address';
 
 export async function getAllCollectionIdsOwned(cosmosAddress: string) {
-  const docs = await BALANCES_DB.find({
-    selector: {
-      "cosmosAddress": {
-        "$eq": cosmosAddress,
-      },
-      "balances": {
-        "$elemMatch": {
-          "amount": {
-            "$gt": 0,
-          }
-        }
-      },
-    },
-    limit: 100000,
-    fields: ["_id"],
-  });
-  const collections = docs.docs.map((row) => row._id.split(':')[0]) ?? [];
+  const view = await BALANCES_DB.view(designDocName, 'byCosmosAddress', { key: cosmosAddress });
+  // console.log("VIEW:" + view.rows.length, view.rows);
+
+  const collections = view.rows.map((row) => row.id.split(':')[0]) ?? [];
   return collections;
 }
 
@@ -147,7 +134,6 @@ export async function executeAnnouncementsQuery(cosmosAddress: string, bookmark?
     sort: ["timestamp"],
     bookmark: bookmark ? bookmark : undefined,
   });
-
   return announcementsRes;
 }
 
@@ -161,26 +147,15 @@ export async function executeReviewsQuery(cosmosAddress: string, bookmark?: stri
     sort: ["timestamp"],
     bookmark: bookmark ? bookmark : undefined,
   });
-
   return reviewsRes;
 }
 
 export async function executeCollectedQuery(cosmosAddress: string, bookmark?: string) {
-  const collectedRes = await BALANCES_DB.find({
-    selector: {
-      "cosmosAddress": {
-        "$eq": cosmosAddress,
-      },
-      "balances": {
-        "$elemMatch": {
-          "amount": {
-            "$gt": 0,
-          }
-        }
-      },
-    },
-    bookmark: bookmark ? bookmark : undefined
-  });
+  const view = await BALANCES_DB.view(designDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true });
+
+  const collectedRes = {
+    docs: view.rows.map((row) => row.doc)
+  }
 
   return collectedRes;
 }

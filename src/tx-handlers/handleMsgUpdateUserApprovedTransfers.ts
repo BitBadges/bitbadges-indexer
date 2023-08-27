@@ -3,9 +3,11 @@ import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { recursivelyDeleteFalseProperties } from "./handleMsgUpdateCollection"
 
 export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApprovedTransfers<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
-  console.log(JSON.stringify(msg, null, 2));
+  recursivelyDeleteFalseProperties(msg);
+
   await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
     `${msg.collectionId}:${msg.creator}`,
   ], [], [], []);
@@ -43,5 +45,5 @@ export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApp
 
   docs.balances[`${msg.collectionId}:${msg.creator}`] = balancesDoc;
 
-  console.log("BALANCES DOC", `${msg.collectionId}:${msg.creator}`, JSON.stringify(docs.balances[`${msg.collectionId}:${msg.creator}`], null, 2));
+  // console.log("BALANCES DOC", `${msg.collectionId}:${msg.creator}`, JSON.stringify(docs.balances[`${msg.collectionId}:${msg.creator}`], null, 2));
 }

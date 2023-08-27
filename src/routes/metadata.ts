@@ -107,7 +107,7 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMet
 
     const reqBody = req.body as FetchMetadataDirectlyRouteRequestBody;
     let uris = reqBody.uris;
-    console.log(uris);
+    // console.log(uris);
     const promises = [];
     for (const uri of uris) {
       promises.push(async () => {
@@ -133,7 +133,7 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMet
 
     const results = await Promise.all(promises.map(p => p()));
 
-    console.log(results);
+    // console.log(results);
 
     return res.status(200).send({ metadata: results });
   } catch (e) {

@@ -1,5 +1,5 @@
 import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertApprovalTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertContractAddressTimeline, convertCustomDataTimeline, convertInheritedBalancesTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BLANK_USER_INFO, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionApprovedTransferTimelineWithDetails, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertBitBadgesUserInfo, convertCollectionApprovedTransferTimelineWithDetails, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getBadgeIdsForMetadataId, getCurrentValueIdxForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionApprovedTransfersTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getInheritedBalancesTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
+import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionApprovedTransferTimelineWithDetails, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertCollectionApprovedTransferTimelineWithDetails, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getBadgeIdsForMetadataId, getCurrentValueIdxForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionApprovedTransfersTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getInheritedBalancesTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
 
 import { Request, Response } from "express";
 import nano from "nano";
@@ -8,7 +8,6 @@ import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
 import { fetchUriFromDb } from "../metadata-queue";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
-import { getAccountByAddress } from "./users";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
 
 /**
@@ -115,7 +114,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       promises.push(Promise.resolve({ docs: [] }));
     }
   }
-
 
   //Parse results and add to collectionResponses
   const responses = await Promise.all(promises);
@@ -367,7 +365,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       ].filter((approval, idx, self) => self.findIndex((a) => JSON.stringify(a) === JSON.stringify(approval)) === idx),
       //Placeholders to be replaced later in function
       cachedBadgeMetadata: [],
-      managerInfo: convertBitBadgesUserInfo(BLANK_USER_INFO, Stringify),
       views: {
         'latestActivity': query.viewsToFetch?.find(x => x.viewKey === 'latestActivity') ? {
           ids: activityRes.docs.map((doc) => doc._id),
@@ -478,25 +475,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
 
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
-  }
-
-
-  const managerKeys = [...new Set(collectionResponses.map((collectionRes) => {
-    const _managerTimeline = collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify));
-    const idx = getCurrentValueIdxForTimeline(_managerTimeline);
-    if (idx == -1n) return undefined;
-    return collectionRes.managerTimeline[Number(idx)].manager;
-  }).filter((x) => x !== undefined) as string[])];
-
-  if (managerKeys.length > 0) {
-
-    for (const collectionRes of collectionResponses) {
-      const _managerTimeline = collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify));
-      const idx = getCurrentValueIdxForTimeline(_managerTimeline);
-      if (idx == -1n) continue;
-      const manager = collectionRes.managerTimeline[Number(idx)].manager;
-      collectionRes.managerInfo = manager ? await getAccountByAddress(req, manager) : convertBitBadgesUserInfo(BLANK_USER_INFO, Stringify);
-    }
   }
 
 
@@ -644,11 +622,11 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   if (uris.length > 250) {
     throw new Error('For scalability, we limit the number of metadata URIs that can be fetched at once to 250. Please design your application to fetch metadata in batches of 250 or less.');
   }
-
   const promises = [];
   for (const uri of uris) {
     promises.push(fetchUriFromDb(uri, collectionId.toString()));
   }
+
 
   const results = await Promise.all(promises) as {
     content: Metadata<JSPrimitiveNumberType> | undefined,
@@ -689,6 +667,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       }
     });
   }
+
 
   return {
     collectionMetadata: collectionMetadata ? convertMetadata(collectionMetadata, Stringify) : undefined,

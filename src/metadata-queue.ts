@@ -39,36 +39,17 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   let alreadyInQueue = false;
   let needsRefresh = false;
   let refreshRequestTime = Date.now();
-
-  //Get document from cache if it exists
-  try {
-    fetchDoc = await FETCHES_DB.get(uri);
-  } catch (error) {
-    //Throw if non-404 error.
-    if (error.statusCode !== 404) {
-      throw error;
-    }
-  }
-
   //TODO: Get _conflicts and only take the one with latest time
   //Check if we need to refresh
-  const refreshesRes = await REFRESHES_DB.find({
-    selector: {
-      collectionId: {
-        "$eq": Number(collectionId),
-      }
-    },
-    limit: 1,
-  });
 
-  if (refreshesRes.docs.length > 0) {
-    refreshDoc = refreshesRes.docs[0];
-    if (!fetchDoc || refreshDoc.refreshRequestTime > fetchDoc.fetchedAt) {
-      needsRefresh = true;
-      refreshRequestTime = Number(refreshDoc.refreshRequestTime);
-    }
-  } else {
-    throw new Error('Collection refresh document not found');
+  const fetchDocPromise = FETCHES_DB.get(uri).catch(catch404);
+  const refreshDocPromise = REFRESHES_DB.get(collectionId);
+
+  [fetchDoc, refreshDoc] = await Promise.all([fetchDocPromise, refreshDocPromise]);
+
+  if (!fetchDoc || refreshDoc.refreshRequestTime > fetchDoc.fetchedAt) {
+    needsRefresh = true;
+    refreshRequestTime = Number(refreshDoc.refreshRequestTime);
   }
 
   /*
@@ -79,33 +60,33 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
     This way, the same exact document is created by all N nodes and will not cause any conflicts.
   */
 
-  //Check if already in queue
-  const res = await QUEUE_DB.get(`${uri}-${refreshDoc._rev}`).catch((e) => {
-    if (e.statusCode !== 404) {
-      throw e;
-    }
-    return undefined;
-  });
 
-  if (res) {
-    alreadyInQueue = true;
-  }
 
   //If not already in queue and we need to refresh, add to queue
-  if (!alreadyInQueue && needsRefresh) {
+  if (needsRefresh) {
 
-    const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc._rev}`); //`${uri}-${refreshDoc._rev}
+    //Check if already in queue
+    const res = await QUEUE_DB.get(`${uri}-${refreshDoc._rev}`).catch(catch404);
+    if (res) {
+      alreadyInQueue = true;
+    }
 
-    await insertToDB(QUEUE_DB, {
-      _id: `${uri}-${refreshDoc._rev}`,
-      _rev: undefined,
-      uri: uri,
-      collectionId: collectionId,
-      refreshRequestTime,
-      numRetries: 0,
-      loadBalanceId,
-      nextFetchTime: BigInt(Date.now(),)
-    });
+    if (!alreadyInQueue) {
+
+
+      const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc._rev}`); //`${uri}-${refreshDoc._rev}
+
+      await insertToDB(QUEUE_DB, {
+        _id: `${uri}-${refreshDoc._rev}`,
+        _rev: undefined,
+        uri: uri,
+        collectionId: collectionId,
+        refreshRequestTime,
+        numRetries: 0,
+        loadBalanceId,
+        nextFetchTime: BigInt(Date.now(),)
+      });
+    }
   }
 
   return {

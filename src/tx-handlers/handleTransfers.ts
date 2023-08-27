@@ -3,6 +3,8 @@ import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, a
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 
 export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, creator: string, fromEvent?: boolean) => {
+  
+  
   //Handle new acocunts, if empty 
   for (const transfer of transfers) {
     await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${transfer.from}`], [], [], []);

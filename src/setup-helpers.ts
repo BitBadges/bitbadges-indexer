@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
+import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
@@ -155,22 +155,34 @@ export async function createIndexesAndViews() {
   })
 
 
-  // const designDocName = '_design/balances_by_address';
+  const designDocName = '_design/balances_by_address';
 
-  // const view = {
-  //   _id: designDocName,
-  //   views: {
-  //     byCosmosAddress: {
-  //       map: `function (doc) {
-  //         if (doc._id) {
-  //           emit(doc.cosmosAddress, null);
-  //         }
-  //       }`
-  //     }
-  //   }
-  // };
+  const view = {
+    _id: designDocName,
+    views: {
+      byCosmosAddress: {
+        map: `function (doc) {
+          if (doc._id) {
+  
+            if (
+              doc.cosmosAddress !== "Mint" &&
+              doc.cosmosAddress !== "Total" &&
+              Array.isArray(doc.balances) &&
+              doc.balances.some(balance => balance.amount > 0)
+            ) {
+              emit(doc.cosmosAddress, emitnulltedDoc);
+            }
+          }
+        }`
+      }
+    },
+    "language": "javascript",
+    "options": {
+      "partitioned": false
+    }
+  };
 
 
-  // await BALANCES_DB.insert(view);
+  await BALANCES_DB.insert(view);
 }
 

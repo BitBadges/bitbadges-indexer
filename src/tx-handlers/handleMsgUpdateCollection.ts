@@ -6,7 +6,46 @@ import { handleMerkleChallenges } from "./merkleChallenges"
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../metadata-queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
+export function recursivelyDeleteFalseProperties(obj: object) {
+  if (Array.isArray(obj)) {
+    obj.forEach(item => recursivelyDeleteFalseProperties(item));
+    return;
+  }
+
+
+  if (typeof obj !== 'object' || obj === null) {
+    return;
+  }
+
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const prop = obj[key];
+
+      if (prop && typeof prop === 'object') {
+        recursivelyDeleteFalseProperties(prop);
+
+        if (
+          prop.hasOwnProperty('invertDefault') ||
+          prop.hasOwnProperty('allValues') ||
+          prop.hasOwnProperty('noValues')
+        ) {
+          if (
+            !prop.invertDefault &&
+            !prop.allValues &&
+            !prop.noValues
+          ) {
+            delete obj[key];
+          }
+        }
+      }
+    }
+  }
+}
+
+
 export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+  recursivelyDeleteFalseProperties(msg);
+
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 

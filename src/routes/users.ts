@@ -48,6 +48,7 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
       if (doc) {
         accountInfos.push(doc);
       } else {
+
         resolveChainPromises.push(async () => {
           let ethTxCount = 0;
           const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
@@ -66,6 +67,7 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
             }
           }
 
+
           return {
             address: ethTxCount > 0 ? ethAddress : address,
             sequence: "0",
@@ -75,9 +77,9 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
             publicKey: '',
           }
         });
+
       }
     }
-
     if (resolveChainPromises.length > 0) {
       const resolvedChainResults = await Promise.all(resolveChainPromises.map(x => x()));
       accountInfos.push(...resolvedChainResults);
@@ -205,7 +207,6 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
   try {
     const reqBody = req.body as GetAccountsRouteRequestBody;
     const allDoNotHaveExternalCalls = reqBody.accountsToFetch.every(x => x.noExternalCalls);
-
     if (!allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 250) {
       return res.status(400).send({
         message: 'You can only fetch up to 250 accounts with external calls at a time. Please structure your request accordingly.'
@@ -229,9 +230,9 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
 
     const accountInfos = await getBatchAccountInformation(allQueries);
     const profileInfos = await getBatchProfileInformation(allQueries);
-
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
 
+    const additionalInfoPromises = [];
     for (const query of allQueries) {
       if (query.fetchOptions) {
         let idx = userInfos.findIndex(x => query.address ? x.cosmosAddress === convertToCosmosAddress(query.address) : x.username === query.fetchOptions?.username);
@@ -240,13 +241,24 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         }
         let account = userInfos[idx];
 
-        const portfolioRes = await getAdditionalUserInfo(req, account.cosmosAddress, query.fetchOptions);
-        account = {
-          ...account,
-          ...portfolioRes
-        }
+        additionalInfoPromises.push(getAdditionalUserInfo(req, account.cosmosAddress, query.fetchOptions));
+      }
+    }
 
-        userInfos[idx] = account;
+
+    const additionalInfos = await Promise.all(additionalInfoPromises);
+    for (const query of allQueries) {
+      if (query.fetchOptions) {
+        let idx = userInfos.findIndex(x => query.address ? x.cosmosAddress === convertToCosmosAddress(query.address) : x.username === query.fetchOptions?.username);
+        if (idx === -1) {
+          throw new Error('Could not find account');
+        }
+        let account = userInfos[idx];
+
+        userInfos[idx] = {
+          ...account,
+          ...additionalInfos[idx]
+        }
       }
     }
 
@@ -340,7 +352,6 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
   } else {
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
-
   const results = await Promise.all(asyncOperations.map(operation => operation()));
   const response = results[0] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
   const activityRes = results[1] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
@@ -368,7 +379,6 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
   }
 
   const addressMappingsToReturn = await getAddressMappingsFromDB(addressMappingIdsToFetch, true);
-
   return {
     collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails).map((collected) => {
       return {

@@ -127,29 +127,12 @@ export async function executeCollectionReviewsQuery(collectionId: string, bookma
 }
 
 export async function fetchTotalAndUnmintedBalancesQuery(collectionId: string) {
-  const res = await BALANCES_DB.partitionedFind(collectionId, {
-    selector: {
-      collectionId: {
-        $eq: Number(collectionId)
-      },
-      balances: {
-        $gt: null
-      },
-      //equals total or mint
-      cosmosAddress: {
-        $or: [
-          {
-            $eq: 'Total'
-          },
-          {
-            $eq: 'Mint'
-          }
-        ]
-      }
-    },
-  });
+  const totalPromise = BALANCES_DB.get(`${collectionId}:Total`);
+  const mintPromise = BALANCES_DB.get(`${collectionId}:Mint`);
 
-  return res;
+  const [totalDoc, mintDoc] = await Promise.all([totalPromise, mintPromise]);
+
+  return { docs: [totalDoc, mintDoc] };
 }
 
 export async function executeCollectionBalancesQuery(collectionId: string, bookmark?: string) {

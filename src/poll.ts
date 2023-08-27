@@ -104,7 +104,6 @@ export const poll = async () => {
     let status = convertStatusDoc(_status, BigIntify);
 
     while (!caughtUp) {
-      // console.time('poll')
       // We fetch initial status at beginning of block and do not write anything in DB until end of block
       // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
 
@@ -155,7 +154,6 @@ export const poll = async () => {
         const status2 = await getStatus();
         status = convertStatusDoc(status2, BigIntify);
       }
-      // console.timeEnd('poll')
     }
   } catch (e) {
     //Error handling
