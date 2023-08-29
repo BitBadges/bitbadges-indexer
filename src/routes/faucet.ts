@@ -7,6 +7,7 @@ import { AIRDROP_DB, insertToDB } from "../db/db";
 import _ from "environment"
 import { serializeError } from "serialize-error";
 import { GetTokensFromFaucetRouteResponse, NumberType } from "bitbadgesjs-utils";
+import { catch404 } from "../utils/couchdb-utils";
 
 // Create a mutex to protect the faucet from double spending
 // TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency); it will work for now  but needs a refactor
@@ -31,13 +32,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
         return { authenticated: false, message: 'You must Sign In w/ Ethereum.' };
       }
 
-      const doc = await AIRDROP_DB.get(req.session.cosmosAddress).catch((e) => {
-        //Only if missing error
-        if (e.statusCode === 404) {
-          return null;
-        }
-        return Promise.reject(e);
-      });
+      const doc = await AIRDROP_DB.get(req.session.cosmosAddress).catch(catch404);
 
       if (doc && doc.airdropped) {
         return { message: "Already airdropped" };
@@ -102,6 +97,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
 
       return res.status(200).send(result);
     } catch (e) {
+      //Handle case where sending tokens fails. Need to revert the airdrop status
       const doc = await AIRDROP_DB.get(req.session.cosmosAddress);
       await insertToDB(AIRDROP_DB, { ...doc, airdropped: false, timestamp: Date.now() });
       throw e;

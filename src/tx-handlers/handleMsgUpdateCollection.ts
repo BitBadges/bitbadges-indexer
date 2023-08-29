@@ -3,7 +3,7 @@ import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleMerkleChallenges } from "./merkleChallenges"
 
-import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../metadata-queue"
+import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export function recursivelyDeleteFalseProperties(obj: object) {
@@ -46,7 +46,7 @@ export function recursivelyDeleteFalseProperties(obj: object) {
 export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
 
@@ -132,7 +132,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
     await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [
       `${collectionId}:Total`,
       `${collectionId}:Mint`,
-    ], [], [], []);
+    ], [], [], [], []);
   }
   const collection = docs.collections[collectionId.toString()];
   if (!collection) throw new Error(`Collection ${collectionId} does not exist`);

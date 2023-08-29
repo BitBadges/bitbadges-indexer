@@ -6,32 +6,22 @@ import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
 import { addBalancesToIpfs, addMerkleChallengeToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
 import { cleanBalances } from "../utils/dataCleaners";
 import CryptoJS from "crypto-js";
+import { catch404 } from "../utils/couchdb-utils";
 
 const { AES } = CryptoJS;
 
 const IPFS_UPLOAD_BYTES_LIMIT = 100000000; //100MB
 
 export const updateIpfsTotals = async (address: string, size: number, req: AuthenticatedRequest<NumberType>) => {
-  let ipfsTotalsDoc = undefined;
-  try {
-    const _ipfsTotalsDoc = await IPFS_TOTALS_DB.get(address);
-    ipfsTotalsDoc = convertIPFSTotalsDoc(_ipfsTotalsDoc, Number);
-  } catch (e) {
-    //ignore if non-404
-    if (e.statusCode !== 404) {
-      throw e;
-    }
-  }
-
-  if (!ipfsTotalsDoc) {
-    ipfsTotalsDoc = {
-      _id: address,
-      _rev: undefined,
-      bytesUploaded: size,
-    }
-  } else {
-    ipfsTotalsDoc.bytesUploaded += size;
-  }
+  const _ipfsTotalsDoc = await IPFS_TOTALS_DB.get(address).catch(catch404);
+  let ipfsTotalsDoc = _ipfsTotalsDoc ? {
+    ...convertIPFSTotalsDoc(_ipfsTotalsDoc, Number),
+    bytesUploaded: Number(_ipfsTotalsDoc.bytesUploaded) + size,
+  } : {
+    _id: address,
+    _rev: undefined,
+    bytesUploaded: size,
+  };
 
   await insertToDB(IPFS_TOTALS_DB, ipfsTotalsDoc);
 
@@ -43,18 +33,21 @@ export const addBalancesToIpfsHandler = async (expressReq: Request, res: Respons
   const req = expressReq as AuthenticatedRequest<NumberType>;
   const reqBody = req.body as AddBalancesToIpfsRouteRequestBody;
 
-  if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
-    return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
-  }
+
 
   try {
     let result = undefined;
     let size = 0;
     if (reqBody.balances) {
-      const balances = cleanBalances(reqBody.balances);
-      result = await addBalancesToIpfs(balances);
       //get size of req.body in KB
       size = Buffer.byteLength(JSON.stringify(req.body));
+
+      if (req.session.ipfsTotal + size > IPFS_UPLOAD_BYTES_LIMIT) {
+        return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
+      }
+
+      const balances = cleanBalances(reqBody.balances);
+      result = await addBalancesToIpfs(balances);
     }
 
     if (!result) {
@@ -77,15 +70,14 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
   const req = expressReq as AuthenticatedRequest<NumberType>;
   const reqBody = req.body as AddMetadataToIpfsRouteRequestBody;
 
-  if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
-    return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
-  }
-
   try {
-    let size = 0;
+    let size = Buffer.byteLength(JSON.stringify(req.body));
+
+    if (req.session.ipfsTotal + size > IPFS_UPLOAD_BYTES_LIMIT) {
+      return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
+    }
+
     const { allResults, collectionMetadataResult, badgeMetadataResults } = await addMetadataToIpfs(reqBody.collectionMetadata, reqBody.badgeMetadata);
-    //get size of req.body in KB
-    size = Buffer.byteLength(JSON.stringify(req.body));
 
     if (allResults.length === 0) {
       throw new Error('No result received');
@@ -107,12 +99,14 @@ export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: 
   const req = expressReq as AuthenticatedRequest<NumberType>;
   const reqBody = req.body as AddMerkleChallengeToIpfsRouteRequestBody;
 
-  if (req.session.ipfsTotal > IPFS_UPLOAD_BYTES_LIMIT) {
-    return res.status(400).send({ message: 'You have exceeded your IPFS storage limit.' });
-  }
-
   try {
     const challengeDetails = reqBody.challengeDetails ? convertChallengeDetails(reqBody.challengeDetails, BigIntify) : undefined;
+    const size = Buffer.byteLength(JSON.stringify(req.body));
+
+    if (req.session.ipfsTotal + size > IPFS_UPLOAD_BYTES_LIMIT) {
+      return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
+    }
+
     const result = await addMerkleChallengeToIpfs(reqBody.name, reqBody.description, challengeDetails);
     if (!result) {
       throw new Error('No addAll result received');
@@ -145,37 +139,20 @@ export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: 
       createdBy: req.session.cosmosAddress,
       challengeLevel: "collection",
       collectionId: "-1",
-      // challengeId: "-1",
       docClaimedByCollection: false,
       cid: cid.toString(),
       claimedUsers: {},
       challengeDetails: challengeDetails ? {
         ...challengeDetails,
         password: challengeDetails.password ? AES.encrypt(challengeDetails.password, SYM_KEY).toString() : "",
-        // password: challengeDetails.password ? challengeDetails.password : "",
         leavesDetails: {
           ...challengeDetails.leavesDetails,
           preimages: challengeDetails.leavesDetails.preimages ? challengeDetails.leavesDetails.preimages.map((preimage: string) => AES.encrypt(preimage, SYM_KEY).toString()) : undefined
-          // preimages: challengeDetails.leavesDetails.preimages ? challengeDetails.leavesDetails.preimages : undefined
         }
       } : undefined
     });
 
 
-    //   challengeDetails: challengeDetails.map(x => {
-    //     return {
-    //       ...x,
-    //       password: x.password ? AES.encrypt(x.password, SYM_KEY).toString() : "",
-    //       leavesDetails: {
-    //         ...x.leavesDetails,
-    //         preimages: x.leavesDetails.preimages ? x.leavesDetails.preimages.map((preimage: string) => AES.encrypt(preimage, SYM_KEY).toString()) : undefined
-    //       }
-    //     }
-    //   })
-    // });
-
-
-    let size = Buffer.byteLength(JSON.stringify(req.body));
     await updateIpfsTotals(req.session.cosmosAddress, size, req);
 
     return res.status(200).send({ result: { cid: cid.toString() } });

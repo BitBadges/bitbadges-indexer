@@ -1,42 +1,43 @@
+import axios from 'axios'
+import { ErrorResponse } from 'bitbadgesjs-utils'
 import cookieParser from 'cookie-parser'
+import cors from 'cors'
 import { Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { config } from "dotenv"
 import express, { Express, Request, Response } from "express"
+import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
+import fs from 'fs'
 import { Server } from "http"
+import https from 'https'
 import { create } from 'ipfs-http-client'
+import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
+import { API_KEYS_DB, insertToDB } from './db/db'
 import { poll, pollUris } from "./poll"
+import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
 import { addAnnouncement } from './routes/announcements'
+import { getApprovals } from './routes/approvalTrackers'
+import { getOwnersForBadge } from './routes/badges'
 import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
 import { getBrowseCollections } from './routes/browse'
+import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
 import { getAllCodesAndPasswords } from "./routes/codes"
-import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, getOwnersForBadge } from "./routes/collections"
+import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
 import { addBalancesToIpfsHandler, addMerkleChallengeToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
-import { fetchMetadataDirectly, getRefreshStatus, refreshMetadata } from "./routes/metadata"
+import { fetchMetadataDirectly, } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
+import { getRefreshStatus, refreshMetadata } from './routes/refresh'
 import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteReview } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-import _ from 'environment'
-import axios from 'axios'
-import { updateAddressMappings, deleteAddressMappings, getAddressMappings } from './routes/addressMappings'
-import { getApprovals } from './routes/approvalTrackers'
-import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
-import rateLimit from 'express-rate-limit'
-import { ErrorResponse } from 'bitbadgesjs-utils'
-import { API_KEYS_DB, insertToDB } from './db/db'
-import responseTime from 'response-time';
-import cors from 'cors';
-import https from 'https';
-import fs from 'fs';
 
 export const OFFLINE_MODE = false;
-
+export const TIME_MODE = true;
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 
 config()
@@ -148,7 +149,19 @@ var websiteOnlyCorsOptions = {
 //Use limiter but provide a custom error response
 app.use(limiter);
 // app.use(timeout('30s'));
-app.use(responseTime())
+//console.log the repsonse
+app.use(responseTime((req: Request, response: Response, time: number) => {
+  if (TIME_MODE) {
+    console.log(`${req.method} ${req.url}: ${time} ms`);
+    if (time > 1000) {
+      console.log('SLOW REQUEST!');
+      console.log(JSON.stringify(req.body, null, 2));
+    }
+  }
+
+
+}));
+
 
 
 app.use(expressSession({
@@ -168,9 +181,11 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }))
 app.use(express.json({ limit: '10mb' }))
 
 app.use((req, res, next) => {
-  console.log();
-  console.log(req.method, req.url);
-  // console.log(JSON.stringify(req.body, null, 2));
+  if (!TIME_MODE) {
+    console.log();
+    console.log(req.method, req.url);
+    // console.log(JSON.stringify(req.body, null, 2));
+  }
   next();
 });
 
@@ -248,7 +263,6 @@ app.post('/api/v0/approvals', getApprovals);
 
 //Merkle Challenge Tracker
 app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
-
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

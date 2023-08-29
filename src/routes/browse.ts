@@ -172,7 +172,12 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
         'latest': addressMappingsToReturn,
       },
       profiles: {
-        'featured': allAccounts.map(x => removeCouchDBDetails(x)),
+        'featured': [
+          ...allAccounts,
+          ...allAccounts,
+          ...allAccounts,
+          ...allAccounts,
+        ].map(x => removeCouchDBDetails(x)),
       },
     });
   } catch (e) {

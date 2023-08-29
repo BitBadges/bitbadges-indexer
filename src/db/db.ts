@@ -7,12 +7,28 @@ config();
 
 const nano = Nano(`${process.env.DB_URL}`);
 
-interface ApiKeyDoc {
+export interface ApiKeyDoc {
   numRequests: number;
   lastRequest: number;
 }
 
-export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T>
+export interface EthTxCountDoc {
+  count: number;
+  lastFetched: number;
+}
+
+export interface MsgDoc {
+  msg: any;
+  type: string;
+  txHash: string;
+  txIndex: number;
+  msgIndex: number;
+  block: number;
+  blockTimestamp: number;
+}
+
+
+export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc;
 
 export const API_KEYS_DB = nano.db.use<ApiKeyDoc>('api-keys');
 export const TRANSFER_ACTIVITY_DB = nano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
@@ -34,6 +50,8 @@ export const REVIEWS_DB = nano.db.use<ReviewDoc<JSPrimitiveNumberType>>('reviews
 export const ADDRESS_MAPPINGS_DB = nano.db.use<AddressMappingDoc<JSPrimitiveNumberType>>('address-mappings');
 export const APPROVALS_TRACKER_DB = nano.db.use<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers');
 export const CLAIM_ALERTS_DB = nano.db.use<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts');
+export const ETH_TX_COUNT_DB = nano.db.use<EthTxCountDoc>('eth-tx-count');
+export const MSGS_DB = nano.db.use<MsgDoc>('msgs');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
   const res = await insertMany(db, [doc]);
@@ -90,6 +108,10 @@ export async function convertDocsToStoreInDb(db: Nano.DocumentScope<BitBadgesDoc
       convertedDoc = doc as ApiKeyDoc;
     } else if (db.config.db === CLAIM_ALERTS_DB.config.db) {
       convertedDoc = convertClaimAlertDoc(doc as ClaimAlertDoc<NumberType>, NumberifyIfPossible);
+    } else if (db.config.db === ETH_TX_COUNT_DB.config.db) {
+      convertedDoc = doc as EthTxCountDoc;
+    } else if (db.config.db === MSGS_DB.config.db) {
+      convertedDoc = doc as MsgDoc;
     }
 
     convertedDocs.push(convertedDoc as BitBadgesDocumentBase<JSPrimitiveNumberType> & Nano.Document);

@@ -10,6 +10,10 @@ export const getMerkleChallengeTrackers = async (req: Request, res: Response<Get
     let challengeIdDetails = reqBody.merkleChallengeTrackerIds;
     const docIds = [];
 
+    if (challengeIdDetails.length > 100) {
+      throw new Error("You can only fetch up to 100 challenge trackers at a time.");
+    }
+
     for (const id of challengeIdDetails) {
       const docId = `${id.collectionId}:${id.challengeLevel}-${id.approverAddress}-${id.challengeId}`;
       docIds.push(docId);

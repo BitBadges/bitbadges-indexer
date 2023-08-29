@@ -3,11 +3,7 @@ import { STATUS_DB, insertToDB } from "./db";
 
 export async function setStatus(status: StatusDoc<bigint>) {
   try {
-    await Promise.all(
-      [
-        insertToDB(STATUS_DB, status),
-      ]
-    );
+    await insertToDB(STATUS_DB, status);
   } catch (error) {
     throw `Error in setStatus(): ${error}`;
   }

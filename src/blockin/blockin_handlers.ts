@@ -1,14 +1,14 @@
 import { BigIntify } from 'bitbadgesjs-proto';
-import { CheckSignInStatusResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getCurrentValueIdxForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
+import { CheckSignInStatusResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getCurrentValueForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
 import { COLLECTIONS_DB, insertToDB, IPFS_TOTALS_DB, PROFILES_DB } from '../db/db';
+import { catch404 } from '../utils/couchdb-utils';
 import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
-import { catch404 } from '../utils/couchdb-utils';
 
 export interface BlockinSession<T extends NumberType> extends Session {
   nonce: string | null;
@@ -44,13 +44,8 @@ export async function checkIfManager(req: AuthenticatedRequest<NumberType>, coll
   const _collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);
   const collection = convertCollectionDoc(_collection, BigIntify);
 
-  const managerIdx = getCurrentValueIdxForTimeline(collection.managerTimeline);
-  if (managerIdx == -1n) {
-    return false;
-  }
-
-  const manager = collection.managerTimeline[Number(managerIdx)].manager;
-  if (req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
+  const manager = getCurrentValueForTimeline(collection.managerTimeline)?.manager;
+  if (manager && req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
     return false;
   }
 
@@ -97,6 +92,8 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
       address: reqBody.address,
       uri: 'https://bitbadges.io',
       nonce: req.session.nonce,
+
+      //Note these really do not matter since they can be selected on the frontend.
       expirationDate: iso8601,
       notBefore: undefined,
       resources: [],
@@ -111,7 +108,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
       blockinMessage: blockinMessage
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     return res.status(500).json({
       error: serializeError(err),
       message: 'Error creating challenge. Please try again later.'
@@ -166,7 +163,8 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
       BigIntify,
       {
         expectedChallengeParams: {
-
+          domain: 'https://bitbadges.io',
+          uri: 'https://bitbadges.io',
         },
         beforeVerification: async (challengeParams) => {
           if (challengeParams.nonce !== req.session.nonce) {

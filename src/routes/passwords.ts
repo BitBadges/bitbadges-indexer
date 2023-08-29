@@ -94,14 +94,8 @@ export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res
       if (
         AES.decrypt(challengeDetails.password, process.env.SYM_KEY).toString(CryptoJS.enc.Utf8) !== password
       ) {
-        // challengeDetails.password !== AES.encrypt(password, process.env.SYM_KEY).toString()) {
         return Promise.reject({ message: 'Incorrect password' });
       }
-
-      // if (challengeDetails.password !== password) {
-      //   return Promise.reject({ message: 'Incorrect password' });
-      // }
-
 
       challengeDetails.currCode = challengeDetails.currCode ? challengeDetails.currCode + 1n : 1n;
 
@@ -116,10 +110,7 @@ export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res
 
       const currCodeIdx = Number(currCode.toString());
       return { code: AES.decrypt(challengeDetails.leavesDetails.preimages[currCodeIdx], process.env.SYM_KEY).toString(CryptoJS.enc.Utf8) };
-      // return { code: challengeDetails.leavesDetails.preimages[currCodeIdx] };
     });
-
-    console.log(returnValue);
 
     return res.status(200).send(returnValue);
   } catch (e) {

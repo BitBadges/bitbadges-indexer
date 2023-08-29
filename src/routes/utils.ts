@@ -1,5 +1,5 @@
 import { AddressMapping, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserApprovedIncomingTransferTimeline, UserApprovedOutgoingTransferTimeline, convertManagerTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AddressMappingWithMetadata, Metadata, UserApprovedIncomingTransferTimelineWithDetails, UserApprovedOutgoingTransferTimelineWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getCurrentValueIdxForTimeline, getFirstMatchForUserIncomingApprovedTransfers, getFirstMatchForUserOutgoingApprovedTransfers, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getReservedAddressMapping } from "bitbadgesjs-utils";
+import { AddressMappingWithMetadata, Metadata, UserApprovedIncomingTransferTimelineWithDetails, UserApprovedOutgoingTransferTimelineWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getCurrentValueForTimeline, getFirstMatchForUserIncomingApprovedTransfers, getFirstMatchForUserOutgoingApprovedTransfers, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getReservedAddressMapping } from "bitbadgesjs-utils";
 import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 
@@ -10,24 +10,25 @@ export async function getAddressMappingsFromDB(mappingIds: {
   let addressMappingIdsToFetch = [...new Set(mappingIds)];
   let addressMappings: AddressMappingWithMetadata<bigint>[] = [];
   for (const mappingIdObj of addressMappingIdsToFetch) {
-    let managerVal = manager ?? '';
-
-    if (mappingIdObj.mappingId === 'Manager' && !managerVal) {
+    if (mappingIdObj.mappingId === 'Manager' && !manager) {
       if (!mappingIdObj.collectionId) {
         throw new Error('Must specify collectionId or manager address in request, if you want to fetch the Manager mapping.');
       }
 
       const collectionRes = await COLLECTIONS_DB.get(mappingIdObj.collectionId.toString());
-      const managerIdx = getCurrentValueIdxForTimeline(collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify)));
-
-      if (managerIdx !== -1n) {
-        manager = collectionRes.managerTimeline[Number(managerIdx)].manager;
-      }
+      manager = getCurrentValueForTimeline(collectionRes.managerTimeline.map(x => convertManagerTimeline(x, BigIntify)))?.manager ?? '';
     }
 
-    const mapping = getReservedAddressMapping(mappingIdObj.mappingId, managerVal);
+    const mapping = getReservedAddressMapping(mappingIdObj.mappingId, manager ?? '');
     if (mapping) {
-      addressMappings.push(mapping);
+      addressMappings.push({
+        ...mapping,
+        _id: '',
+        lastUpdated: BigInt(Date.now()),
+        createdBy: '',
+        createdBlock: BigInt(0),
+        createdTimestamp: BigInt(0),
+      });
       addressMappingIdsToFetch = addressMappingIdsToFetch.filter((x) => x.mappingId !== mappingIdObj.mappingId);
     }
   }
@@ -71,7 +72,6 @@ export const appendDefaultForIncomingUserApprovedTransfers = (
   timeline: UserApprovedIncomingTransferTimeline<NumberType>[] | UserApprovedIncomingTransferTimelineWithDetails<NumberType>[],
   addressMappings: AddressMapping[], cosmosAddress: string,
   doNotAppendDefault?: boolean
-
 ) => {
   let timelineWithDetails = timeline.map((timeline) => {
     return {

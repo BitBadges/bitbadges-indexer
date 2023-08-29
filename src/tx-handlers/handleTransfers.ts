@@ -3,15 +3,15 @@ import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, a
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 
 export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, creator: string, fromEvent?: boolean) => {
-  
-  
+
+
   //Handle new acocunts, if empty 
   for (const transfer of transfers) {
-    await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${transfer.from}`], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [], [], [`${collection.collectionId}:${transfer.from}`], [], [], [], []);
 
     await fetchDocsForCacheIfEmpty(docs, [], [], [
       ...transfer.toAddresses.map((address) => `${collection.collectionId}:${address}`),
-    ], [], [], []);
+    ], [], [], [], []);
   }
 
 
@@ -77,7 +77,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       method: 'Transfer',
       block: status.block.height,
       collectionId: collection.collectionId,
-      timestamp: BigInt(Date.now()),
+      timestamp: status.block.timestamp,
       memo: transfer.memo,
       precalculationDetails: transfer.precalculationDetails,
       initiatedBy: creator

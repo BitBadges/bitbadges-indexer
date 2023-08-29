@@ -10,7 +10,7 @@ export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApp
 
   await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
     `${msg.collectionId}:${msg.creator}`,
-  ], [], [], []);
+  ], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const collectionDoc = docs.collections[`${msg.collectionId}`];

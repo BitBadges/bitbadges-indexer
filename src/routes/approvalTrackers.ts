@@ -8,6 +8,10 @@ export const getApprovals = async (req: Request, res: Response<GetApprovalsRoute
   try {
     const reqBody = req.body as GetApprovalsRouteRequestBody;
     let approvalTrackerIds = reqBody.approvalTrackerIds;
+    if (approvalTrackerIds.length > 100) {
+      throw new Error("You can only fetch up to 100 approval trackers at a time.");
+    }
+
     const docIds = [];
 
     for (const approvalTrackerId of approvalTrackerIds) {

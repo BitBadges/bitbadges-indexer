@@ -1,7 +1,7 @@
-import { CollectionDoc, DocsCache, StatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertPasswordDoc, convertToCosmosAddress } from "bitbadgesjs-utils";
 import nano from "nano";
-import { CLAIM_ALERTS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
-import { getMerkleChallengeIdForQueueDb, pushMerkleChallengeFetchToQueue } from "../metadata-queue";
+import { PASSWORDS_DB } from "../db/db";
+import { getMerkleChallengeIdForQueueDb, pushMerkleChallengeFetchToQueue } from "../queue";
 import { getLoadBalancerId } from "../utils/loadBalancer";
 
 
@@ -11,7 +11,7 @@ export const handleMerkleChallenges = async (docs: DocsCache, collectionDoc: Col
     //Handle claim objects
     //Note we only handle each unique URI once per collection, even if there is multiple claims with the same (thus you can't duplicate passwords for the same URI)
     const handledUris: string[] = [];
-
+    let idx = 0;
     for (const timelineVal of collectionDoc.collectionApprovedTransfersTimeline) {
       for (const approvedTransfer of timelineVal.collectionApprovedTransfers) {
         for (const approvedDetails of approvedTransfer.approvalDetails) {
@@ -51,28 +51,24 @@ export const handleMerkleChallenges = async (docs: DocsCache, collectionDoc: Col
                   if (docResult.docs.length) {
                     const doc = docResult.docs[0];
 
-                    await insertToDB(PASSWORDS_DB, {
-                      ...doc,
+                    docs.passwordDocs[doc._id] = {
+                      ...convertPasswordDoc(doc, BigIntify),
                       docClaimedByCollection: true,
-                      collectionId: collectionDoc.collectionId.toString(),
-                    });
-
+                      collectionId: collectionDoc.collectionId,
+                    }
 
                     if (merkleChallenge.useCreatorAddressAsLeaf) {
                       if (doc.challengeDetails?.leavesDetails.isHashed == false) {
                         const addresses = doc.challengeDetails?.leavesDetails.leaves.map(leaf => convertToCosmosAddress(leaf));
                         const orderMatters = merkleChallenge.useLeafIndexForTransferOrder == true;
-
-                        let idx = 0;
-                        for (const address of addresses) {
-                          await insertToDB(CLAIM_ALERTS_DB, {
-                            _id: `${address}:${status.block.height}-${status.block.txIndex}-${idx}`,
-                            createdTimestamp: status.block.timestamp,
-                            collectionId: collectionDoc.collectionId.toString(),
-                            message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`,
-                          });
-                          idx++;
-                        }
+                        docs.claimAlertsToAdd.push({
+                          _id: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
+                          createdTimestamp: status.block.timestamp,
+                          collectionId: collectionDoc.collectionId,
+                          cosmosAddresses: addresses,
+                          message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`,
+                        });
+                        idx++;
                       }
                     }
                   }

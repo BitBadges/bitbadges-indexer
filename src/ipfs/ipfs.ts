@@ -24,7 +24,16 @@ export const getFromIpfs = async (path: string) => {
     const decoder = new TextDecoder();
     let fileContents = '';
     const fetchPromise = (async () => {
+      //Do not exceed FETCH_TIMEOUT
+
+      //start timer
+      const start = Date.now();
+
       for await (const file of getRes) {
+        if (Date.now() - start > timeout) {
+          throw new Error('Fetch operation timed out');
+        }
+
         let chunk = decoder.decode(file);
         fileContents += chunk;
       }
@@ -53,24 +62,25 @@ export const addBalancesToIpfs = async (_balances: OffChainBalancesMap<NumberTyp
     content: uint8ArrayFromString(JSON.stringify(balances))
   });
 
+  const status = await getStatus();
+
   const result = await last(ipfsClient.addAll(files));
   if (result) {
-    //TODO: We should be able to cache it here, but if we do, then in metadata-queue.ts, it sees fetchDoc = truthy and never calls await handleBalances()
-    // Keeping it commented out for now
-
-    // insertToDB(FETCHES_DB, {
-    //   _id: `ipfs://${result.cid.toString()}`,
-    //   fetchedAt: BigInt(Date.now()),
-    //   content: balances,
-    //   db: 'Balances',
-    //   isPermanent: true
-    // });
+    await insertToDB(FETCHES_DB, {
+      _id: `ipfs://${result.cid.toString()}`,
+      fetchedAt: BigInt(Date.now()),
+      fetchedAtBlock: status.block.height,
+      content: balances,
+      db: 'Balances',
+      isPermanent: true
+    });
     return { cid: result.cid.toString() };
   } else {
     return undefined;
   }
 }
 
+//TODO: parallelize this?
 export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberType>, _individualBadgeMetadata?: BadgeMetadataDetails<NumberType>[] | Metadata<NumberType>[]) => {
   const collectionMetadata = _collectionMetadata ? convertMetadata(_collectionMetadata, BigIntify) : undefined;
   const badgeMetadata: Metadata<NumberType>[] = [];
@@ -137,23 +147,16 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   const files: { path?: string, content: Uint8Array, name?: string }[] = [];
   if (collectionMetadata) {
     files.push({
-      // path: 'collection',
       content: uint8ArrayFromString(JSON.stringify(collectionMetadata)),
-      // name: 'collection'
     });
   }
-
-  // let i = 0;
 
   for (const metadata of badgeMetadata) {
     files.push(
       {
-        // path: 'badges-' + i,
         content: uint8ArrayFromString(JSON.stringify(metadata)),
-        // name: 'badges-' + i
       }
     );
-    // i++;
   }
 
   const metadataResults = ipfsClient.addAll(files);
@@ -186,7 +189,6 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
 }
 
 export const addMerkleChallengeToIpfs = async (name: string, description: string, challengeDetails?: ChallengeDetails<bigint>) => {
-
   const hasPassword = challengeDetails && challengeDetails.password && challengeDetails.password.length > 0;
 
   //Remove preimages and passwords from challengeDetails

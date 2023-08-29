@@ -1,9 +1,9 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc } from "bitbadgesjs-utils";
 import { DocumentFetchResponse } from "nano";
 import { serializeError } from "serialize-error";
 import { getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
-import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, COLLECTIONS_DB, ERRORS_DB, MERKLE_CHALLENGES_DB, QUEUE_DB, REFRESHES_DB, TRANSFER_ACTIVITY_DB, insertMany, insertToDB } from "./db";
+import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ERRORS_DB, MERKLE_CHALLENGES_DB, MSGS_DB, MsgDoc, PASSWORDS_DB, QUEUE_DB, REFRESHES_DB, TRANSFER_ACTIVITY_DB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
 /**
@@ -11,22 +11,28 @@ import { setStatus } from "./status";
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[]) {
+export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[], passwordDocIds: string[]) {
   try {
     const newCollectionIds = collectionIds.map(x => x.toString()).filter((id) => !currDocs.collections[id]); //collectionId as keys (string: `${collectionId}`)
     const newCosmosAddresses = cosmosAddresses.map(x => x.toString()).filter((id) => !currDocs.collections[id]);
     const newApprovalsTrackerIds = approvalsTrackerIds.filter((id) => !currDocs.approvalsTrackers[id]);
     const newAddressMappingIds = addressMappingIds.filter((id) => !currDocs.addressMappings[id]);
+    const newPasswordDocIds = passwordDocIds.filter((id) => !currDocs.passwordDocs[id]);
 
     //Partitioned IDs (collectionId:___)
     const newBalanceIds = balanceIds.filter((id) => !currDocs.balances[id]);
     const newMerkleChallengeIds = merkleChallengeIds.filter((id) => !currDocs.merkleChallenges[id]);
 
-    if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length) {
-      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds);
+    if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length || newPasswordDocIds.length) {
+      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds, newPasswordDocIds);
       currDocs.accounts = {
         ...currDocs.accounts,
         ...newDocs.accounts
+      }
+
+      currDocs.passwordDocs = {
+        ...currDocs.passwordDocs,
+        ...newDocs.passwordDocs
       }
 
       currDocs.collections = {
@@ -54,6 +60,7 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
       currDocs.queueDocsToAdd = currDocs.queueDocsToAdd
       //Within the poller, we never require fetching a refresh doc (only adding new ones)
       currDocs.refreshes = currDocs.refreshes
+      currDocs.claimAlertsToAdd = currDocs.claimAlertsToAdd
     }
   } catch (error) {
     throw `Error in fetchDocsForCacheIfEmpty(): ${error}`;
@@ -65,7 +72,7 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[]) {
+export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[], _passwordDocIds: string[]) {
   try {
     const cosmosAddresses = [...new Set(_cosmosAddresses)].filter((id) => id.length > 0);
     const collectionDocIds = [...new Set(_collectionDocIds)].filter((id) => id.length > 0);
@@ -73,6 +80,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     const claimDocIds = [...new Set(_claimDocIds)].filter((id) => id.length > 0);
     const approvalsTrackerIds = [...new Set(_approvalsTrackerIds)].filter((id) => id.length > 0);
     const addressMappingIds = [...new Set(_addressMappingIds)].filter((id) => id.length > 0);
+    const passwordDocIds = [...new Set(_passwordDocIds)].filter((id) => id.length > 0);
 
     const accountsData: AccountDocs = {};
     const collectionData: CollectionDocs = {};
@@ -80,7 +88,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     const claimData: MerkleChallengeDocs = {};
     const approvalsTrackerData: ApprovalsTrackerDocs = {};
     const addressMappingsData: AddressMappingsDocs = {};
-
+    const passwordDocs: PasswordDocs = {};
 
 
     const promises = [];
@@ -90,21 +98,10 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     if (claimDocIds.length) promises.push(MERKLE_CHALLENGES_DB.fetch({ keys: claimDocIds }, { include_docs: true }));
     if (approvalsTrackerIds.length) promises.push(APPROVALS_TRACKER_DB.fetch({ keys: approvalsTrackerIds }, { include_docs: true }));
     if (addressMappingIds.length) promises.push(ADDRESS_MAPPINGS_DB.fetch({ keys: addressMappingIds }, { include_docs: true }));
+    if (passwordDocIds.length) promises.push(PASSWORDS_DB.fetch({ keys: passwordDocIds }, { include_docs: true }));
 
     if (promises.length) {
       const results = await Promise.allSettled(promises);
-
-      //Throw if non-404 error
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          //TODO: check if this works
-          if (result.reason.statusCode === 404) {
-            continue;
-          } else {
-            throw result.reason;
-          }
-        }
-      }
 
 
 
@@ -168,16 +165,26 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
           }
         }
       }
+
+      if (passwordDocIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<PasswordDoc<JSPrimitiveNumberType>>, true).map(x => convertPasswordDoc(x, BigIntify));
+          for (const passwordDocId of passwordDocIds) {
+            passwordDocs[passwordDocId] = docs.find(x => x._id === passwordDocId);
+          }
+        }
+      }
     }
 
-    return { accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData }
+    return { accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData, passwordDocs: passwordDocs }
   } catch (error) {
     throw `Error in fetchDocsForCache(): ${error}`;
   }
 }
 
 //Finalize docs at end of handling block(s)
-export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
+export async function flushCachedDocs(docs: DocsCache, msgDocs?: MsgDoc[], status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
   try {
     //If we reach here, we assume that all docs are valid and ready to be inserted into the DB (i.e. not undefined) so we can cast safely
     const promises = [];
@@ -188,8 +195,10 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
     const refreshDocs = Object.values(docs.refreshes) as (RefreshDoc<bigint>)[];
     const approvalsTrackerDocs = Object.values(docs.approvalsTrackers) as (ApprovalsTrackerDoc<bigint>)[];
     const addressMappingDocs = Object.values(docs.addressMappings) as (AddressMappingDoc<bigint>)[];
+    const passwordDocs = Object.values(docs.passwordDocs) as (PasswordDoc<bigint>)[];
     const activityDocs = docs.activityToAdd;
     const queueDocs = docs.queueDocsToAdd;
+    const claimAlertDocs = docs.claimAlertsToAdd;
 
 
     if (activityDocs.length) {
@@ -228,12 +237,20 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
       promises.push(insertMany(ADDRESS_MAPPINGS_DB, addressMappingDocs));
     }
 
+    if (passwordDocs.length) {
+      promises.push(insertMany(PASSWORDS_DB, passwordDocs));
+    }
 
+    if (claimAlertDocs.length) {
+      promises.push(insertMany(CLAIM_ALERTS_DB, claimAlertDocs));
+    }
 
-    // console.log(promises.length);
-    //TODO: Handle if error in one of these but not the rest
+    if (msgDocs && msgDocs.length) {
+      promises.push(insertMany(MSGS_DB, msgDocs));
+    }
+
+    //TODO: Handle if error in one of Promise.all but not the rest (how can we do all or nothing with CouchDB?)
     if (promises.length === 0 && status && skipStatusFlushIfEmptyBlock) {
-      // console.log('fast catch up');
       return false;
     } else if (promises.length || status) {
       if (status) {
@@ -246,8 +263,8 @@ export async function flushCachedDocs(docs: DocsCache, status?: StatusDoc<bigint
   } catch (error) {
     await insertToDB(ERRORS_DB, {
       function: 'flushCachedDocs',
-      error: serializeError(error),
-      docs: docs
+      error: serializeError(error.message),
+      // docs: docs
     });
 
     throw `Error in flushCachedDocs(): ${error}`;

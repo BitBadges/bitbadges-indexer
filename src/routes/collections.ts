@@ -1,11 +1,11 @@
 import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertApprovalTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertContractAddressTimeline, convertCustomDataTimeline, convertInheritedBalancesTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionApprovedTransferTimelineWithDetails, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBalanceDoc, convertBitBadgesCollection, convertCollectionApprovedTransferTimelineWithDetails, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getBadgeIdsForMetadataId, getCurrentValueIdxForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionApprovedTransfersTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getInheritedBalancesTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
+import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionApprovedTransferTimelineWithDetails, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionApprovedTransferTimelineWithDetails, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionApprovedTransfersTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getInheritedBalancesTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
 
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { BALANCES_DB, COLLECTIONS_DB, FETCHES_DB } from "../db/db";
-import { fetchUriFromDb } from "../metadata-queue";
+import { COLLECTIONS_DB, FETCHES_DB } from "../db/db";
+import { fetchUriFromDb } from "../queue";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
@@ -39,17 +39,8 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     const collection = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
     if (!collection) throw new Error(`Collection ${query.collectionId} does not exist`);
 
-    const collectionIdx = getCurrentValueIdxForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)));
-    let collectionUri = "";
-    if (collectionIdx !== -1n) {
-      collectionUri = collection.collectionMetadataTimeline[Number(collectionIdx)].collectionMetadata.uri;
-    }
-
-    const badgeMetadataIdx = getCurrentValueIdxForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)));
-    let badgeMetadata: BadgeMetadata<bigint>[] = [];
-    if (badgeMetadataIdx !== -1n) {
-      badgeMetadata = collection.badgeMetadataTimeline[Number(badgeMetadataIdx)].badgeMetadata.map(x => convertBadgeMetadata(x, BigIntify));
-    }
+    const collectionUri = getCurrentValueForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)))?.collectionMetadata.uri ?? '';
+    const badgeMetadata = getCurrentValueForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)))?.badgeMetadata ?? [];
 
     promises.push(getMetadata(collection.collectionId.toString(), collectionUri, badgeMetadata, query.metadataToFetch));
 
@@ -201,18 +192,12 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   }
 
 
-
-  //For all claims in the collection approved transfers, fetch the merkleChallengeDetails
-  //TODO: paginate this somehow, we currently fetch all
-  //TODO: Fetch non-Mint as well?
   const uris = [];
   for (const collectionRes of collectionResponses) {
     for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
       for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
-        if (approvedTransfer.fromMappingId == "Mint") {
-          for (const approval of approvedTransfer.approvalDetails) {
-            uris.push(approval.merkleChallenges.map(x => x.uri));
-          }
+        for (const approval of approvedTransfer.approvalDetails) {
+          uris.push(approval.merkleChallenges.map(x => x.uri));
         }
       }
     }
@@ -527,7 +512,7 @@ export const getBadgeActivity = async (req: Request, res: Response<GetBadgeActiv
 
 export const getCollections = async (req: Request, res: Response<GetCollectionBatchRouteResponse<NumberType>>) => {
   try {
-    if (req.body.collectionsToFetch.length > 250) {
+    if (req.body.collectionsToFetch.length > 100) {
       return res.status(400).send({
         message: 'For scalability purposes, we limit the number of collections that can be fetched at once to 250. Please design your application to fetch collections in batches of 250 or less.'
       });
@@ -564,6 +549,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     metadataIdsToFetch.push(...getMetadataIdsForUri(uri, badgeUris));
   }
 
+
   for (const metadataId of metadataIds) {
     const metadataIdCastedAsUintRange = metadataId as UintRange<NumberType>;
     const metadataIdCastedAsNumber = metadataId as NumberType;
@@ -586,7 +572,10 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     if (typeof badgeId === 'object' && badgeIdCastedAsUintRange.start && badgeIdCastedAsUintRange.end) {
       let badgeIdsLeft = [convertUintRange(badgeIdCastedAsUintRange, BigIntify)]
 
+      //Get URIs for each badgeID
       while (badgeIdsLeft.length > 0) {
+        //Intuition: Start with the first singular badgeID -> fetch its metadata ID / URI -> if it shares with other badge IDs, we mark those handled as well
+
         const currBadgeUintRange = badgeIdsLeft[0];
 
         const metadataId = getMetadataIdForBadgeId(BigInt(currBadgeUintRange.start), badgeUris);
@@ -622,6 +611,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   if (uris.length > 250) {
     throw new Error('For scalability, we limit the number of metadata URIs that can be fetched at once to 250. Please design your application to fetch metadata in batches of 250 or less.');
   }
+
   const promises = [];
   for (const uri of uris) {
     promises.push(fetchUriFromDb(uri, collectionId.toString()));
@@ -697,17 +687,8 @@ export const getMetadataForCollection = async (req: Request, res: Response<GetMe
     const _collection = await COLLECTIONS_DB.get(req.params.collectionId);
     const collection = convertCollectionDoc(_collection, BigIntify);
 
-    const collectionIdx = getCurrentValueIdxForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)));
-    let collectionUri = "";
-    if (collectionIdx !== -1n) {
-      collectionUri = collection.collectionMetadataTimeline[Number(collectionIdx)].collectionMetadata.uri;
-    }
-
-    const badgeMetadataIdx = getCurrentValueIdxForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)));
-    let badgeMetadata: BadgeMetadata<bigint>[] = [];
-    if (badgeMetadataIdx !== -1n) {
-      badgeMetadata = collection.badgeMetadataTimeline[Number(badgeMetadataIdx)].badgeMetadata.map(x => convertBadgeMetadata(x, BigIntify));
-    }
+    const collectionUri = getCurrentValueForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)))?.collectionMetadata.uri ?? '';
+    const badgeMetadata = getCurrentValueForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)))?.badgeMetadata.map(x => convertBadgeMetadata(x, BigIntify)) ?? [];
 
     const metadata = await getMetadata(collection.collectionId, collectionUri, badgeMetadata, reqBody.metadataToFetch);
     return res.json({
@@ -720,135 +701,5 @@ export const getMetadataForCollection = async (req: Request, res: Response<GetMe
       error: serializeError(e),
       message: 'Error fetching collection metadata. Please try again later.'
     })
-  }
-}
-
-export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersForBadgeRouteResponse<NumberType>>) => {
-  try {
-    const reqBody = req.body as GetOwnersForBadgeRouteRequestBody;
-
-    const totalSupplys = await BALANCES_DB.get(`${req.params.collectionId}:Total`);
-
-    let maxBadgeId = 1n;
-    for (const balance of totalSupplys.balances) {
-      for (const badgeId of balance.badgeIds) {
-        if (BigInt(badgeId.end) > maxBadgeId) {
-          maxBadgeId = BigInt(badgeId.end);
-        }
-      }
-    }
-
-    if (BigInt(maxBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
-      //TODO: Support string-number queries
-      throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
-    }
-
-    const ownersResOverview = await BALANCES_DB.partitionInfo(`${req.params.collectionId}`);
-    const numOwners = ownersResOverview.doc_count;
-
-    const ownersRes = await BALANCES_DB.partitionedFind(`${req.params.collectionId}`, {
-      selector: {
-        "balances": {
-          "$elemMatch": {
-            "badgeIds": {
-              "$elemMatch": {
-                "$and": [
-                  {
-                    "start": {
-                      "$and": [
-                        {
-                          "$lte": Number(req.params.badgeId),
-                        },
-                        {
-                          "$type": "number"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "end": {
-                      "$and": [
-                        {
-                          "$gte": Number(req.params.badgeId),
-                        },
-                        {
-                          "$type": "number"
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      bookmark: reqBody.bookmark ? reqBody.bookmark : undefined,
-    });
-
-    let addressMappingIdsToFetch = [];
-    for (const balanceDoc of ownersRes.docs) {
-      for (const incomingTimeline of balanceDoc.approvedIncomingTransfersTimeline) {
-        for (const incomingTransfer of incomingTimeline.approvedIncomingTransfers) {
-          addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
-          addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
-        }
-      }
-
-      for (const outgoingTimeline of balanceDoc.approvedOutgoingTransfersTimeline) {
-        for (const outgoingTransfer of outgoingTimeline.approvedOutgoingTransfers) {
-          addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
-          addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
-        }
-      }
-    }
-
-    addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
-
-    const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(x => { return { mappingId: x } }), false);
-
-
-    return res.status(200).send({
-      owners: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails).map((balance) => {
-        return {
-          ...balance,
-          approvedIncomingTransfersTimeline: balance.approvedIncomingTransfersTimeline.map(x => {
-            return {
-              ...x,
-              approvedIncomingTransfers: x.approvedIncomingTransfers.map(y => {
-                return {
-                  ...y,
-                  fromMapping: addressMappings.find((mapping) => mapping.mappingId === y.fromMappingId) as AddressMapping,
-                  initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
-                }
-              })
-            }
-          }),
-          approvedOutgoingTransfersTimeline: balance.approvedOutgoingTransfersTimeline.map(x => {
-            return {
-              ...x,
-              approvedOutgoingTransfers: x.approvedOutgoingTransfers.map(y => {
-                return {
-                  ...y,
-                  toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,
-                  initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
-                }
-              })
-            }
-          }
-          )
-        }
-      }),
-      pagination: {
-        bookmark: ownersRes.bookmark || '',
-        hasMore: ownersRes.docs.length === 25,
-        total: numOwners
-      },
-    });
-  } catch (e) {
-    return res.status(500).send({
-      error: serializeError(e),
-      message: 'Error fetching owners for collection. Please try again later.'
-    });
   }
 }

@@ -9,9 +9,9 @@ import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertStatusDoc } from
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
-import { ERRORS_DB } from "./db/db"
+import { ERRORS_DB, MsgDoc } from "./db/db"
 import { getStatus } from "./db/status"
-import { client, setClient, setTimer } from "./indexer"
+import { TIME_MODE, client, setClient, setTimer } from "./indexer"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
@@ -19,7 +19,9 @@ import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollecti
 import { handleMsgUpdateUserApprovedTransfers } from "./tx-handlers/handleMsgUpdateUserApprovedTransfers"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
-import { fetchUrisFromQueue, purgeQueueDocs } from "./metadata-queue"
+import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
+import { serializeError } from "serialize-error"
+import nano from "nano"
 
 
 const pollIntervalMs = 1_000
@@ -28,33 +30,22 @@ let outageTime: Date | undefined
 
 const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
 
+export const QUEUE_TIME_MODE = false
+
 export const pollUris = async () => {
+  if (TIME_MODE && QUEUE_TIME_MODE) {
+    console.time("pollUris");
+  }
   try {
+
+
     // We fetch initial status at beginning of block and do not write anything in DB until end of block
     // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
     const _status = await getStatus();
     const status = convertStatusDoc(_status, BigIntify);
-
-
-    let docs: DocsCache = {
-      accounts: {},
-      collections: {},
-      refreshes: {},
-      activityToAdd: [],
-      queueDocsToAdd: [],
-      merkleChallenges: {},
-      addressMappings: {},
-      approvalsTrackers: {},
-      balances: {},
-    };
-
     await fetchUrisFromQueue(status.block.height);
 
     await purgeQueueDocs();
-
-    //Right now, we are banking on all these DB updates succeeding together every time. 
-    //If there is a failure in the middle, it could be bad.
-    await flushCachedDocs(docs);
   } catch (e) {
     //Log error to DB, unless it is a connection refused error
     if (e && e.code !== 'ECONNREFUSED') {
@@ -63,17 +54,23 @@ export const pollUris = async () => {
       await ERRORS_DB.bulk({
         docs: [{
           error: e,
-          function: 'poll',
+          function: 'pollUris',
         }]
       });
     }
   }
+  if (TIME_MODE && QUEUE_TIME_MODE) {
+    console.timeEnd("pollUris");
+  }
 
-  const newTimer = setTimeout(pollUris, uriPollIntervalMs) //TODO: We can probably just make this 1 ms and it'll just trigger upon completion of the last one.
+  const newTimer = setTimeout(pollUris, uriPollIntervalMs);
   setTimer(newTimer);
 }
 
 export const poll = async () => {
+  if (TIME_MODE && QUEUE_TIME_MODE) {
+    console.time("poll");
+  }
   try {
     // Connect to the chain client (this is first-time only)
     // This could be in init() but it is here in case indexer is started w/o the chain running
@@ -98,13 +95,11 @@ export const poll = async () => {
     // let fastCatchUp = false;
 
     // If we are behind, go until we catch up
-    //TODO: Implement a fast catch up if behind a lot where we do not write status to DB
-
     const _status = await getStatus();
     let status = convertStatusDoc(_status, BigIntify);
 
     while (!caughtUp) {
-      // We fetch initial status at beginning of block and do not write anything in DB until end of block
+      // We fetch initial status at beginning of block and do not write anything in DB until flush at end of block
       // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
 
       if (status.block.height >= clientHeight) {
@@ -117,31 +112,35 @@ export const poll = async () => {
         collections: {},
         refreshes: {},
         activityToAdd: [],
+        claimAlertsToAdd: [],
         queueDocsToAdd: [],
         merkleChallenges: {},
         addressMappings: {},
         approvalsTrackers: {},
         balances: {},
+        passwordDocs: {},
       };
+
+      const msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[] = [];
 
 
       //Handle printing of status if there was an outage
       if (outageTime) {
-        process.stdout.write('\n');
+        if (!TIME_MODE) process.stdout.write('\n');
         console.log(`Reconnected to chain at block ${status.block.height} after outage of ${new Date().getTime() - outageTime.getTime()} ms`)
       }
       outageTime = undefined;
 
 
       const processing = status.block.height + 1n;
-      process.stdout.cursorTo(0);
+      if (!TIME_MODE) process.stdout.cursorTo(0);
 
       const block: Block = await client.getBlock(Number(processing))
 
-      process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
+      if (!TIME_MODE) process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
       status.block.timestamp = BigInt(new Date(block.header.time).getTime());
 
-      await handleBlock(block, status, docs);
+      await handleBlock(block, status, docs, msgDocs)
 
       status.block.height++;
       status.block.txIndex = 0n;
@@ -149,7 +148,7 @@ export const poll = async () => {
 
       //Right now, we are banking on all these DB updates succeeding together every time. 
       //If there is a failure in the middle, it could be bad.
-      const flushed = await flushCachedDocs(docs, status, status.block.height < clientHeight);
+      const flushed = await flushCachedDocs(docs, msgDocs, status, status.block.height < clientHeight);
       if (flushed) {
         const status2 = await getStatus();
         status = convertStatusDoc(status2, BigIntify);
@@ -158,24 +157,26 @@ export const poll = async () => {
   } catch (e) {
     //Error handling
     //Attempt to reconnect to chain client
-    try {
-      outageTime = outageTime || new Date();
-      for (let i = 0; i < rpcs.length; i++) {
-        try {
-          const newClient = await IndexerStargateClient.connect(rpcs[i])
-          console.log("Connected to chain-id:", await newClient.getChainId())
-          setClient(newClient)
-          break;
-        } catch (e) {
-          console.log(`Error connecting to chain client at ${rpcs[i]}. Trying new one....`)
+    if (e && e.code === 'ECONNREFUSED') {
+      try {
+        outageTime = outageTime || new Date();
+        for (let i = 0; i < rpcs.length; i++) {
+          try {
+            const newClient = await IndexerStargateClient.connect(rpcs[i])
+            console.log("Connected to chain-id:", await newClient.getChainId())
+            setClient(newClient)
+            break;
+          } catch (e) {
+            console.log(`Error connecting to chain client at ${rpcs[i]}. Trying new one....`)
+          }
         }
-      }
 
-      process.stdout.write('\n');
-    } catch (e) {
-      process.stdout.cursorTo(0);
-      process.stdout.clearLine(1);
-      process.stdout.write(`Error connecting to chain client. ${outageTime ? `Outage Time: ${outageTime.toISOString()}` : ''} Retrying....`)
+        if (!TIME_MODE) process.stdout.write('\n');
+      } catch (e) {
+        if (!TIME_MODE) process.stdout.cursorTo(0);
+        if (!TIME_MODE) process.stdout.clearLine(1);
+        if (!TIME_MODE) process.stdout.write(`Error connecting to chain client. ${outageTime ? `Outage Time: ${outageTime.toISOString()}` : ''} Retrying....`)
+      }
     }
 
     //Log error to DB, unless it is a connection refused error
@@ -184,11 +185,15 @@ export const poll = async () => {
 
       await ERRORS_DB.bulk({
         docs: [{
-          error: e,
+          error: serializeError(e),
           function: 'poll',
         }]
       });
     }
+  }
+
+  if (TIME_MODE && QUEUE_TIME_MODE) {
+    console.timeEnd("poll");
   }
 
   const newTimer = setTimeout(poll, pollIntervalMs)
@@ -270,7 +275,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const collectionId = getAttributeValueByKey(event.attributes, "collectionId");
     if (!collectionId || !transfer) throw new Error(`Missing collectionId or transfer in event: ${JSON.stringify(event)}`)
 
-    await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], []);
 
     await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, creator, true);
   }
@@ -280,15 +285,15 @@ const getAttributeValueByKey = (attributes: Attribute[], key: string): string | 
   return attributes.find((attribute: Attribute) => attribute.key === key)?.value
 }
 
-const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCache) => {
-  if (0 < block.txs.length) console.log("")
+const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCache, msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[]) => {
+  if (0 < block.txs.length && !TIME_MODE) console.log("")
 
   //Handle each tx consecutively
   while (status.block.txIndex < block.txs.length) {
     const txHash: string = toHex(sha256(block.txs[Number(status.block.txIndex)])).toUpperCase()
     const indexed: IndexedTx | null = await client.getTx(txHash);
     if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
-    await handleTx(indexed, status, docs)
+    await handleTx(indexed, status, docs, msgDocs)
     status.block.txIndex++
   }
 
@@ -298,7 +303,7 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
   // await handleEvents(events, status, docs)
 }
 
-const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: DocsCache) => {
+const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: DocsCache, msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[]) => {
   let decodedTx: DecodedTxRaw;
   try {
     try {
@@ -341,30 +346,37 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
   }
   // console.log(decodedTx.body);
 
+  let messageIdx = 0;
   for (const message of decodedTx.body.messages) {
     const typeUrl = message.typeUrl;
     const value = message.value;
 
+    let msg = null;
     switch (typeUrl) {
       case "/bitbadges.bitbadgeschain.badges.MsgTransferBadges":
         const transferMsg = convertFromProtoToMsgTransferBadges(tx.bitbadges.bitbadgeschain.badges.MsgTransferBadges.deserialize(value))
         await handleMsgTransferBadges(transferMsg, status, docs);
+        msg = transferMsg;
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgDeleteCollection":
         const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value))
         await handleMsgDeleteCollection(newDeleteMsg, status, docs);
+        msg = newDeleteMsg;
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings":
         const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings.deserialize(value))
         await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs);
+        msg = newAddressMappingsMsg;
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateCollection":
         const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.bitbadges.bitbadgeschain.badges.MsgUpdateCollection.deserialize(value))
         await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs);
+        msg = newUpdateCollectionMsg;
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers":
         const newUpdateUserApprovedTransfersMsg = convertFromProtoToMsgUpdateUserApprovedTransfers(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers.deserialize(value))
         await handleMsgUpdateUserApprovedTransfers(newUpdateUserApprovedTransfersMsg, status, docs);
+        msg = newUpdateUserApprovedTransfersMsg;
         break;
       case "/cosmos.bank.v1beta1.MsgSend":
         const newMsgSend = bank.cosmos.bank.v1beta1.MsgSend.deserialize(value);
@@ -372,19 +384,52 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const toAddress = newMsgSend.toObject().to_address;
         if (fromAddress && fromAddress != "") await handleNewAccountByAddress(fromAddress, docs)
         if (toAddress && toAddress != "") await handleNewAccountByAddress(toAddress, docs)
-
+        msg = newMsgSend;
       default:
-
-
         break;
+    }
+    if (msg) msgDocs.push({
+      _id: `${indexed.height}-${indexed.txIndex}-${messageIdx}`,
+      msg: msg,
+      txHash: indexed.hash,
+      txIndex: indexed.txIndex,
+      msgIndex: messageIdx,
+      type: typeUrl,
+      block: indexed.height,
+      blockTimestamp: Number(status.block.timestamp),
+    })
+
+    messageIdx++;
+  }
+
+  let rawLog;
+  let events;
+
+  // Try to parse the JSON and flatten the events
+  try {
+    rawLog = JSON.parse(indexed.rawLog);
+    events = rawLog.flatMap((log: any) => log.events);
+  } catch (e) {
+    // Handle JSON parsing errors here if needed, or just continue
+    console.error("JSON parsing failed. Skipping event as it most likely failed", e);
+
+    await ERRORS_DB.bulk({
+      docs: [{
+        error: serializeError(e),
+        function: 'handleEvents',
+        txHash: indexed.hash,
+      }]
+    });
+  }
+
+  // Try to handle the events
+  if (events) {
+    try {
+      await handleEvents(events, status, docs);
+    } catch (e) {
+      // Throw an error if handleEvents fails
+      throw new Error(`handleEvents failed: ${e.message}`);
     }
   }
 
-  try {
-    const rawLog: any = JSON.parse(indexed.rawLog)
-    const events: StringEvent[] = rawLog.flatMap((log: any) => log.events)
-    await handleEvents(events, status, docs)
-  } catch (e) {
-    // Skipping if the handling failed. Most likely the transaction failed.
-  }
 }

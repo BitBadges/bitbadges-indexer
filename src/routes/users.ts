@@ -5,14 +5,14 @@ import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetad
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { CleanedCosmosAccountInformation } from "src/chain-client/queries";
+import { CleanedCosmosAccountInformation } from "../chain-client/queries";
 import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
-import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
+import { ACCOUNTS_DB, ETH_TX_COUNT_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { provider } from "../utils/ensResolvers";
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeListsQuery, executeReviewsQuery } from "./userHelpers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
+import { provider } from "../utils/ensResolvers";
 
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
@@ -60,7 +60,22 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
                   ethTxCount = 1 // just posititve so it triggers the ETH conversion
                 }
               } else {
-                ethTxCount = await provider.getTransactionCount(ethAddress);
+                //As a fallback, we query Infrua to see if the address has any native ETH txs
+                //If they do, we set chain to ETH
+
+                const cachedEthTxCount = await ETH_TX_COUNT_DB.get(ethAddress).catch(catch404);
+                if (cachedEthTxCount && cachedEthTxCount.count) {
+                  ethTxCount = cachedEthTxCount.count;
+                } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
+                  ethTxCount = await provider.getTransactionCount(ethAddress);
+
+                  await insertToDB(ETH_TX_COUNT_DB, {
+                    ...cachedEthTxCount,
+                    _id: ethAddress,
+                    count: ethTxCount,
+                    lastFetched: Date.now(),
+                  });
+                }
               }
             } catch (e) {
               console.log("Error fetching tx count", e);
@@ -218,8 +233,9 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     }
 
     const usernames = reqBody.accountsToFetch.filter(x => x.username).map(x => x.username).filter(x => x !== undefined) as string[];
+    console.time('resolveUsernames');
     const profileDocs = await resolveUsernames(usernames);
-
+    console.timeEnd('resolveUsernames');
     const allQueries = profileDocs.map(x => { return { address: x._id, fetchOptions: reqBody.accountsToFetch.find(y => y.username === x.username) } });
 
     for (const accountFetchOptions of reqBody.accountsToFetch) {
@@ -227,10 +243,16 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         allQueries.push({ address: accountFetchOptions.address, fetchOptions: accountFetchOptions });
       }
     }
-
+    console.time('getBatchAccountInformation');
     const accountInfos = await getBatchAccountInformation(allQueries);
+    console.timeEnd('getBatchAccountInformation');
+    console.time('getBatchProfileInformation');
     const profileInfos = await getBatchProfileInformation(allQueries);
+    console.timeEnd('getBatchProfileInformation');
+    console.time('convertToBitBadgesUserInfo');
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
+    console.timeEnd('convertToBitBadgesUserInfo');
+
 
     const additionalInfoPromises = [];
     for (const query of allQueries) {
@@ -244,7 +266,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         additionalInfoPromises.push(getAdditionalUserInfo(req, account.cosmosAddress, query.fetchOptions));
       }
     }
-
+    console.time('additionalInfos');
 
     const additionalInfos = await Promise.all(additionalInfoPromises);
     for (const query of allQueries) {
@@ -261,6 +283,8 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         }
       }
     }
+
+    console.timeEnd('additionalInfos');
 
     return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
   } catch (e) {
@@ -303,6 +327,9 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
   const reviewsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews')?.bookmark;
   const addressMappingsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings')?.bookmark;
   const claimAlertsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestClaimAlerts')?.bookmark;
+  const explicitIncludedAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyIncludedAddressMappings')?.bookmark;
+  const explicitExcludedAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyExcludedAddressMappings')?.bookmark;
+  const latestAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings')?.bookmark;
 
   const asyncOperations = [];
   if (collectedBookmark !== undefined) {
@@ -316,8 +343,6 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
   } else {
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
-
-
 
   if (announcementsBookmark !== undefined) {
     asyncOperations.push(() => executeAnnouncementsQuery(cosmosAddress, announcementsBookmark));
@@ -352,6 +377,25 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
   } else {
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
+
+  if (explicitIncludedAddressMappings !== undefined) {
+    asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, explicitIncludedAddressMappings));
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
+  if (explicitExcludedAddressMappings !== undefined) {
+    asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, explicitExcludedAddressMappings));
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
+  if (latestAddressMappings !== undefined) {
+    asyncOperations.push(() => executeLatestAddressMappingsQuery(cosmosAddress, latestAddressMappings));
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
   const results = await Promise.all(asyncOperations.map(operation => operation()));
   const response = results[0] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
   const activityRes = results[1] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
@@ -359,8 +403,16 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
   const reviewsRes = results[3] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
   const addressMappingsRes = results[4] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
   const claimAlertsRes = results[5] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
+  const explicitIncludedAddressMappingsRes = results[6] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const explicitExcludedAddressMappingsRes = results[7] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const latestAddressMappingsRes = results[8] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
 
-  let addressMappingIdsToFetch: { collectionId: NumberType; mappingId: string }[] = [];
+  const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [
+    ...addressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
+    ...explicitIncludedAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
+    ...explicitExcludedAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
+    ...latestAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
+  ];
 
   for (const balance of response.docs) {
     for (const incomingTimeline of balance.approvedIncomingTransfersTimeline) {
@@ -378,17 +430,25 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
     }
   }
 
-  const addressMappingsToReturn = await getAddressMappingsFromDB(addressMappingIdsToFetch, true);
+  const addressMappingsToPopulate = await getAddressMappingsFromDB(addressMappingIdsToFetch, true);
+
+
   return {
     collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails).map((collected) => {
       return {
         ...collected,
-        approvedIncomingTransfersTimeline: appendDefaultForIncomingUserApprovedTransfers(collected.approvedIncomingTransfersTimeline, addressMappingsToReturn, cosmosAddress),
-        approvedOutgoingTransfersTimeline: appendDefaultForOutgoingUserApprovedTransfers(collected.approvedOutgoingTransfersTimeline, addressMappingsToReturn, cosmosAddress),
+        approvedIncomingTransfersTimeline: appendDefaultForIncomingUserApprovedTransfers(collected.approvedIncomingTransfersTimeline, addressMappingsToPopulate, cosmosAddress),
+        approvedOutgoingTransfersTimeline: appendDefaultForOutgoingUserApprovedTransfers(collected.approvedOutgoingTransfersTimeline, addressMappingsToPopulate, cosmosAddress),
       };
     }),
     claimAlerts: claimAlertsRes.docs.map(x => convertClaimAlertDoc(x, Stringify)).map(removeCouchDBDetails),
-    addressMappings: addressMappingsToReturn.map(x => convertAddressMappingWithMetadata(x, Stringify)),
+    addressMappings: [
+      ...addressMappingsRes.docs,
+      ...explicitIncludedAddressMappingsRes.docs,
+      ...explicitExcludedAddressMappingsRes.docs,
+      ...latestAddressMappingsRes.docs,
+    ]
+      .map(x => addressMappingsToPopulate.find(y => y.mappingId === x.mappingId)).filter(x => x !== undefined).map(x => convertAddressMappingWithMetadata(x!, Stringify)),
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
     reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -404,6 +464,7 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
       'badgesCollected': reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected') ? {
         ids: response.docs.map(x => x._id),
         type: 'Balances',
+        //With the view fetch, we return all balances, so we don't need to check if there are more
         pagination: {
           bookmark: response.bookmark ? response.bookmark : '',
           hasMore: response.docs.length === 25
@@ -434,11 +495,35 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
         }
       } : undefined,
       'latestClaimAlerts': reqBody.viewsToFetch.find(x => x.viewKey === 'latestClaimAlerts') ? {
-        ids: addressMappingsRes.docs.map(x => x._id),
+        ids: claimAlertsRes.docs.map(x => x._id),
         type: 'Claim Alerts',
         pagination: {
           bookmark: claimAlertsRes.bookmark ? claimAlertsRes.bookmark : '',
           hasMore: claimAlertsRes.docs.length === 25
+        }
+      } : undefined,
+      'explicitlyIncludedAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyIncludedAddressMappings') ? {
+        ids: explicitIncludedAddressMappingsRes.docs.map(x => x._id),
+        type: 'Address Mappings',
+        pagination: {
+          bookmark: explicitIncludedAddressMappingsRes.bookmark ? explicitIncludedAddressMappingsRes.bookmark : '',
+          hasMore: explicitIncludedAddressMappingsRes.docs.length === 25
+        }
+      } : undefined,
+      'explicitlyExcludedAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyExcludedAddressMappings') ? {
+        ids: explicitExcludedAddressMappingsRes.docs.map(x => x._id),
+        type: 'Address Mappings',
+        pagination: {
+          bookmark: explicitExcludedAddressMappingsRes.bookmark ? explicitExcludedAddressMappingsRes.bookmark : '',
+          hasMore: explicitExcludedAddressMappingsRes.docs.length === 25
+        }
+      } : undefined,
+      'latestAddressMappings':  reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings') ? {
+        ids: latestAddressMappingsRes.docs.map(x => x._id),
+        type: 'Address Mappings',
+        pagination: {
+          bookmark: latestAddressMappingsRes.bookmark ? latestAddressMappingsRes.bookmark : '',
+          hasMore: latestAddressMappingsRes.docs.length === 25
         }
       } : undefined,
     }
@@ -451,9 +536,9 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
     const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as UpdateAccountInfoRouteRequestBody<JSPrimitiveNumberType>
 
     const cosmosAddress = req.session.cosmosAddress;
-    let accountInfo: ProfileDoc<JSPrimitiveNumberType> | undefined = await PROFILES_DB.get(cosmosAddress).catch(catch404);
-    if (!accountInfo) {
-      accountInfo = {
+    let profileInfo: ProfileDoc<JSPrimitiveNumberType> | undefined = await PROFILES_DB.get(cosmosAddress).catch(catch404);
+    if (!profileInfo) {
+      profileInfo = {
         _id: cosmosAddress,
         _rev: undefined,
       }
@@ -481,23 +566,30 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       }
     }
 
-    const newAccountInfo: ProfileDoc<JSPrimitiveNumberType> = {
-      ...accountInfo,
-      discord: reqBody.discord ?? accountInfo.discord,
-      twitter: reqBody.twitter ?? accountInfo.twitter,
-      github: reqBody.github ?? accountInfo.github,
-      telegram: reqBody.telegram ?? accountInfo.telegram,
-      seenActivity: reqBody.seenActivity?.toString() ?? accountInfo.seenActivity,
-      readme: reqBody.readme ?? accountInfo.readme,
-      showAllByDefault: reqBody.showAllByDefault ?? accountInfo.showAllByDefault,
-      shownBadges: reqBody.shownBadges ?? accountInfo.shownBadges,
-      hiddenBadges: reqBody.hiddenBadges ?? accountInfo.hiddenBadges,
-      customPages: reqBody.customPages ?? accountInfo.customPages,
-      profilePicUrl: reqBody.profilePicUrl ?? accountInfo.profilePicUrl,
-      username: reqBody.username ?? accountInfo.username,
+    const newProfileInfo: ProfileDoc<JSPrimitiveNumberType> = {
+      ...profileInfo,
+      discord: reqBody.discord ?? profileInfo.discord,
+      twitter: reqBody.twitter ?? profileInfo.twitter,
+      github: reqBody.github ?? profileInfo.github,
+      telegram: reqBody.telegram ?? profileInfo.telegram,
+      seenActivity: reqBody.seenActivity?.toString() ?? profileInfo.seenActivity,
+      readme: reqBody.readme ?? profileInfo.readme,
+      showAllByDefault: reqBody.showAllByDefault ?? profileInfo.showAllByDefault,
+      shownBadges: reqBody.shownBadges ?? profileInfo.shownBadges,
+      hiddenBadges: reqBody.hiddenBadges ?? profileInfo.hiddenBadges,
+      customPages: reqBody.customPages ?? profileInfo.customPages,
+      profilePicUrl: reqBody.profilePicUrl ?? profileInfo.profilePicUrl,
+      username: reqBody.username ?? profileInfo.username,
     };
 
-    await insertToDB(PROFILES_DB, newAccountInfo);
+    const profileSize = JSON.stringify(newProfileInfo).length;
+    if (profileSize > 100000) {
+      return res.status(400).send({
+        message: 'Profile information is too large to store. Please reduce the size of the details for your profile.'
+      })
+    }
+
+    await insertToDB(PROFILES_DB, newProfileInfo);
 
     return res.status(200).send(
       { message: 'Account info updated successfully' }

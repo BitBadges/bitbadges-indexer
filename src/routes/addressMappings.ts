@@ -13,6 +13,10 @@ export const deleteAddressMappings = async (expressReq: Request, res: Response<D
     const reqBody = req.body as GetAddressMappingsRouteRequestBody;
     const mappingIds = reqBody.mappingIds;
 
+    if (mappingIds.length > 100) {
+      throw new Error("You can only delete up to 100 address mappings at a time.");
+    }
+
     const docs = await ADDRESS_MAPPINGS_DB.fetch({ keys: mappingIds });
     const docsToDelete = getDocsFromNanoFetchRes(docs);
 
@@ -49,9 +53,14 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
     const mappings = reqBody.addressMappings;
     const cosmosAddress = req.session.cosmosAddress
 
+    if (mappings.length > 100) {
+      throw new Error("You can only update up to 100 address mappings at a time.");
+    }
+
     for (const mapping of mappings) {
-      if (!mapping.mappingId.startsWith('off-chain_')) {
-        throw new Error("Mapping ID must start with off-chain_ (e.g. off-chain_MyMappingID)");
+      const prefix = cosmosAddress + "_";
+      if (!mapping.mappingId.startsWith(prefix)) {
+        throw new Error("Mapping ID must start with " + prefix);
       }
     }
 
@@ -67,6 +76,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
         docs.push({
           ...existingDoc,
           ...mapping,
+          lastUpdated: Date.now(),
         })
       } else {
         docs.push({
@@ -75,6 +85,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
           createdBlock: status.block.height,
           createdTimestamp: status.block.timestamp,
           _id: mapping.mappingId,
+          lastUpdated: status.block.timestamp,
         });
       }
     }
@@ -99,6 +110,10 @@ export const getAddressMappings = async (req: Request, res: Response<GetAddressM
   try {
     const reqBody = req.body as GetAddressMappingsRouteRequestBody;
     let mappingIds = reqBody.mappingIds;
+
+    if (mappingIds.length > 100) {
+      throw new Error("You can only fetch up to 100 address mappings at a time.");
+    }
 
     const docs = await getAddressMappingsFromDB(mappingIds.map(x => { return { mappingId: x } }), true, reqBody.managerAddress);
 

@@ -1,6 +1,6 @@
 import { GetBadgeActivityRouteResponse, MerkleChallengeTrackerIdDetails, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { ANNOUNCEMENTS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, MERKLE_CHALLENGES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
-import { removeCouchDBDetails } from "../utils/couchdb-utils";
+import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { ApprovalTrackerIdDetails } from "bitbadgesjs-proto";
 
 export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse<NumberType>> {
@@ -79,9 +79,7 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
 }
 
 export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string) {
-  //This can potentially be optimized in the future (not sure how; views require emitting id.start to id.end 
-
-
+  //This can potentially be optimized in the future with a view 
   const activityRes = await TRANSFER_ACTIVITY_DB.partitionedFind('collection-' + collectionId, {
     selector: {
       timestamp: {
@@ -165,96 +163,52 @@ export async function executeCollectionMerkleChallengesQuery(collectionId: strin
 }
 
 export async function executeMerkleChallengeByIdsQuery(collectionId: string, challengeIdsToFetch: MerkleChallengeTrackerIdDetails<NumberType>[]) {
-
-  const docs = [];
-
-  for (const idObj of challengeIdsToFetch) {
-    const res = await MERKLE_CHALLENGES_DB.partitionedFind(collectionId, {
-      selector: {
-        collectionId: {
-          $eq: Number(collectionId)
-        },
-        challengeId: {
-          $eq: idObj.challengeId
-        },
-        challengeLevel: {
-          $eq: idObj.challengeLevel
-        },
-        approverAddress: {
-          $eq: idObj.approverAddress
-        },
-      },
-      limit: 1,
-    });
-    // const docId = `${collectionId}:${challengeLevel}-${approverAddress}-${challengeId}`;
-    const docId = `${collectionId}:${idObj.challengeLevel}-${idObj.approverAddress}-${idObj.challengeId}`;
-
-    if (res.docs.length > 0) {
-      docs.push(...res.docs);
-    } else {
-      docs.push({
-        _id: docId,
-        collectionId: Number(collectionId),
-        challengeId: idObj.challengeId,
-        challengeLevel: idObj.challengeLevel,
-        approverAddress: idObj.approverAddress,
-        usedLeafIndices: [],
-      });
-    }
-
+  if (challengeIdsToFetch.length > 100) {
+    throw new Error("You can only fetch up to 100 merkle challenges at a time.");
   }
+  const docs = await Promise.all(challengeIdsToFetch.map(async (idObj) => {
+    const docId = `${collectionId}:${idObj.challengeLevel}-${idObj.approverAddress}-${idObj.challengeId}`;
+    const res = await MERKLE_CHALLENGES_DB.get(docId).catch(catch404);
+
+    return res ?? {
+      _id: docId,
+      collectionId: Number(collectionId),
+      challengeId: idObj.challengeId,
+      challengeLevel: idObj.challengeLevel,
+      approverAddress: idObj.approverAddress,
+      usedLeafIndices: [],
+    };
+  }));
 
   return docs;
+
 }
 
 export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: ApprovalTrackerIdDetails<bigint>[]) {
-  const docs = [];
-
-  for (const idObj of idsToFetch) {
-    const res = await APPROVALS_TRACKER_DB.partitionedFind(collectionId, {
-      selector: {
-        collectionId: {
-          $eq: Number(collectionId)
-        },
-        approvalLevel: {
-          $eq: idObj.approvalLevel
-        },
-        approverAddress: {
-          $eq: idObj.approverAddress
-        },
-        approvalId: {
-          $eq: idObj.approvalId
-        },
-        trackerType: {
-          $eq: idObj.trackerType
-        },
-        approvedAddress: {
-          $eq: idObj.approvedAddress
-        },
-      },
-      limit: 1,
-    });
-
-
-    if (res.docs.length > 0) {
-      docs.push(...res.docs);
-    } else {
-      const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.trackerType}-${idObj.approvedAddress}`;
-      docs.push({
-        _id: docId,
-        collectionId: Number(collectionId),
-        approvalLevel: idObj.approvalLevel,
-        approverAddress: idObj.approverAddress,
-        approvalId: idObj.approvalId,
-        trackerType: idObj.trackerType,
-        approvedAddress: idObj.approvedAddress,
-        numTransfers: 0,
-        amounts: [],
-      });
-    }
+  if (idsToFetch.length > 100) {
+    throw new Error("You can only fetch up to 100 approval trackers at a time.");
   }
 
+
+  const docs = await Promise.all(idsToFetch.map(async (idObj) => {
+    const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.trackerType}-${idObj.approvedAddress}`;
+    const res = await APPROVALS_TRACKER_DB.get(docId).catch(catch404);
+
+    return res ?? {
+      _id: docId,
+      collectionId: Number(collectionId),
+      approvalLevel: idObj.approvalLevel,
+      approverAddress: idObj.approverAddress,
+      approvalId: idObj.approvalId,
+      trackerType: idObj.trackerType,
+      approvedAddress: idObj.approvedAddress,
+      numTransfers: 0,
+      amounts: [],
+    };
+  }));
+
   return docs;
+
 }
 
 export async function executeCollectionApprovalsTrackersQuery(collectionId: string, bookmark?: string) {

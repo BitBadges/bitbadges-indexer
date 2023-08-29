@@ -6,7 +6,7 @@ import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 
 export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   //Safe to cast because MsgDeleteCollection can only be called if the collection exists

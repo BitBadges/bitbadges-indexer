@@ -67,6 +67,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
         const cosmosAddress = convertToCosmosAddress(address);
         try {
           //Native Cosmos SDK x/auth query for account information
+          
           const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address: cosmosAddress }).serialize();
           const accountPromise = await rpc.request(
             'cosmos.auth.v1beta1.Query',
