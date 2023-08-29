@@ -34,7 +34,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
   const accountObj = account.cosmos.auth.v1beta1.BaseAccount.deserialize(accountInfoValue).toObject();
 
   let pubKeyStr = '';
-  let chain = SupportedChain.UNKNOWN
+  let chain = SupportedChain.ETH
   if (accountObj.pub_key?.type_url) {
     if (accountObj.pub_key.type_url === '/ethermint.crypto.v1.ethsecp256k1.PubKey') {
       chain = SupportedChain.ETH
@@ -67,7 +67,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
         const cosmosAddress = convertToCosmosAddress(address);
         try {
           //Native Cosmos SDK x/auth query for account information
-          
+
           const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address: cosmosAddress }).serialize();
           const accountPromise = await rpc.request(
             'cosmos.auth.v1beta1.Query',

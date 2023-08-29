@@ -37,7 +37,7 @@ import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 
 export const OFFLINE_MODE = false;
-export const TIME_MODE = true;
+export const TIME_MODE = false;
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 
 config()

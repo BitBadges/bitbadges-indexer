@@ -33,6 +33,7 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
 }
 
 export function checkIfAuthenticated(req: AuthenticatedRequest<NumberType>) {
+  console.log(req.session);
   return req.session.blockin && req.session.nonce && req.session.blockinParams && req.session.cosmosAddress && req.session.address && req.session.blockinParams.address === req.session.address;
 }
 
@@ -71,8 +72,6 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
     if (cosmosAddress !== req.session.cosmosAddress) {
       req.session.nonce = generateNonce();
-      req.session.cosmosAddress = cosmosAddress;
-      req.session.address = reqBody.address;
       req.session.save();
     }
 
@@ -170,15 +169,12 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
           if (challengeParams.nonce !== req.session.nonce) {
             return Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
           }
-
-          if (convertToCosmosAddress(challengeParams.address) !== req.session.cosmosAddress) {
-            return Promise.reject(new Error(`Invalid address. Expected ${req.session.cosmosAddress}, got ${challengeParams.address}`));
-          }
         }
       }
     );
 
-
+    req.session.address = challenge.address;
+    req.session.cosmosAddress = convertToCosmosAddress(challenge.address);
     req.session.blockinParams = challenge;
     req.session.blockin = generatedEIP4361ChallengeStr;
     if (challenge.expirationDate) {

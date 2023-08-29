@@ -1,5 +1,5 @@
 import { BigIntify } from "bitbadgesjs-proto";
-import { DocsCache, convertAccountDoc } from "bitbadgesjs-utils";
+import { DocsCache, SupportedChain, convertAccountDoc } from "bitbadgesjs-utils";
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 import { client } from "../indexer";
 /**
@@ -21,8 +21,8 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
   }
 
   //If we already have an account doc, we don't need to do anything
-  const _accountDoc = docs.accounts[`${cosmosAddress}`];
-  if (_accountDoc && _accountDoc.cosmosAddress) {
+  const _accountDoc = docs.accounts[`${cosmosAddress}`]
+  if (_accountDoc && _accountDoc.accountNumber > 0n && _accountDoc.chain !== SupportedChain.UNKNOWN) {
     return; //Already handled
   }
 
