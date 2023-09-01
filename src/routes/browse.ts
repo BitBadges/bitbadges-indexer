@@ -128,7 +128,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
         fetchTotalAndMintBalances: true,
         handleAllAndAppendDefaults: true,
         metadataToFetch: {
-          badgeIds: [{ start: 1n, end: 10n }],
+          badgeIds: [{ start: 1n, end: 15n }],
         },
       }
     }));

@@ -193,7 +193,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
 
   const uris = [];
-  for (const collectionRes of collectionResponses) {
+  for (const collectionRes of baseCollections) {
     for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
       for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
         for (const approval of approvedTransfer.approvalDetails) {
@@ -204,34 +204,12 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   }
 
   const addressMappingsPromise = getAddressMappingsFromDB(addressMappingIdsToFetch, false);
-
   const uniqueUris = [...new Set(uris.flat())].filter(x => !!x);
   const claimFetchesPromises = uniqueUris.map(uri => FETCHES_DB.get(uri));
-
   const [addressMappings, claimFetches] = await Promise.all([
     addressMappingsPromise,
     Promise.all(claimFetchesPromises)
   ]);
-
-
-  for (const collectionRes of collectionResponses) {
-    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
-      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
-        if (approvedTransfer.fromMappingId == "Mint") {
-          for (const approval of approvedTransfer.approvalDetails) {
-            for (const merkleChallenge of approval.merkleChallenges) {
-              const claimFetch = claimFetches.find((fetch) => fetch._id === merkleChallenge.uri);
-              if (!claimFetch) continue;
-
-              merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
-            }
-          }
-        }
-      }
-    }
-  }
-
-
 
   for (let i = 0; i < responses.length; i += 10) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === collectionQueries[(i) / 10].collectionId.toString());
@@ -461,6 +439,26 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
   }
+
+  for (const collectionRes of collectionResponses) {
+    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
+      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
+        if (approvedTransfer.fromMappingId == "Mint") {
+          for (const approval of approvedTransfer.approvalDetails) {
+            for (const merkleChallenge of approval.merkleChallenges) {
+
+              const claimFetch = claimFetches.find((fetch) => fetch._id === merkleChallenge.uri);
+              if (!claimFetch) continue;
+
+              merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  
 
 
   return collectionResponses;

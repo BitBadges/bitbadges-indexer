@@ -93,7 +93,7 @@
       "badgeIds": [
         {
           "start": "1",
-          "end": "100"
+          "end": "10000"
         }
       ],
       "ownershipTimes": [
@@ -439,7 +439,7 @@
           "badgeIds": [
             {
               "start": "1",
-              "end": "100"
+              "end": "10000"
             }
           ],
           "customData": ""

@@ -201,12 +201,16 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
 
   await handleMerkleChallenges(docs, collection, status);
 
-  status.nextCollectionId++;
+
 
   docs.refreshes[collection.collectionId.toString()] = {
     _id: collection.collectionId.toString(),
     _rev: undefined,
     collectionId: collection.collectionId,
     refreshRequestTime: status.block.timestamp,
+  }
+
+  if (msg.collectionId == 0n) {
+    status.nextCollectionId++;
   }
 }
