@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
+import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, API_KEYS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
@@ -289,5 +289,12 @@ export async function createIndexesAndViews() {
 
 
   await TRANSFER_ACTIVITY_DB.insert(activityView);
+
+
+  await API_KEYS_DB.bulk({
+    docs: [{
+      _id: process.env.BITBADGES_API_KEY,
+    }]
+  })
 }
 

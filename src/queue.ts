@@ -92,6 +92,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
     updating: alreadyInQueue || needsRefresh,
     fetchedAt: fetchDoc ? fetchDoc.fetchedAt : 0n,
     fetchedAtBlock: fetchDoc ? fetchDoc.fetchedAtBlock : 0n,
+    uri: uri,
   };
 }
 
@@ -608,7 +609,6 @@ export const fetchUrisFromQueue = async (block: bigint) => {
   //If we cannot fetch within the parameters, it will remain in the queue and will be fetched again.
   const NUM_METADATA_FETCHES_PER_BLOCK = process.env.NUM_METADATA_FETCHES_PER_BLOCK ? Number(process.env.NUM_METADATA_FETCHES_PER_BLOCK) : 25;
   const BASE_DELAY = process.env.BASE_DELAY ? Number(process.env.BASE_DELAY) : 1000 * 60 * 60 * 1; //1 hour
-
   let numFetchesLeft = NUM_METADATA_FETCHES_PER_BLOCK;
 
   //Random skip amount so we don't fetch the same every time
@@ -648,17 +648,18 @@ export const fetchUrisFromQueue = async (block: bigint) => {
   //If rejected, do nothing (it will remain in queue)
   const results = await Promise.allSettled(promises);
 
+  const handlingPromises = [];
   for (let i = 0; i < results.length; i++) {
     let queueObj = queueItems[i];
     let result = results[i];
 
     if (result.status == 'fulfilled') {
       try {
-        await insertToDB(QUEUE_DB, {
+        handlingPromises.push(insertToDB(QUEUE_DB, {
           ...queueObj,
           _deleted: true,
           deletedAt: BigInt(Date.now()),
-        });
+        }));
       } catch (e) {
         console.error(e);
       }
@@ -675,17 +676,19 @@ export const fetchUrisFromQueue = async (block: bigint) => {
       }
       const delay = BASE_DELAY * Math.pow(2, Number(queueObj.numRetries + 1n));
 
-      await insertToDB(QUEUE_DB, {
+      handlingPromises.push(insertToDB(QUEUE_DB, {
         ...queueObj,
         lastFetchedAt: BigInt(Date.now()),
         error: reason,
         numRetries: BigInt(queueObj.numRetries + 1n),
         nextFetchTime: BigInt(delay) + BigInt(Date.now()),
-      });
+      }));
 
       console.error(result.reason);
     }
   }
+
+  await Promise.all(handlingPromises);
 }
 
 export const purgeQueueDocs = async () => {

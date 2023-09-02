@@ -166,6 +166,10 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
           uri: 'https://bitbadges.io',
         },
         beforeVerification: async (challengeParams) => {
+          if (!req.session.nonce) {
+            return Promise.reject(new Error('No nonce found in session. Please try again.'));
+          }
+
           if (challengeParams.nonce !== req.session.nonce) {
             return Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
           }

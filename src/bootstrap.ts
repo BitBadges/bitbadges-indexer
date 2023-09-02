@@ -288,7 +288,6 @@ export async function bootstrapCollections() {
     const collectionId = rawLog[0].events[0].attributes.find((log: any) => log.key === 'collectionId').value;
 
 
-
     //Handle the manual transfers collection. Creates an on-chain collection w/ 10000 badges and transfers those badges to random or specified addresses
     if (jsonFileNames[i] === "9_10000_manual_transfers.json" && !MANUAL_TRANSFERS) continue;
     else if (jsonFileNames[i] === "9_10000_manual_transfers.json") {

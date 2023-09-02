@@ -4,7 +4,7 @@ import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTracke
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { COLLECTIONS_DB, FETCHES_DB } from "../db/db";
+import { COLLECTIONS_DB } from "../db/db";
 import { fetchUriFromDb } from "../queue";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
@@ -192,12 +192,15 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   }
 
 
-  const uris = [];
+  const uris: { uri: string, collectionId: JSPrimitiveNumberType }[] = [];
   for (const collectionRes of baseCollections) {
     for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
       for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
         for (const approval of approvedTransfer.approvalDetails) {
-          uris.push(approval.merkleChallenges.map(x => x.uri));
+          const urisToFetch = approval.merkleChallenges.map(x => x.uri);
+          for (const uri of urisToFetch) {
+            uris.push({ uri, collectionId: collectionRes.collectionId });
+          }
         }
       }
     }
@@ -205,7 +208,8 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
   const addressMappingsPromise = getAddressMappingsFromDB(addressMappingIdsToFetch, false);
   const uniqueUris = [...new Set(uris.flat())].filter(x => !!x);
-  const claimFetchesPromises = uniqueUris.map(uri => FETCHES_DB.get(uri));
+
+  const claimFetchesPromises = uniqueUris.map(uri => fetchUriFromDb(uri.uri, BigInt(uri.collectionId).toString()));
   const [addressMappings, claimFetches] = await Promise.all([
     addressMappingsPromise,
     Promise.all(claimFetchesPromises)
@@ -447,7 +451,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           for (const approval of approvedTransfer.approvalDetails) {
             for (const merkleChallenge of approval.merkleChallenges) {
 
-              const claimFetch = claimFetches.find((fetch) => fetch._id === merkleChallenge.uri);
+              const claimFetch = claimFetches.find((fetch) => fetch.uri === merkleChallenge.uri);
               if (!claimFetch) continue;
 
               merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
@@ -458,7 +462,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
   }
 
-  
+
 
 
   return collectionResponses;
