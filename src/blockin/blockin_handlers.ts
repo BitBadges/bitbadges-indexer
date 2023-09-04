@@ -208,19 +208,6 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
   } catch (err) {
     console.log(err);
 
-    let session = req.session as BlockinSession<NumberType> | null;
-    if (session) {
-      session.blockin = null;
-      session.nonce = null;
-      session.blockinParams = null;
-      session.address = null;
-      session.cosmosAddress = null;
-      session = null;
-    } else {
-      session = null
-    }
-    req.session.save();
-
     return res.status(401).json({ success: false, message: `${err.message}` });
   }
 }

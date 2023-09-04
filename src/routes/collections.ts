@@ -452,7 +452,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
             for (const merkleChallenge of approval.merkleChallenges) {
 
               const claimFetch = claimFetches.find((fetch) => fetch.uri === merkleChallenge.uri);
-              if (!claimFetch) continue;
+              if (!claimFetch || !claimFetch.content) continue;
 
               merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
             }
