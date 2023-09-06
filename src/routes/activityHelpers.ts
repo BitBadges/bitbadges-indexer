@@ -191,7 +191,7 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
 
 
   const docs = await Promise.all(idsToFetch.map(async (idObj) => {
-    const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.trackerType}-${idObj.approvedAddress}`;
+    const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalTrackerId}-${idObj.trackerType}-${idObj.approvedAddress}`;
     const res = await APPROVALS_TRACKER_DB.get(docId).catch(catch404);
 
     return res ?? {
@@ -199,7 +199,7 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
       collectionId: Number(collectionId),
       approvalLevel: idObj.approvalLevel,
       approverAddress: idObj.approverAddress,
-      approvalId: idObj.approvalId,
+      approvalTrackerId: idObj.approvalTrackerId,
       trackerType: idObj.trackerType,
       approvedAddress: idObj.approvedAddress,
       numTransfers: 0,

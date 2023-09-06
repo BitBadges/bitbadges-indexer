@@ -7,25 +7,9 @@
     "canUpdateApprovedIncomingTransfers": [],
     "canUpdateApprovedOutgoingTransfers": []
   },
-  "badgesToCreate": [
-    {
-      "amount": "1",
-      "badgeIds": [
-        {
-          "start": "1",
-          "end": "100"
-        }
-      ],
-      "ownershipTimes": [
-        {
-          "start": "1692028800000",
-          "end": "1723564800000"
-        }
-      ]
-    }
-  ],
+  "badgesToCreate": [],
   "updateCollectionPermissions": true,
-  "balancesType": "Off-Chain",
+  "balancesType": "Inherited",
   "collectionPermissions": {
     "canArchiveCollection": [],
     "canCreateMoreBadges": [],
@@ -51,52 +35,18 @@
         }
       ],
       "collectionMetadata": {
-        "uri": "ipfs://QmXknVUvpMYms5JSkUcD2q3AW4GQ8nWHNwxxoqR2dsnT7r",
+        "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
         "customData": ""
       }
     }
   ],
   "updateBadgeMetadataTimeline": true,
-  "badgeMetadataTimeline": [
-    {
-      "timelineTimes": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ],
-      "badgeMetadata": [
-        {
-          "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
-          "badgeIds": [
-            {
-              "start": "1",
-              "end": "10000000000000"
-            }
-          ],
-          "customData": ""
-        }
-      ]
-    }
-  ],
+  "badgeMetadataTimeline": [],
   "updateOffChainBalancesMetadataTimeline": true,
-  "offChainBalancesMetadataTimeline": [
-    {
-      "timelineTimes": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ],
-      "offChainBalancesMetadata": {
-        "uri": "ipfs://QmTL2b9ebCW6ifrtxdVkYLz7oSKAzNC2hXLsDDN6YG6uyY",
-        "customData": ""
-      }
-    }
-  ],
+  "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "inheritedCollectionId": 0,
+  "inheritedCollectionId": 1,
   "updateCollectionApprovedTransfersTimeline": false,
   "collectionApprovedTransfersTimeline": [],
   "updateStandardsTimeline": true,

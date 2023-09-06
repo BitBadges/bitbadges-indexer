@@ -498,7 +498,6 @@
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
-    "canUpdateInheritedBalances": [],
     "canUpdateManager": [
       {
         "defaultValues": {
@@ -594,8 +593,7 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateInheritedBalancesTimeline": true,
-  "inheritedBalancesTimeline": [],
+  "inheritedCollectionId": 0,
   "updateCollectionApprovedTransfersTimeline": true,
   "collectionApprovedTransfersTimeline": [
     {
@@ -687,7 +685,7 @@
           ],
           "approvalDetails": [
             {
-              "approvalId": "1e37d516d5907808c3378b3078530e436153239f62e8d18318439fd3d9d57060",
+              "approvalTrackerId": "1e37d516d5907808c3378b3078530e436153239f62e8d18318439fd3d9d57060",
               "uri": "",
               "customData": "",
               "mustOwnBadges": [],
@@ -704,6 +702,7 @@
                 "perInitiatedByAddressMaxNumTransfers": "0"
               },
               "predeterminedBalances": {
+                "precalculationId": "",
                 "manualBalances": [],
                 "incrementedBalances": {
                   "startBalances": [],

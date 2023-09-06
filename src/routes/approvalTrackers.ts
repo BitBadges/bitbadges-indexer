@@ -15,7 +15,7 @@ export const getApprovals = async (req: Request, res: Response<GetApprovalsRoute
     const docIds = [];
 
     for (const approvalTrackerId of approvalTrackerIds) {
-      const docId = `${approvalTrackerId.collectionId}:${approvalTrackerId.approvalLevel}-${approvalTrackerId.approverAddress}-${approvalTrackerId.approvalId}-${approvalTrackerId.trackerType}-${approvalTrackerId.approvedAddress}`;
+      const docId = `${approvalTrackerId.collectionId}:${approvalTrackerId.approvalLevel}-${approvalTrackerId.approverAddress}-${approvalTrackerId.approvalTrackerId}-${approvalTrackerId.trackerType}-${approvalTrackerId.approvedAddress}`;
       docIds.push(docId);
     }
 

@@ -560,7 +560,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
           memo: '',
           initiatedBy: '',
           precalculationDetails: {
-            approvalId: '',
+            precalculationId: '',
             approvalLevel: '',
             approverAddress: '',
           },

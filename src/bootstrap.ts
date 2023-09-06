@@ -14,9 +14,10 @@ import crypto from 'crypto';
 env.config();
 
 const MANUAL_TRANSFERS = true;
-const NUM_MANUAL_TRANSFERS = 20;
+const NUM_MANUAL_TRANSFERS = 1000;
 const fromMnemonic = process.env.FAUCET_MNEMONIC as string;
-const ADDRESSES_TO_TRANSFER_TO: string[] = ["cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x", "cosmos1rgtvs7f82uprnlkdxsadye20mqtgyuj7n4npzz"];
+// const ADDRESSES_TO_TRANSFER_TO: string[] = ["cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x", "cosmos1rgtvs7f82uprnlkdxsadye20mqtgyuj7n4npzz"];
+const ADDRESSES_TO_TRANSFER_TO: string[] = [];
 
 async function main() {
   try {
@@ -224,17 +225,34 @@ export async function bootstrapCollections() {
   const subdirectoryPath = './src/setup/bootstrapped-collections';
 
   // Initialize an array to store the parsed JSON objects
-  const jsonObjects: any[] = [];
-  const jsonFileNames: string[] = [];
+  let jsonObjects: any[] = [];
+  let jsonFileNames: string[] = [];
 
   // Call the function to get and parse .json files from the subdirectory
   getAndParseJsonFiles(subdirectoryPath, jsonObjects, jsonFileNames);
+  const jointJsonObjects = jsonObjects.map((jsonObject, idx) => {
+    return {
+      object: jsonObject,
+      fileName: jsonFileNames[idx]
+    }
+  }).sort((a, b) => {
+    const aNum = Number(a.fileName.split('_')[0]);
+    const bNum = Number(b.fileName.split('_')[0]);
+
+    return aNum - bNum;
+  });
+
+  jsonFileNames = jointJsonObjects.map((jsonObject) => jsonObject.fileName);
+  jsonObjects = jointJsonObjects.map((jsonObject) => jsonObject.object);
+
 
 
   //Step 3. Buiild andbroadcast transactions
   let sequence = 1;
   // console.log(jsonObjects.length);
+  let manualTransfersId;
   for (let i = 0; i < jsonObjects.length; i++) {
+    // if (jsonFileNames[i] != "12_inherited.json") continue;
 
     const chain = BETANET_CHAIN_DETAILS;
     const sender = {
@@ -260,7 +278,8 @@ export async function bootstrapCollections() {
           ? [{
             timelineTimes: [{ start: "1", end: Number.MAX_SAFE_INTEGER.toString() }],
             manager: convertToCosmosAddress(ethWallet.address)
-          }] : jsonObjects[i].managerTimeline
+          }] : jsonObjects[i].managerTimeline,
+        inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
       }
     );
 
@@ -279,18 +298,24 @@ export async function bootstrapCollections() {
       txn.legacyAmino.authInfo,
       txnExtension,
     )
+    // console.log(JSON.stringify(txn.eipToSign))
+    // return
 
     const res = await broadcastTx(rawTx);
-    console.log(jsonFileNames[i]);
-    console.log("Created Collection", i + 1);
-    // console.log(res);
+
+    console.log(res);
     const rawLog = JSON.parse(res.data.tx_response.raw_log);
     const collectionId = rawLog[0].events[0].attributes.find((log: any) => log.key === 'collectionId').value;
-
-
+    console.log(jsonFileNames[i]);
+    console.log("Created Collection", i + 1, "with collectionId", collectionId);
     //Handle the manual transfers collection. Creates an on-chain collection w/ 10000 badges and transfers those badges to random or specified addresses
+
     if (jsonFileNames[i] === "9_10000_manual_transfers.json" && !MANUAL_TRANSFERS) continue;
     else if (jsonFileNames[i] === "9_10000_manual_transfers.json") {
+      manualTransfersId = collectionId;
+
+      // console.log(collectionId);
+
       for (let j = 1; j <= NUM_MANUAL_TRANSFERS; j++) {
         if (j % 10 === 0) console.log("Transfer", j);
 
@@ -330,7 +355,7 @@ export async function bootstrapCollections() {
                   ownershipTimes: [{ start: "1", end: "18446744073709551615" }]
                 }],
                 precalculationDetails: {
-                  approvalId: '',
+                  precalculationId: '',
                   approvalLevel: '',
                   approverAddress: '',
                 },
@@ -357,8 +382,9 @@ export async function bootstrapCollections() {
           transferTxn.legacyAmino.authInfo,
           txnExtension,
         )
+        // const res = await broadcastTx(rawTx);
+        // console.log(res);
         await broadcastTx(rawTx);
-
       }
     }
   }

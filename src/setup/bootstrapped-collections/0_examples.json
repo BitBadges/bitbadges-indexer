@@ -37,7 +37,6 @@
     "canUpdateCollectionMetadata": [],
     "canCreateMoreBadges": [],
     "canUpdateBadgeMetadata": [],
-    "canUpdateInheritedBalances": [],
     "canUpdateCollectionApprovedTransfers": []
   },
   "updateManagerTimeline": false,
@@ -184,8 +183,7 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateInheritedBalancesTimeline": true,
-  "inheritedBalancesTimeline": [],
+  "inheritedCollectionId": "0",
   "updateCollectionApprovedTransfersTimeline": true,
   "collectionApprovedTransfersTimeline": [],
   "updateStandardsTimeline": true,

@@ -71,7 +71,7 @@
   ],
   "offChainBalancesMetadataTimeline": [],
   "customDataTimeline": [],
-  "inheritedBalancesTimeline": [],
+  "inheritedCollectionId": 0,
   "standardsTimeline": [],
   "contractAddressTimeline": [],
   "isArchivedTimeline": [],
@@ -171,7 +171,6 @@
       }
     ],
     "canUpdateBadgeMetadata": [],
-    "canUpdateInheritedBalances": [],
     "canUpdateCollectionApprovedTransfers": []
   }
 }

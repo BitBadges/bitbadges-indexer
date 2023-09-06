@@ -83,7 +83,6 @@
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
-    "canUpdateInheritedBalances": [],
     "canUpdateManager": [
       {
         "defaultValues": {
@@ -182,8 +181,7 @@
   ],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateInheritedBalancesTimeline": true,
-  "inheritedBalancesTimeline": [],
+  "inheritedCollectionId": 0,
   "updateCollectionApprovedTransfersTimeline": false,
   "collectionApprovedTransfersTimeline": [],
   "updateStandardsTimeline": true,

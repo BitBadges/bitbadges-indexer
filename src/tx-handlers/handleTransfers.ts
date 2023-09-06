@@ -20,7 +20,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
   for (let idx = 0; idx < transfers.length; idx++) {
     const transfer = transfers[idx];
 
-    if (transfer.precalculationDetails && !fromEvent && transfer.precalculationDetails.approvalId) {
+    if (transfer.precalculationDetails && !fromEvent && transfer.precalculationDetails.precalculationId) {
       continue //We process these with the end block events
     }
 

@@ -35,7 +35,6 @@
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
-    "canUpdateInheritedBalances": [],
     "canUpdateManager": [],
     "canUpdateOffChainBalancesMetadata": [],
     "canUpdateStandards": []
@@ -84,8 +83,7 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateInheritedBalancesTimeline": true,
-  "inheritedBalancesTimeline": [],
+  "inheritedCollectionId": 0,
   "updateCollectionApprovedTransfersTimeline": true,
   "collectionApprovedTransfersTimeline": [
     {
@@ -175,7 +173,7 @@
           ],
           "approvalDetails": [
             {
-              "approvalId": "4c9c26ce741510c54aa61c8cf7ed49afdf78e4ff144e5d34a7596b33ab52e9a9",
+              "approvalTrackerId": "4c9c26ce741510c54aa61c8cf7ed49afdf78e4ff144e5d34a7596b33ab52e9a9",
               "uri": "",
               "customData": "",
               "mustOwnBadges": [],
@@ -192,6 +190,7 @@
                 "perInitiatedByAddressMaxNumTransfers": "1"
               },
               "predeterminedBalances": {
+                "precalculationId": "test",
                 "manualBalances": [],
                 "incrementedBalances": {
                   "startBalances": [

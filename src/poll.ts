@@ -216,8 +216,8 @@ const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, do
 //TODO: Do this natively via Msgs instead of events
 const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
 
-  if (getAttributeValueByKey(event.attributes, "approvalId")) {
-    const approvalId = getAttributeValueByKey(event.attributes, "approvalId") ?? '';
+  if (getAttributeValueByKey(event.attributes, "approvalTrackerId")) {
+    const approvalTrackerId = getAttributeValueByKey(event.attributes, "approvalTrackerId") ?? '';
     const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress") ?? '';
     const collectionId = getAttributeValueByKey(event.attributes, "collectionId") ?? '';
     const approvalLevel = getAttributeValueByKey(event.attributes, "approvalLevel") as "collection" | "incoming" | "outgoing" | "" | undefined ?? '';
@@ -226,7 +226,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const amountsJsonStr = getAttributeValueByKey(event.attributes, "amounts") ?? '';
     const numTransfersJsonStr = getAttributeValueByKey(event.attributes, "numTransfers") ?? '';
 
-    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${trackerType}-${approvedAddress}`;
+    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalTrackerId}-${trackerType}-${approvedAddress}`;
     const amounts = JSON.parse(amountsJsonStr && amountsJsonStr != "null" ? amountsJsonStr : '[]') as Balance<string>[];
     const numTransfers = numTransfersJsonStr && numTransfersJsonStr != "null" ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
 
@@ -236,7 +236,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       approvalLevel: approvalLevel ? approvalLevel : '',
       approverAddress: approverAddress ? approverAddress : '',
-      approvalId: approvalId ? approvalId : '',
+      approvalTrackerId: approvalTrackerId ? approvalTrackerId : '',
       trackerType: trackerType as "overall" | "to" | "from" | "initiatedBy",
       approvedAddress: approvedAddress ? approvedAddress : '',
       numTransfers: BigInt(numTransfers),

@@ -392,7 +392,6 @@
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
-    "canUpdateInheritedBalances": [],
     "canUpdateManager": [],
     "canUpdateOffChainBalancesMetadata": [],
     "canUpdateStandards": []
@@ -451,8 +450,7 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateInheritedBalancesTimeline": true,
-  "inheritedBalancesTimeline": [],
+  "inheritedCollectionId": 0,
   "updateCollectionApprovedTransfersTimeline": true,
   "collectionApprovedTransfersTimeline": [
     {
@@ -542,7 +540,7 @@
           ],
           "approvalDetails": [
             {
-              "approvalId": "ee63dfe690c801a168b3beb239b4676815c9653f637a998e48a7ad4082a0eb65",
+              "approvalTrackerId": "ee63dfe690c801a168b3beb239b4676815c9653f637a998e48a7ad4082a0eb65",
               "uri": "",
               "customData": "",
               "mustOwnBadges": [],
@@ -559,6 +557,7 @@
                 "perInitiatedByAddressMaxNumTransfers": "1"
               },
               "predeterminedBalances": {
+                "precalculationId": "test2",
                 "manualBalances": [],
                 "incrementedBalances": {
                   "startBalances": [
@@ -664,7 +663,7 @@
           },
           "approvalDetails": [
             {
-              "approvalId": "Revoke",
+              "approvalTrackerId": "Revoke",
               "uri": "",
               "customData": "",
               "merkleChallenges": [],
@@ -676,6 +675,7 @@
               "requireToEqualsInitiatedBy": false,
               "mustOwnBadges": [],
               "predeterminedBalances": {
+                "precalculationId": "",
                 "incrementedBalances": {
                   "startBalances": [],
                   "incrementBadgeIdsBy": "0",
