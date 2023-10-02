@@ -65,9 +65,9 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     const profilePicUrlQuery: nano.MangoQuery = {
       selector: {
-        "profilePicUrl": {
+        "_id": {
           "$gt": null,
-        }
+        },
       },
       limit: 25
     }

@@ -1,5 +1,5 @@
 import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertApprovalTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertContractAddressTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionApprovedTransferTimelineWithDetails, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionApprovedTransferTimelineWithDetails, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, convertUserApprovedIncomingTransferTimelineWithDetails, convertUserApprovedOutgoingTransferTimelineWithDetails, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionApprovedTransfersTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullDefaultUserApprovedIncomingTransfersTimeline, getFullDefaultUserApprovedOutgoingTransfersTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
+import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
 
 import { Request, Response } from "express";
 import nano from "nano";
@@ -117,19 +117,18 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
     const mintAndTotalBalancesRes = responses[i + 8] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
 
-    for (const collectionApprovedTransferTimelineVal of collectionRes.collectionApprovedTransfersTimeline) {
-      for (const collectionApprovedTransferVal of collectionApprovedTransferTimelineVal.collectionApprovedTransfers) {
-        addressMappingIdsToFetch.push({
-          collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.fromMappingId
-        });
-        addressMappingIdsToFetch.push({
-          collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.toMappingId
-        });
-        addressMappingIdsToFetch.push({
-          collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.initiatedByMappingId
-        });
-      }
+    for (const collectionApprovedTransferVal of collectionRes.collectionApprovedTransfers) {
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.fromMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.toMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.initiatedByMappingId
+      });
     }
+
 
     for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovedTransfers) {
       addressMappingIdsToFetch.push({
@@ -143,19 +142,40 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       });
     }
 
-    for (const balance of collectionRes.defaultUserApprovedIncomingTransfersTimeline) {
-      for (const transfer of balance.approvedIncomingTransfers) {
+    for (const transfer of collectionRes.defaultUserApprovedIncomingTransfers) {
+
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+      });
+
+    }
+
+    for (const transfer of collectionRes.defaultUserApprovedOutgoingTransfers) {
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+      });
+    }
+
+
+
+    for (const balanceDoc of [...balancesRes.docs, ...mintAndTotalBalancesRes.docs]) {
+      for (const transfer of balanceDoc.approvedIncomingTransfers) {
         addressMappingIdsToFetch.push({
           collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
         });
         addressMappingIdsToFetch.push({
           collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
         });
-      }
-    }
 
-    for (const balance of collectionRes.defaultUserApprovedOutgoingTransfersTimeline) {
-      for (const transfer of balance.approvedOutgoingTransfers) {
+      }
+
+      for (const transfer of balanceDoc.approvedOutgoingTransfers) {
         addressMappingIdsToFetch.push({
           collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
         });
@@ -163,46 +183,17 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
         });
       }
-    }
 
-
-    for (const balanceDoc of [...balancesRes.docs, ...mintAndTotalBalancesRes.docs]) {
-      for (const balance of balanceDoc.approvedIncomingTransfersTimeline) {
-        for (const transfer of balance.approvedIncomingTransfers) {
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
-          });
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
-          });
-        }
-      }
-
-      for (const balance of balanceDoc.approvedOutgoingTransfersTimeline) {
-        for (const transfer of balance.approvedOutgoingTransfers) {
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
-          });
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
-          });
-        }
-      }
     }
   }
 
 
   const uris: { uri: string, collectionId: JSPrimitiveNumberType }[] = [];
   for (const collectionRes of baseCollections) {
-    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
-      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
-        for (const approval of approvedTransfer.approvalDetails) {
-          const urisToFetch = approval.merkleChallenges.map(x => x.uri);
-          for (const uri of urisToFetch) {
-            uris.push({ uri, collectionId: collectionRes.collectionId });
-          }
-        }
-      }
+    for (const approvedTransfer of collectionRes.collectionApprovedTransfers) {
+      const uri = approvedTransfer.approvalDetails?.merkleChallenge.uri;
+      if (uri) uris.push({ uri: uri ?? '', collectionId: collectionRes.collectionId });
+
     }
   }
 
@@ -235,17 +226,12 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       ...collectionRes,
       _rev: undefined,
       _deleted: undefined,
-      collectionApprovedTransfersTimeline: collectionRes.collectionApprovedTransfersTimeline.map(x => {
+      collectionApprovedTransfers: collectionRes.collectionApprovedTransfers.map(x => {
         return {
           ...x,
-          collectionApprovedTransfers: x.collectionApprovedTransfers.map(y => {
-            return {
-              ...y,
-              fromMapping: addressMappings.find((mapping) => mapping.mappingId === y.fromMappingId) as AddressMapping,
-              toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
-            }
-          })
+          fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
+          toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
+          initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
         }
       }),
       collectionPermissions: {
@@ -262,28 +248,18 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           }
         })
       },
-      defaultUserApprovedIncomingTransfersTimeline: collectionRes.defaultUserApprovedIncomingTransfersTimeline.map(x => {
+      defaultUserApprovedIncomingTransfers: collectionRes.defaultUserApprovedIncomingTransfers.map(x => {
         return {
           ...x,
-          approvedIncomingTransfers: x.approvedIncomingTransfers.map(y => {
-            return {
-              ...y,
-              fromMapping: addressMappings.find((mapping) => mapping.mappingId === y.fromMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
-            }
-          })
+          fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
+          initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
         }
       }),
-      defaultUserApprovedOutgoingTransfersTimeline: collectionRes.defaultUserApprovedOutgoingTransfersTimeline.map(x => {
+      defaultUserApprovedOutgoingTransfers: collectionRes.defaultUserApprovedOutgoingTransfers.map(x => {
         return {
           ...x,
-          approvedOutgoingTransfers: x.approvedOutgoingTransfers.map(y => {
-            return {
-              ...y,
-              toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
-            }
-          })
+          toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
+          initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
         }
       }),
       activity: activityRes.docs.map(removeCouchDBDetails) as TransferActivityInfo<JSPrimitiveNumberType>[],
@@ -296,28 +272,18 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
         .map((balance) => {
           return {
             ...balance,
-            approvedIncomingTransfersTimeline: balance.approvedIncomingTransfersTimeline.map(x => {
+            approvedIncomingTransfers: balance.approvedIncomingTransfers.map(x => {
               return {
                 ...x,
-                approvedIncomingTransfers: x.approvedIncomingTransfers.map(y => {
-                  return {
-                    ...y,
-                    fromMapping: addressMappings.find(z => z.mappingId === y.fromMappingId) as AddressMapping,
-                    initiatedByMapping: addressMappings.find(z => z.mappingId === y.initiatedByMappingId) as AddressMapping,
-                  }
-                })
+                fromMapping: addressMappings.find(z => z.mappingId === x.fromMappingId) as AddressMapping,
+                initiatedByMapping: addressMappings.find(z => z.mappingId === x.initiatedByMappingId) as AddressMapping,
               }
             }),
-            approvedOutgoingTransfersTimeline: balance.approvedOutgoingTransfersTimeline.map(x => {
+            approvedOutgoingTransfers: balance.approvedOutgoingTransfers.map(x => {
               return {
                 ...x,
-                approvedOutgoingTransfers: x.approvedOutgoingTransfers.map(y => {
-                  return {
-                    ...y,
-                    toMapping: addressMappings.find(z => z.mappingId === y.toMappingId) as AddressMapping,
-                    initiatedByMapping: addressMappings.find(z => z.mappingId === y.initiatedByMappingId) as AddressMapping,
-                  }
-                })
+                toMapping: addressMappings.find(z => z.mappingId === x.toMappingId) as AddressMapping,
+                initiatedByMapping: addressMappings.find(z => z.mappingId === x.initiatedByMappingId) as AddressMapping,
               }
             })
           }
@@ -390,12 +356,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     if (query.handleAllAndAppendDefaults) {
       //Convert all timelines to handle all possible timeline time values
       collectionToReturn.collectionMetadataTimeline = getFullCollectionMetadataTimeline(collectionToReturn.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify))).map(x => convertCollectionMetadataTimeline(x, Stringify));
-      collectionToReturn.defaultUserApprovedIncomingTransfersTimeline = getFullDefaultUserApprovedIncomingTransfersTimeline(
-        collectionToReturn.defaultUserApprovedIncomingTransfersTimeline.map(x => convertUserApprovedIncomingTransferTimelineWithDetails(x, BigIntify))
-      ).map(x => convertUserApprovedIncomingTransferTimelineWithDetails(x, Stringify));
-      collectionToReturn.defaultUserApprovedOutgoingTransfersTimeline = getFullDefaultUserApprovedOutgoingTransfersTimeline(
-        collectionToReturn.defaultUserApprovedOutgoingTransfersTimeline.map(x => convertUserApprovedOutgoingTransferTimelineWithDetails(x, BigIntify))
-      ).map(x => convertUserApprovedOutgoingTransferTimelineWithDetails(x, Stringify));
+
       collectionToReturn.badgeMetadataTimeline = getFullBadgeMetadataTimeline(
         collectionToReturn.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify))
       ).map(x => convertBadgeMetadataTimeline(x, Stringify));
@@ -417,23 +378,15 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       collectionToReturn.managerTimeline = getFullManagerTimeline(
         collectionToReturn.managerTimeline.map(x => convertManagerTimeline(x, BigIntify))
       ).map(x => convertManagerTimeline(x, Stringify));
-      collectionToReturn.collectionApprovedTransfersTimeline = getFullCollectionApprovedTransfersTimeline(
-        collectionToReturn.collectionApprovedTransfersTimeline.map(x => convertCollectionApprovedTransferTimelineWithDetails(x, BigIntify))
-      ).map(x => convertCollectionApprovedTransferTimelineWithDetails(x as CollectionApprovedTransferTimelineWithDetails<NumberType>, Stringify));
 
       //Handle all possible values and only return first maches
-      collectionToReturn.collectionApprovedTransfersTimeline = collectionToReturn.collectionApprovedTransfersTimeline.map((timeline) => {
-        return {
-          timelineTimes: timeline.timelineTimes.map(x => convertUintRange(x, BigIntify)),
-          collectionApprovedTransfers: getFirstMatchForCollectionApprovedTransfers(timeline.collectionApprovedTransfers.map(x => convertCollectionApprovedTransferWithDetails(x, BigIntify)), true)
-        }
-      }).map(x => convertCollectionApprovedTransferTimelineWithDetails(x, Stringify));
+      collectionToReturn.collectionApprovedTransfers = getFirstMatchForCollectionApprovedTransfers(collectionToReturn.collectionApprovedTransfers.map(x => convertCollectionApprovedTransferWithDetails(x, BigIntify)), true).map(x => convertCollectionApprovedTransferWithDetails(x, Stringify));
 
       collectionToReturn.owners = collectionToReturn.owners.map((balance) => {
         return {
           ...balance,
-          approvedIncomingTransfersTimeline: appendDefaultForIncomingUserApprovedTransfers(balance.approvedIncomingTransfersTimeline, addressMappings, balance.cosmosAddress),
-          approvedOutgoingTransfersTimeline: appendDefaultForOutgoingUserApprovedTransfers(balance.approvedOutgoingTransfersTimeline, addressMappings, balance.cosmosAddress)
+          approvedIncomingTransfers: appendDefaultForIncomingUserApprovedTransfers(balance.approvedIncomingTransfers, addressMappings, balance.cosmosAddress),
+          approvedOutgoingTransfers: appendDefaultForOutgoingUserApprovedTransfers(balance.approvedOutgoingTransfers, addressMappings, balance.cosmosAddress)
         }
       });
     }
@@ -442,23 +395,18 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   }
 
   for (const collectionRes of collectionResponses) {
-    for (const approvedTransferTimeline of collectionRes.collectionApprovedTransfersTimeline) {
-      for (const approvedTransfer of approvedTransferTimeline.collectionApprovedTransfers) {
-        if (approvedTransfer.fromMappingId == "Mint") {
-          for (const approval of approvedTransfer.approvalDetails) {
-            for (const merkleChallenge of approval.merkleChallenges) {
+    for (const approvedTransfer of collectionRes.collectionApprovedTransfers) {
+      if (approvedTransfer.fromMappingId == "Mint") {
+        const approvalDetails = approvedTransfer.approvalDetails;
 
-              const claimFetch = claimFetches.find((fetch) => fetch.uri === merkleChallenge.uri);
-              if (!claimFetch || !claimFetch.content) continue;
-
-              merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
-            }
-          }
+        if (approvalDetails?.merkleChallenge.uri) {
+          const claimFetch = claimFetches.find((fetch) => fetch.uri === approvalDetails.merkleChallenge.uri);
+          if (!claimFetch || !claimFetch.content) continue;
+          approvalDetails.merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
         }
       }
     }
   }
-
 
 
 
@@ -578,7 +526,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
         const currBadgeUintRange = badgeIdsLeft[0];
 
         const metadataId = getMetadataIdForBadgeId(BigInt(currBadgeUintRange.start), badgeUris);
-        if (metadataId === -1) throw new Error(`BadgeId ${currBadgeUintRange.start} does not exist in collection ${collectionId}`);
+        if (metadataId === -1) break;
 
         metadataIdsToFetch.push(metadataId);
         uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
@@ -590,7 +538,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       }
     } else {
       const metadataId = getMetadataIdForBadgeId(BigInt(badgeIdCastedAsNumber), badgeUris);
-      if (metadataId === -1) throw new Error(`BadgeId ${badgeIdCastedAsNumber} does not exist in collection ${collectionId}`);
+      if (metadataId === -1) break;
 
       uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
       metadataIdsToFetch.push(metadataId);

@@ -296,5 +296,48 @@ export async function createIndexesAndViews() {
       _id: process.env.BITBADGES_API_KEY,
     }]
   })
+
+  const createdByViewDocName = '_design/created_by';
+  const createdByView = {
+    _id: createdByViewDocName,
+    views: {
+      byCreator: {
+        map: `function (doc) {
+          if (doc._id) {
+            emit(doc.createdBy, null);
+          }
+        }`
+      }
+    },
+    "language": "javascript",
+    "options": {
+      "partitioned": false
+    }
+  };
+
+  await COLLECTIONS_DB.insert(createdByView);
+
+  const managersDocName = '_design/managers';
+  const managersView = {
+    _id: managersDocName,
+    views: {
+      byManager: {
+        map: `function (doc) {
+          if (doc._id) {
+            for (const timelineVal of doc.managerTimeline) {
+              if (timelineVal.manager) {
+                emit(timelineVal.manager, null);
+              }
+            }
+          }
+        }`
+      }
+    },
+    "language": "javascript",
+    "options": {
+      "partitioned": false
+    }
+  };
+  await COLLECTIONS_DB.insert(managersView);
 }
 

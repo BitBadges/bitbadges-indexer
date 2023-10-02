@@ -200,11 +200,11 @@ export const poll = async () => {
   setTimer(newTimer);
 }
 
-const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   try {
     let eventIndex = 0
     while (eventIndex < events.length) {
-      await handleEvent(events[eventIndex], status, docs)
+      await handleEvent(events[eventIndex], status, docs, txHash)
       eventIndex++
     }
   } catch (e) {
@@ -214,7 +214,7 @@ const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, do
 
 
 //TODO: Do this natively via Msgs instead of events
-const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
 
   if (getAttributeValueByKey(event.attributes, "approvalTrackerId")) {
     const approvalTrackerId = getAttributeValueByKey(event.attributes, "approvalTrackerId") ?? '';
@@ -277,7 +277,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
 
     await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], []);
 
-    await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, creator, true);
+    await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, creator, txHash, true);
   }
 }
 
@@ -346,17 +346,18 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
   }
   // console.log(decodedTx.body);
 
-  let messageIdx = 0;
+  // let messageIdx = 0;
   for (const message of decodedTx.body.messages) {
     const typeUrl = message.typeUrl;
     const value = message.value;
 
-    let msg = null;
+    let msg: any = null;
     switch (typeUrl) {
       case "/bitbadges.bitbadgeschain.badges.MsgTransferBadges":
         const transferMsg = convertFromProtoToMsgTransferBadges(tx.bitbadges.bitbadgeschain.badges.MsgTransferBadges.deserialize(value))
-        await handleMsgTransferBadges(transferMsg, status, docs);
-        msg = transferMsg;
+        await handleMsgTransferBadges(transferMsg, status, docs, indexed.hash)
+        // Don't need to track transfers (we do it in TRANSFER_ACTIVITY)
+        // msg = transferMsg;
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgDeleteCollection":
         const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value))
@@ -366,16 +367,17 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       case "/bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings":
         const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings.deserialize(value))
         await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs);
-        msg = newAddressMappingsMsg;
+        //Don't need to track, we have created at and address mappings on-chain are permanent and immutable
+        // msg = newAddressMappingsMsg;
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateCollection":
         const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.bitbadges.bitbadgeschain.badges.MsgUpdateCollection.deserialize(value))
-        await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs);
+        await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs, indexed.hash)
         msg = newUpdateCollectionMsg;
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers":
         const newUpdateUserApprovedTransfersMsg = convertFromProtoToMsgUpdateUserApprovedTransfers(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers.deserialize(value))
-        await handleMsgUpdateUserApprovedTransfers(newUpdateUserApprovedTransfersMsg, status, docs);
+        await handleMsgUpdateUserApprovedTransfers(newUpdateUserApprovedTransfersMsg, status, docs, indexed.hash)
         msg = newUpdateUserApprovedTransfersMsg;
         break;
       case "/cosmos.bank.v1beta1.MsgSend":
@@ -384,22 +386,32 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const toAddress = newMsgSend.toObject().to_address;
         if (fromAddress && fromAddress != "") await handleNewAccountByAddress(fromAddress, docs)
         if (toAddress && toAddress != "") await handleNewAccountByAddress(toAddress, docs)
-        msg = newMsgSend;
+      // Don't need to track MsgSends
+      // msg = newMsgSend;
       default:
         break;
     }
-    if (msg) msgDocs.push({
-      _id: `${indexed.height}-${indexed.txIndex}-${messageIdx}`,
-      msg: msg,
-      txHash: indexed.hash,
-      txIndex: indexed.txIndex,
-      msgIndex: messageIdx,
-      type: typeUrl,
-      block: indexed.height,
-      blockTimestamp: Number(status.block.timestamp),
-    })
+    if (msg) {
+      if (msg.collectionId !== undefined && BigIntify(msg.collectionId) == 0n) {
+        //Don't track, we have created at
+      } else {
+        //We switched to track everything in updateHistory
+        // msgDocs.push({
+        //   _id: `${indexed.height}-${indexed.txIndex}-${messageIdx}`,
+        //   // msg: msg,
+        //   txHash: indexed.hash,
+        //   txIndex: indexed.txIndex,
+        //   msgIndex: messageIdx,
+        //   type: typeUrl,
+        //   block: indexed.height,
+        //   blockTimestamp: Number(status.block.timestamp),
+        //   collectionId: msg.collectionId ?? undefined,
+        //   creator: msg.creator ?? undefined,
+        // })
+      }
+    }
 
-    messageIdx++;
+    // messageIdx++;
   }
 
   let rawLog;
@@ -425,7 +437,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
   // Try to handle the events
   if (events) {
     try {
-      await handleEvents(events, status, docs);
+      await handleEvents(events, status, docs, indexed.hash);
     } catch (e) {
       // Throw an error if handleEvents fails
       throw new Error(`handleEvents failed: ${e.message}`);

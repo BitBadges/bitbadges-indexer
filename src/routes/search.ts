@@ -1,6 +1,6 @@
 
-import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfo, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, convertAddressMappingWithMetadata, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType, UintRange } from "bitbadgesjs-proto";
+import { AccountInfo, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -19,6 +19,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         collections: [],
         accounts: [],
         addressMappings: [],
+        badges: [],
       })
     }
 
@@ -60,22 +61,13 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const selectorCriteria: any[] = [
       { "address": { "$regex": `(?i)${searchValue}` } },
       { "cosmosAddress": { "$in": cosmosAddresses } },
-
-      // { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
-      // { "_id": { "$regex": `(?i)${convertToCosmosAddress(searchValue)}:` } },
-      // { "username": { "$regex": `(?i)${searchValue}` } }
     ];
 
 
 
     if (resolvedEnsAddress) {
       selectorCriteria.push({ "address": { "$regex": `(?i)${resolvedEnsAddress}` } });
-      // selectorCriteria.push({ "cosmosAddress": { "$regex": `(?i)${resolvedEnsAddress}` } });
     }
-
-    // if (searchValue.startsWith('cosmos')) {
-    //   selectorCriteria.push({ "cosmosAddress": { "$regex": `(?i)${searchValue}` } });
-    // }
 
     const accountQuery = {
       selector: {
@@ -130,7 +122,26 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     allAccounts.sort((a, b) => a.address.localeCompare(b.address));
 
-    const uris = metadataResponseDocs.map((doc) => doc._id);
+    let uris = metadataResponseDocs.map((doc) => doc._id);
+
+    //Little hacky but we post process the placeholders IDs here if we can
+    uris = uris.map((uri) => {
+      //If any split of "/" can be parsed as an int, we replace it with {id}
+      const split = uri.split('/');
+      const urisToReturn = [uri];
+      for (let i = 0; i < split.length; i++) {
+        const x = split[i];
+        if (Number.isInteger(Number(x))) {
+          const copy = [...split];
+          copy[i] = '{id}';
+          urisToReturn.push(copy.join('/'));
+        }
+      }
+
+      return urisToReturn;
+    }).flat();
+
+
     const collectionsPromise = COLLECTIONS_DB.find({
       selector: {
         "$or": [
@@ -143,6 +154,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
             collectionMetadataTimeline: {
               "$elemMatch": {
                 collectionMetadata: {
+                  //This is fine bc collection metadata never has {id} placeholder
                   uri: {
                     "$in": uris
                   }
@@ -151,10 +163,12 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
             }
           },
           {
-            badgeUris: {
+            badgeMetadataTimeline: {
               "$elemMatch": {
                 badgeMetadata: {
                   "$elemMatch": {
+                    //Need to handle regex for {id} placeholder
+                    //The uris in uris do not have {id} placeholder. They are already replaced with the actual ID
                     uri: {
                       "$in": uris
                     }
@@ -190,7 +204,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       req,
       collectionsRes.docs,
       collectionsRes.docs.map((doc) => {
-        return { collectionId: doc.collectionId };
+        return { collectionId: doc.collectionId, metadataToFetch: { uris: uris } };
       })
     );
 
@@ -211,10 +225,44 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       addressMappingsToReturnPromise
     ]);
 
+    let badges: {
+      collection: BitBadgesCollection<bigint>,
+      badgeIds: UintRange<bigint>[]
+    }[] = [];
+    for (let _collection of collectionsResponses) {
+      const collection = convertBitBadgesCollection(_collection, BigIntify);
+      for (const timeline of collection.badgeMetadataTimeline) {
+        for (const badgeMetadata of timeline.badgeMetadata) {
+          if (uris.includes(badgeMetadata.uri)) {
+            const existingIdx = badges.findIndex((x) => x.collection.collectionId === collection.collectionId);
+            if (existingIdx !== -1) {
+              badges[existingIdx].badgeIds.push(...badgeMetadata.badgeIds);
+              badges[existingIdx].badgeIds = sortUintRangesAndMergeIfNecessary(badges[existingIdx].badgeIds);
+            } else {
+              badges.push({
+                collection: collection,
+                badgeIds: badgeMetadata.badgeIds
+              });
+            }
+          }
+        }
+      }
+    }
+
     return res.json({
-      collections: collectionsResponses,
+      collections: collectionsResponses.filter((x) => {
+        return Number(x.collectionId) === Number(searchValue) || x.collectionMetadataTimeline.find((timeline) => {
+          return uris.includes(timeline.collectionMetadata.uri);
+        })
+      }).map((x) => removeCouchDBDetails(x)),
       accounts,
-      addressMappings: addressMappingsToReturn.map(x => convertAddressMappingWithMetadata(x, Stringify))
+      addressMappings: addressMappingsToReturn.map(x => convertAddressMappingWithMetadata(x, Stringify)),
+      badges: badges.map((x) => {
+        return {
+          collection: removeCouchDBDetails(x.collection),
+          badgeIds: x.badgeIds,
+        }
+      })
     })
   } catch (e) {
     console.error(e);

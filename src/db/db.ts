@@ -18,13 +18,15 @@ export interface EthTxCountDoc {
 }
 
 export interface MsgDoc {
-  msg: any;
+  msg?: any;
   type: string;
   txHash: string;
   txIndex: number;
   msgIndex: number;
   block: number;
   blockTimestamp: number;
+  collectionId?: bigint;
+  creator?: string;
 }
 
 

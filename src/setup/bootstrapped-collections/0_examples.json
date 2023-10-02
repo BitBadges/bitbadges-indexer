@@ -2,8 +2,8 @@
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
   "balancesType": "Standard",
-  "defaultApprovedOutgoingTransfersTimeline": [],
-  "defaultApprovedIncomingTransfersTimeline": [],
+  "defaultApprovedOutgoingTransfers": [],
+  "defaultApprovedIncomingTransfers": [],
   "defaultUserPermissions": {
     "canUpdateApprovedOutgoingTransfers": [],
     "canUpdateApprovedIncomingTransfers": []
@@ -183,9 +183,8 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "inheritedCollectionId": "0",
-  "updateCollectionApprovedTransfersTimeline": true,
-  "collectionApprovedTransfersTimeline": [],
+  "updateCollectionApprovedTransfers": true,
+  "collectionApprovedTransfers": [],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
   "updateContractAddressTimeline": true,

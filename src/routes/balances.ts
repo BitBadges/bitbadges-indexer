@@ -19,28 +19,21 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
     const response = await BALANCES_DB.get(docId).catch(catch404);
 
     let addressMappingIdsToFetch = [];
-    for (const incomingTimeline of collection.defaultUserApprovedIncomingTransfersTimeline) {
-      for (const incoming of incomingTimeline.approvedIncomingTransfers) {
-        addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
-      }
+    for (const incoming of collection.defaultUserApprovedIncomingTransfers) {
+      addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
     }
 
-    for (const outgoingTimeline of collection.defaultUserApprovedOutgoingTransfersTimeline) {
-      for (const outgoing of outgoingTimeline.approvedOutgoingTransfers) {
-        addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
-      }
+    for (const outgoing of collection.defaultUserApprovedOutgoingTransfers) {
+      addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+
     }
 
-    for (const incomingTimeline of response?.approvedIncomingTransfersTimeline ?? []) {
-      for (const incoming of incomingTimeline.approvedIncomingTransfers) {
-        addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
-      }
+    for (const incoming of response?.approvedIncomingTransfers ?? []) {
+      addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
     }
 
-    for (const outgoingTimeline of response?.approvedOutgoingTransfersTimeline ?? []) {
-      for (const outgoing of outgoingTimeline.approvedOutgoingTransfers) {
-        addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
-      }
+    for (const outgoing of response?.approvedOutgoingTransfers ?? []) {
+      addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
     }
 
     const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(id => {
@@ -55,10 +48,11 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
         collectionId: req.params.collectionId,
         cosmosAddress: req.params.cosmosAddress,
         balances: [],
-        approvedIncomingTransfersTimeline: collection.defaultUserApprovedIncomingTransfersTimeline,
-        approvedOutgoingTransfersTimeline: collection.defaultUserApprovedOutgoingTransfersTimeline,
+        approvedIncomingTransfers: collection.defaultUserApprovedIncomingTransfers,
+        approvedOutgoingTransfers: collection.defaultUserApprovedOutgoingTransfers,
         userPermissions: collection.defaultUserPermissions,
         onChain: collection.balancesType === "Standard",
+        updateHistory: [],
         _id: req.params.collectionId + ':' + cosmosAddress
       }
 
@@ -66,12 +60,12 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
     const balanceToReturnConverted: BalanceInfoWithDetails<string> = {
       ...balanceToReturn,
-      approvedIncomingTransfersTimeline: [],
-      approvedOutgoingTransfersTimeline: [],
+      approvedIncomingTransfers: [],
+      approvedOutgoingTransfers: [],
     }
 
-    balanceToReturnConverted.approvedIncomingTransfersTimeline = appendDefaultForIncomingUserApprovedTransfers(balanceToReturn.approvedIncomingTransfersTimeline, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
-    balanceToReturnConverted.approvedOutgoingTransfersTimeline = appendDefaultForOutgoingUserApprovedTransfers(balanceToReturn.approvedOutgoingTransfersTimeline, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
+    balanceToReturnConverted.approvedIncomingTransfers = appendDefaultForIncomingUserApprovedTransfers(balanceToReturn.approvedIncomingTransfers, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
+    balanceToReturnConverted.approvedOutgoingTransfers = appendDefaultForOutgoingUserApprovedTransfers(balanceToReturn.approvedOutgoingTransfers, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
 
     return res.status(200).send({
       balance: balanceToReturnConverted,

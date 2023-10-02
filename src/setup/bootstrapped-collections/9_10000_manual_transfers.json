@@ -1,88 +1,39 @@
 {
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
-  "defaultApprovedIncomingTransfersTimeline": [
+  "defaultApprovedIncomingTransfers": [
     {
-      "approvedIncomingTransfers": [
-        {
-          "fromMappingId": "AllWithMint",
-          "fromMapping": {
-            "mappingId": "AllWithMint",
-            "addresses": [],
-            "includeAddresses": false,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "initiatedByMapping": {
-            "mappingId": "AllWithMint",
-            "addresses": [],
-            "includeAddresses": false,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "initiatedByMappingId": "AllWithMint",
-          "transferTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "badgeIds": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "ownershipTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "allowedCombinations": [
-            {
-              "isApproved": true,
-              "initiatedByMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "fromMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "badgeIdsOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "ownershipTimesOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "transferTimesOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              }
-            }
-          ],
-          "approvalDetails": []
-        }
-      ],
-      "timelineTimes": [
+      "fromMappingId": "AllWithMint",
+      "initiatedByMappingId": "AllWithMint",
+      "transferTimes": [
         {
           "start": "1",
           "end": "18446744073709551615"
         }
+      ],
+      "badgeIds": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "ownershipTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "approvalId": "test",
+      "approvalTrackerId": "",
+      "challengeTrackerId": "",
+      "allowedCombinations": [
+        {
+          "isApproved": true
+        }
       ]
     }
   ],
-  "defaultApprovedOutgoingTransfersTimeline": [],
+  "defaultApprovedOutgoingTransfers": [],
   "defaultUserPermissions": {
     "canUpdateApprovedIncomingTransfers": [],
     "canUpdateApprovedOutgoingTransfers": []
@@ -268,6 +219,9 @@
     "canUpdateCollectionApprovedTransfers": [
       {
         "defaultValues": {
+          "approvalId": "sgdfsdfgsdfg",
+          "approvalTrackerId": "All",
+          "challengeTrackerId": "All",
           "fromMappingId": "AllWithMint",
           "toMappingId": "AllWithMint",
           "initiatedByMappingId": "AllWithMint",
@@ -379,6 +333,9 @@
       },
       {
         "defaultValues": {
+          "approvalId": "sgdfsdfgsdfg",
+          "approvalTrackerId": "",
+          "challengeTrackerId": "",
           "fromMappingId": "Mint",
           "toMappingId": "Mint",
           "initiatedByMappingId": "Mint",
@@ -593,234 +550,233 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "inheritedCollectionId": 0,
-  "updateCollectionApprovedTransfersTimeline": true,
-  "collectionApprovedTransfersTimeline": [
+  "updateCollectionApprovedTransfers": true,
+  "collectionApprovedTransfers": [
     {
-      "collectionApprovedTransfers": [
-        {
-          "fromMappingId": "Mint",
-          "toMappingId": "AllWithMint",
-          "initiatedByMappingId": "Manager",
-          "initiatedByMapping": {
-            "mappingId": "Manager",
-            "addresses": [
-              "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x"
-            ],
-            "includeAddresses": true,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "fromMapping": {
-            "mappingId": "Mint",
-            "addresses": [
-              "Mint"
-            ],
-            "includeAddresses": true,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "toMapping": {
-            "mappingId": "AllWithMint",
-            "addresses": [],
-            "includeAddresses": false,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "transferTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "ownershipTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "badgeIds": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "allowedCombinations": [
-            {
-              "initiatedByMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "fromMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "toMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "badgeIdsOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "ownershipTimesOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "transferTimesOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "isApproved": true
-            }
-          ],
-          "approvalDetails": [
-            {
-              "approvalTrackerId": "1e37d516d5907808c3378b3078530e436153239f62e8d18318439fd3d9d57060",
-              "uri": "",
-              "customData": "",
-              "mustOwnBadges": [],
-              "approvalAmounts": {
-                "overallApprovalAmount": "0",
-                "perFromAddressApprovalAmount": "0",
-                "perToAddressApprovalAmount": "0",
-                "perInitiatedByAddressApprovalAmount": "0"
-              },
-              "maxNumTransfers": {
-                "overallMaxNumTransfers": "0",
-                "perFromAddressMaxNumTransfers": "0",
-                "perToAddressMaxNumTransfers": "0",
-                "perInitiatedByAddressMaxNumTransfers": "0"
-              },
-              "predeterminedBalances": {
-                "precalculationId": "",
-                "manualBalances": [],
-                "incrementedBalances": {
-                  "startBalances": [],
-                  "incrementBadgeIdsBy": "0",
-                  "incrementOwnershipTimesBy": "0"
-                },
-                "orderCalculationMethod": {
-                  "useMerkleChallengeLeafIndex": false,
-                  "useOverallNumTransfers": false,
-                  "usePerFromAddressNumTransfers": false,
-                  "usePerInitiatedByAddressNumTransfers": false,
-                  "usePerToAddressNumTransfers": false
-                }
-              },
-              "merkleChallenges": [],
-              "requireToEqualsInitiatedBy": false,
-              "requireFromEqualsInitiatedBy": false,
-              "requireToDoesNotEqualInitiatedBy": false,
-              "requireFromDoesNotEqualInitiatedBy": false,
-              "overridesToApprovedIncomingTransfers": false,
-              "overridesFromApprovedOutgoingTransfers": true
-            }
-          ]
-        },
-        {
-          "fromMappingId": "AllWithoutMint",
-          "toMappingId": "AllWithoutMint",
-          "initiatedByMappingId": "AllWithoutMint",
-          "badgeIds": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "ownershipTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "toMapping": {
-            "mappingId": "AllWithoutMint",
-            "addresses": [
-              "Mint"
-            ],
-            "includeAddresses": false,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "fromMapping": {
-            "mappingId": "AllWithoutMint",
-            "addresses": [
-              "Mint"
-            ],
-            "includeAddresses": false,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "initiatedByMapping": {
-            "mappingId": "AllWithoutMint",
-            "addresses": [
-              "Mint"
-            ],
-            "includeAddresses": false,
-            "uri": "",
-            "customData": "",
-            "createdBy": ""
-          },
-          "approvalDetails": [],
-          "transferTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "allowedCombinations": [
-            {
-              "isApproved": true,
-              "toMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "fromMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "initiatedByMappingOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "badgeIdsOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "ownershipTimesOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              },
-              "transferTimesOptions": {
-                "invertDefault": false,
-                "allValues": false,
-                "noValues": false
-              }
-            }
-          ]
-        }
-      ],
-      "timelineTimes": [
+      "fromMappingId": "Mint",
+      "toMappingId": "AllWithMint",
+      "initiatedByMappingId": "Manager",
+      "initiatedByMapping": {
+        "mappingId": "Manager",
+        "addresses": [
+          "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x"
+        ],
+        "includeAddresses": true,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "fromMapping": {
+        "mappingId": "Mint",
+        "addresses": [
+          "Mint"
+        ],
+        "includeAddresses": true,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "toMapping": {
+        "mappingId": "AllWithMint",
+        "addresses": [],
+        "includeAddresses": false,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "transferTimes": [
         {
           "start": "1",
           "end": "18446744073709551615"
+        }
+      ],
+      "ownershipTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "badgeIds": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "allowedCombinations": [
+        {
+          "initiatedByMappingOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "fromMappingOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "toMappingOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "badgeIdsOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "ownershipTimesOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "transferTimesOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "isApproved": true
+        }
+      ],
+      "approvalId": "fdsjhgakdfjgkh",
+      "approvalTrackerId": "fdahj",
+      "challengeTrackerId": "fdahjasdfasdf",
+      "approvalDetails": {
+        "uri": "",
+        "customData": "",
+        "mustOwnBadges": [],
+        "approvalAmounts": {
+          "overallApprovalAmount": "0",
+          "perFromAddressApprovalAmount": "0",
+          "perToAddressApprovalAmount": "0",
+          "perInitiatedByAddressApprovalAmount": "0"
+        },
+        "maxNumTransfers": {
+          "overallMaxNumTransfers": "0",
+          "perFromAddressMaxNumTransfers": "0",
+          "perToAddressMaxNumTransfers": "0",
+          "perInitiatedByAddressMaxNumTransfers": "0"
+        },
+        "predeterminedBalances": {
+          "precalculationId": "",
+          "manualBalances": [],
+          "incrementedBalances": {
+            "startBalances": [],
+            "incrementBadgeIdsBy": "0",
+            "incrementOwnershipTimesBy": "0"
+          },
+          "orderCalculationMethod": {
+            "useMerkleChallengeLeafIndex": false,
+            "useOverallNumTransfers": false,
+            "usePerFromAddressNumTransfers": false,
+            "usePerInitiatedByAddressNumTransfers": false,
+            "usePerToAddressNumTransfers": false
+          }
+        },
+        "merkleChallenge": {
+          "root": "",
+          "expectedProofLength": "0",
+          "useCreatorAddressAsLeaf": false,
+          "maxOneUsePerLeaf": false,
+          "useLeafIndexForTransferOrder": false,
+          "uri": "",
+          "customData": ""
+        },
+        "requireToEqualsInitiatedBy": false,
+        "requireFromEqualsInitiatedBy": false,
+        "requireToDoesNotEqualInitiatedBy": false,
+        "requireFromDoesNotEqualInitiatedBy": false,
+        "overridesToApprovedIncomingTransfers": false,
+        "overridesFromApprovedOutgoingTransfers": true
+      }
+    },
+    {
+      "fromMappingId": "AllWithoutMint",
+      "toMappingId": "AllWithoutMint",
+      "initiatedByMappingId": "AllWithoutMint",
+      "badgeIds": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "ownershipTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "toMapping": {
+        "mappingId": "AllWithoutMint",
+        "addresses": [
+          "Mint"
+        ],
+        "includeAddresses": false,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "fromMapping": {
+        "mappingId": "AllWithoutMint",
+        "addresses": [
+          "Mint"
+        ],
+        "includeAddresses": false,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "initiatedByMapping": {
+        "mappingId": "AllWithoutMint",
+        "addresses": [
+          "Mint"
+        ],
+        "includeAddresses": false,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "transferTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "approvalId": "sgdfsdfgsdfg",
+      "approvalTrackerId": "",
+      "challengeTrackerId": "",
+      "allowedCombinations": [
+        {
+          "isApproved": true,
+          "toMappingOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "fromMappingOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "initiatedByMappingOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "badgeIdsOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "ownershipTimesOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          },
+          "transferTimesOptions": {
+            "invertDefault": false,
+            "allValues": false,
+            "noValues": false
+          }
         }
       ]
     }

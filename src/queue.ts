@@ -174,7 +174,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block,
       db: dbType,
-      isPermanent
+      isPermanent,
     });
   }
 }
@@ -452,15 +452,17 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
           _id: `${queueObj.collectionId}:${key}`,
           balances: val,
           //Off-Chain Balances so we don't care ab approvals or permissions
-          approvedIncomingTransfersTimeline: [],
-          approvedOutgoingTransfersTimeline: [],
+          approvedIncomingTransfers: [],
+          approvedOutgoingTransfers: [],
           userPermissions: {
             canUpdateApprovedIncomingTransfers: [],
             canUpdateApprovedOutgoingTransfers: [],
           },
           collectionId: queueObj.collectionId,
           cosmosAddress: key,
+
           onChain: false,
+          updateHistory: [],
         };
 
         //Will throw if underflow and the URI speecifies more badges than what is denoted on the blockchain
@@ -482,8 +484,8 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       _id: `${queueObj.collectionId}:Mint`,
       balances: remainingSupplys.map(x => convertBalance(x, BigIntify)),
       //Off-Chain Balances so we don't care ab approvals or permissions
-      approvedIncomingTransfersTimeline: [],
-      approvedOutgoingTransfersTimeline: [],
+      approvedIncomingTransfers: [],
+      approvedOutgoingTransfers: [],
       userPermissions: {
         canUpdateApprovedIncomingTransfers: [],
         canUpdateApprovedOutgoingTransfers: [],
@@ -494,7 +496,8 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       fetchedAtBlock: block,
       onChain: false,
       uri: queueObj.uri,
-      isPermanent: queueObj.uri.startsWith('ipfs://')
+      isPermanent: queueObj.uri.startsWith('ipfs://'),
+      updateHistory: []
     };
 
     //Delete all docs that were not updated to avoid unnecessary writes to DB using the saved docBalancesCopy
@@ -559,8 +562,10 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
           timestamp: BigInt(Date.now()),
           memo: '',
           initiatedBy: '',
+          prioritizedApprovals: [],
+          onlyCheckPrioritizedApprovals: false,
           precalculationDetails: {
-            precalculationId: '',
+            approvalId: '',
             approvalLevel: '',
             approverAddress: '',
           },

@@ -1,7 +1,7 @@
 
 import { cosmosToEth } from "bitbadgesjs-address-converter";
-import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { BigIntify, JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfo, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertProfileDoc, convertProfileInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -10,7 +10,7 @@ import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_h
 import { ACCOUNTS_DB, ETH_TX_COUNT_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeReviewsQuery } from "./userHelpers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
 import { provider } from "../utils/ensResolvers";
 
@@ -140,7 +140,10 @@ export const getAccountByAddress = async (req: Request, address: string, fetchOp
   let account = userInfos[0];
   if (fetchOptions) {
     //account is currently a BitBadgesUserInfo with no portfolio info
-    const portfolioRes = await getAdditionalUserInfo(req, account.cosmosAddress, fetchOptions);
+    const portfolioRes = await getAdditionalUserInfo(req, {
+      ...profileInfo,
+      _id: convertToCosmosAddress(address),
+    }, account.cosmosAddress, fetchOptions);
     account = {
       ...account,
       ...portfolioRes
@@ -185,7 +188,12 @@ export const getAccountByUsername = async (req: Request, username: string, fetch
 
   if (fetchOptions) {
     //account is currently a BitBadgesUserInfo with no portfolio info
-    const portfolioRes = await getAdditionalUserInfo(req, account.cosmosAddress, fetchOptions);
+    const portfolioRes = await getAdditionalUserInfo(req, {
+      ...convertProfileDoc(profileDoc, BigIntify),
+      _rev: undefined,
+      _deleted: undefined,
+      _id: convertToCosmosAddress(profileDoc._id),
+    }, account.cosmosAddress, fetchOptions);
     account = {
       ...account,
       ...portfolioRes
@@ -263,7 +271,12 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         }
         let account = userInfos[idx];
 
-        additionalInfoPromises.push(getAdditionalUserInfo(req, account.cosmosAddress, query.fetchOptions));
+        additionalInfoPromises.push(getAdditionalUserInfo(req, {
+          ...convertProfileInfo({
+            _id: convertToCosmosAddress(account.cosmosAddress),
+            ...profileInfos[idx]
+          }, BigIntify),
+        }, account.cosmosAddress, query.fetchOptions));
       }
     }
     console.time('additionalInfos');
@@ -296,7 +309,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
   }
 }
 
-const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBody: AccountFetchOptions): Promise<{
+const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigint>, cosmosAddress: string, reqBody: AccountFetchOptions): Promise<{
   collected: BalanceInfoWithDetails<JSPrimitiveNumberType>[],
   activity: TransferActivityInfo<JSPrimitiveNumberType>[],
   announcements: AnnouncementInfo<JSPrimitiveNumberType>[],
@@ -323,6 +336,7 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
 
   const activityBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestActivity')?.bookmark;
   const collectedBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected')?.bookmark;
+  const collectedWithHiddenBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollectedWithHidden')?.bookmark;
   const announcementsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements')?.bookmark;
   const reviewsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews')?.bookmark;
   const addressMappingsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings')?.bookmark;
@@ -330,16 +344,24 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
   const explicitIncludedAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyIncludedAddressMappings')?.bookmark;
   const explicitExcludedAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyExcludedAddressMappings')?.bookmark;
   const latestAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings')?.bookmark;
+  const managingBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'managing')?.bookmark;
+  const createdByBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy')?.bookmark;
 
   const asyncOperations = [];
   if (collectedBookmark !== undefined) {
-    asyncOperations.push(() => executeCollectedQuery(cosmosAddress, collectedBookmark));
+    asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, false, collectedBookmark));
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
+  if (collectedWithHiddenBookmark !== undefined) {
+    asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, true, collectedWithHiddenBookmark));
   } else {
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
 
   if (activityBookmark !== undefined) {
-    asyncOperations.push(() => executeActivityQuery(cosmosAddress, activityBookmark));
+    asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, activityBookmark));
   } else {
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
@@ -396,16 +418,31 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
 
+  if (managingBookmark !== undefined) {
+    asyncOperations.push(() => executeManagingQuery(cosmosAddress, managingBookmark));
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
+  if (createdByBookmark !== undefined) {
+    asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, createdByBookmark));
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
   const results = await Promise.all(asyncOperations.map(operation => operation()));
   const response = results[0] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
-  const activityRes = results[1] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
-  const announcementsRes = results[2] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
-  const reviewsRes = results[3] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
-  const addressMappingsRes = results[4] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
-  const claimAlertsRes = results[5] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
-  const explicitIncludedAddressMappingsRes = results[6] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
-  const explicitExcludedAddressMappingsRes = results[7] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
-  const latestAddressMappingsRes = results[8] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const responseWithHidden = results[1] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+  const activityRes = results[2] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
+  const announcementsRes = results[3] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
+  const reviewsRes = results[4] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
+  const addressMappingsRes = results[5] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const claimAlertsRes = results[6] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
+  const explicitIncludedAddressMappingsRes = results[7] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const explicitExcludedAddressMappingsRes = results[8] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const latestAddressMappingsRes = results[9] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const managingRes = results[10] as any
+  const createdByRes = results[11] as any
 
   const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [
     ...addressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
@@ -414,19 +451,15 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
     ...latestAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
   ];
 
-  for (const balance of response.docs) {
-    for (const incomingTimeline of balance.approvedIncomingTransfersTimeline) {
-      for (const incoming of incomingTimeline.approvedIncomingTransfers) {
-        addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
-        addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
-      }
+  for (const balance of [...response.docs, ...responseWithHidden.docs]) {
+    for (const incoming of balance.approvedIncomingTransfers) {
+      addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
+      addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
     }
 
-    for (const outgoingTimeline of balance.approvedOutgoingTransfersTimeline) {
-      for (const outgoing of outgoingTimeline.approvedOutgoingTransfers) {
-        addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
-        addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
-      }
+    for (const outgoing of balance.approvedOutgoingTransfers) {
+      addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
+      addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
     }
   }
 
@@ -434,11 +467,14 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
 
 
   return {
-    collected: response.docs.map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails).map((collected) => {
+    collected: [
+      ...response.docs,
+      ...responseWithHidden.docs
+    ].map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails).map((collected) => {
       return {
         ...collected,
-        approvedIncomingTransfersTimeline: appendDefaultForIncomingUserApprovedTransfers(collected.approvedIncomingTransfersTimeline, addressMappingsToPopulate, cosmosAddress),
-        approvedOutgoingTransfersTimeline: appendDefaultForOutgoingUserApprovedTransfers(collected.approvedOutgoingTransfersTimeline, addressMappingsToPopulate, cosmosAddress),
+        approvedIncomingTransfers: appendDefaultForIncomingUserApprovedTransfers(collected.approvedIncomingTransfers, addressMappingsToPopulate, cosmosAddress),
+        approvedOutgoingTransfers: appendDefaultForOutgoingUserApprovedTransfers(collected.approvedOutgoingTransfers, addressMappingsToPopulate, cosmosAddress),
       };
     }),
     claimAlerts: claimAlertsRes.docs.map(x => convertClaimAlertDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -447,8 +483,7 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
       ...explicitIncludedAddressMappingsRes.docs,
       ...explicitExcludedAddressMappingsRes.docs,
       ...latestAddressMappingsRes.docs,
-    ]
-      .map(x => addressMappingsToPopulate.find(y => y.mappingId === x.mappingId)).filter(x => x !== undefined).map(x => convertAddressMappingWithMetadata(x!, Stringify)),
+    ].map(x => addressMappingsToPopulate.find(y => y.mappingId === x.mappingId)).filter(x => x !== undefined).map(x => convertAddressMappingWithMetadata(x!, Stringify)),
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
     reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -467,7 +502,16 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
         //With the view fetch, we return all balances, so we don't need to check if there are more
         pagination: {
           bookmark: response.bookmark ? response.bookmark : '',
-          hasMore: response.docs.length === 25
+          hasMore: response.docs.length >= 25
+        }
+      } : undefined,
+      'badgesCollectedWithHidden': reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollectedWithHidden') ? {
+        ids: responseWithHidden.docs.map(x => x._id),
+        type: 'Balances',
+        //With the view fetch, we return all balances, so we don't need to check if there are more
+        pagination: {
+          bookmark: responseWithHidden.bookmark ? responseWithHidden.bookmark : '',
+          hasMore: responseWithHidden.docs.length >= 25
         }
       } : undefined,
       'latestAnnouncements': reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements') ? {
@@ -518,12 +562,28 @@ const getAdditionalUserInfo = async (req: Request, cosmosAddress: string, reqBod
           hasMore: explicitExcludedAddressMappingsRes.docs.length === 25
         }
       } : undefined,
-      'latestAddressMappings':  reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings') ? {
+      'latestAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings') ? {
         ids: latestAddressMappingsRes.docs.map(x => x._id),
         type: 'Address Mappings',
         pagination: {
           bookmark: latestAddressMappingsRes.bookmark ? latestAddressMappingsRes.bookmark : '',
           hasMore: latestAddressMappingsRes.docs.length === 25
+        }
+      } : undefined,
+      'managing': reqBody.viewsToFetch.find(x => x.viewKey === 'managing') ? {
+        ids: managingRes.docs,
+        type: 'Collections',
+        pagination: {
+          bookmark: managingRes.bookmark ? managingRes.bookmark : '',
+          hasMore: managingRes.docs.length === 25
+        }
+      } : undefined,
+      'createdBy': reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy') ? {
+        ids: createdByRes.docs,
+        type: 'Collections',
+        pagination: {
+          bookmark: createdByRes.bookmark ? createdByRes.bookmark : '',
+          hasMore: createdByRes.docs.length === 25
         }
       } : undefined,
     }
@@ -574,7 +634,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       telegram: reqBody.telegram ?? profileInfo.telegram,
       seenActivity: reqBody.seenActivity?.toString() ?? profileInfo.seenActivity,
       readme: reqBody.readme ?? profileInfo.readme,
-      showAllByDefault: reqBody.showAllByDefault ?? profileInfo.showAllByDefault,
+      onlyShowApproved: reqBody.onlyShowApproved ?? profileInfo.onlyShowApproved,
       shownBadges: reqBody.shownBadges ?? profileInfo.shownBadges,
       hiddenBadges: reqBody.hiddenBadges ?? profileInfo.hiddenBadges,
       customPages: reqBody.customPages ?? profileInfo.customPages,

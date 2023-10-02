@@ -2,7 +2,7 @@ import { Transfer } from "bitbadgesjs-proto";
 import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, addBalances, getBlankBalance, subtractBalances } from "bitbadgesjs-utils";
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 
-export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, creator: string, fromEvent?: boolean) => {
+export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, creator: string, txHash?: string, fromEvent?: boolean) => {
 
 
   //Handle new acocunts, if empty 
@@ -20,7 +20,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
   for (let idx = 0; idx < transfers.length; idx++) {
     const transfer = transfers[idx];
 
-    if (transfer.precalculationDetails && !fromEvent && transfer.precalculationDetails.precalculationId) {
+    if (transfer.precalculationDetails && !fromEvent && transfer.precalculationDetails.approvalId) {
       continue //We process these with the end block events
     }
 
@@ -30,13 +30,14 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       let currBalance: BalanceDoc<bigint> = balanceDoc ? balanceDoc :
         {
           ...getBlankBalance(true, collection),
-          approvedIncomingTransfersTimeline: [],
-          approvedOutgoingTransfersTimeline: [],
+          approvedOutgoingTransfers: collection.defaultUserApprovedOutgoingTransfers,
+          approvedIncomingTransfers: collection.defaultUserApprovedIncomingTransfers,
           cosmosAddress: address,
           collectionId: collection.collectionId,
           onChain: collection.balancesType === 'Standard',
           _id: `${collection.collectionId}:${address}`,
           _rev: undefined,
+          updateHistory: [],
         };
 
       currBalance = {
@@ -52,13 +53,14 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     let fromAddressBalanceDoc: BalanceDoc<bigint> = fromBalanceDoc ? fromBalanceDoc :
       {
         ...getBlankBalance(true, collection),
-        approvedIncomingTransfersTimeline: [],
-        approvedOutgoingTransfersTimeline: [],
+        approvedOutgoingTransfers: collection.defaultUserApprovedOutgoingTransfers,
+        approvedIncomingTransfers: collection.defaultUserApprovedIncomingTransfers,
         cosmosAddress: transfer.from,
         collectionId: collection.collectionId,
         onChain: collection.balancesType === 'Standard',
         _id: `${collection.collectionId}:${transfer.from}`,
         _rev: undefined,
+        updateHistory: [],
       };
 
     fromAddressBalanceDoc = {
@@ -80,7 +82,10 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       timestamp: status.block.timestamp,
       memo: transfer.memo,
       precalculationDetails: transfer.precalculationDetails,
-      initiatedBy: creator
+      prioritizedApprovals: transfer.prioritizedApprovals,
+      onlyCheckPrioritizedApprovals: transfer.onlyCheckPrioritizedApprovals,
+      initiatedBy: creator,
+      txHash: txHash
     });
   }
 }

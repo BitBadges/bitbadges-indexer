@@ -5,7 +5,7 @@ import { handleNewAccountByAddress } from "./handleNewAccount"
 import { handleTransfers } from "./handleTransfers"
 import { MsgTransferBadges } from "bitbadgesjs-proto"
 
-export const handleMsgTransferBadges = async (msg: MsgTransferBadges<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+export const handleMsgTransferBadges = async (msg: MsgTransferBadges<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   const collectionIdString = `${msg.collectionId}`
 
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], []);
@@ -15,5 +15,5 @@ export const handleMsgTransferBadges = async (msg: MsgTransferBadges<bigint>, st
   const collectionDoc = docs.collections[collectionIdString];
   if (!collectionDoc) throw new Error(`Collection ${collectionIdString} does not exist`);
 
-  await handleTransfers(collectionDoc, msg.transfers, docs, status, msg.creator);
+  await handleTransfers(collectionDoc, msg.transfers, docs, status, msg.creator, txHash);
 }

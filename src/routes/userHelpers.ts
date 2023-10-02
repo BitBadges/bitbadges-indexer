@@ -1,9 +1,9 @@
-import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase } from "bitbadgesjs-utils";
-import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
+import { BigIntify, JSPrimitiveNumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
+import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
+import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
-import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
 import { catch404 } from "../utils/couchdb-utils";
+import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
 
 const QUERY_TIME_MODE = true;
 
@@ -79,24 +79,92 @@ export async function getNameAndAvatar(address: string) {
 }
 
 const activityDesignDocName = 'transfer_activity_by_address';
-export async function executeActivityQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeActivityQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('activityQuery');
 
-  const view = await TRANSFER_ACTIVITY_DB.view(activityDesignDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(bookmark) ?? 0 });
+  const onlyShowApproved = profileInfo.onlyShowApproved;
+  const hiddenBadges = profileInfo.hiddenBadges ?? [];
+  const shownBadges = profileInfo.shownBadges ?? [];
 
-  const res = {
-    docs: view.rows.map((row) => {
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
+
+  while (docsLeft > 0) {
+    const view = await TRANSFER_ACTIVITY_DB.view(activityDesignDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(currBookmark) ?? 0 });
+
+    let viewDocs = view.rows.map((row) => {
       return {
         ...row.doc,
         to: row.doc?.to.includes(cosmosAddress) ? [cosmosAddress] : row.doc?.to //For the user queries, we don't need to return all the to addresses
       }
-    }),
-    bookmark: JSON.stringify(Number(bookmark) + view.rows.length),
+    })
+    
+    if (!fetchHidden) {
+      if (onlyShowApproved) {
+        const nonHiddenDocs = viewDocs.map((doc) => {
+          if (!doc || !shownBadges || !doc.balances || !doc.collectionId) return undefined;
+          const matchingShownBadge = shownBadges.find(x => doc.collectionId && x.collectionId == BigInt(doc.collectionId));
+          if (!matchingShownBadge) return undefined;
+
+          return {
+            ...doc,
+            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
+
+              const [, removed] = removeUintRangeFromUintRange(matchingShownBadge.badgeIds, balance.badgeIds);
+              return {
+                ...balance,
+                badgeIds: removed
+              }
+            }
+            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
+          }
+        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
+        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
+      } else {
+        const nonHiddenDocs = viewDocs.map((doc) => {
+          if (!doc || !hiddenBadges || !doc.balances || !doc.collectionId) return undefined;
+          let matchingHiddenBadge = hiddenBadges.find(x => doc.collectionId && x.collectionId == BigInt(doc.collectionId)) ?? {
+            collectionId: BigInt(doc.collectionId),
+            badgeIds: []
+          }
+
+          return {
+            ...doc,
+            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
+              const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
+              return {
+                ...balance,
+                badgeIds: remaining
+              }
+            }
+            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
+          }
+        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
+
+        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
+      }
+    }
+
+    //We rely on the fact docs length == 25 so we
+
+    docs.push(...viewDocs);
+    docsLeft -= viewDocs.length;
+
+    currBookmark = JSON.stringify(Number(currBookmark) + view.rows.length);
+
+    if (viewDocs.length === 0) {
+      break;
+    }
+  }
+
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
   }
 
   if (QUERY_TIME_MODE) console.timeEnd('activityQuery');
-
-  return res;
+  return collectedRes;
 }
 
 const designDocName = 'balances_by_address';
@@ -150,18 +218,83 @@ export async function executeReviewsQuery(cosmosAddress: string, bookmark?: stri
   return reviewsRes;
 }
 
-export async function executeCollectedQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeCollectedQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeCollectedQuery');
-  // if (QUERY_TIME_MODE) console.time('view');
-  const view = await BALANCES_DB.view(designDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(bookmark) ?? 0 });
-  // if (QUERY_TIME_MODE) console.timeEnd('view');
-  // console.log(view);
+  //keep searching until we have min 25 non-hidden docs
 
-  const collectedRes = {
-    docs: view.rows.map((row) => row.doc),
-    bookmark: JSON.stringify(Number(bookmark) + view.rows.length),
+  const onlyShowApproved = profileInfo.onlyShowApproved;
+  const hiddenBadges = profileInfo.hiddenBadges ?? [];
+  const shownBadges = profileInfo.shownBadges ?? [];
+
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
+
+  while (docsLeft > 0) {
+    const view = await BALANCES_DB.view(designDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(currBookmark) ?? 0 });
+
+    let viewDocs = view.rows.map((row) => row.doc);
+    if (!fetchHidden) {
+      if (onlyShowApproved) {
+        const nonHiddenDocs = viewDocs.map((doc) => {
+          if (!doc || !shownBadges) return undefined;
+          const matchingShownBadge = shownBadges.find(x => x.collectionId == BigInt(doc.collectionId));
+          if (!matchingShownBadge) return undefined;
+
+          return {
+            ...doc,
+            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
+
+              const [, removed] = removeUintRangeFromUintRange(matchingShownBadge.badgeIds, balance.badgeIds);
+              return {
+                ...balance,
+                badgeIds: removed
+              }
+            }
+            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
+          }
+        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
+        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
+      } else {
+        const nonHiddenDocs = viewDocs.map((doc) => {
+          if (!doc || !hiddenBadges) return undefined;
+          let matchingHiddenBadge = hiddenBadges.find(x => x.collectionId == BigInt(doc.collectionId)) ?? {
+            collectionId: BigInt(doc.collectionId),
+            badgeIds: []
+          }
+
+          return {
+            ...doc,
+            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
+              const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
+              return {
+                ...balance,
+                badgeIds: remaining
+              }
+            }
+            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
+          }
+        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
+
+        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
+      }
+    }
+
+    //We rely on the fact docs length == 25 so we
+
+    docs.push(...viewDocs);
+    docsLeft -= viewDocs.length;
+
+    currBookmark = JSON.stringify(Number(currBookmark) + view.rows.length);
+
+    if (viewDocs.length === 0) {
+      break;
+    }
   }
-
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
+  }
 
   if (QUERY_TIME_MODE) console.timeEnd('executeCollectedQuery');
   return collectedRes;
@@ -310,5 +443,70 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
 
   if (QUERY_TIME_MODE) console.time('executeClaimAlertsQuery');
 
+  return collectedRes;
+}
+
+
+export async function executeManagingQuery(cosmosAddress: string, bookmark?: string,) {
+  if (QUERY_TIME_MODE) console.time('executeManagingQuery');
+  //keep searching until we have min 25 non-hidden docs
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
+
+  while (docsLeft > 0) {
+    const view = await COLLECTIONS_DB.view('managers', 'byManager', { key: cosmosAddress, limit: 25, skip: Number(currBookmark) ?? 0 });
+
+    let viewDocs = view.rows.map((row) => row.id);
+
+    //TODO: Handle hidden?
+
+    docs.push(...viewDocs);
+    docsLeft -= viewDocs.length;
+
+    currBookmark = JSON.stringify(Number(currBookmark) + view.rows.length);
+
+    if (viewDocs.length === 0) {
+      break;
+    }
+  }
+
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
+  }
+
+  if (QUERY_TIME_MODE) console.timeEnd('executeManagingQuery');
+  return collectedRes;
+}
+
+export async function executeCreatedByQuery(cosmosAddress: string, bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('executeCreatedByQuery');
+  //keep searching until we have min 25 non-hidden docs
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
+
+  while (docsLeft > 0) {
+    const view = await COLLECTIONS_DB.view('created_by', 'byCreator', { key: cosmosAddress, limit: 25, skip: Number(currBookmark) ?? 0 });
+
+    let viewDocs = view.rows.map((row) => row.id);
+
+    docs.push(...viewDocs);
+    docsLeft -= viewDocs.length;
+
+    currBookmark = JSON.stringify(Number(currBookmark) + view.rows.length);
+
+    if (viewDocs.length === 0) {
+      break;
+    }
+  }
+
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
+  }
+
+  if (QUERY_TIME_MODE) console.timeEnd('executeCreatedByQuery');
   return collectedRes;
 }

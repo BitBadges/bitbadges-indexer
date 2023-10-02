@@ -33,7 +33,7 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
 }
 
 export function checkIfAuthenticated(req: AuthenticatedRequest<NumberType>) {
-  console.log(req.session);
+  // console.log(req.session);
   return req.session.blockin && req.session.nonce && req.session.blockinParams && req.session.cosmosAddress && req.session.address && req.session.blockinParams.address === req.session.address;
 }
 

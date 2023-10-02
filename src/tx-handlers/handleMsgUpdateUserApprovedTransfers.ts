@@ -5,7 +5,7 @@ import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { recursivelyDeleteFalseProperties } from "./handleMsgUpdateCollection"
 
-export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApprovedTransfers<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApprovedTransfers<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
   await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
@@ -25,18 +25,26 @@ export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApp
       cosmosAddress: msg.creator,
       collectionId: msg.collectionId,
       onChain: true,
-      approvedOutgoingTransfersTimeline: collectionDoc.defaultUserApprovedOutgoingTransfersTimeline,
-      approvedIncomingTransfersTimeline: collectionDoc.defaultUserApprovedIncomingTransfersTimeline,
+      approvedOutgoingTransfers: collectionDoc.defaultUserApprovedOutgoingTransfers,
+      approvedIncomingTransfers: collectionDoc.defaultUserApprovedIncomingTransfers,
       userPermissions: collectionDoc.defaultUserPermissions,
+      updateHistory: [],
     }
   }
 
-  if (msg.updateApprovedIncomingTransfersTimeline) {
-    balancesDoc.approvedIncomingTransfersTimeline = msg.approvedIncomingTransfersTimeline;
+  balancesDoc.updateHistory.push({
+    block: status.block.height,
+    blockTimestamp: status.block.timestamp,
+    txHash: txHash,
+  });
+
+
+  if (msg.updateApprovedIncomingTransfers) {
+    balancesDoc.approvedIncomingTransfers = msg.approvedIncomingTransfers;
   }
 
-  if (msg.updateApprovedOutgoingTransfersTimeline) {
-    balancesDoc.approvedOutgoingTransfersTimeline = msg.approvedOutgoingTransfersTimeline;
+  if (msg.updateApprovedOutgoingTransfers) {
+    balancesDoc.approvedOutgoingTransfers = msg.approvedOutgoingTransfers;
   }
 
   if (msg.updateUserPermissions) {

@@ -183,91 +183,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
   }
 }
 
-//Recursive
-async function getAllChildCollectionIds(collectionId: bigint, currChildCollectionIds: bigint[], checkedCollectionIds: bigint[] = [], docs: DocsCache) {
-  if (checkedCollectionIds.includes(collectionId)) {
-    //Return or throw error?
-    return;
-  }
-
-  //TODO: should we also check docs.collections here? 
-  const childRes = await COLLECTIONS_DB.find({
-    selector: {
-      inheritedCollectionId: {
-        $eq: Number(collectionId)
-      }
-    },
-    limit: 100000
-  });
-
-  let allIds = childRes.docs.map(x => BigInt(x._id));
-  //we also need to check docs.collections
-  const cachedIds = Object.values(docs.collections).filter(x => x && x.inheritedCollectionId === collectionId).map(x => x ? x.collectionId : undefined).filter(x => x !== undefined) as bigint[];
-  allIds.push(...cachedIds);
-  allIds = [...new Set(allIds)];
-
-
-
-  checkedCollectionIds.push(collectionId);
-  if (allIds.length) {
-    currChildCollectionIds.push(...allIds);
-    for (const childCollectionId of allIds) {
-      await getAllChildCollectionIds(childCollectionId, currChildCollectionIds, checkedCollectionIds, docs);
-    }
-  }
-}
-
-
 //Finalize docs at end of handling block(s)
 export async function flushCachedDocs(docs: DocsCache, msgDocs?: MsgDoc[], status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
   try {
-    if (docs.balances) {
-      //Recursively handle inherited balances
-      const collectionIds = Object.keys(docs.balances).map(x => x.split(':')[0]).filter((x, i, a) => a.indexOf(x) === i);
-      await fetchDocsForCacheIfEmpty(docs, [], collectionIds.map(x => BigInt(x)), [], [], [], [], []);
-
-      for (const collectionId of collectionIds) {
-        const collectionDoc = docs.collections[collectionId];
-        if (!collectionDoc) {
-          throw `Collection ${collectionId} not found in docs.collections`;
-        }
-
-        if (collectionDoc.balancesType === "Standard") {
-          //We need to update all child collection balance docs as well bc they inherit
-          //Fetch from cache if empty and update with new values
-          const allChildCollectionIds: bigint[] = [];
-          await getAllChildCollectionIds(BigInt(collectionId), allChildCollectionIds, [BigInt(collectionId)], docs);
-
-          const balanceDocsToPopulate = Object.keys(docs.balances).filter(x => x.startsWith(collectionId + ":"));
-          const childDocsToPopulate = [];
-          const correspondingDocs = []
-          for (const childCollectionId of allChildCollectionIds) {
-            childDocsToPopulate.push(...balanceDocsToPopulate.map(x => childCollectionId.toString() + x.slice(x.indexOf(':'))));
-            correspondingDocs.push(...balanceDocsToPopulate.map(x => docs.balances[x]));
-          }
-
-          await fetchDocsForCacheIfEmpty(docs, [], [], childDocsToPopulate, [], [], [], []);
-
-          for (let i = 0; i < childDocsToPopulate.length; i++) {
-            const correspondingDoc = correspondingDocs[i];
-            if (!correspondingDoc) throw new Error(`correspondingDoc is undefined`);
-            const childDocToPopulate = childDocsToPopulate[i];
-            let childDoc = docs.balances[childDocToPopulate];
-            if (!childDoc) throw new Error(`childDocToPopulate is undefined`);
-
-            childDoc = {
-              ...correspondingDoc,
-              collectionId: childDoc.collectionId,
-              _id: childDoc._id,
-              _rev: childDoc._rev,
-            }
-          }
-        }
-      }
-    }
-
-
-
     //If we reach here, we assume that all docs are valid and ready to be inserted into the DB (i.e. not undefined) so we can cast safely
     const promises = [];
     const accountDocs = Object.values(docs.accounts) as (AccountDoc<bigint>)[];

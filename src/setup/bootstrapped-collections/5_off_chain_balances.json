@@ -1,8 +1,8 @@
 {
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
-  "defaultApprovedIncomingTransfersTimeline": [],
-  "defaultApprovedOutgoingTransfersTimeline": [],
+  "defaultApprovedIncomingTransfers": [],
+  "defaultApprovedOutgoingTransfers": [],
   "defaultUserPermissions": {
     "canUpdateApprovedIncomingTransfers": [],
     "canUpdateApprovedOutgoingTransfers": []
@@ -144,9 +144,8 @@
   ],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "inheritedCollectionId": 0,
-  "updateCollectionApprovedTransfersTimeline": false,
-  "collectionApprovedTransfersTimeline": [],
+  "updateCollectionApprovedTransfers": false,
+  "collectionApprovedTransfers": [],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
   "updateContractAddressTimeline": true,

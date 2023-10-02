@@ -82,18 +82,16 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
 
     let addressMappingIdsToFetch = [];
     for (const balanceDoc of ownersRes.docs) {
-      for (const incomingTimeline of balanceDoc.approvedIncomingTransfersTimeline) {
-        for (const incomingTransfer of incomingTimeline.approvedIncomingTransfers) {
-          addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
-          addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
-        }
+      for (const incomingTransfer of balanceDoc.approvedIncomingTransfers) {
+        addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
+        addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
       }
 
-      for (const outgoingTimeline of balanceDoc.approvedOutgoingTransfersTimeline) {
-        for (const outgoingTransfer of outgoingTimeline.approvedOutgoingTransfers) {
-          addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
-          addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
-        }
+
+      for (const outgoingTransfer of balanceDoc.approvedOutgoingTransfers) {
+        addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
+        addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
+
       }
     }
 
@@ -106,31 +104,20 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       owners: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails).map((balance) => {
         return {
           ...balance,
-          approvedIncomingTransfersTimeline: balance.approvedIncomingTransfersTimeline.map(x => {
+          approvedIncomingTransfers: balance.approvedIncomingTransfers.map(y => {
             return {
-              ...x,
-              approvedIncomingTransfers: x.approvedIncomingTransfers.map(y => {
-                return {
-                  ...y,
-                  fromMapping: addressMappings.find((mapping) => mapping.mappingId === y.fromMappingId) as AddressMapping,
-                  initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
-                }
-              })
+              ...y,
+              fromMapping: addressMappings.find((mapping) => mapping.mappingId === y.fromMappingId) as AddressMapping,
+              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
             }
           }),
-          approvedOutgoingTransfersTimeline: balance.approvedOutgoingTransfersTimeline.map(x => {
+          approvedOutgoingTransfers: balance.approvedOutgoingTransfers.map(y => {
             return {
-              ...x,
-              approvedOutgoingTransfers: x.approvedOutgoingTransfers.map(y => {
-                return {
-                  ...y,
-                  toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,
-                  initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
-                }
-              })
+              ...y,
+              toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,
+              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
             }
-          }
-          )
+          })
         }
       }),
       pagination: {

@@ -1,11 +1,10 @@
-import { MsgUpdateCollection, deepCopy } from "bitbadgesjs-proto"
+import { MsgUpdateCollection } from "bitbadgesjs-proto"
 import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleMerkleChallenges } from "./merkleChallenges"
 
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { BALANCES_DB } from "../db/db"
 
 export function recursivelyDeleteFalseProperties(obj: object) {
   if (Array.isArray(obj)) {
@@ -44,7 +43,7 @@ export function recursivelyDeleteFalseProperties(obj: object) {
 }
 
 
-export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], []);
@@ -59,7 +58,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
       _id: status.nextCollectionId.toString(),
       _rev: undefined,
       collectionId: status.nextCollectionId,
-      inheritedCollectionId: msg.inheritedCollectionId,
+      // inheritedCollectionId: msg.inheritedCollectionId,
 
       managerTimeline: [{
         manager: msg.creator,
@@ -68,12 +67,12 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
       }],
       createdBlock: status.block.height,
       createdTimestamp: status.block.timestamp,
-      defaultUserApprovedIncomingTransfersTimeline: msg.defaultApprovedIncomingTransfersTimeline,
-      defaultUserApprovedOutgoingTransfersTimeline: msg.defaultApprovedOutgoingTransfersTimeline,
+      defaultUserApprovedIncomingTransfers: msg.defaultApprovedIncomingTransfers,
+      defaultUserApprovedOutgoingTransfers: msg.defaultApprovedOutgoingTransfers,
       defaultUserPermissions: msg.defaultUserPermissions,
       createdBy: msg.creator,
       balancesType: msg.balancesType as "Standard" | "Inherited" | "Off-Chain",
-      collectionApprovedTransfersTimeline: [],
+      collectionApprovedTransfers: [],
       collectionMetadataTimeline: [],
       badgeMetadataTimeline: [],
       offChainBalancesMetadataTimeline: [],
@@ -94,8 +93,8 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         canUpdateOffChainBalancesMetadata: [],
         canUpdateStandards: [],
       },
+      updateHistory: [],
     }
-    console.log(msg.balancesType);
 
     if (msg.balancesType === "Standard" || msg.balancesType === "Off-Chain") {
       docs.balances[`${status.nextCollectionId}:Total`] = {
@@ -105,12 +104,13 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         cosmosAddress: "Total",
         collectionId: status.nextCollectionId,
         onChain: true,
-        approvedOutgoingTransfersTimeline: [],
-        approvedIncomingTransfersTimeline: [],
+        approvedOutgoingTransfers: [],
+        approvedIncomingTransfers: [],
         userPermissions: {
           canUpdateApprovedIncomingTransfers: [],
           canUpdateApprovedOutgoingTransfers: [],
-        }
+        },
+        updateHistory: [],
       }
 
       docs.balances[`${status.nextCollectionId}:Mint`] = {
@@ -120,68 +120,13 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         cosmosAddress: "Mint",
         collectionId: status.nextCollectionId,
         onChain: true,
-        approvedOutgoingTransfersTimeline: [],
-        approvedIncomingTransfersTimeline: [],
+        approvedOutgoingTransfers: [],
+        approvedIncomingTransfers: [],
         userPermissions: {
           canUpdateApprovedIncomingTransfers: [],
           canUpdateApprovedOutgoingTransfers: [],
-        }
-      }
-    } else if (msg.balancesType === "Inherited") {
-      //Needs to be recursive as well
-      console.log(msg.inheritedCollectionId);
-      let parentCollectionId = msg.inheritedCollectionId;
-      while (parentCollectionId !== 0n) {
-        await fetchDocsForCacheIfEmpty(docs, [], [parentCollectionId], [
-        ], [], [], [], []);
-        const parentDoc = docs.collections[parentCollectionId.toString()];
-        if (!parentDoc) throw new Error(`Collection ${parentCollectionId} does not exist`);
-
-        if (parentDoc.balancesType === "Standard") {
-          //Get ALL balances from parent in a paginated manner
-          let skip = 0;
-          let limit = 100;
-          let firstPass = true;
-          while (true) {
-            const res = await BALANCES_DB.partitionedList(`${parentCollectionId}`, {
-              skip,
-              limit,
-            });
-            let allDocids = res.rows.map((row) => row.id);
-
-            if (firstPass) {
-              allDocids.push(...Object.keys(docs.balances).filter((docid) => docid.startsWith(`${parentCollectionId}:`)));
-              firstPass = false;
-            }
-
-            allDocids = [...new Set(allDocids)];
-
-            if (allDocids.length === 0) break;
-
-            await fetchDocsForCacheIfEmpty(docs, [], [], allDocids, [], [], [], []);
-
-            for (const docid of allDocids) {
-              const balanceDoc = docs.balances[docid];
-              if (!balanceDoc) throw new Error(`Balance ${docid} does not exist`);
-
-              const newBalanceDoc = {
-                ...deepCopy(balanceDoc),
-                collectionId: status.nextCollectionId,
-                _id: `${status.nextCollectionId}:${balanceDoc.cosmosAddress}`,
-                _rev: undefined,
-              }
-
-              docs.balances[`${status.nextCollectionId}:${balanceDoc.cosmosAddress}`] = newBalanceDoc;
-            }
-
-            skip += limit;
-          }
-
-          parentCollectionId = 0n;
-          break;
-        } else if (parentDoc.balancesType === "Inherited") {
-          parentCollectionId = parentDoc.inheritedCollectionId;
-        }
+        },
+        updateHistory: [],
       }
     }
   } else {
@@ -192,6 +137,12 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
   }
   const collection = docs.collections[collectionId.toString()];
   if (!collection) throw new Error(`Collection ${collectionId} does not exist`);
+
+  collection.updateHistory.push({
+    block: status.block.height,
+    blockTimestamp: status.block.timestamp,
+    txHash: txHash,
+  })
 
   const totalBalance = docs.balances[`${collectionId}:Total`];
   if (!totalBalance) throw new Error(`Total balance for collection ${collectionId} does not exist`);
@@ -235,8 +186,8 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
     collection.customDataTimeline = msg.customDataTimeline;
   }
 
-  if (msg.updateCollectionApprovedTransfersTimeline) {
-    collection.collectionApprovedTransfersTimeline = msg.collectionApprovedTransfersTimeline;
+  if (msg.updateCollectionApprovedTransfers) {
+    collection.collectionApprovedTransfers = msg.collectionApprovedTransfers;
   }
 
   if (msg.updateStandardsTimeline) {

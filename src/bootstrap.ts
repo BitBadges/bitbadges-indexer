@@ -16,8 +16,8 @@ env.config();
 const MANUAL_TRANSFERS = true;
 const NUM_MANUAL_TRANSFERS = 1000;
 const fromMnemonic = process.env.FAUCET_MNEMONIC as string;
-// const ADDRESSES_TO_TRANSFER_TO: string[] = ["cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x", "cosmos1rgtvs7f82uprnlkdxsadye20mqtgyuj7n4npzz"];
-const ADDRESSES_TO_TRANSFER_TO: string[] = [];
+const ADDRESSES_TO_TRANSFER_TO: string[] = ["cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x", "cosmos1rgtvs7f82uprnlkdxsadye20mqtgyuj7n4npzz"];
+// const ADDRESSES_TO_TRANSFER_TO: string[] = [];
 
 async function main() {
   try {
@@ -204,6 +204,7 @@ export async function bootstrapLists() {
 
     let txnExtension = signatureToWeb3Extension(chain, sender, sig)
 
+
     // Create the txRaw
     let rawTx = createTxRawEIP712(
       txn.legacyAmino.body,
@@ -211,10 +212,12 @@ export async function bootstrapLists() {
       txnExtension,
     )
 
-    await broadcastTx(rawTx);
+
+
+    const res = await broadcastTx(rawTx);
     console.log(jsonFileNames[i]);
     console.log("Created List", i + 1);
-    // console.log(res);
+    console.log(res.data);
   }
   // }
 }
@@ -250,10 +253,10 @@ export async function bootstrapCollections() {
   //Step 3. Buiild andbroadcast transactions
   let sequence = 1;
   // console.log(jsonObjects.length);
-  let manualTransfersId;
+  // let manualTransfersId;
   for (let i = 0; i < jsonObjects.length; i++) {
     // if (jsonFileNames[i] != "12_inherited.json") continue;
-
+    console.log(jsonFileNames[i]);
     const chain = BETANET_CHAIN_DETAILS;
     const sender = {
       accountAddress: convertToCosmosAddress(ethWallet.address),
@@ -279,7 +282,7 @@ export async function bootstrapCollections() {
             timelineTimes: [{ start: "1", end: Number.MAX_SAFE_INTEGER.toString() }],
             manager: convertToCosmosAddress(ethWallet.address)
           }] : jsonObjects[i].managerTimeline,
-        inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
+        // inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
       }
     );
 
@@ -300,19 +303,19 @@ export async function bootstrapCollections() {
     )
     // console.log(JSON.stringify(txn.eipToSign))
     // return
+    // console.log(JSON.stringify(txn.eipToSign.message, null, 2));
+    // return
 
     const res = await broadcastTx(rawTx);
-
-    console.log(res);
     const rawLog = JSON.parse(res.data.tx_response.raw_log);
     const collectionId = rawLog[0].events[0].attributes.find((log: any) => log.key === 'collectionId').value;
-    console.log(jsonFileNames[i]);
+
     console.log("Created Collection", i + 1, "with collectionId", collectionId);
     //Handle the manual transfers collection. Creates an on-chain collection w/ 10000 badges and transfers those badges to random or specified addresses
 
     if (jsonFileNames[i] === "9_10000_manual_transfers.json" && !MANUAL_TRANSFERS) continue;
     else if (jsonFileNames[i] === "9_10000_manual_transfers.json") {
-      manualTransfersId = collectionId;
+      // manualTransfersId = collectionId;
 
       // console.log(collectionId);
 
@@ -355,15 +358,16 @@ export async function bootstrapCollections() {
                   ownershipTimes: [{ start: "1", end: "18446744073709551615" }]
                 }],
                 precalculationDetails: {
-                  precalculationId: '',
+                  approvalId: '',
                   approvalLevel: '',
                   approverAddress: '',
                 },
                 merkleProofs: [],
                 memo: '',
+                prioritizedApprovals: [],
+                onlyCheckPrioritizedApprovals: false,
               }
             ]
-
           }
         );
 
@@ -382,9 +386,9 @@ export async function bootstrapCollections() {
           transferTxn.legacyAmino.authInfo,
           txnExtension,
         )
-        // const res = await broadcastTx(rawTx);
-        // console.log(res);
-        await broadcastTx(rawTx);
+        const res = await broadcastTx(rawTx);
+        console.log(res.data);
+        // await broadcastTx(rawTx);
       }
     }
   }

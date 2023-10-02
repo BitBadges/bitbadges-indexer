@@ -159,6 +159,8 @@ app.use(responseTime((req: Request, response: Response, time: number) => {
     }
   }
 
+  // console.log(JSON.stringify(req.body, null, 2));
+
 
 }));
 
