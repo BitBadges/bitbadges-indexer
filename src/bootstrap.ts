@@ -14,7 +14,7 @@ import crypto from 'crypto';
 env.config();
 
 const MANUAL_TRANSFERS = true;
-const NUM_MANUAL_TRANSFERS = 1000;
+const NUM_MANUAL_TRANSFERS = 100;
 const fromMnemonic = process.env.FAUCET_MNEMONIC as string;
 const ADDRESSES_TO_TRANSFER_TO: string[] = ["cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x", "cosmos1rgtvs7f82uprnlkdxsadye20mqtgyuj7n4npzz"];
 // const ADDRESSES_TO_TRANSFER_TO: string[] = [];
