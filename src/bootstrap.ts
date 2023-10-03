@@ -324,7 +324,9 @@ export async function bootstrapCollections() {
 
         let toAddress = '';
         if (ADDRESSES_TO_TRANSFER_TO.length > 0) {
-          toAddress = ADDRESSES_TO_TRANSFER_TO[j % ADDRESSES_TO_TRANSFER_TO.length];
+          const numTransfersPerAddress = NUM_MANUAL_TRANSFERS / ADDRESSES_TO_TRANSFER_TO.length;
+          const addressIdx = Math.floor(j / numTransfersPerAddress);
+          toAddress = ADDRESSES_TO_TRANSFER_TO[addressIdx];
         } else {
 
           const toWallet = ethers.Wallet.createRandom();
@@ -388,7 +390,6 @@ export async function bootstrapCollections() {
         )
         const res = await broadcastTx(rawTx);
         console.log(res.data);
-        // await broadcastTx(rawTx);
       }
     }
   }
