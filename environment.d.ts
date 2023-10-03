@@ -18,6 +18,8 @@ declare global {
       NUM_METADATA_FETCHES_PER_BLOCK: string //string number ex: "25"
       BASE_DELAY: string //string number ex: "60000"
       PORT: string //string number ex: "3000"
+      SPACES_ACCESS_KEY_ID: string //string number ex: "1"
+      SPACES_SECRET_ACCESS_KEY: string //string number ex: "1"
     }
   }
 }

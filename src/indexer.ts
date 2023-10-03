@@ -35,6 +35,7 @@ import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteRev
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
+import multer from 'multer';
 
 export const OFFLINE_MODE = false;
 export const TIME_MODE = false;
@@ -86,7 +87,7 @@ export let timer: NodeJS.Timer | undefined
 export const setTimer = (newTimer: NodeJS.Timer) => {
   timer = newTimer
 }
-
+const upload = multer({ dest: 'uploads/' });
 const app: Express = express()
 const port = process.env.port ? Number(process.env.port) : 3001
 
@@ -227,7 +228,7 @@ app.post('/api/v0/deleteAnnouncement/:announcementId', authorizeBlockinRequest, 
 
 //User
 app.post('/api/v0/user/batch', getAccounts);
-app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, updateAccountInfo); //Write route
+app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, upload.single('profilePicImageFile'), updateAccountInfo); //Write route
 app.post('/api/v0/user/:addressOrUsername', getAccount);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 

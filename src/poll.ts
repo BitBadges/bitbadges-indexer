@@ -266,7 +266,6 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
       usedLeafIndices: newLeafIndices,
     }
   }
-
   if (getAttributeValueByKey(event.attributes, "transfer")) {
     const creator = getAttributeValueByKey(event.attributes, "creator") as string;
 
@@ -421,6 +420,16 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
   try {
     rawLog = JSON.parse(indexed.rawLog);
     events = rawLog.flatMap((log: any) => log.events);
+
+    // Try to handle the events
+    if (events) {
+      try {
+        await handleEvents(events, status, docs, indexed.hash);
+      } catch (e) {
+        // Throw an error if handleEvents fails
+        throw new Error(`handleEvents failed: ${e.message}`);
+      }
+    }
   } catch (e) {
     // Handle JSON parsing errors here if needed, or just continue
     console.error("JSON parsing failed. Skipping event as it most likely failed", e);
@@ -434,14 +443,6 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     });
   }
 
-  // Try to handle the events
-  if (events) {
-    try {
-      await handleEvents(events, status, docs, indexed.hash);
-    } catch (e) {
-      // Throw an error if handleEvents fails
-      throw new Error(`handleEvents failed: ${e.message}`);
-    }
-  }
+
 
 }

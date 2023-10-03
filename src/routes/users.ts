@@ -1,18 +1,26 @@
 
+import AWS from 'aws-sdk';
 import { cosmosToEth } from "bitbadgesjs-address-converter";
 import { BigIntify, JSPrimitiveNumberType } from "bitbadgesjs-proto";
 import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfo, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertProfileDoc, convertProfileInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
-import { CleanedCosmosAccountInformation } from "../chain-client/queries";
 import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
+import { CleanedCosmosAccountInformation } from "../chain-client/queries";
 import { ACCOUNTS_DB, ETH_TX_COUNT_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { provider } from "../utils/ensResolvers";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
-import { provider } from "../utils/ensResolvers";
+
+const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
+const s3 = new AWS.S3({
+  endpoint: spacesEndpoint,
+  accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
+  secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY
+});
 
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
@@ -298,6 +306,8 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     }
 
     console.timeEnd('additionalInfos');
+
+    console.log(userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)));
 
     return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
   } catch (e) {
@@ -593,7 +603,8 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
 
 export const updateAccountInfo = async (expressReq: Request, res: Response<UpdateAccountInfoRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as UpdateAccountInfoRouteRequestBody<JSPrimitiveNumberType>
+    const req = expressReq as AuthenticatedRequest<NumberType>;
+    const reqBody = req.body as UpdateAccountInfoRouteRequestBody<JSPrimitiveNumberType>
 
     const cosmosAddress = req.session.cosmosAddress;
     let profileInfo: ProfileDoc<JSPrimitiveNumberType> | undefined = await PROFILES_DB.get(cosmosAddress).catch(catch404);
@@ -626,6 +637,22 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       }
     }
 
+    const file = reqBody.profilePicImageFile;
+    let profilePicUrl = reqBody.profilePicUrl;
+    if (file) {
+      const binaryData = Buffer.from(file, 'base64');
+      const params = {
+        Body: binaryData,
+        Bucket: 'bitbadges',
+        Key: 'profile-pics/' + cosmosAddress,
+        ACL: 'public-read', // Set the ACL as needed
+
+      };
+
+      const res = await s3.upload(params).promise();
+      profilePicUrl = res.Location;
+    }
+
     const newProfileInfo: ProfileDoc<JSPrimitiveNumberType> = {
       ...profileInfo,
       discord: reqBody.discord ?? profileInfo.discord,
@@ -638,7 +665,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       shownBadges: reqBody.shownBadges ?? profileInfo.shownBadges,
       hiddenBadges: reqBody.hiddenBadges ?? profileInfo.hiddenBadges,
       customPages: reqBody.customPages ?? profileInfo.customPages,
-      profilePicUrl: reqBody.profilePicUrl ?? profileInfo.profilePicUrl,
+      profilePicUrl: profilePicUrl ?? profileInfo.profilePicUrl,
       username: reqBody.username ?? profileInfo.username,
     };
 
