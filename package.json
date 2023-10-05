@@ -46,7 +46,7 @@
     "bitbadgesjs-utils": "^1.1.232",
     "blockin": "^1.2.41",
     "blockin-algo-driver": "^1.0.2",
-    "blockin-cosmos-driver": "^1.0.2",
+    "blockin-cosmos-driver": "^1.0.3",
     "blockin-eth-driver": "^1.0.14",
     "blockin-eth-driver-minified": "^1.0.0",
     "body-parser": "^1.20.1",

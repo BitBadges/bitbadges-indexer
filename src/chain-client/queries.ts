@@ -32,9 +32,9 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
   if (!accountInfoValue) throw new Error("Account not found");
 
   const accountObj = account.cosmos.auth.v1beta1.BaseAccount.deserialize(accountInfoValue).toObject();
-
+  console.log(accountObj)
   let pubKeyStr = '';
-  let chain = SupportedChain.ETH
+  let chain = getChainForAddress(accountObj.address ? accountObj.address : '');
   if (accountObj.pub_key?.type_url) {
     if (accountObj.pub_key.type_url === '/ethermint.crypto.v1.ethsecp256k1.PubKey') {
       chain = SupportedChain.ETH
@@ -74,7 +74,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
             'Account',
             accountData
           )
-
+          console.log(accountPromise)
           return getAccountInfoToReturn(accountPromise);
         } catch (error) {
           return {

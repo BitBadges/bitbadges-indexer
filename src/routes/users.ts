@@ -89,7 +89,7 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
               console.log("Error fetching tx count", e);
             }
           }
-
+          console.log("ADDRESS", address, ethTxCount);
 
           return {
             address: ethTxCount > 0 ? ethAddress : address,
