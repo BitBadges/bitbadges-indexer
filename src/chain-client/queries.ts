@@ -15,7 +15,7 @@ export interface CleanedCosmosAccountInformation {
   sequence: string
   chain: SupportedChain
   cosmosAddress: string
-  address: string
+  ethAddress: string
   accountNumber: string
 }
 
@@ -32,7 +32,6 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
   if (!accountInfoValue) throw new Error("Account not found");
 
   const accountObj = account.cosmos.auth.v1beta1.BaseAccount.deserialize(accountInfoValue).toObject();
-  console.log(accountObj)
   let pubKeyStr = '';
   let chain = getChainForAddress(accountObj.address ? accountObj.address : '');
   if (accountObj.pub_key?.type_url) {
@@ -53,6 +52,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
     sequence: accountObj.sequence ? accountObj.sequence.toString() : "0",
     accountNumber: accountObj.account_number !== undefined && accountObj.account_number >= 0 ? accountObj.account_number.toString() : "0",
     chain,
+    ethAddress: accountObj.address ? cosmosToEth(accountObj.address) : '',
     cosmosAddress: accountObj.address ? convertToCosmosAddress(accountObj.address) : '',
     address: chain === SupportedChain.COSMOS && accountObj.address ? accountObj.address : cosmosToEth(accountObj.address ? accountObj.address : ''),
   }
@@ -74,11 +74,10 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
             'Account',
             accountData
           )
-          console.log(accountPromise)
           return getAccountInfoToReturn(accountPromise);
         } catch (error) {
           return {
-            address: address,
+            ethAddress: cosmosToEth(convertToCosmosAddress(address)),
             sequence: "0",
             accountNumber: "-1",
             cosmosAddress: convertToCosmosAddress(address),

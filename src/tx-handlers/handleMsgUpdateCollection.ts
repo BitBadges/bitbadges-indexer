@@ -1,10 +1,12 @@
 import { MsgUpdateCollection } from "bitbadgesjs-proto"
 import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
-import { handleMerkleChallenges } from "./merkleChallenges"
+import { handleMerkleChallenges } from "./approvalInfo"
 
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { OFF_CHAIN_URLS_DB, insertToDB } from "../db/db"
+import { catch404 } from "../utils/couchdb-utils"
 
 export function recursivelyDeleteFalseProperties(obj: object) {
   if (Array.isArray(obj)) {
@@ -67,12 +69,19 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
       }],
       createdBlock: status.block.height,
       createdTimestamp: status.block.timestamp,
-      defaultUserApprovedIncomingTransfers: msg.defaultApprovedIncomingTransfers,
-      defaultUserApprovedOutgoingTransfers: msg.defaultApprovedOutgoingTransfers,
-      defaultUserPermissions: msg.defaultUserPermissions,
+      defaultUserIncomingApprovals: msg.defaultIncomingApprovals ?? [],
+      defaultUserOutgoingApprovals: msg.defaultOutgoingApprovals ?? [],
+      defaultUserPermissions: msg.defaultUserPermissions ?? {
+        canUpdateIncomingApprovals: [],
+        canUpdateOutgoingApprovals: [],
+        canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+        canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+      },
+      defaultAutoApproveSelfInitiatedIncomingTransfers: msg.defaultAutoApproveSelfInitiatedIncomingTransfers ?? false,
+      defaultAutoApproveSelfInitiatedOutgoingTransfers: msg.defaultAutoApproveSelfInitiatedOutgoingTransfers ?? false,
       createdBy: msg.creator,
       balancesType: msg.balancesType as "Standard" | "Inherited" | "Off-Chain",
-      collectionApprovedTransfers: [],
+      collectionApprovals: [],
       collectionMetadataTimeline: [],
       badgeMetadataTimeline: [],
       offChainBalancesMetadataTimeline: [],
@@ -86,7 +95,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         canUpdateBadgeMetadata: [],
         canCreateMoreBadges: [],
         canDeleteCollection: [],
-        canUpdateCollectionApprovedTransfers: [],
+        canUpdateCollectionApprovals: [],
         canUpdateContractAddress: [],
         canUpdateCustomData: [],
         canUpdateManager: [],
@@ -104,11 +113,15 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         cosmosAddress: "Total",
         collectionId: status.nextCollectionId,
         onChain: true,
-        approvedOutgoingTransfers: [],
-        approvedIncomingTransfers: [],
+        outgoingApprovals: [],
+        incomingApprovals: [],
+        autoApproveSelfInitiatedIncomingTransfers: false,
+        autoApproveSelfInitiatedOutgoingTransfers: false,
         userPermissions: {
-          canUpdateApprovedIncomingTransfers: [],
-          canUpdateApprovedOutgoingTransfers: [],
+          canUpdateIncomingApprovals: [],
+          canUpdateOutgoingApprovals: [],
+          canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+          canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
         },
         updateHistory: [],
       }
@@ -120,11 +133,15 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         cosmosAddress: "Mint",
         collectionId: status.nextCollectionId,
         onChain: true,
-        approvedOutgoingTransfers: [],
-        approvedIncomingTransfers: [],
+        outgoingApprovals: [],
+        incomingApprovals: [],
+        autoApproveSelfInitiatedIncomingTransfers: false,
+        autoApproveSelfInitiatedOutgoingTransfers: false,
         userPermissions: {
-          canUpdateApprovedIncomingTransfers: [],
-          canUpdateApprovedOutgoingTransfers: [],
+          canUpdateIncomingApprovals: [],
+          canUpdateOutgoingApprovals: [],
+          canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+          canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
         },
         updateHistory: [],
       }
@@ -158,19 +175,31 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
   const entropy = status.block.height.toString() + "-" + status.block.txIndex.toString();
 
   if (msg.updateCollectionPermissions) {
-    collection.collectionPermissions = msg.collectionPermissions;
+    collection.collectionPermissions = msg.collectionPermissions ?? {
+      canUpdateCollectionMetadata: [],
+      canArchiveCollection: [],
+      canUpdateBadgeMetadata: [],
+      canCreateMoreBadges: [],
+      canDeleteCollection: [],
+      canUpdateCollectionApprovals: [],
+      canUpdateContractAddress: [],
+      canUpdateCustomData: [],
+      canUpdateManager: [],
+      canUpdateOffChainBalancesMetadata: [],
+      canUpdateStandards: [],
+    }
   }
 
   if (msg.updateManagerTimeline) {
-    collection.managerTimeline = msg.managerTimeline;
+    collection.managerTimeline = msg.managerTimeline ?? [];
   }
 
   if (msg.updateCollectionMetadataTimeline) {
-    collection.collectionMetadataTimeline = msg.collectionMetadataTimeline;
+    collection.collectionMetadataTimeline = msg.collectionMetadataTimeline ?? [];
   }
 
   if (msg.updateBadgeMetadataTimeline) {
-    collection.badgeMetadataTimeline = msg.badgeMetadataTimeline;
+    collection.badgeMetadataTimeline = msg.badgeMetadataTimeline ?? [];
   }
 
   if (msg.updateCollectionMetadataTimeline || msg.updateBadgeMetadataTimeline) {
@@ -178,28 +207,28 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
   }
 
   if (msg.updateOffChainBalancesMetadataTimeline) {
-    collection.offChainBalancesMetadataTimeline = msg.offChainBalancesMetadataTimeline;
+    collection.offChainBalancesMetadataTimeline = msg.offChainBalancesMetadataTimeline ?? [];
     await pushBalancesFetchToQueue(docs, collection, status.block.timestamp, entropy);
   }
 
   if (msg.updateCustomDataTimeline) {
-    collection.customDataTimeline = msg.customDataTimeline;
+    collection.customDataTimeline = msg.customDataTimeline ?? [];
   }
 
-  if (msg.updateCollectionApprovedTransfers) {
-    collection.collectionApprovedTransfers = msg.collectionApprovedTransfers;
+  if (msg.updateCollectionApprovals) {
+    collection.collectionApprovals = msg.collectionApprovals ?? [];
   }
 
   if (msg.updateStandardsTimeline) {
-    collection.standardsTimeline = msg.standardsTimeline;
+    collection.standardsTimeline = msg.standardsTimeline ?? [];
   }
 
   if (msg.updateContractAddressTimeline) {
-    collection.contractAddressTimeline = msg.contractAddressTimeline;
+    collection.contractAddressTimeline = msg.contractAddressTimeline ?? [];
   }
 
   if (msg.updateIsArchivedTimeline) {
-    collection.isArchivedTimeline = msg.isArchivedTimeline;
+    collection.isArchivedTimeline = msg.isArchivedTimeline ?? [];
   }
 
   await handleMerkleChallenges(docs, collection, status);
@@ -215,5 +244,20 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
 
   if (msg.collectionId == 0n) {
     status.nextCollectionId++;
+  }
+
+  //TODO: handle in docs cache
+  if (collection.offChainBalancesMetadataTimeline.length > 0 && collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.startsWith('https://bitbadges.nyc3.digitaloceanspaces.com/balances/')) {
+    const uri = collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri;
+    const customData = collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.customData;
+    if (customData && uri.split('/').pop() === customData) {
+      //BitBadges hosted on DigitalOcean
+      //First collection to use the unique code will be the "owner" collection. Determined via on-chain order. Simply first to use a unique string
+      //If there is an existing doc, we do not need to do anything. This also protects against other collections simply using the balances URL of another collection (allowed but they won't be able to edit)
+      const existingDoc = await OFF_CHAIN_URLS_DB.get(customData).catch(catch404);
+      if (!existingDoc) {
+        await insertToDB(OFF_CHAIN_URLS_DB, { collectionId: collection.collectionId, _id: customData, _rev: undefined });
+      }
+    }
   }
 }

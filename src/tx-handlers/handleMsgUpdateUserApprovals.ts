@@ -1,11 +1,11 @@
-import { MsgUpdateUserApprovedTransfers } from "bitbadgesjs-proto"
+import { MsgUpdateUserApprovals } from "bitbadgesjs-proto"
 import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { recursivelyDeleteFalseProperties } from "./handleMsgUpdateCollection"
 
-export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApprovedTransfers<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
+export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
   await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
@@ -25,13 +25,15 @@ export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApp
       cosmosAddress: msg.creator,
       collectionId: msg.collectionId,
       onChain: true,
-      approvedOutgoingTransfers: collectionDoc.defaultUserApprovedOutgoingTransfers,
-      approvedIncomingTransfers: collectionDoc.defaultUserApprovedIncomingTransfers,
+      outgoingApprovals: collectionDoc.defaultUserOutgoingApprovals,
+      incomingApprovals: collectionDoc.defaultUserIncomingApprovals,
+      autoApproveSelfInitiatedIncomingTransfers: collectionDoc.defaultAutoApproveSelfInitiatedIncomingTransfers,
+      autoApproveSelfInitiatedOutgoingTransfers: collectionDoc.defaultAutoApproveSelfInitiatedOutgoingTransfers,
       userPermissions: collectionDoc.defaultUserPermissions,
       updateHistory: [],
     }
   }
-
+  
   balancesDoc.updateHistory.push({
     block: status.block.height,
     blockTimestamp: status.block.timestamp,
@@ -39,16 +41,21 @@ export const handleMsgUpdateUserApprovedTransfers = async (msg: MsgUpdateUserApp
   });
 
 
-  if (msg.updateApprovedIncomingTransfers) {
-    balancesDoc.approvedIncomingTransfers = msg.approvedIncomingTransfers;
+  if (msg.updateIncomingApprovals) {
+    balancesDoc.incomingApprovals = msg.incomingApprovals ?? [];
   }
 
-  if (msg.updateApprovedOutgoingTransfers) {
-    balancesDoc.approvedOutgoingTransfers = msg.approvedOutgoingTransfers;
+  if (msg.updateOutgoingApprovals) {
+    balancesDoc.outgoingApprovals = msg.outgoingApprovals ?? [];
   }
 
   if (msg.updateUserPermissions) {
-    balancesDoc.userPermissions = msg.userPermissions;
+    balancesDoc.userPermissions = msg.userPermissions ?? {
+      canUpdateIncomingApprovals: [],
+      canUpdateOutgoingApprovals: [],
+      canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+      canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+    }
   }
 
   docs.balances[`${msg.collectionId}:${msg.creator}`] = balancesDoc;

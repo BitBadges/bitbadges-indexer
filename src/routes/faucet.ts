@@ -8,6 +8,7 @@ import _ from "environment"
 import { serializeError } from "serialize-error";
 import { GetTokensFromFaucetRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { catch404 } from "../utils/couchdb-utils";
+import { refreshCollection } from "./refresh";
 
 // Create a mutex to protect the faucet from double spending
 // TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency); it will work for now  but needs a refactor
@@ -92,8 +93,15 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
       };
       const result = await signingClient.sendTokens(firstAccount.address, to, [amount], fee);
       assertIsDeliverTxSuccess(result);
+
+
+
       const doc = await AIRDROP_DB.get(req.session.cosmosAddress);
       await insertToDB(AIRDROP_DB, { ...doc, hash: result.transactionHash, timestamp: Date.now() });
+
+      //trigger refresh
+      await refreshCollection("3");
+
 
       return res.status(200).send(result);
     } catch (e) {

@@ -1,9 +1,10 @@
+import { cosmosToEth } from "bitbadgesjs-address-converter";
 import { BigIntify, JSPrimitiveNumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
-import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
+import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, SupportedChain, convertToCosmosAddress, getChainForAddress, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
+import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ETH_TX_COUNT_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { catch404 } from "../utils/couchdb-utils";
-import { getEnsDetails, getEnsResolver, getNameForAddress } from "../utils/ensResolvers";
+import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../utils/ensResolvers";
 
 const QUERY_TIME_MODE = true;
 
@@ -16,26 +17,89 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
     let isMint = accountInfos[i].cosmosAddress === 'Mint';
-    promises.push(isMint || OFFLINE_MODE || !fetchName ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.address));
+    promises.push(isMint || OFFLINE_MODE || !fetchName ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress));
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
     promises.push(AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).catch(catch404))
+    promises.push(async () => {
+      const address = cosmosAccountInfo.cosmosAddress;
+      const profileDoc = profileInfos[i];
+
+      if (!isAddressValid(address)) {
+        return {
+          address: '',
+          chain: SupportedChain.UNKNOWN
+        }
+      }
+
+      let ethTxCount = 0;
+      if (cosmosAccountInfo.publicKey && cosmosAccountInfo.chain !== SupportedChain.UNKNOWN) {
+        return {
+          address: cosmosAccountInfo.chain === SupportedChain.ETH ? cosmosAccountInfo.ethAddress : cosmosAccountInfo.cosmosAddress,
+          chain: cosmosAccountInfo.chain
+        }
+      }
+
+      const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
+      if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.ETH) {
+        return {
+          address: ethAddress,
+          chain: SupportedChain.ETH
+        }
+      } else if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.COSMOS) {
+        return {
+          address: getChainForAddress(address) === SupportedChain.COSMOS ? address : convertToCosmosAddress(address),
+          chain: SupportedChain.COSMOS
+        }
+      }
+
+      const cachedEthTxCount = await ETH_TX_COUNT_DB.get(ethAddress).catch(catch404);
+      if (cachedEthTxCount && cachedEthTxCount.count) {
+        return { address: ethAddress, chain: SupportedChain.ETH }
+      } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
+        ethTxCount = await provider.getTransactionCount(ethAddress);
+
+        await insertToDB(ETH_TX_COUNT_DB, {
+          ...cachedEthTxCount,
+          _id: ethAddress,
+          count: ethTxCount,
+          lastFetched: Date.now(),
+        });
+      }
+
+      return {
+        address: ethTxCount > 0 ? ethAddress : address,
+        chain: ethTxCount > 0 ? SupportedChain.ETH : getChainForAddress(address),
+      }
+    });
   }
-  const results = await Promise.all(promises);
+
+
+
+  const results = await Promise.all(promises.map((promise) => {
+    if (typeof promise === 'function') {
+      return promise();
+    } else {
+      return promise;
+    }
+  }));
 
   const resultsToReturn: BitBadgesUserInfo<JSPrimitiveNumberType>[] = [];
 
-  for (let i = 0; i < results.length; i += 3) {
-    const profileInfo = profileInfos[i / 3];
-    const accountInfo = accountInfos[i / 3];
+  for (let i = 0; i < results.length; i += 4) {
+    const profileInfo = profileInfos[i / 4];
+    const accountInfo = accountInfos[i / 4];
 
     const nameAndAvatarRes = results[i] as { resolvedName: string, avatar: string };
     const balanceInfo = results[i + 1] as CosmosCoin<JSPrimitiveNumberType>;
     const airdropInfo = results[i + 2] as { _id: string, airdropped: boolean } | undefined;
+    const chainResolve = results[i + 3] as { address: string, chain: SupportedChain }
 
     resultsToReturn.push({
       ...profileInfo,
       ...nameAndAvatarRes,
       ...accountInfo,
+      address: chainResolve.address,
+      chain: chainResolve.chain,
 
       balance: balanceInfo,
       airdropped: airdropInfo && airdropInfo.airdropped,
@@ -99,7 +163,7 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
         to: row.doc?.to.includes(cosmosAddress) ? [cosmosAddress] : row.doc?.to //For the user queries, we don't need to return all the to addresses
       }
     })
-    
+
     if (!fetchHidden) {
       if (onlyShowApproved) {
         const nonHiddenDocs = viewDocs.map((doc) => {

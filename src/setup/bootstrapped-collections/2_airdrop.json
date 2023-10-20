@@ -1,37 +1,41 @@
 {
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
-  "defaultApprovedIncomingTransfers": [],
-  "defaultApprovedOutgoingTransfers": [],
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultIncomingApprovals": [],
+  "defaultOutgoingApprovals": [],
   "defaultUserPermissions": {
-    "canUpdateApprovedIncomingTransfers": [],
-    "canUpdateApprovedOutgoingTransfers": []
+    "canUpdateIncomingApprovals": [],
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
   },
   "badgesToCreate": [
     {
-      "amount": "1",
+      "amount": "10000000000",
       "badgeIds": [
         {
           "start": "1",
-          "end": "100"
+          "end": "1"
         }
       ],
       "ownershipTimes": [
         {
-          "start": "1691978400000",
-          "end": "1723514400000"
+          "start": "1",
+          "end": "18446744073709551615"
         }
       ]
     }
   ],
   "updateCollectionPermissions": true,
-  "balancesType": "Standard",
+  "balancesType": "Off-Chain",
   "collectionPermissions": {
     "canArchiveCollection": [],
     "canCreateMoreBadges": [],
     "canDeleteCollection": [],
     "canUpdateBadgeMetadata": [],
-    "canUpdateCollectionApprovedTransfers": [],
+    "canUpdateCollectionApprovals": [],
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
@@ -71,7 +75,7 @@
           "badgeIds": [
             {
               "start": "1",
-              "end": "10000000000000"
+              "end": "1"
             }
           ],
           "customData": ""
@@ -80,11 +84,24 @@
     }
   ],
   "updateOffChainBalancesMetadataTimeline": true,
-  "offChainBalancesMetadataTimeline": [],
+  "offChainBalancesMetadataTimeline": [
+    {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "offChainBalancesMetadata": {
+        "uri": "https://bitbadges.io/api/v0/airdrop/balances",
+        "customData": ""
+      }
+    }
+  ],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateCollectionApprovedTransfers": true,
-  "collectionApprovedTransfers": [],
+  "updateCollectionApprovals": true,
+  "collectionApprovals": [],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
   "updateContractAddressTimeline": true,

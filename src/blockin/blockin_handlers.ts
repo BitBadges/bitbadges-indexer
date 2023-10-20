@@ -87,7 +87,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
     const challengeParams = {
       domain: 'https://bitbadges.io',
-      statement: `BitBadges uses Blockin to authenticate users. To sign in, please sign this message with your connected wallet.`,
+      statement: `BitBadges uses Blockin to authenticate users. By signing in, you agree to our privacy policy and terms of service.`,
       address: reqBody.address,
       uri: 'https://bitbadges.io',
       nonce: req.session.nonce,

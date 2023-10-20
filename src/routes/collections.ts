@@ -1,14 +1,18 @@
-import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertApprovalTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertContractAddressTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDetails, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionApprovedTransferWithDetails, convertCollectionDoc, convertMerkleChallengeDetails, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFirstMatchForCollectionApprovedTransfers, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary, updateBadgeMetadata } from "bitbadgesjs-utils";
+import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertContractAddressTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange, deepCopy } from "bitbadgesjs-proto";
+import { AnnouncementDoc, AnnouncementInfo, ApprovalInfoDetails, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertApprovalInfoDetails, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 
+import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { COLLECTIONS_DB } from "../db/db";
 import { fetchUriFromDb } from "../queue";
+import { compareObjects } from "../utils/compare";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
-import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
+import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+
+const { SHA256 } = CryptoJS;
 
 /**
  * The executeCollectionsQuery function is the main query function used to fetch all data for a collection in bulk.
@@ -88,7 +92,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
 
     if (query.approvalsTrackerIdsToFetch?.length) {
-      promises.push(executeApprovalsTrackersByIdsQuery(`${query.collectionId}`, query.approvalsTrackerIdsToFetch.map(x => convertApprovalTrackerIdDetails(x, BigIntify))));
+      promises.push(executeApprovalsTrackersByIdsQuery(`${query.collectionId}`, query.approvalsTrackerIdsToFetch.map(x => convertAmountTrackerIdDetails(x, BigIntify))));
     } else {
       promises.push(Promise.resolve([]));
     }
@@ -117,32 +121,32 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
     const mintAndTotalBalancesRes = responses[i + 8] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
 
-    for (const collectionApprovedTransferVal of collectionRes.collectionApprovedTransfers) {
+    for (const collectionApprovalVal of collectionRes.collectionApprovals) {
       addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.fromMappingId
+        collectionId: collectionRes.collectionId, mappingId: collectionApprovalVal.fromMappingId
       });
       addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.toMappingId
+        collectionId: collectionRes.collectionId, mappingId: collectionApprovalVal.toMappingId
       });
       addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: collectionApprovedTransferVal.initiatedByMappingId
-      });
-    }
-
-
-    for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovedTransfers) {
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: permission.defaultValues.fromMappingId
-      });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: permission.defaultValues.toMappingId
-      });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: permission.defaultValues.initiatedByMappingId
+        collectionId: collectionRes.collectionId, mappingId: collectionApprovalVal.initiatedByMappingId
       });
     }
 
-    for (const transfer of collectionRes.defaultUserApprovedIncomingTransfers) {
+
+    for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovals) {
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: permission.fromMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: permission.toMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: permission.initiatedByMappingId
+      });
+    }
+
+    for (const transfer of collectionRes.defaultUserIncomingApprovals) {
 
       addressMappingIdsToFetch.push({
         collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
@@ -153,7 +157,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     }
 
-    for (const transfer of collectionRes.defaultUserApprovedOutgoingTransfers) {
+    for (const transfer of collectionRes.defaultUserOutgoingApprovals) {
       addressMappingIdsToFetch.push({
         collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
       });
@@ -165,7 +169,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
 
     for (const balanceDoc of [...balancesRes.docs, ...mintAndTotalBalancesRes.docs]) {
-      for (const transfer of balanceDoc.approvedIncomingTransfers) {
+      for (const transfer of balanceDoc.incomingApprovals) {
         addressMappingIdsToFetch.push({
           collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
         });
@@ -175,7 +179,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
       }
 
-      for (const transfer of balanceDoc.approvedOutgoingTransfers) {
+      for (const transfer of balanceDoc.outgoingApprovals) {
         addressMappingIdsToFetch.push({
           collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
         });
@@ -190,10 +194,9 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
   const uris: { uri: string, collectionId: JSPrimitiveNumberType }[] = [];
   for (const collectionRes of baseCollections) {
-    for (const approvedTransfer of collectionRes.collectionApprovedTransfers) {
-      const uri = approvedTransfer.approvalDetails?.merkleChallenge.uri;
+    for (const approval of collectionRes.collectionApprovals) {
+      const uri = approval.uri;
       if (uri) uris.push({ uri: uri ?? '', collectionId: collectionRes.collectionId });
-
     }
   }
 
@@ -226,7 +229,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       ...collectionRes,
       _rev: undefined,
       _deleted: undefined,
-      collectionApprovedTransfers: collectionRes.collectionApprovedTransfers.map(x => {
+      collectionApprovals: collectionRes.collectionApprovals.map(x => {
         return {
           ...x,
           fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
@@ -236,26 +239,23 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       }),
       collectionPermissions: {
         ...collectionRes.collectionPermissions,
-        canUpdateCollectionApprovedTransfers: collectionRes.collectionPermissions.canUpdateCollectionApprovedTransfers.map(x => {
+        canUpdateCollectionApprovals: collectionRes.collectionPermissions.canUpdateCollectionApprovals.map(x => {
           return {
             ...x,
-            defaultValues: {
-              ...x.defaultValues,
-              fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.defaultValues.fromMappingId) as AddressMapping,
-              toMapping: addressMappings.find((mapping) => mapping.mappingId === x.defaultValues.toMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.defaultValues.initiatedByMappingId) as AddressMapping,
-            }
+            fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
+            toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
+            initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
           }
         })
       },
-      defaultUserApprovedIncomingTransfers: collectionRes.defaultUserApprovedIncomingTransfers.map(x => {
+      defaultUserIncomingApprovals: collectionRes.defaultUserIncomingApprovals.map(x => {
         return {
           ...x,
           fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
           initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
         }
       }),
-      defaultUserApprovedOutgoingTransfers: collectionRes.defaultUserApprovedOutgoingTransfers.map(x => {
+      defaultUserOutgoingApprovals: collectionRes.defaultUserOutgoingApprovals.map(x => {
         return {
           ...x,
           toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
@@ -272,14 +272,14 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
         .map((balance) => {
           return {
             ...balance,
-            approvedIncomingTransfers: balance.approvedIncomingTransfers.map(x => {
+            incomingApprovals: balance.incomingApprovals.map(x => {
               return {
                 ...x,
                 fromMapping: addressMappings.find(z => z.mappingId === x.fromMappingId) as AddressMapping,
                 initiatedByMapping: addressMappings.find(z => z.mappingId === x.initiatedByMappingId) as AddressMapping,
               }
             }),
-            approvedOutgoingTransfers: balance.approvedOutgoingTransfers.map(x => {
+            outgoingApprovals: balance.outgoingApprovals.map(x => {
               return {
                 ...x,
                 toMapping: addressMappings.find(z => z.mappingId === x.toMappingId) as AddressMapping,
@@ -380,13 +380,14 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       ).map(x => convertManagerTimeline(x, Stringify));
 
       //Handle all possible values and only return first maches
-      collectionToReturn.collectionApprovedTransfers = getFirstMatchForCollectionApprovedTransfers(collectionToReturn.collectionApprovedTransfers.map(x => convertCollectionApprovedTransferWithDetails(x, BigIntify)), true).map(x => convertCollectionApprovedTransferWithDetails(x, Stringify));
+      // collectionToReturn.collectionApprovals = getFirstMatchForCollectionApprovals(collectionToReturn.collectionApprovals.map(x => convertCollectionApprovalWithDetails(x, BigIntify)), true).map(x => convertCollectionApprovalWithDetails(x, Stringify));
+
 
       collectionToReturn.owners = collectionToReturn.owners.map((balance) => {
         return {
           ...balance,
-          approvedIncomingTransfers: appendDefaultForIncomingUserApprovedTransfers(balance.approvedIncomingTransfers, addressMappings, balance.cosmosAddress),
-          approvedOutgoingTransfers: appendDefaultForOutgoingUserApprovedTransfers(balance.approvedOutgoingTransfers, addressMappings, balance.cosmosAddress)
+          incomingApprovals: appendDefaultForIncomingUserApprovals(balance, addressMappings, balance.cosmosAddress),
+          outgoingApprovals: appendDefaultForOutgoingUserApprovals(balance, addressMappings, balance.cosmosAddress)
         }
       });
     }
@@ -395,20 +396,19 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   }
 
   for (const collectionRes of collectionResponses) {
-    for (const approvedTransfer of collectionRes.collectionApprovedTransfers) {
-      if (approvedTransfer.fromMappingId == "Mint") {
-        const approvalDetails = approvedTransfer.approvalDetails;
+    for (const approval of collectionRes.collectionApprovals) {
+      if (approval.uri) {
+        const claimFetch = claimFetches.find((fetch) => fetch.uri === approval.uri);
+        if (!claimFetch || !claimFetch.content) continue;
 
-        if (approvalDetails?.merkleChallenge.uri) {
-          const claimFetch = claimFetches.find((fetch) => fetch.uri === approvalDetails.merkleChallenge.uri);
-          if (!claimFetch || !claimFetch.content) continue;
-          approvalDetails.merkleChallenge.details = convertMerkleChallengeDetails(claimFetch.content as MerkleChallengeDetails<JSPrimitiveNumberType>, Stringify);
+        approval.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
+
+        if (approval.approvalCriteria?.merkleChallenge?.uri) {
+          approval.approvalCriteria.merkleChallenge.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
         }
       }
     }
   }
-
-
 
   return collectionResponses;
 }
@@ -533,7 +533,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
 
         const otherMatchingBadgeUintRanges = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
         const [remaining,] = removeUintRangeFromUintRange(otherMatchingBadgeUintRanges, badgeIdsLeft);
-        badgeIdsLeft = sortUintRangesAndMergeIfNecessary(remaining);
+        badgeIdsLeft = sortUintRangesAndMergeIfNecessary(remaining, true);
 
       }
     } else {
@@ -577,7 +577,6 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     const collectionMetadataResult = results[0];
     if (collectionMetadataResult) {
       collectionMetadata = {
-
         ...convertMetadata(collectionMetadataResult.content ?? DefaultPlaceholderMetadata, BigIntify),
         _isUpdating: collectionMetadataResult.updating,
         fetchedAt: collectionMetadataResult.fetchedAt,
@@ -587,29 +586,102 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   }
 
   let badgeMetadata: BadgeMetadataDetails<bigint>[] = [];
+  const toUpdate = [];
   for (const metadataId of metadataIdsToFetch) {
     const uri = getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris)[0];
     const badgeIds = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
     const resultIdx = uris.indexOf(uri);
-    badgeMetadata = updateBadgeMetadata(badgeMetadata, {
+    toUpdate.push({
       metadataId: BigInt(metadataId),
       uri,
       badgeIds,
       metadata: {
-
         ...convertMetadata(results[resultIdx].content ?? DefaultPlaceholderMetadata, BigIntify),
         _isUpdating: results[resultIdx].updating,
-        fetchedAt: results[resultIdx].fetchedAt,
-        fetchedAtBlock: results[resultIdx].fetchedAtBlock
       }
     });
   }
-
+  badgeMetadata = batchUpdateBadgeMetadata(badgeMetadata, toUpdate);
 
   return {
     collectionMetadata: collectionMetadata ? convertMetadata(collectionMetadata, Stringify) : undefined,
     badgeMetadata: badgeMetadata ? badgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, Stringify)) : undefined
   }
+}
+
+const batchUpdateBadgeMetadata = (currBadgeMetadata: BadgeMetadataDetails<bigint>[], newBadgeMetadataDetailsArr: BadgeMetadataDetails<bigint>[]) => {
+
+
+  const allBadgeIds = sortUintRangesAndMergeIfNecessary(
+    deepCopy(newBadgeMetadataDetailsArr.map(x => x.badgeIds).flat()), true
+  )
+  for (let i = 0; i < currBadgeMetadata.length; i++) {
+    const val = currBadgeMetadata[i];
+    if (!val) continue; //For TS
+
+    const [remaining, _] = removeUintRangeFromUintRange(allBadgeIds, val.badgeIds);
+    val.badgeIds = remaining;
+  }
+
+  currBadgeMetadata = currBadgeMetadata.filter((val) => val && val.badgeIds.length > 0);
+
+
+  const hashTable = new Map<string, number>();
+  for (let i = 0; i < currBadgeMetadata.length; i++) {
+    const metadataDetails = currBadgeMetadata[i];
+    const hashedMetadata = SHA256(JSON.stringify(metadataDetails.metadata)).toString();
+    hashTable.set(hashedMetadata, i);
+  }
+
+  for (const newBadgeMetadataDetails of newBadgeMetadataDetailsArr) {
+    let currentMetadata = newBadgeMetadataDetails.metadata;
+    for (const badgeUintRange of newBadgeMetadataDetails.badgeIds) {
+      const startBadgeId = badgeUintRange.start;
+      const endBadgeId = badgeUintRange.end;
+
+      //If the metadata we are updating is already in the array (with matching uri and id), we can just insert the badge IDs
+      let currBadgeMetadataExists = false;
+      const idx = hashTable.get(SHA256(JSON.stringify(currentMetadata)).toString());
+      if (idx) {
+        const val = currBadgeMetadata[idx];
+        if (!val) continue; //For TS
+
+        if (val.uri === newBadgeMetadataDetails.uri && val.metadataId === newBadgeMetadataDetails.metadataId && val.customData === newBadgeMetadataDetails.customData && val.toUpdate === newBadgeMetadataDetails.toUpdate && compareObjects(val.metadata, currentMetadata)) {
+          currBadgeMetadataExists = true;
+          if (val.badgeIds.length > 0) {
+            val.badgeIds = [...val.badgeIds, { start: startBadgeId, end: endBadgeId }];
+            val.badgeIds = sortUintRangesAndMergeIfNecessary(val.badgeIds, true);
+          } else {
+            val.badgeIds = [{ start: startBadgeId, end: endBadgeId }];
+          }
+        }
+      }
+
+      //Recreate the array with the updated badge IDs
+      //If some metadata object no longer has any corresponding badge IDs, we can remove it from the array
+
+      //If we did not find the metadata in the array and metadata !== undefined, we need to add it
+      if (!currBadgeMetadataExists) {
+        currBadgeMetadata.push({
+          metadata: { ...currentMetadata },
+          badgeIds: [{
+            start: startBadgeId,
+            end: endBadgeId,
+          }],
+          uri: newBadgeMetadataDetails.uri,
+          metadataId: newBadgeMetadataDetails.metadataId,
+          customData: newBadgeMetadataDetails.customData,
+          toUpdate: newBadgeMetadataDetails.toUpdate,
+        })
+
+        const hashedMetadata = SHA256(JSON.stringify(newBadgeMetadataDetails.metadata)).toString();
+        hashTable.set(hashedMetadata, currBadgeMetadata.length - 1);
+      }
+    }
+  }
+
+  currBadgeMetadata = currBadgeMetadata.filter((val) => val && val.badgeIds.length > 0);
+  return currBadgeMetadata;
 }
 
 const appendMetadataResToCollection = (metadataRes: { collectionMetadata?: Metadata<JSPrimitiveNumberType>, badgeMetadata?: BadgeMetadataDetails<JSPrimitiveNumberType>[] }, collection: BitBadgesCollection<JSPrimitiveNumberType> | BitBadgesCollection<JSPrimitiveNumberType>) => {
@@ -618,9 +690,7 @@ const appendMetadataResToCollection = (metadataRes: { collectionMetadata?: Metad
   collection.cachedCollectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.cachedCollectionMetadata;
   if (metadataRes.badgeMetadata) {
     let _badgeMetadata = collection.cachedBadgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, BigIntify));
-    for (const badgeDetails of metadataRes.badgeMetadata) {
-      _badgeMetadata = updateBadgeMetadata(_badgeMetadata, convertBadgeMetadataDetails(badgeDetails, BigIntify));
-    }
+    _badgeMetadata = batchUpdateBadgeMetadata(_badgeMetadata, metadataRes.badgeMetadata.map((x) => convertBadgeMetadataDetails(x, BigIntify)));
     collection.cachedBadgeMetadata = _badgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, Stringify));
   }
 

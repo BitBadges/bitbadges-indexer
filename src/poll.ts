@@ -2,26 +2,26 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovedTransfers, convertTransfer } from "bitbadgesjs-proto"
+import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx'
 import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertStatusDoc } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import nano from "nano"
+import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
 import { ERRORS_DB, MsgDoc } from "./db/db"
 import { getStatus } from "./db/status"
 import { TIME_MODE, client, setClient, setTimer } from "./indexer"
+import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
 import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
-import { handleMsgUpdateUserApprovedTransfers } from "./tx-handlers/handleMsgUpdateUserApprovedTransfers"
+import { handleMsgUpdateUserApprovals } from "./tx-handlers/handleMsgUpdateUserApprovals"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
-import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
-import { serializeError } from "serialize-error"
-import nano from "nano"
 
 
 const pollIntervalMs = 1_000
@@ -216,8 +216,8 @@ const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, do
 //TODO: Do this natively via Msgs instead of events
 const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
 
-  if (getAttributeValueByKey(event.attributes, "approvalTrackerId")) {
-    const approvalTrackerId = getAttributeValueByKey(event.attributes, "approvalTrackerId") ?? '';
+  if (getAttributeValueByKey(event.attributes, "amountTrackerId")) {
+    const amountTrackerId = getAttributeValueByKey(event.attributes, "amountTrackerId") ?? '';
     const approverAddress = getAttributeValueByKey(event.attributes, "approverAddress") ?? '';
     const collectionId = getAttributeValueByKey(event.attributes, "collectionId") ?? '';
     const approvalLevel = getAttributeValueByKey(event.attributes, "approvalLevel") as "collection" | "incoming" | "outgoing" | "" | undefined ?? '';
@@ -226,7 +226,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const amountsJsonStr = getAttributeValueByKey(event.attributes, "amounts") ?? '';
     const numTransfersJsonStr = getAttributeValueByKey(event.attributes, "numTransfers") ?? '';
 
-    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalTrackerId}-${trackerType}-${approvedAddress}`;
+    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${amountTrackerId}-${trackerType}-${approvedAddress}`;
     const amounts = JSON.parse(amountsJsonStr && amountsJsonStr != "null" ? amountsJsonStr : '[]') as Balance<string>[];
     const numTransfers = numTransfersJsonStr && numTransfersJsonStr != "null" ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
 
@@ -236,7 +236,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       approvalLevel: approvalLevel ? approvalLevel : '',
       approverAddress: approverAddress ? approverAddress : '',
-      approvalTrackerId: approvalTrackerId ? approvalTrackerId : '',
+      amountTrackerId: amountTrackerId ? amountTrackerId : '',
       trackerType: trackerType as "overall" | "to" | "from" | "initiatedBy",
       approvedAddress: approvedAddress ? approvedAddress : '',
       numTransfers: BigInt(numTransfers),
@@ -266,6 +266,8 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
       usedLeafIndices: newLeafIndices,
     }
   }
+
+  console.log(event.attributes);
   if (getAttributeValueByKey(event.attributes, "transfer")) {
     const creator = getAttributeValueByKey(event.attributes, "creator") as string;
 
@@ -275,7 +277,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     if (!collectionId || !transfer) throw new Error(`Missing collectionId or transfer in event: ${JSON.stringify(event)}`)
 
     await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], []);
-
+    console.log(transfer);
     await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, creator, txHash, true);
   }
 }
@@ -343,7 +345,22 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       }
     }
   }
-  // console.log(decodedTx.body);
+  // // console.log(decodedTx.body);
+  // function convertTransfer<T extends NumberType, U extends NumberType>(transfer: Transfer<T>, convertFunction: (item: T) => U, populateOptionalFields?: boolean): Transfer<U> {
+  //   return deepCopy({
+  //     ...transfer,
+  //     balances: transfer.balances.map((b) => convertBalance(b, convertFunction)),
+  //     precalculateBalancesFromApproval: transfer.precalculateBalancesFromApproval ?? (populateOptionalFields ? {
+  //       approvalId: '',
+  //       approvalLevel: '',
+  //       approverAddress: ''
+  //     } : undefined),
+  //     merkleProofs: transfer.merkleProofs ?? (populateOptionalFields ? [] : undefined),
+  //     prioritizedApprovals: transfer.prioritizedApprovals ?? (populateOptionalFields ? [] : undefined),
+  //     memo: transfer.memo ?? (populateOptionalFields ? '' : undefined),
+  //     onlyCheckPrioritizedApprovals: transfer.onlyCheckPrioritizedApprovals ?? (populateOptionalFields ? false : undefined),
+  //   })
+  // }
 
   // let messageIdx = 0;
   for (const message of decodedTx.body.messages) {
@@ -365,7 +382,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         break;
       case "/bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings":
         const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings.deserialize(value))
-        await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs);
+        await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs, indexed.hash);
         //Don't need to track, we have created at and address mappings on-chain are permanent and immutable
         // msg = newAddressMappingsMsg;
         break;
@@ -374,10 +391,10 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs, indexed.hash)
         msg = newUpdateCollectionMsg;
         break;
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers":
-        const newUpdateUserApprovedTransfersMsg = convertFromProtoToMsgUpdateUserApprovedTransfers(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovedTransfers.deserialize(value))
-        await handleMsgUpdateUserApprovedTransfers(newUpdateUserApprovedTransfersMsg, status, docs, indexed.hash)
-        msg = newUpdateUserApprovedTransfersMsg;
+      case "/bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovals":
+        const newUpdateUserApprovalsMsg = convertFromProtoToMsgUpdateUserApprovals(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovals.deserialize(value))
+        await handleMsgUpdateUserApprovals(newUpdateUserApprovalsMsg, status, docs, indexed.hash)
+        msg = newUpdateUserApprovalsMsg;
         break;
       case "/cosmos.bank.v1beta1.MsgSend":
         const newMsgSend = bank.cosmos.bank.v1beta1.MsgSend.deserialize(value);

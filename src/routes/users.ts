@@ -1,19 +1,17 @@
 
 import AWS from 'aws-sdk';
-import { cosmosToEth } from "bitbadgesjs-address-converter";
 import { BigIntify, JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfo, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, SupportedChain, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertProfileDoc, convertProfileInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfo, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertProfileDoc, convertProfileInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
 import { CleanedCosmosAccountInformation } from "../chain-client/queries";
-import { ACCOUNTS_DB, ETH_TX_COUNT_DB, PROFILES_DB, insertToDB } from "../db/db";
+import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { provider } from "../utils/ensResolvers";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
-import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
+import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 
 const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
 const s3 = new AWS.S3({
@@ -39,75 +37,29 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
 
   for (let i = 0; i < addressesToFetchWithSequence.length; i++) {
     let result = results[i] as CleanedCosmosAccountInformation;
-    result = {
-      ...result,
-      chain: result.chain === SupportedChain.UNKNOWN ? getChainForAddress(addressesToFetchWithSequence[i]) : result.chain,
-    };
     accountInfos.push(result);
   }
 
   if (addressesToFetchWithoutSequence.length > 0) {
     const fetchResult = results[addressesToFetchWithSequence.length] as nano.DocumentFetchResponse<AccountDoc<JSPrimitiveNumberType>>;
     const docs = getDocsFromNanoFetchRes(fetchResult, true);
-
-    const resolveChainPromises = [];
     for (const address of addressesToFetchWithoutSequence) {
       const doc = docs.find(x => x._id === convertToCosmosAddress(address));
       if (doc) {
         accountInfos.push(doc);
       } else {
-
-        resolveChainPromises.push(async () => {
-          let ethTxCount = 0;
-          const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
-          if (isAddressValid(address)) {
-            try {
-              const profileDoc = await PROFILES_DB.get(`${convertToCosmosAddress(address)}`).catch(catch404);
-              if (profileDoc && profileDoc.latestSignedInChain) {
-                if (profileDoc.latestSignedInChain === SupportedChain.ETH) {
-                  ethTxCount = 1 // just posititve so it triggers the ETH conversion
-                }
-              } else {
-                //As a fallback, we query Infrua to see if the address has any native ETH txs
-                //If they do, we set chain to ETH
-
-                const cachedEthTxCount = await ETH_TX_COUNT_DB.get(ethAddress).catch(catch404);
-                if (cachedEthTxCount && cachedEthTxCount.count) {
-                  ethTxCount = cachedEthTxCount.count;
-                } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
-                  ethTxCount = await provider.getTransactionCount(ethAddress);
-
-                  await insertToDB(ETH_TX_COUNT_DB, {
-                    ...cachedEthTxCount,
-                    _id: ethAddress,
-                    count: ethTxCount,
-                    lastFetched: Date.now(),
-                  });
-                }
-              }
-            } catch (e) {
-              console.log("Error fetching tx count", e);
-            }
-          }
-          console.log("ADDRESS", address, ethTxCount);
-
-          return {
-            address: ethTxCount > 0 ? ethAddress : address,
-            sequence: "0",
-            accountNumber: -1,
-            cosmosAddress: convertToCosmosAddress(address),
-            chain: ethTxCount > 0 ? SupportedChain.ETH : getChainForAddress(address),
-            publicKey: '',
-          }
+        accountInfos.push({
+          cosmosAddress: convertToCosmosAddress(address),
+          ethAddress: address,
+          sequence: 0,
+          accountNumber: -1,
+          chain: getChainForAddress(address),
+          publicKey: '',
         });
-
       }
     }
-    if (resolveChainPromises.length > 0) {
-      const resolvedChainResults = await Promise.all(resolveChainPromises.map(x => x()));
-      accountInfos.push(...resolvedChainResults);
-    }
   }
+
   return accountInfos;
 }
 
@@ -266,6 +218,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     const profileInfos = await getBatchProfileInformation(allQueries);
     console.timeEnd('getBatchProfileInformation');
     console.time('convertToBitBadgesUserInfo');
+    console.log(profileInfos, accountInfos);
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
     console.timeEnd('convertToBitBadgesUserInfo');
 
@@ -462,12 +415,12 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   ];
 
   for (const balance of [...response.docs, ...responseWithHidden.docs]) {
-    for (const incoming of balance.approvedIncomingTransfers) {
+    for (const incoming of balance.incomingApprovals) {
       addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
       addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
     }
 
-    for (const outgoing of balance.approvedOutgoingTransfers) {
+    for (const outgoing of balance.outgoingApprovals) {
       addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
       addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
     }
@@ -483,8 +436,8 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
     ].map(x => convertBalanceDoc(x, Stringify)).map(removeCouchDBDetails).map((collected) => {
       return {
         ...collected,
-        approvedIncomingTransfers: appendDefaultForIncomingUserApprovedTransfers(collected.approvedIncomingTransfers, addressMappingsToPopulate, cosmosAddress),
-        approvedOutgoingTransfers: appendDefaultForOutgoingUserApprovedTransfers(collected.approvedOutgoingTransfers, addressMappingsToPopulate, cosmosAddress),
+        incomingApprovals: appendDefaultForIncomingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
+        outgoingApprovals: appendDefaultForOutgoingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
       };
     }),
     claimAlerts: claimAlertsRes.docs.map(x => convertClaimAlertDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -631,9 +584,11 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
         limit: 1,
       });
       if (doc.docs.length > 0) {
-        return res.status(400).send({
-          message: 'Username already taken'
-        })
+        if (doc.docs[0]._id !== cosmosAddress) {
+          return res.status(400).send({
+            message: 'Username already taken'
+          })
+        }
       }
     }
 

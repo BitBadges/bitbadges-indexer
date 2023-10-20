@@ -1,11 +1,15 @@
 {
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
-  "defaultApprovedIncomingTransfers": [],
-  "defaultApprovedOutgoingTransfers": [],
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultIncomingApprovals": [],
+  "defaultOutgoingApprovals": [],
   "defaultUserPermissions": {
-    "canUpdateApprovedIncomingTransfers": [],
-    "canUpdateApprovedOutgoingTransfers": []
+    "canUpdateIncomingApprovals": [],
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
   },
   "badgesToCreate": [
     {
@@ -31,7 +35,7 @@
     "canCreateMoreBadges": [],
     "canDeleteCollection": [],
     "canUpdateBadgeMetadata": [],
-    "canUpdateCollectionApprovedTransfers": [],
+    "canUpdateCollectionApprovals": [],
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
@@ -83,38 +87,12 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateCollectionApprovedTransfers": true,
-  "collectionApprovedTransfers": [
+  "updateCollectionApprovals": true,
+  "collectionApprovals": [
     {
       "fromMappingId": "Mint",
-      "fromMapping": {
-        "mappingId": "Mint",
-        "addresses": [
-          "Mint"
-        ],
-        "includeAddresses": true,
-        "uri": "",
-        "customData": "",
-        "createdBy": ""
-      },
       "toMappingId": "AllWithMint",
-      "toMapping": {
-        "mappingId": "AllWithMint",
-        "addresses": [],
-        "includeAddresses": false,
-        "uri": "",
-        "customData": "",
-        "createdBy": ""
-      },
       "initiatedByMappingId": "AllWithMint",
-      "initiatedByMapping": {
-        "mappingId": "AllWithMint",
-        "addresses": [],
-        "includeAddresses": false,
-        "uri": "",
-        "customData": "",
-        "createdBy": ""
-      },
       "transferTimes": [
         {
           "start": "1691953200000",
@@ -134,44 +112,9 @@
         }
       ],
       "approvalId": "fsdja",
-      "approvalTrackerId": "asfdafds",
+      "amountTrackerId": "asfdafds",
       "challengeTrackerId": "asdfafsdsafd",
-      "allowedCombinations": [
-        {
-          "initiatedByMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "fromMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "toMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "badgeIdsOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "ownershipTimesOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "transferTimesOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "isApproved": true
-        }
-      ],
-      "approvalDetails": {
+      "approvalCriteria": {
         "uri": "",
         "customData": "",
         "mustOwnBadges": [],
@@ -223,8 +166,7 @@
           "root": "a1546be0a44f78449ceec1b51cff344d2bff0ec9c22db82ef33321a8fa692cf8",
           "expectedProofLength": "7",
           "useCreatorAddressAsLeaf": true,
-          "useLeafIndexForTransferOrder": false,
-          "maxOneUsePerLeaf": false,
+          "maxUsesPerLeaf": "0",
           "uri": "ipfs://QmSCGwqBofFt69iGzKERw6z27Eszchd39AoPNLLGB18exE",
           "customData": ""
         },
@@ -232,8 +174,8 @@
         "requireFromEqualsInitiatedBy": false,
         "requireToDoesNotEqualInitiatedBy": false,
         "requireFromDoesNotEqualInitiatedBy": false,
-        "overridesToApprovedIncomingTransfers": false,
-        "overridesFromApprovedOutgoingTransfers": true
+        "overridesToIncomingApprovals": false,
+        "overridesFromOutgoingApprovals": true
       }
     },
     {
@@ -289,43 +231,8 @@
         }
       ],
       "approvalId": "sgdfgsd",
-      "approvalTrackerId": "asfdasfdgds",
-      "challengeTrackerId": "asdfasdffsdsafd",
-      "allowedCombinations": [
-        {
-          "isApproved": true,
-          "toMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "fromMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "initiatedByMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "badgeIdsOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "ownershipTimesOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "transferTimesOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          }
-        }
-      ]
+      "amountTrackerId": "asfdasfdgds",
+      "challengeTrackerId": "asdfasdffsdsafd"
     }
   ],
   "updateStandardsTimeline": true,

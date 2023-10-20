@@ -1,11 +1,15 @@
 {
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
-  "defaultApprovedIncomingTransfers": [],
-  "defaultApprovedOutgoingTransfers": [],
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultIncomingApprovals": [],
+  "defaultOutgoingApprovals": [],
   "defaultUserPermissions": {
-    "canUpdateApprovedIncomingTransfers": [],
-    "canUpdateApprovedOutgoingTransfers": []
+    "canUpdateIncomingApprovals": [],
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
   },
   "badgesToCreate": [
     {
@@ -30,93 +34,46 @@
     "canArchiveCollection": [],
     "canCreateMoreBadges": [
       {
-        "defaultValues": {
-          "badgeIds": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "ownershipTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "permittedTimes": [],
-          "forbiddenTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ]
-        },
-        "combinations": [
+        "badgeIds": [
           {
-            "badgeIdsOptions": {
-              "invertDefault": false,
-              "allValues": false,
-              "noValues": false
-            },
-            "ownershipTimesOptions": {
-              "invertDefault": false,
-              "allValues": false,
-              "noValues": false
-            },
-            "permittedTimesOptions": {
-              "invertDefault": false,
-              "allValues": false,
-              "noValues": false
-            },
-            "forbiddenTimesOptions": {
-              "invertDefault": false,
-              "allValues": false,
-              "noValues": false
-            }
+            "start": "1",
+            "end": "18446744073709551615"
+          }
+        ],
+        "ownershipTimes": [
+          {
+            "start": "1",
+            "end": "18446744073709551615"
+          }
+        ],
+        "permittedTimes": [],
+        "forbiddenTimes": [
+          {
+            "start": "1",
+            "end": "18446744073709551615"
           }
         ]
       }
     ],
     "canDeleteCollection": [],
     "canUpdateBadgeMetadata": [],
-    "canUpdateCollectionApprovedTransfers": [],
+    "canUpdateCollectionApprovals": [],
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
     "canUpdateManager": [
       {
-        "defaultValues": {
-          "timelineTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ],
-          "permittedTimes": [],
-          "forbiddenTimes": [
-            {
-              "start": "1",
-              "end": "18446744073709551615"
-            }
-          ]
-        },
-        "combinations": [
+        "timelineTimes": [
           {
-            "permittedTimesOptions": {
-              "invertDefault": false,
-              "allValues": false,
-              "noValues": false
-            },
-            "forbiddenTimesOptions": {
-              "invertDefault": false,
-              "allValues": false,
-              "noValues": false
-            },
-            "timelineTimesOptions": {
-              "invertDefault": false,
-              "allValues": false,
-              "noValues": false
-            }
+            "start": "1",
+            "end": "18446744073709551615"
+          }
+        ],
+        "permittedTimes": [],
+        "forbiddenTimes": [
+          {
+            "start": "1",
+            "end": "18446744073709551615"
           }
         ]
       }
@@ -181,8 +138,8 @@
   ],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateCollectionApprovedTransfers": false,
-  "collectionApprovedTransfers": [],
+  "updateCollectionApprovals": false,
+  "collectionApprovals": [],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
   "updateContractAddressTimeline": true,

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ErrorResponse } from 'bitbadgesjs-utils'
+import { ErrorResponse, OffChainBalancesMap } from 'bitbadgesjs-utils'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import { Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
@@ -27,7 +27,7 @@ import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
-import { addBalancesToIpfsHandler, addMerkleChallengeToIpfsHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
+import { addBalancesToOffChainStorageHandler, addApprovalDetailsToOffChainStorageHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
 import { getRefreshStatus, refreshMetadata } from './routes/refresh'
@@ -35,6 +35,7 @@ import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteRev
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
+import { AIRDROP_DB } from './db/db'
 
 export const OFFLINE_MODE = false;
 export const TIME_MODE = false;
@@ -186,7 +187,7 @@ app.use((req, res, next) => {
   if (!TIME_MODE) {
     console.log();
     console.log(req.method, req.url);
-    // console.log(JSON.stringify(req.body, null, 2));
+    console.log(JSON.stringify(req.body, null, 2));
   }
   next();
 });
@@ -233,8 +234,8 @@ app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, a
 
 //IPFS
 app.post('/api/v0/addMetadataToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addMetadataToIpfsHandler); //
-app.post('/api/v0/addMerkleChallengeToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addMerkleChallengeToIpfsHandler); //
-app.post('/api/v0/addBalancesToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addBalancesToIpfsHandler); //
+app.post('/api/v0/addApprovalDetailsToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addApprovalDetailsToOffChainStorageHandler); //
+app.post('/api/v0/addBalancesToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addBalancesToOffChainStorageHandler); //
 
 //Blockin Auth
 app.post('/api/v0/auth/getChallenge', getChallenge);
@@ -265,6 +266,25 @@ app.post('/api/v0/approvals', getApprovals);
 
 //Merkle Challenge Tracker
 app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
+
+app.get('/api/v0/airdrop/balances', async (req, res) => {
+  const allAirdropped = await AIRDROP_DB.list();
+  const airdropped = allAirdropped.rows.map(row => row.id);
+  const balancesMap: OffChainBalancesMap<bigint> = {};
+  for (const address of airdropped) {
+    balancesMap[address] = [{
+      amount: 1n,
+      badgeIds: [{
+        start: 1n, end: 1n,
+      }],
+      ownershipTimes: [{
+        start: 1n, end: 18446744073709551615n,
+      }],
+    }
+    ];
+  }
+  return res.send(balancesMap);
+});
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

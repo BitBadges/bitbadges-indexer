@@ -14,6 +14,7 @@ export async function deleteDatabases() {
   await nano.db.destroy('approvals-trackers').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('merkle-challenges').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('msgs').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('off-chain-urls').catch((e) => { if (e.statusCode !== 404) throw e });
 
   //Can be, but may have off-chain features
 
@@ -89,6 +90,7 @@ export async function createDatabases() {
   await nano.db.create('claim-alerts', { partitioned: true });
   await nano.db.create('eth-tx-count');
   await nano.db.create('msgs');
+  await nano.db.create('off-chain-urls');
 
 
   //_utils, _replicator, _global_changes, _metadata

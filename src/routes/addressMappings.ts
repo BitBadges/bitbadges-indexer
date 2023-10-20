@@ -1,4 +1,5 @@
-import { DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
@@ -65,7 +66,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
     }
 
     const status = await getStatus();
-    const docs = [];
+    const docs: AddressMappingDoc<JSPrimitiveNumberType>[] = [];
     for (const mapping of mappings) {
       const existingDoc = await ADDRESS_MAPPINGS_DB.get(mapping.mappingId).catch(catch404);
       if (existingDoc) {
@@ -76,15 +77,24 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
         docs.push({
           ...existingDoc,
           ...mapping,
-          lastUpdated: Date.now(),
+          updateHistory: [...existingDoc.updateHistory, {
+            block: status.block.height,
+            blockTimestamp: status.block.timestamp,
+            txHash: '',
+          }],
+          lastUpdated: status.block.timestamp,
         })
       } else {
         docs.push({
           ...mapping,
           createdBy: cosmosAddress,
-          createdBlock: status.block.height,
-          createdTimestamp: status.block.timestamp,
+          updateHistory: [{
+            block: status.block.height,
+            blockTimestamp: status.block.timestamp,
+            txHash: '',
+          }],
           _id: mapping.mappingId,
+          createdBlock: status.block.height,
           lastUpdated: status.block.timestamp,
         });
       }
@@ -115,7 +125,7 @@ export const getAddressMappings = async (req: Request, res: Response<GetAddressM
       throw new Error("You can only fetch up to 100 address mappings at a time.");
     }
 
-    const docs = await getAddressMappingsFromDB(mappingIds.map(x => { return { mappingId: x } }), true, reqBody.managerAddress);
+    const docs = await getAddressMappingsFromDB(mappingIds.map(x => { return { mappingId: x } }), true);
 
     return res.status(200).send({ addressMappings: docs });
   } catch (e) {

@@ -2,11 +2,15 @@
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
   "balancesType": "Standard",
-  "defaultApprovedOutgoingTransfers": [],
-  "defaultApprovedIncomingTransfers": [],
+  "defaultOutgoingApprovals": [],
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultIncomingApprovals": [],
   "defaultUserPermissions": {
-    "canUpdateApprovedOutgoingTransfers": [],
-    "canUpdateApprovedIncomingTransfers": []
+    "canUpdateIncomingApprovals": [],
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
   },
   "badgesToCreate": [
     {
@@ -37,7 +41,7 @@
     "canUpdateCollectionMetadata": [],
     "canCreateMoreBadges": [],
     "canUpdateBadgeMetadata": [],
-    "canUpdateCollectionApprovedTransfers": []
+    "canUpdateCollectionApprovals": []
   },
   "updateManagerTimeline": false,
   "managerTimeline": [],
@@ -183,8 +187,8 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateCollectionApprovedTransfers": true,
-  "collectionApprovedTransfers": [],
+  "updateCollectionApprovals": true,
+  "collectionApprovals": [],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
   "updateContractAddressTimeline": true,

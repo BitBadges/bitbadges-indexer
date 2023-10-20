@@ -59,14 +59,15 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const cosmosAddresses = usernameRes.docs.map((doc) => doc._id);
 
     const selectorCriteria: any[] = [
-      { "address": { "$regex": `(?i)${searchValue}` } },
+      { "ethAddress": { "$regex": `(?i)${searchValue}` } },
+      { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
       { "cosmosAddress": { "$in": cosmosAddresses } },
     ];
 
 
 
     if (resolvedEnsAddress) {
-      selectorCriteria.push({ "address": { "$regex": `(?i)${resolvedEnsAddress}` } });
+      selectorCriteria.push({ "ethAddress": { "$regex": `(?i)${resolvedEnsAddress}` } });
     }
 
     const accountQuery = {
@@ -96,11 +97,11 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [...accountsResponseDocs.map(removeCouchDBDetails)];
     if (isAddressValid(searchValue)
-      && !accountsResponseDocs.find((account) => account.address === searchValue || account.cosmosAddress === searchValue)) {
+      && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue)) {
       if (searchValue === 'Mint') allAccounts.push(convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify));
       else allAccounts.push({
         _id: convertToCosmosAddress(searchValue),
-        address: searchValue,
+        ethAddress: searchValue,
         cosmosAddress: convertToCosmosAddress(searchValue),
         chain: getChainForAddress(searchValue),
         publicKey: '',
@@ -109,10 +110,10 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     if (resolvedEnsAddress
-      && !accountsResponseDocs.find((account) => account.address === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress)) {
+      && !accountsResponseDocs.find((account) => account.ethAddress === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress)) {
       allAccounts.push({
         _id: convertToCosmosAddress(resolvedEnsAddress),
-        address: resolvedEnsAddress,
+        ethAddress: resolvedEnsAddress,
         cosmosAddress: convertToCosmosAddress(resolvedEnsAddress),
         chain: getChainForAddress(resolvedEnsAddress),
         publicKey: '',
@@ -120,7 +121,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       });
     }
 
-    allAccounts.sort((a, b) => a.address.localeCompare(b.address));
+    allAccounts.sort((a, b) => a.ethAddress.localeCompare(b.ethAddress));
 
     let uris = metadataResponseDocs.map((doc) => doc._id);
 
@@ -237,7 +238,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
             const existingIdx = badges.findIndex((x) => x.collection.collectionId === collection.collectionId);
             if (existingIdx !== -1) {
               badges[existingIdx].badgeIds.push(...badgeMetadata.badgeIds);
-              badges[existingIdx].badgeIds = sortUintRangesAndMergeIfNecessary(badges[existingIdx].badgeIds);
+              badges[existingIdx].badgeIds = sortUintRangesAndMergeIfNecessary(badges[existingIdx].badgeIds, true)
             } else {
               badges.push({
                 collection: collection,

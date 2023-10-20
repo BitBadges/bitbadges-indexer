@@ -1,11 +1,15 @@
 {
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
-  "defaultApprovedIncomingTransfers": [],
-  "defaultApprovedOutgoingTransfers": [],
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultIncomingApprovals": [],
+  "defaultOutgoingApprovals": [],
   "defaultUserPermissions": {
-    "canUpdateApprovedIncomingTransfers": [],
-    "canUpdateApprovedOutgoingTransfers": []
+    "canUpdateIncomingApprovals": [],
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
   },
   "badgesToCreate": [
     {
@@ -31,7 +35,7 @@
     "canCreateMoreBadges": [],
     "canDeleteCollection": [],
     "canUpdateBadgeMetadata": [],
-    "canUpdateCollectionApprovedTransfers": [],
+    "canUpdateCollectionApprovals": [],
     "canUpdateCollectionMetadata": [],
     "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
@@ -83,8 +87,8 @@
   "offChainBalancesMetadataTimeline": [],
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
-  "updateCollectionApprovedTransfers": true,
-  "collectionApprovedTransfers": [
+  "updateCollectionApprovals": true,
+  "collectionApprovals": [
     {
       "fromMappingId": "Mint",
       "fromMapping": {
@@ -133,45 +137,10 @@
           "end": "100"
         }
       ],
-      "allowedCombinations": [
-        {
-          "initiatedByMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "fromMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "toMappingOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "badgeIdsOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "ownershipTimesOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "transferTimesOptions": {
-            "invertDefault": false,
-            "allValues": false,
-            "noValues": false
-          },
-          "isApproved": true
-        }
-      ],
       "approvalId": "test",
-      "approvalTrackerId": "4c9c26ce741510c54aa61c8cf7ed49afdf78e4ff144e5d34a7596b33ab52e9a9",
+      "amountTrackerId": "4c9c26ce741510c54aa61c8cf7ed49afdf78e4ff144e5d34a7596b33ab52e9a9",
       "challengeTrackerId": "e268bcc379d52495268b151064d18514f8ed3680166f29b5df2c78beb3f6eead",
-      "approvalDetails": {
+      "approvalCriteria": {
         "uri": "",
         "customData": "",
         "mustOwnBadges": [],
@@ -223,7 +192,7 @@
           "expectedProofLength": "1",
           "useCreatorAddressAsLeaf": true,
           "useLeafIndexForTransferOrder": false,
-          "maxOneUsePerLeaf": false,
+          "maxUsesPerLeaf": "1",
           "uri": "ipfs://Qmbbe75FaJyTHn7W5q8EaePEZ9M3J5Rj3KGNfApSfJtYyD",
           "customData": ""
         },
@@ -231,8 +200,8 @@
         "requireFromEqualsInitiatedBy": false,
         "requireToDoesNotEqualInitiatedBy": false,
         "requireFromDoesNotEqualInitiatedBy": false,
-        "overridesToApprovedIncomingTransfers": false,
-        "overridesFromApprovedOutgoingTransfers": true
+        "overridesToIncomingApprovals": false,
+        "overridesFromOutgoingApprovals": true
       }
     }
   ],

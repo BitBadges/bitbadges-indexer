@@ -1,7 +1,7 @@
 import { GetBadgeActivityRouteResponse, MerkleChallengeTrackerIdDetails, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { ANNOUNCEMENTS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, MERKLE_CHALLENGES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { ApprovalTrackerIdDetails } from "bitbadgesjs-proto";
+import { AmountTrackerIdDetails } from "bitbadgesjs-proto";
 
 export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse<NumberType>> {
   //Check if badgeId > Number.MAX_SAFE_INTEGER
@@ -184,14 +184,14 @@ export async function executeMerkleChallengeByIdsQuery(collectionId: string, cha
 
 }
 
-export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: ApprovalTrackerIdDetails<bigint>[]) {
+export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: AmountTrackerIdDetails<bigint>[]) {
   if (idsToFetch.length > 100) {
     throw new Error("You can only fetch up to 100 approval trackers at a time.");
   }
 
 
   const docs = await Promise.all(idsToFetch.map(async (idObj) => {
-    const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalTrackerId}-${idObj.trackerType}-${idObj.approvedAddress}`;
+    const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.amountTrackerId}-${idObj.trackerType}-${idObj.approvedAddress}`;
     const res = await APPROVALS_TRACKER_DB.get(docId).catch(catch404);
 
     return res ?? {
@@ -199,7 +199,7 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
       collectionId: Number(collectionId),
       approvalLevel: idObj.approvalLevel,
       approverAddress: idObj.approverAddress,
-      approvalTrackerId: idObj.approvalTrackerId,
+      amountTrackerId: idObj.amountTrackerId,
       trackerType: idObj.trackerType,
       approvedAddress: idObj.approvedAddress,
       numTransfers: 0,

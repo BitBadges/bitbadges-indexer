@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { BALANCES_DB, COLLECTIONS_DB } from "../db/db";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { appendDefaultForIncomingUserApprovedTransfers, appendDefaultForOutgoingUserApprovedTransfers, getAddressMappingsFromDB } from "./utils";
+import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBadgeBalanceByAddressRouteResponse<NumberType>>) => {
   //TODO: Support inherited balances
@@ -19,20 +19,20 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
     const response = await BALANCES_DB.get(docId).catch(catch404);
 
     let addressMappingIdsToFetch = [];
-    for (const incoming of collection.defaultUserApprovedIncomingTransfers) {
+    for (const incoming of collection.defaultUserIncomingApprovals) {
       addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
     }
 
-    for (const outgoing of collection.defaultUserApprovedOutgoingTransfers) {
+    for (const outgoing of collection.defaultUserOutgoingApprovals) {
       addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
 
     }
 
-    for (const incoming of response?.approvedIncomingTransfers ?? []) {
+    for (const incoming of response?.incomingApprovals ?? []) {
       addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
     }
 
-    for (const outgoing of response?.approvedOutgoingTransfers ?? []) {
+    for (const outgoing of response?.outgoingApprovals ?? []) {
       addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
     }
 
@@ -48,8 +48,10 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
         collectionId: req.params.collectionId,
         cosmosAddress: req.params.cosmosAddress,
         balances: [],
-        approvedIncomingTransfers: collection.defaultUserApprovedIncomingTransfers,
-        approvedOutgoingTransfers: collection.defaultUserApprovedOutgoingTransfers,
+        incomingApprovals: collection.defaultUserIncomingApprovals,
+        outgoingApprovals: collection.defaultUserOutgoingApprovals,
+        autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
+        autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
         userPermissions: collection.defaultUserPermissions,
         onChain: collection.balancesType === "Standard",
         updateHistory: [],
@@ -60,12 +62,10 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
     const balanceToReturnConverted: BalanceInfoWithDetails<string> = {
       ...balanceToReturn,
-      approvedIncomingTransfers: [],
-      approvedOutgoingTransfers: [],
+      incomingApprovals: appendDefaultForIncomingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults),
+      outgoingApprovals: appendDefaultForOutgoingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults)
     }
 
-    balanceToReturnConverted.approvedIncomingTransfers = appendDefaultForIncomingUserApprovedTransfers(balanceToReturn.approvedIncomingTransfers, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
-    balanceToReturnConverted.approvedOutgoingTransfers = appendDefaultForOutgoingUserApprovedTransfers(balanceToReturn.approvedOutgoingTransfers, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults);
 
     return res.status(200).send({
       balance: balanceToReturnConverted,

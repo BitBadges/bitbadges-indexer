@@ -1,16 +1,16 @@
 import axios from "axios";
-import { AddressMapping, JSPrimitiveNumberType, MerkleChallenge, convertBalance, deepCopy } from "bitbadgesjs-proto";
+import { AddressMapping, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
 import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityInfoBase, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
 import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
 import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer";
 import { getFromIpfs } from "./ipfs/ipfs";
+import { QUEUE_TIME_MODE } from "./poll";
 import { compareObjects } from "./utils/compare";
 import { catch404 } from "./utils/couchdb-utils";
 import { cleanBalances, cleanMerkleChallenges, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
-import { QUEUE_TIME_MODE } from "./poll";
 
 //1. Upon initial TX (new collection or URIs updating): 
 // 	1. Trigger collection, claims, first X badges, and balances to queue in QUEUE_DB
@@ -168,7 +168,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       _id: uri,
       _rev: fetchDoc ? fetchDoc._rev : undefined,
       //TODO: If dbType == Balances, we should not store the content here. We already stored balances in a separate DB so it makes no sense to doubly store content here. 
-      //      Same with addBalancesToIpfs. However, it gets a little weird bc we don't call handleBalances when we upload to IPFS but we do here.
+      //      Same with addBalancesToOffChainStorage. However, it gets a little weird bc we don't call handleBalances when we upload to IPFS but we do here.
       content: res,
 
       fetchedAt: BigInt(Date.now()),
@@ -179,7 +179,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
   }
 }
 
-const MIN_TIME_BETWEEN_REFRESHES = process.env.MIN_TIME_BETWEEN_REFRESHES ? BigInt(process.env.MIN_TIME_BETWEEN_REFRESHES) : BigInt(1000 * 60 * 60); //1 hour
+const MIN_TIME_BETWEEN_REFRESHES = process.env.MIN_TIME_BETWEEN_REFRESHES ? BigInt(process.env.MIN_TIME_BETWEEN_REFRESHES) : BigInt(1000 * 60 * 5); //5 minutes
 export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, refreshRequestTime: bigint) => {
 
   const _refreshesRes = await REFRESHES_DB.get(collectionId);
@@ -199,14 +199,14 @@ export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, re
 }
 
 
-export const getMerkleChallengeIdForQueueDb = (entropy: string, collectionId: string, claimId: string) => {
-  return entropy + "-claim-" + collectionId.toString() + "-" + claimId.toString()
+export const getApprovalInfoIdForQueueDb = (entropy: string, collectionId: string, claimId: string) => {
+  return entropy + "-approval-" + collectionId.toString() + "-" + claimId.toString()
 }
 
-export const pushMerkleChallengeFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, claim: MerkleChallenge<bigint>, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
+export const pushApprovalInfoFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, uri: string, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _id: deterministicEntropy ? getMerkleChallengeIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), claim.uri.toString()) : undefined,
-    uri: claim.uri,
+    _id: deterministicEntropy ? getApprovalInfoIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), uri.toString()) : undefined,
+    uri: uri,
     collectionId: BigInt(collection.collectionId),
     numRetries: 0n,
     refreshRequestTime: refreshTime,
@@ -379,18 +379,15 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   let balanceMap = balancesMap;
   //We have to update the existing balances with the new balances, if the collection already exists
   //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
-
-
-
-
   const mapKeys = Object.keys(balanceMap).filter(key => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS)
   if (mapKeys.length == 0) {
     throw new Error('No valid addresses found in balances map');
   }
 
-  //Check a single doc first. If undefined, we can assume the rest are undefined
+
+  //Check the total doc first. If undefined, we can assume the rest are undefined (since this collection has never had balances before)
   //Saves us from fetching 10000+ or however many undefined docs if we dont need to
-  const sanityCheckDoc = await BALANCES_DB.head(`${queueObj.collectionId}:${mapKeys[0]}`).catch(catch404);
+  const sanityCheckDoc = await BALANCES_DB.head(`${queueObj.collectionId}:Total`).catch(catch404);
 
   await fetchDocsForCacheIfEmpty(docs, [], [], [
     `${queueObj.collectionId}:Mint`,
@@ -403,6 +400,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   const totalDoc = docs.balances[`${queueObj.collectionId}:Total`];
   if (!totalDoc) throw new Error('Total doc not found');
 
+  // const isContentSameAsLastUpdate = false;
   const isContentSameAsLastUpdate = onlyUpdateFetchedAt || (sanityCheckDoc && mintDoc.uri === queueObj.uri && mintDoc.isPermanent);
   if (isContentSameAsLastUpdate) {
     docs.balances[`${queueObj.collectionId}:Mint`] = {
@@ -418,11 +416,30 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
     }
   } else {
 
-    await fetchDocsForCacheIfEmpty(docs, [], [], sanityCheckDoc ? [
+    const allPreviousDocIds = await BALANCES_DB.partitionedList(`${queueObj.collectionId}`)
+    const allIdsToFetch = new Set([
       ...mapKeys.map((key) => `${queueObj.collectionId}:${key}`),
+      ...allPreviousDocIds.rows.map(x => x.id),
+    ]);
+
+    await fetchDocsForCacheIfEmpty(docs, [], [], sanityCheckDoc ? [
+      ...allIdsToFetch,
     ] : [], [], [], [], []);
 
+
     const docBalancesCopy = deepCopy(docs.balances);
+
+    //Set all balances to empty array
+    for (const key of allIdsToFetch) {
+      console.log(key);
+      let balanceDoc = docs.balances[`${key}`];
+      if (!balanceDoc) continue //For TS, we know it exists
+      balanceDoc = {
+        ...balanceDoc,
+        balances: [],
+      }
+      docs.balances[`${queueObj.collectionId}:${key}`] = balanceDoc;
+    }
 
 
     const totalSupplysDoc = docs.balances[`${queueObj.collectionId}:Total`];
@@ -452,15 +469,18 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
           _id: `${queueObj.collectionId}:${key}`,
           balances: val,
           //Off-Chain Balances so we don't care ab approvals or permissions
-          approvedIncomingTransfers: [],
-          approvedOutgoingTransfers: [],
+          incomingApprovals: [],
+          outgoingApprovals: [],
           userPermissions: {
-            canUpdateApprovedIncomingTransfers: [],
-            canUpdateApprovedOutgoingTransfers: [],
+            canUpdateIncomingApprovals: [],
+            canUpdateOutgoingApprovals: [],
+            canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+            canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
           },
           collectionId: queueObj.collectionId,
           cosmosAddress: key,
-
+          autoApproveSelfInitiatedIncomingTransfers: false,
+          autoApproveSelfInitiatedOutgoingTransfers: false,
           onChain: false,
           updateHistory: [],
         };
@@ -484,12 +504,16 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       _id: `${queueObj.collectionId}:Mint`,
       balances: remainingSupplys.map(x => convertBalance(x, BigIntify)),
       //Off-Chain Balances so we don't care ab approvals or permissions
-      approvedIncomingTransfers: [],
-      approvedOutgoingTransfers: [],
+      incomingApprovals: [],
+      outgoingApprovals: [],
       userPermissions: {
-        canUpdateApprovedIncomingTransfers: [],
-        canUpdateApprovedOutgoingTransfers: [],
+        canUpdateIncomingApprovals: [],
+        canUpdateOutgoingApprovals: [],
+        canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+        canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
       },
+      autoApproveSelfInitiatedIncomingTransfers: false,
+      autoApproveSelfInitiatedOutgoingTransfers: false,
       collectionId: queueObj.collectionId,
       cosmosAddress: "Mint",
       fetchedAt: BigInt(Date.now()),
@@ -511,47 +535,6 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
         if (!val) continue
         if (val.cosmosAddress === 'Mint' || val.cosmosAddress === 'Total') continue;
 
-        // //binary search
-        // let high = docs.activityToAdd.length - 1;
-        // let low = 0;
-        // let mid = 0;
-        // let existingActivity: (TransferActivityInfoBase<bigint> & nano.MaybeIdentifiedDocument) | undefined;
-        // //TODO: This is really not optimized if start is same but balances are not
-        // //      We are kinda banking on how the website has it (i.e. start is same if balances are same or incremented IDs)
-        // while (low <= high) {
-        //   mid = Math.floor((low + high) / 2);
-        //   if (docs.activityToAdd[mid].balances[0].badgeIds[0].start === val.balances[0].badgeIds[0].start) {
-        //     if (compareObjects(docs.activityToAdd[mid].balances[0], val.balances[0])) {
-        //       existingActivity = docs.activityToAdd[mid];
-        //       break;
-        //     } else {
-        //       //There could be multiple with the same start, so we just want to iterate over all them and find if any match
-        //       let end = mid;
-        //       while (docs.activityToAdd[end].balances[0].badgeIds[0].start === val.balances[0].badgeIds[0].start) {
-        //         end++;
-        //       }
-        //       let start = mid;
-        //       while (docs.activityToAdd[start].balances[0].badgeIds[0].start === val.balances[0].badgeIds[0].start) {
-        //         start--;
-        //       }
-        //       for (let i = start; i <= end; i++) {
-        //         if (compareObjects(docs.activityToAdd[i].balances[0], val.balances[0])) {
-        //           existingActivity = docs.activityToAdd[i];
-        //           break;
-        //         }
-        //       }
-        //     }
-        //   } else if (docs.activityToAdd[mid].balances[0].badgeIds[0].start < val.balances[0].badgeIds[0].start) {
-        //     low = mid + 1;
-        //   } else {
-        //     high = mid - 1;
-        //   }
-        // }
-
-
-        // if (existingActivity) {
-        //   existingActivity.to.push(val.cosmosAddress);
-        // } else {
         const newActivity: TransferActivityInfoBase<bigint> & nano.MaybeIdentifiedDocument = {
           _id: `collection-${val.collectionId}:bal_-${val.cosmosAddress}-${mintDoc.fetchedAt}`,
           method: 'Transfer',
@@ -564,7 +547,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
           initiatedBy: '',
           prioritizedApprovals: [],
           onlyCheckPrioritizedApprovals: false,
-          precalculationDetails: {
+          precalculateBalancesFromApproval: {
             approvalId: '',
             approvalLevel: '',
             approverAddress: '',
@@ -572,29 +555,6 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
           block: block,
         }
 
-        // //Get idx to insert
-        // let low = 0;
-        // let high = docs.activityToAdd.length - 1;
-        // let mid = 0;
-        // while (low <= high) {
-        //   mid = Math.floor((low + high) / 2);
-        //   if (docs.activityToAdd[mid].balances[0].badgeIds[0].start === val.balances[0].badgeIds[0].start) {
-        //     break;
-        //   } else if (docs.activityToAdd[mid].balances[0].badgeIds[0].start < val.balances[0].badgeIds[0].start) {
-        //     low = mid + 1;
-        //   } else {
-        //     high = mid - 1;
-        //   }
-        // }
-
-        // if (mid > docs.activityToAdd.length - 1) {
-        //   docs.activityToAdd.push(newActivity);
-        // } else {
-        //   const idx = docs.activityToAdd[mid].balances[0].badgeIds[0].start === val.balances[0].badgeIds[0].start ? mid : mid + 1;
-        //   docs.activityToAdd.splice(idx, 0, newActivity);
-        // }
-
-        // }
         docs.activityToAdd.push(newActivity);
       }
     }

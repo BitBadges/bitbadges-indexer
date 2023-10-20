@@ -1,11 +1,22 @@
 import axios from 'axios';
 import { NumberType } from 'bitbadgesjs-proto';
-import { BadgeMetadataDetails, BigIntify, ChallengeDetails, MerkleChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
+import { BadgeMetadataDetails, BigIntify, ChallengeDetails, ApprovalInfoDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
 import last from 'it-last';
 import { getStatus } from '../db/status';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
-import { FETCHES_DB, insertToDB } from '../db/db';
+import { FETCHES_DB, OFF_CHAIN_URLS_DB, insertToDB } from '../db/db';
 import { ipfsClient } from "../indexer";
+import AWS from 'aws-sdk';
+import crypto from 'crypto';
+import { AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { catch404 } from '../utils/couchdb-utils';
+
+const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
+const s3 = new AWS.S3({
+  endpoint: spacesEndpoint,
+  accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
+  secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY
+});
 
 export const getFromIpfs = async (path: string) => {
   if (!path) return { file: '{}' }
@@ -54,29 +65,59 @@ export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
   return blob
 }
 
-export const addBalancesToIpfs = async (_balances: OffChainBalancesMap<NumberType>) => {
+export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMap<NumberType>, method: 'ipfs' | 'centralized', collectionId: NumberType, req: AuthenticatedRequest<NumberType>, urlPath?: string) => {
   const balances = convertOffChainBalancesMap(_balances, BigIntify);
-  const files = [];
-  files.push({
-    path: '',
-    content: uint8ArrayFromString(JSON.stringify(balances))
-  });
 
-  const status = await getStatus();
-
-  const result = await last(ipfsClient.addAll(files));
-  if (result) {
-    await insertToDB(FETCHES_DB, {
-      _id: `ipfs://${result.cid.toString()}`,
-      fetchedAt: BigInt(Date.now()),
-      fetchedAtBlock: status.block.height,
-      content: balances,
-      db: 'Balances',
-      isPermanent: true
+  if (method === 'ipfs') {
+    const files = [];
+    files.push({
+      path: '',
+      content: uint8ArrayFromString(JSON.stringify(balances))
     });
-    return { cid: result.cid.toString() };
+
+    const status = await getStatus();
+
+    const result = await last(ipfsClient.addAll(files));
+    if (result) {
+      await insertToDB(FETCHES_DB, {
+        _id: `ipfs://${result.cid.toString()}`,
+        fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: status.block.height,
+        content: balances,
+        db: 'Balances',
+        isPermanent: true
+      });
+      return { cid: result.cid.toString() };
+    } else {
+      return undefined;
+    }
   } else {
-    return undefined;
+
+
+    const balances = convertOffChainBalancesMap(_balances, BigIntify);
+    const binaryData = JSON.stringify(balances);
+
+    const randomBytes = crypto.randomBytes(32);
+    const path = BigInt(collectionId) > 0 ? urlPath : randomBytes.toString('hex');
+    if (BigInt(collectionId) > 0 && !urlPath) {
+      throw new Error('Could not resolve urlPath when updating an existing off-chain URL');
+    } else if (BigInt(collectionId) > 0 && urlPath) {
+      const urlDoc = await OFF_CHAIN_URLS_DB.get(urlPath).catch(catch404);
+      if (!urlDoc || BigInt(urlDoc.collectionId) != BigInt(collectionId)) {
+        throw new Error('The existing off-chain URL does not belong to this collection.');
+      }
+    }
+
+    const params = {
+      Body: binaryData,
+      Bucket: 'bitbadges',
+      Key: 'balances/' + path,
+      ACL: 'public-read', // Set the ACL as needed
+      ContentType: 'application/json', // Set the content type to JSON
+    };
+    const res = await s3.upload(params).promise();
+
+    return { uri: res.Location };
   }
 }
 
@@ -188,7 +229,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   return { allResults: results, collectionMetadataResult, badgeMetadataResults };
 }
 
-export const addMerkleChallengeToIpfs = async (name: string, description: string, challengeDetails?: ChallengeDetails<bigint>) => {
+export const addApprovalDetailsToOffChainStorage = async (name: string, description: string, challengeDetails?: ChallengeDetails<bigint>) => {
   const hasPassword = challengeDetails && challengeDetails.password && challengeDetails.password.length > 0;
 
   //Remove preimages and passwords from challengeDetails
@@ -224,7 +265,7 @@ export const addMerkleChallengeToIpfs = async (name: string, description: string
       description,
       hasPassword,
       challengeDetails: convertedChallengeDetails,
-    } as MerkleChallengeDetails<bigint>,
+    } as ApprovalInfoDetails<bigint>,
     db: 'MerkleChallenge',
     isPermanent: true
   });

@@ -82,13 +82,13 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
 
     let addressMappingIdsToFetch = [];
     for (const balanceDoc of ownersRes.docs) {
-      for (const incomingTransfer of balanceDoc.approvedIncomingTransfers) {
+      for (const incomingTransfer of balanceDoc.incomingApprovals) {
         addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
         addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
       }
 
 
-      for (const outgoingTransfer of balanceDoc.approvedOutgoingTransfers) {
+      for (const outgoingTransfer of balanceDoc.outgoingApprovals) {
         addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
         addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
 
@@ -104,14 +104,14 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       owners: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails).map((balance) => {
         return {
           ...balance,
-          approvedIncomingTransfers: balance.approvedIncomingTransfers.map(y => {
+          incomingApprovals: balance.incomingApprovals.map(y => {
             return {
               ...y,
               fromMapping: addressMappings.find((mapping) => mapping.mappingId === y.fromMappingId) as AddressMapping,
               initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
             }
           }),
-          approvedOutgoingTransfers: balance.approvedOutgoingTransfers.map(y => {
+          outgoingApprovals: balance.outgoingApprovals.map(y => {
             return {
               ...y,
               toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,

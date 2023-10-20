@@ -7,15 +7,15 @@ import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-
 export const getApprovals = async (req: Request, res: Response<GetApprovalsRouteResponse<NumberType>>) => {
   try {
     const reqBody = req.body as GetApprovalsRouteRequestBody;
-    let approvalTrackerIds = reqBody.approvalTrackerIds;
-    if (approvalTrackerIds.length > 100) {
+    let amountTrackerIds = reqBody.amountTrackerIds;
+    if (amountTrackerIds.length > 100) {
       throw new Error("You can only fetch up to 100 approval trackers at a time.");
     }
 
     const docIds = [];
 
-    for (const approvalTrackerId of approvalTrackerIds) {
-      const docId = `${approvalTrackerId.collectionId}:${approvalTrackerId.approvalLevel}-${approvalTrackerId.approverAddress}-${approvalTrackerId.approvalTrackerId}-${approvalTrackerId.trackerType}-${approvalTrackerId.approvedAddress}`;
+    for (const amountTrackerId of amountTrackerIds) {
+      const docId = `${amountTrackerId.collectionId}:${amountTrackerId.approvalLevel}-${amountTrackerId.approverAddress}-${amountTrackerId.amountTrackerId}-${amountTrackerId.trackerType}-${amountTrackerId.approvedAddress}`;
       docIds.push(docId);
     }
 

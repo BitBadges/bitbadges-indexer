@@ -29,9 +29,13 @@ export interface MsgDoc {
   creator?: string;
 }
 
+export interface OffChainUrlDoc {
+  collectionId: number;
+}
 
-export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc;
+export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc;
 
+export const OFF_CHAIN_URLS_DB = nano.db.use<OffChainUrlDoc>('off-chain-urls');
 export const API_KEYS_DB = nano.db.use<ApiKeyDoc>('api-keys');
 export const TRANSFER_ACTIVITY_DB = nano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
 export const PROFILES_DB = nano.db.use<ProfileDoc<JSPrimitiveNumberType>>('profiles');
@@ -114,6 +118,8 @@ export async function convertDocsToStoreInDb(db: Nano.DocumentScope<BitBadgesDoc
       convertedDoc = doc as EthTxCountDoc;
     } else if (db.config.db === MSGS_DB.config.db) {
       convertedDoc = doc as MsgDoc;
+    } else if (db.config.db === OFF_CHAIN_URLS_DB.config.db) {
+      convertedDoc = doc as OffChainUrlDoc;
     }
 
     convertedDocs.push(convertedDoc as BitBadgesDocumentBase<JSPrimitiveNumberType> & Nano.Document);

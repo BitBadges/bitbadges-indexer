@@ -5,7 +5,7 @@ import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import { pushAddressMappingFetchToQueue } from "../queue"
 
-export const handleMsgCreateAddressMappings = async (msg: MsgCreateAddressMappings, status: StatusDoc<bigint>, docs: DocsCache): Promise<void> => {
+export const handleMsgCreateAddressMappings = async (msg: MsgCreateAddressMappings, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], []); //Note we don't fetch mapping here because if tx was successful, it is a new mapping with unique ID
   await handleNewAccountByAddress(msg.creator, docs);
 
@@ -21,10 +21,14 @@ export const handleMsgCreateAddressMappings = async (msg: MsgCreateAddressMappin
       _id: `${addressMapping.mappingId}`,
       _rev: undefined,
       ...addressMapping,
-      createdBy: msg.creator,
       createdBlock: status.block.height,
-      createdTimestamp: status.block.timestamp,
       lastUpdated: status.block.timestamp,
+      createdBy: msg.creator,
+      updateHistory: [{
+        block: status.block.height,
+        blockTimestamp: status.block.timestamp,
+        txHash: txHash,
+      }],
     };
   }
 }

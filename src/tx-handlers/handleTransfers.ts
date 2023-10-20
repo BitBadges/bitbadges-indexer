@@ -20,7 +20,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
   for (let idx = 0; idx < transfers.length; idx++) {
     const transfer = transfers[idx];
 
-    if (transfer.precalculationDetails && !fromEvent && transfer.precalculationDetails.approvalId) {
+    if (transfer.precalculateBalancesFromApproval && !fromEvent && transfer.precalculateBalancesFromApproval.approvalId) {
       continue //We process these with the end block events
     }
 
@@ -30,8 +30,8 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       let currBalance: BalanceDoc<bigint> = balanceDoc ? balanceDoc :
         {
           ...getBlankBalance(true, collection),
-          approvedOutgoingTransfers: collection.defaultUserApprovedOutgoingTransfers,
-          approvedIncomingTransfers: collection.defaultUserApprovedIncomingTransfers,
+          outgoingApprovals: collection.defaultUserOutgoingApprovals,
+          incomingApprovals: collection.defaultUserIncomingApprovals,
           cosmosAddress: address,
           collectionId: collection.collectionId,
           onChain: collection.balancesType === 'Standard',
@@ -53,8 +53,8 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     let fromAddressBalanceDoc: BalanceDoc<bigint> = fromBalanceDoc ? fromBalanceDoc :
       {
         ...getBlankBalance(true, collection),
-        approvedOutgoingTransfers: collection.defaultUserApprovedOutgoingTransfers,
-        approvedIncomingTransfers: collection.defaultUserApprovedIncomingTransfers,
+        outgoingApprovals: collection.defaultUserOutgoingApprovals,
+        incomingApprovals: collection.defaultUserIncomingApprovals,
         cosmosAddress: transfer.from,
         collectionId: collection.collectionId,
         onChain: collection.balancesType === 'Standard',
@@ -81,7 +81,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       collectionId: collection.collectionId,
       timestamp: status.block.timestamp,
       memo: transfer.memo,
-      precalculationDetails: transfer.precalculationDetails,
+      precalculateBalancesFromApproval: transfer.precalculateBalancesFromApproval,
       prioritizedApprovals: transfer.prioritizedApprovals,
       onlyCheckPrioritizedApprovals: transfer.onlyCheckPrioritizedApprovals,
       initiatedBy: creator,

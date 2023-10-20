@@ -1,9 +1,9 @@
-import { AddBalancesToIpfsRouteRequestBody, AddBalancesToIpfsRouteResponse, AddMerkleChallengeToIpfsRouteRequestBody, AddMerkleChallengeToIpfsRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
+import { AddBalancesToOffChainStorageRouteRequestBody, AddBalancesToOffChainStorageRouteResponse, AddApprovalDetailsToOffChainStorageRouteRequestBody, AddApprovalDetailsToOffChainStorageRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
-import { addBalancesToIpfs, addMerkleChallengeToIpfs, addMetadataToIpfs } from "../ipfs/ipfs";
+import { AuthenticatedRequest, checkIfManager } from "../blockin/blockin_handlers";
+import { COLLECTIONS_DB, IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
+import { addBalancesToOffChainStorage, addApprovalDetailsToOffChainStorage, addMetadataToIpfs } from "../ipfs/ipfs";
 import { cleanBalances } from "../utils/dataCleaners";
 import CryptoJS from "crypto-js";
 import { catch404 } from "../utils/couchdb-utils";
@@ -29,13 +29,19 @@ export const updateIpfsTotals = async (address: string, size: number, req: Authe
   req.session.save();
 }
 
-export const addBalancesToIpfsHandler = async (expressReq: Request, res: Response<AddBalancesToIpfsRouteResponse<NumberType>>) => {
+export const addBalancesToOffChainStorageHandler = async (expressReq: Request, res: Response<AddBalancesToOffChainStorageRouteResponse<NumberType>>) => {
   const req = expressReq as AuthenticatedRequest<NumberType>;
-  const reqBody = req.body as AddBalancesToIpfsRouteRequestBody;
+  const reqBody = req.body as AddBalancesToOffChainStorageRouteRequestBody;
 
 
 
   try {
+    //Do I really need to check manager? Only amnager can update the on-chain URL
+    if (BigInt(reqBody.collectionId) > 0) {
+      const managerCheck = checkIfManager(req, reqBody.collectionId);
+      if (!managerCheck) throw new Error('You are not the manager of this collection');
+    }
+
     let result = undefined;
     let size = 0;
     if (reqBody.balances) {
@@ -46,8 +52,19 @@ export const addBalancesToIpfsHandler = async (expressReq: Request, res: Respons
         return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
       }
 
+      let urlPath = undefined;
+
+      //I think this is safe assuming we only allow updates to the Digital Ocean spaces from this function
+      if (BigInt(reqBody.collectionId) > 0) {
+        //Get existing urlPath
+        const collectionDoc = await COLLECTIONS_DB.get(reqBody.collectionId.toString());
+        if (collectionDoc.offChainBalancesMetadataTimeline.length > 0) {
+          urlPath = collectionDoc.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.split('/').pop();
+        }
+      }
+
       const balances = cleanBalances(reqBody.balances);
-      result = await addBalancesToIpfs(balances);
+      result = await addBalancesToOffChainStorage(balances, reqBody.method, reqBody.collectionId, req, urlPath);
     }
 
     if (!result) {
@@ -56,7 +73,7 @@ export const addBalancesToIpfsHandler = async (expressReq: Request, res: Respons
 
     await updateIpfsTotals(req.session.cosmosAddress, size, req);
 
-    return res.status(200).send({ result });
+    return res.status(200).send({ uri: result.uri, result: result });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -95,9 +112,9 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
   }
 }
 
-export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: Response<AddMerkleChallengeToIpfsRouteResponse<NumberType>>) => {
+export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Request, res: Response<AddApprovalDetailsToOffChainStorageRouteResponse<NumberType>>) => {
   const req = expressReq as AuthenticatedRequest<NumberType>;
-  const reqBody = req.body as AddMerkleChallengeToIpfsRouteRequestBody;
+  const reqBody = req.body as AddApprovalDetailsToOffChainStorageRouteRequestBody;
 
   try {
     const challengeDetails = reqBody.challengeDetails ? convertChallengeDetails(reqBody.challengeDetails, BigIntify) : undefined;
@@ -107,7 +124,9 @@ export const addMerkleChallengeToIpfsHandler = async (expressReq: Request, res: 
       return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
     }
 
-    const result = await addMerkleChallengeToIpfs(reqBody.name, reqBody.description, challengeDetails);
+    
+
+    const result = await addApprovalDetailsToOffChainStorage(reqBody.name, reqBody.description, challengeDetails);
     if (!result) {
       throw new Error('No addAll result received');
     }
