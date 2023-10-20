@@ -1,7 +1,7 @@
 import { MsgUpdateCollection } from "bitbadgesjs-proto"
 import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
-import { handleMerkleChallenges } from "./approvalInfo"
+import { handleApprovals } from "./approvalInfo"
 
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
@@ -231,7 +231,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
     collection.isArchivedTimeline = msg.isArchivedTimeline ?? [];
   }
 
-  await handleMerkleChallenges(docs, collection, status);
+  await handleApprovals(docs, collection, status);
 
 
 

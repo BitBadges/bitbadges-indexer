@@ -233,10 +233,10 @@ export const addApprovalDetailsToOffChainStorage = async (name: string, descript
   const hasPassword = challengeDetails && challengeDetails.password && challengeDetails.password.length > 0;
 
   //Remove preimages and passwords from challengeDetails
-  let convertedChallengeDetails: ChallengeDetails<bigint> | undefined = undefined;
+  let convertedDetails: ChallengeDetails<bigint> | undefined = undefined;
 
   if (challengeDetails) {
-    convertedChallengeDetails = {
+    convertedDetails = {
       ...challengeDetails,
       password: undefined,
       leavesDetails: {
@@ -249,7 +249,7 @@ export const addApprovalDetailsToOffChainStorage = async (name: string, descript
   const files = [];
   files.push({
     path: '',
-    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: convertedChallengeDetails }))
+    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: convertedDetails }))
   });
 
   const result = await last(ipfsClient.addAll(files));
@@ -264,9 +264,9 @@ export const addApprovalDetailsToOffChainStorage = async (name: string, descript
       name,
       description,
       hasPassword,
-      challengeDetails: convertedChallengeDetails,
+      challengeDetails: convertedDetails,
     } as ApprovalInfoDetails<bigint>,
-    db: 'MerkleChallenge',
+    db: 'ApprovalInfo',
     isPermanent: true
   });
 

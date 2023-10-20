@@ -5,7 +5,7 @@ import { getApprovalInfoIdForQueueDb, pushApprovalInfoFetchToQueue } from "../qu
 import { getLoadBalancerId } from "../utils/loadBalancer";
 
 
-export const handleMerkleChallenges = async (docs: DocsCache, collectionDoc: CollectionDoc<bigint>, status: StatusDoc<bigint>) => {
+export const handleApprovals = async (docs: DocsCache, collectionDoc: CollectionDoc<bigint>, status: StatusDoc<bigint>) => {
 
   try {
     //Handle claim objects
@@ -76,6 +76,6 @@ export const handleMerkleChallenges = async (docs: DocsCache, collectionDoc: Col
       }
     }
   } catch (e) {
-    throw `Error in handleMerkleChallenges(): ${e}`
+    throw `Error in handleApprovals(): ${e}`
   }
 }

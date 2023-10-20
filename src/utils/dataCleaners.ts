@@ -15,7 +15,7 @@ export function cleanMetadata(res: any): any {
   }
 }
 
-export function cleanMerkleChallenges(res: any): any {
+export function cleanApprovalInfo(res: any): any {
   return {
     name: res.name && typeof res.name === 'string' ? res.name : '',
     description: res.description && typeof res.description === 'string' ? res.description : '',

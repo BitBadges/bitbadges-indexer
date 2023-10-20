@@ -43,7 +43,7 @@
     "bitbadgesjs-address-converter": "^0.0.3",
     "bitbadgesjs-proto": "^0.1.122",
     "bitbadgesjs-provider": "^0.0.3",
-    "bitbadgesjs-utils": "^1.1.264",
+    "bitbadgesjs-utils": "^1.1.265",
     "blockin": "^1.2.41",
     "blockin-algo-driver": "^1.0.2",
     "blockin-cosmos-driver": "^1.0.3",

@@ -10,17 +10,21 @@ export async function getAddressMappingsFromDB(mappingIds: {
   let addressMappingIdsToFetch = [...new Set(mappingIds)];
   let addressMappings: AddressMappingWithMetadata<bigint>[] = [];
   for (const mappingIdObj of addressMappingIdsToFetch) {
-    const mapping = getReservedAddressMapping(mappingIdObj.mappingId);
-    if (mapping) {
-      addressMappings.push({
-        ...mapping,
-        _id: '',
-        updateHistory: [],
-        createdBy: '',
-        lastUpdated: 0n,
-        createdBlock: 0n,
-      });
-      addressMappingIdsToFetch = addressMappingIdsToFetch.filter((x) => x.mappingId !== mappingIdObj.mappingId);
+    try {
+      const mapping = getReservedAddressMapping(mappingIdObj.mappingId);
+      if (mapping) {
+        addressMappings.push({
+          ...mapping,
+          _id: '',
+          updateHistory: [],
+          createdBy: '',
+          lastUpdated: 0n,
+          createdBlock: 0n,
+        });
+        addressMappingIdsToFetch = addressMappingIdsToFetch.filter((x) => x.mappingId !== mappingIdObj.mappingId);
+      }
+    } catch (e) {
+      //If it throws an error, it is a non-reserved ID
     }
   }
 

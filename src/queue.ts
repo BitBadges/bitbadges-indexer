@@ -9,7 +9,7 @@ import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE } from "./poll";
 import { compareObjects } from "./utils/compare";
 import { catch404 } from "./utils/couchdb-utils";
-import { cleanBalances, cleanMerkleChallenges, cleanMetadata } from "./utils/dataCleaners";
+import { cleanBalances, cleanApprovalInfo, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
 
 //1. Upon initial TX (new collection or URIs updating): 
@@ -99,7 +99,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
 export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>, block: bigint) => {
   let fetchDoc: (FetchDoc<bigint> & nano.IdentifiedDocument & nano.MaybeRevisionedDocument) | undefined;
   let needsRefresh = false;
-  let dbType: 'MerkleChallenge' | 'Metadata' | 'Balances' = 'Metadata';
+  let dbType: 'ApprovalInfo' | 'Metadata' | 'Balances' = 'Metadata';
 
 
 
@@ -159,8 +159,8 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
 
       await handleBalances(res, queueObj, block, contentIsSame);
     } else {
-      dbType = 'MerkleChallenge';
-      res = cleanMerkleChallenges(res);
+      dbType = 'ApprovalInfo';
+      res = cleanApprovalInfo(res);
     }
 
     await insertToDB(FETCHES_DB, {
