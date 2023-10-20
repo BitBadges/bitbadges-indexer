@@ -184,11 +184,11 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }))
 app.use(express.json({ limit: '10mb' }))
 
 app.use((req, res, next) => {
-  if (!TIME_MODE) {
-    console.log();
-    console.log(req.method, req.url);
-    console.log(JSON.stringify(req.body, null, 2));
-  }
+  // if (!TIME_MODE) {
+  //   console.log();
+  //   console.log(req.method, req.url);
+  //   console.log(JSON.stringify(req.body, null, 2));
+  // }
   next();
 });
 

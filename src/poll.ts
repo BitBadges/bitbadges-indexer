@@ -267,7 +267,6 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     }
   }
 
-  console.log(event.attributes);
   if (getAttributeValueByKey(event.attributes, "transfer")) {
     const creator = getAttributeValueByKey(event.attributes, "creator") as string;
 
@@ -277,7 +276,6 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     if (!collectionId || !transfer) throw new Error(`Missing collectionId or transfer in event: ${JSON.stringify(event)}`)
 
     await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], []);
-    console.log(transfer);
     await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, creator, txHash, true);
   }
 }

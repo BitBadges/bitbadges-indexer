@@ -431,7 +431,6 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
 
     //Set all balances to empty array
     for (const key of allIdsToFetch) {
-      console.log(key);
       let balanceDoc = docs.balances[`${key}`];
       if (!balanceDoc) continue //For TS, we know it exists
       balanceDoc = {
@@ -488,7 +487,6 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
         //Will throw if underflow and the URI speecifies more badges than what is denoted on the blockchain
         //This is to enforce that the balancesUri is not lying or overallocating balances 
         for (const balance of val) {
-          // console.log(JSON.stringify(remainingSupplys));
           remainingSupplys = subtractBalances([{
             badgeIds: balance.badgeIds,
             amount: balance.amount,
