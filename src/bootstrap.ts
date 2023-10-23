@@ -255,6 +255,7 @@ export async function bootstrapCollections() {
   let sequence = 1;
   // console.log(jsonObjects.length);
   // let manualTransfersId;
+
   for (let i = 0; i < jsonObjects.length; i++) {
     console.log(jsonFileNames[i]);
     const chain = { ...BETANET_CHAIN_DETAILS, chain: SupportedChain.ETH }
@@ -291,6 +292,8 @@ export async function bootstrapCollections() {
       }
     );
 
+    // console.log(JSON.stringify(jsonObjects[i].collectionApprovals))
+    // console.log(JSON.stringify(txn.eipToSign.message, null, 2));
 
     let sig = await ethWallet._signTypedData(
       txn.eipToSign.domain as any,

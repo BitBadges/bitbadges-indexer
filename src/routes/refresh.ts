@@ -69,7 +69,7 @@ export const refreshCollection = async (collectionId: string) => {
   let refreshTime = BigInt(Date.now());
 
   const invalidRefresh = await updateRefreshDoc(docs, collection.collectionId.toString(), refreshTime);
-  
+
   if (!invalidRefresh) {
     await pushCollectionFetchToQueue(docs, collection, refreshTime);
     if (collection.balancesType === 'Off-Chain') {
@@ -78,9 +78,9 @@ export const refreshCollection = async (collectionId: string) => {
 
     await flushCachedDocs(docs);
 
-    return true;
+    return 0;
   } else {
-    return false;
+    return invalidRefresh;
   }
 }
 
@@ -91,19 +91,17 @@ export const refreshMetadata = async (req: Request, res: Response<RefreshMetadat
    * Requires the mutex to be controlled to update the metadata queue and prevent data races.
    */
   try {
-    const refreshed = await refreshCollection(req.params.collectionId);
+    const cooldownSeconds = await refreshCollection(req.params.collectionId);
 
-    if (refreshed) {
-
+    if (cooldownSeconds) {
+      throw new Error(`Refresh already in progress or recently executed for collection ${req.params.collectionId}. Cooldown timer has ${cooldownSeconds / BigInt(1000)} seconds left.`);
     } else {
       return res.status(200).send({
-        successMessage: `Refresh already in progress or recently executed for collection ${req.params.collectionId}. Limit one per 60 minutes.`
+        successMessage: `Successfully refreshed metadata for collection ${req.params.collectionId}`
       });
     }
 
-    return res.status(200).send({
-      successMessage: `Successfully refreshed metadata for collection ${req.params.collectionId}`
-    });
+
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),

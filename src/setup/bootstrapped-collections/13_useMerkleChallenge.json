@@ -1,0 +1,261 @@
+{
+  "creator": "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp",
+  "collectionId": "0",
+  "defaultIncomingApprovals": [],
+  "defaultOutgoingApprovals": [],
+  "defaultUserPermissions": {
+      "canUpdateIncomingApprovals": [],
+      "canUpdateOutgoingApprovals": [],
+      "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+      "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
+  },
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "badgesToCreate": [
+      {
+          "amount": "1",
+          "badgeIds": [
+              {
+                  "start": "1",
+                  "end": "10"
+              }
+          ],
+          "ownershipTimes": [
+              {
+                  "start": "1",
+                  "end": "18446744073709551615"
+              }
+          ]
+      }
+  ],
+  "updateCollectionPermissions": true,
+  "balancesType": "Standard",
+  "collectionPermissions": {
+      "canArchiveCollection": [],
+      "canCreateMoreBadges": [],
+      "canDeleteCollection": [],
+      "canUpdateBadgeMetadata": [],
+      "canUpdateCollectionApprovals": [],
+      "canUpdateCollectionMetadata": [],
+      "canUpdateContractAddress": [],
+      "canUpdateCustomData": [],
+      "canUpdateManager": [],
+      "canUpdateOffChainBalancesMetadata": [],
+      "canUpdateStandards": []
+  },
+  "updateManagerTimeline": true,
+  "managerTimeline": [
+      {
+          "manager": "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp",
+          "timelineTimes": [
+              {
+                  "start": "1",
+                  "end": "18446744073709551615"
+              }
+          ]
+      }
+  ],
+  "updateCollectionMetadataTimeline": true,
+  "collectionMetadataTimeline": [
+      {
+          "timelineTimes": [
+              {
+                  "start": "1",
+                  "end": "18446744073709551615"
+              }
+          ],
+          "collectionMetadata": {
+              "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
+              "customData": ""
+          }
+      }
+  ],
+  "updateBadgeMetadataTimeline": true,
+  "badgeMetadataTimeline": [
+      {
+          "timelineTimes": [
+              {
+                  "start": "1",
+                  "end": "18446744073709551615"
+              }
+          ],
+          "badgeMetadata": [
+              {
+                  "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
+                  "badgeIds": [
+                      {
+                          "start": "1",
+                          "end": "18446744073709551615"
+                      }
+                  ],
+                  "customData": ""
+              }
+          ]
+      }
+  ],
+  "updateOffChainBalancesMetadataTimeline": true,
+  "offChainBalancesMetadataTimeline": [],
+  "updateCustomDataTimeline": true,
+  "customDataTimeline": [],
+  "updateCollectionApprovals": true,
+  "collectionApprovals": [
+      {
+          "fromMappingId": "Mint",
+          "fromMapping": {
+              "mappingId": "Mint",
+              "addresses": [
+                  "Mint"
+              ],
+              "includeAddresses": true,
+              "uri": "",
+              "customData": "",
+              "createdBy": ""
+          },
+          "toMappingId": "AllWithMint",
+          "toMapping": {
+              "mappingId": "AllWithMint",
+              "addresses": [],
+              "includeAddresses": false,
+              "uri": "",
+              "customData": "",
+              "createdBy": ""
+          },
+          "initiatedByMappingId": "AllWithMint",
+          "initiatedByMapping": {
+              "mappingId": "AllWithMint",
+              "addresses": [],
+              "includeAddresses": false,
+              "uri": "",
+              "customData": "",
+              "createdBy": ""
+          },
+          "transferTimes": [
+              {
+                  "start": "1",
+                  "end": "18446744073709551615"
+              }
+          ],
+          "ownershipTimes": [
+              {
+                  "start": "1",
+                  "end": "18446744073709551615"
+              }
+          ],
+          "badgeIds": [
+              {
+                  "start": "1",
+                  "end": "10"
+              }
+          ],
+          "approvalId": "78af619b9f48d411ebe554681c10f8b0ce60163c5e05a03e080abac86bcab5fe",
+          "amountTrackerId": "78af619b9f48d411ebe554681c10f8b0ce60163c5e05a03e080abac86bcab5fe",
+          "challengeTrackerId": "78af619b9f48d411ebe554681c10f8b0ce60163c5e05a03e080abac86bcab5fe",
+          "details": {
+              "challengeDetails": {
+                  "leavesDetails": {
+                      "leaves": [
+                          "d8ab3bae6c106baf38e372a22605912ef6468c75c4a6695d82d811accd75e86b",
+                          "6f3c3fbb23ce79877639db703fb5e5133f71eaa669a63b49f8ca94df5a05f1c9",
+                          "5670ce714fdede37abb1386bf444ab49259ef578a91ad5b729cfe94c517fc627",
+                          "a31d916f9bbc8e4b3b66d51227a37851c23e71c34781ad45b6d133cb37cd430f",
+                          "2b680e76d85905ab37cbc2fb95f360d8e8d4cf9d88c184964c651b74e07a50da",
+                          "a820d4567e09406e49128d18f5aafd5c85955f14f5c99e9138b091a146304ee5",
+                          "9091957646668a2412e5e6bc86fefbed1d92e5e8bc0394537f3b2be91f6c42b3",
+                          "3e1b685c22d36a8eac2ef0254f2edc5280e508c787da12fc9d48623cc7eeb059",
+                          "6cc5b968ee16aeee4f94ffe60c99d97aa2b5196c0babef3bbb3680ee31473a8c",
+                          "e4906361f15dec9a984e071f38288f3a653cab81dcb8b2978919abc424c6bd88"
+                      ],
+                      "isHashed": true,
+                      "preimages": [
+                          "c0dae07f5a14fdecb5dc492a4e06ecdaa67b2e4a6d336bcfe985e5b826e3dc5b",
+                          "0fe3b4b3da5408821346a6e3c273fc4ffe4da52391cf259b7d7f2211a1c43a73",
+                          "e3e2cca0e9ea042b13b7c488b8a9f2540d893396c18a5a93777f4b1964ba3ecb",
+                          "dbd965c315e6260834a62fe2eb4977267009f790eb28e0b3634455f35c335132",
+                          "0637ca46802feec9583cb91fd897b29750053586e42f2c7422c50f812421557d",
+                          "90d34adb819b397b224b49b687e68d2ca09b7d30d7170174d24de964f7346e9d",
+                          "4b24d8dbe2921754cf13146becc039dfc4808170f5865d73d9a048c55787068a",
+                          "22d561d53eeee1c7b66f58fd36cae2bc3437fc9964cd061f4261e401a5e09ce9",
+                          "184a0d660aef718f8d422da1aa4582928b119b26a6494a555900992c3b28a8bf",
+                          "c4791ba4dc3f6bc884803686b97e8319ca5ed4f8b093be0248c4f169b00d48f2"
+                      ]
+                  },
+                  "numLeaves": "10",
+                  "password": "",
+                  "hasPassword": false,
+                  "treeOptions": {
+                      "fillDefaultHash": "0000000000000000000000000000000000000000000000000000000000000000"
+                  }
+              },
+              "name": "afddfasfd",
+              "description": "adfsadfasd"
+          },
+          "approvalCriteria": {
+              "mustOwnBadges": [],
+              "approvalAmounts": {
+                  "overallApprovalAmount": "0",
+                  "perFromAddressApprovalAmount": "0",
+                  "perToAddressApprovalAmount": "0",
+                  "perInitiatedByAddressApprovalAmount": "0"
+              },
+              "maxNumTransfers": {
+                  "overallMaxNumTransfers": "10",
+                  "perFromAddressMaxNumTransfers": "0",
+                  "perToAddressMaxNumTransfers": "0",
+                  "perInitiatedByAddressMaxNumTransfers": "0"
+              },
+              "predeterminedBalances": {
+                  "manualBalances": [],
+                  "incrementedBalances": {
+                      "startBalances": [
+                          {
+                              "amount": "1",
+                              "badgeIds": [
+                                  {
+                                      "start": "1",
+                                      "end": "1"
+                                  }
+                              ],
+                              "ownershipTimes": [
+                                  {
+                                      "start": "1",
+                                      "end": "18446744073709551615"
+                                  }
+                              ]
+                          }
+                      ],
+                      "incrementBadgeIdsBy": "1",
+                      "incrementOwnershipTimesBy": "0"
+                  },
+                  "orderCalculationMethod": {
+                      "useMerkleChallengeLeafIndex": true,
+                      "useOverallNumTransfers": false,
+                      "usePerFromAddressNumTransfers": false,
+                      "usePerInitiatedByAddressNumTransfers": false,
+                      "usePerToAddressNumTransfers": false
+                  }
+              },
+              "merkleChallenge": {
+                  "root": "a543c4f5842f6eff812c35ea47f52b34bef4c77b95d99e2bec59bb9791c66822",
+                  "expectedProofLength": "4",
+                  "uri": "",
+                  "customData": "",
+                  "useCreatorAddressAsLeaf": false,
+                  "maxUsesPerLeaf": "1"
+              },
+              "requireToEqualsInitiatedBy": false,
+              "requireFromEqualsInitiatedBy": false,
+              "requireToDoesNotEqualInitiatedBy": false,
+              "requireFromDoesNotEqualInitiatedBy": false,
+              "overridesToIncomingApprovals": false,
+              "overridesFromOutgoingApprovals": true
+          },
+          "uri": "ipfs://QmQK4tx67PBo5DrmWzd8WkYv4ETBDhTKVtP4hyVMa8dKUz"
+      }
+  ],
+  "updateStandardsTimeline": true,
+  "standardsTimeline": [],
+  "updateContractAddressTimeline": true,
+  "contractAddressTimeline": [],
+  "updateIsArchivedTimeline": true,
+  "isArchivedTimeline": []
+}

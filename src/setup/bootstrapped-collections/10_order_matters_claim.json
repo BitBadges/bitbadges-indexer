@@ -137,12 +137,12 @@
           "end": "100"
         }
       ],
+      "uri": "ipfs://Qmbbe75FaJyTHn7W5q8EaePEZ9M3J5Rj3KGNfApSfJtYyD",
+      "customData": "",
       "approvalId": "test",
       "amountTrackerId": "4c9c26ce741510c54aa61c8cf7ed49afdf78e4ff144e5d34a7596b33ab52e9a9",
       "challengeTrackerId": "e268bcc379d52495268b151064d18514f8ed3680166f29b5df2c78beb3f6eead",
       "approvalCriteria": {
-        "uri": "",
-        "customData": "",
         "mustOwnBadges": [],
         "approvalAmounts": {
           "overallApprovalAmount": "0",
@@ -193,7 +193,7 @@
           "useCreatorAddressAsLeaf": true,
           "useLeafIndexForTransferOrder": false,
           "maxUsesPerLeaf": "1",
-          "uri": "ipfs://Qmbbe75FaJyTHn7W5q8EaePEZ9M3J5Rj3KGNfApSfJtYyD",
+          "uri": "",
           "customData": ""
         },
         "requireToEqualsInitiatedBy": false,

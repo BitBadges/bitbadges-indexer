@@ -41,6 +41,10 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   let alreadyInQueue = false;
   let needsRefresh = false;
   let refreshRequestTime = Date.now();
+
+  //TODO: validate uri
+  
+
   //TODO: Get _conflicts and only take the one with latest time
   //Check if we need to refresh
 
@@ -187,7 +191,7 @@ export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, re
 
   if (refreshesRes.refreshRequestTime + MIN_TIME_BETWEEN_REFRESHES > Date.now()) {
     //If we have refreshed recently, do not spam it
-    return true;
+    return refreshesRes.refreshRequestTime + MIN_TIME_BETWEEN_REFRESHES - BigInt(Date.now());
   }
 
   docs.refreshes[collectionId] = {
@@ -195,7 +199,7 @@ export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, re
     refreshRequestTime,
   };
 
-  return false
+  return 0
 }
 
 

@@ -395,20 +395,26 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
   }
 
-  for (const collectionRes of collectionResponses) {
-    for (const approval of collectionRes.collectionApprovals) {
+  for (let i = 0; i < collectionResponses.length; i++) {
+    const collectionRes = collectionResponses[i];
+    for (let i = 0; i < collectionRes.collectionApprovals.length; i++) {
+      const approval = collectionRes.collectionApprovals[i];
       if (approval.uri) {
         const claimFetch = claimFetches.find((fetch) => fetch.uri === approval.uri);
         if (!claimFetch || !claimFetch.content) continue;
-
+        
+        console.log(claimFetch.content);
         approval.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
-
         if (approval.approvalCriteria?.merkleChallenge?.uri) {
           approval.approvalCriteria.merkleChallenge.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
         }
       }
+      collectionRes.collectionApprovals[i] = approval;
     }
+    collectionResponses[i] = collectionRes;
   }
+
+
 
   return collectionResponses;
 }
@@ -467,6 +473,7 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
 
     const reqBody = req.body as GetCollectionBatchRouteRequestBody;
     const collectionResponses = await executeCollectionsQuery(req, reqBody.collectionsToFetch);
+
     return res.status(200).send({
       collections: collectionResponses
     });

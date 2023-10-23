@@ -132,7 +132,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       const urisToReturn = [uri];
       for (let i = 0; i < split.length; i++) {
         const x = split[i];
-        if (Number.isInteger(Number(x))) {
+        if (x && Number.isInteger(Number(x))) {
           const copy = [...split];
           copy[i] = '{id}';
           urisToReturn.push(copy.join('/'));

@@ -6,12 +6,14 @@ import { OFFLINE_MODE, client } from "../indexer";
 import { catch404 } from "../utils/couchdb-utils";
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../utils/ensResolvers";
 
-const QUERY_TIME_MODE = true;
+const QUERY_TIME_MODE = false;
 
 export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[], accountInfos: AccountInfoBase<JSPrimitiveNumberType>[], fetchName = true): Promise<BitBadgesUserInfo<JSPrimitiveNumberType>[]> => {
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
   }
+
+
 
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
@@ -19,8 +21,10 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
     let isMint = accountInfos[i].cosmosAddress === 'Mint';
     promises.push(isMint || OFFLINE_MODE || !fetchName ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress));
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
-    promises.push(AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).catch(catch404))
-    promises.push(async () => {
+    promises.push(isMint ? undefined : AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).catch(catch404))
+    promises.push(isMint ? async () => {
+      return { address: cosmosAccountInfo.cosmosAddress, chain: SupportedChain.UNKNOWN }
+    } : async () => {
       const address = cosmosAccountInfo.cosmosAddress;
       const profileDoc = profileInfos[i];
 

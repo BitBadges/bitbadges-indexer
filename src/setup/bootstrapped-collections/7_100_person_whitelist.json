@@ -113,10 +113,10 @@
       ],
       "approvalId": "fsdja",
       "amountTrackerId": "asfdafds",
+      "uri": "ipfs://QmSCGwqBofFt69iGzKERw6z27Eszchd39AoPNLLGB18exE",
+      "customData": "",
       "challengeTrackerId": "asdfafsdsafd",
       "approvalCriteria": {
-        "uri": "",
-        "customData": "",
         "mustOwnBadges": [],
         "approvalAmounts": {
           "overallApprovalAmount": "0",
@@ -167,7 +167,7 @@
           "expectedProofLength": "7",
           "useCreatorAddressAsLeaf": true,
           "maxUsesPerLeaf": "0",
-          "uri": "ipfs://QmSCGwqBofFt69iGzKERw6z27Eszchd39AoPNLLGB18exE",
+          "uri": "",
           "customData": ""
         },
         "requireToEqualsInitiatedBy": false,

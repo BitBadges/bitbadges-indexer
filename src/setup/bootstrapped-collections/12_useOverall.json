@@ -1,8 +1,6 @@
 {
-  "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+  "creator": "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp",
   "collectionId": "0",
-  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
-  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
   "defaultIncomingApprovals": [],
   "defaultOutgoingApprovals": [],
   "defaultUserPermissions": {
@@ -11,19 +9,21 @@
     "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
     "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
   },
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
   "badgesToCreate": [
     {
       "amount": "1",
       "badgeIds": [
         {
           "start": "1",
-          "end": "100"
+          "end": "10"
         }
       ],
       "ownershipTimes": [
         {
-          "start": "1692018000000",
-          "end": "1723554000000"
+          "start": "1",
+          "end": "18446744073709551615"
         }
       ]
     }
@@ -44,7 +44,17 @@
     "canUpdateStandards": []
   },
   "updateManagerTimeline": true,
-  "managerTimeline": [],
+  "managerTimeline": [
+    {
+      "manager": "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp",
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
   "updateCollectionMetadataTimeline": true,
   "collectionMetadataTimeline": [
     {
@@ -75,7 +85,7 @@
           "badgeIds": [
             {
               "start": "1",
-              "end": "10000000000000"
+              "end": "18446744073709551615"
             }
           ],
           "customData": ""
@@ -110,9 +120,9 @@
         "customData": "",
         "createdBy": ""
       },
-      "initiatedByMappingId": "AllWithMint",
+      "initiatedByMappingId": "All",
       "initiatedByMapping": {
-        "mappingId": "AllWithMint",
+        "mappingId": "All",
         "addresses": [],
         "includeAddresses": false,
         "uri": "",
@@ -121,8 +131,8 @@
       },
       "transferTimes": [
         {
-          "start": "1691931600000",
-          "end": "1723554000000"
+          "start": "1",
+          "end": "18446744073709551615"
         }
       ],
       "ownershipTimes": [
@@ -134,14 +144,51 @@
       "badgeIds": [
         {
           "start": "1",
-          "end": "100"
+          "end": "10"
         }
       ],
-      "approvalId": "test",
-      "amountTrackerId": "fdklasf",
-      "challengeTrackerId": "fdhhjksafhdj",
-      "uri": "ipfs://QmWtjFHDbKCKNAMoJH3ZAkt6eCY8RSohHpXFMF9yf8vAuN",
-      "customData": "",
+      "approvalId": "115809126230d640ec04c6c31ba29ad948de962767ae86dbef74355280a6b560",
+      "amountTrackerId": "115809126230d640ec04c6c31ba29ad948de962767ae86dbef74355280a6b560",
+      "challengeTrackerId": "115809126230d640ec04c6c31ba29ad948de962767ae86dbef74355280a6b560",
+      "details": {
+        "challengeDetails": {
+          "leavesDetails": {
+            "leaves": [
+              "658d270fe1bea301fe086c79a1de59fbafe4e35249c3f33037eef5dfbabd30ec",
+              "830c746587b1264d1c252c80c1a7a75358f4f531570b1787dcff355f46299f6c",
+              "b2893e373246b0dec62868d171f0cef9895c78f016b81d5e43d3549664e8ba6e",
+              "4752287f37fa5b500f56a662e43ddc20e56c34d745711a96b7ca1f2fb4a06481",
+              "691e88199aca92bc77d7767e9dc8e59ba2403d839e42ad7191ecb04615e97540",
+              "9f060ab9d5d8f38b1bf62c5de118db5d602da2778dacdf2b5385f900c7b18547",
+              "0dc6f4eee8151d5110fb166f123caec8cd3346121fade9bff119929e7c73d6b6",
+              "80571ebf5d196edb5ddee4c4da37d3bf9f52696d86b846dc7beffbc371fa9217",
+              "514f8dcfbf63e7f65b9f46ba89655a7b86b33a8ca6903e87643ac8bb73314d72",
+              "d6cb893f4baab32140b517fe152e0e46a2e8e8b22b080aac1b9bf539e7596a69"
+            ],
+            "isHashed": true,
+            "preimages": [
+              "bd878fc0dfc5168095e63cd117ac59a781a590c77f46c3b92ceffab6b072eabe",
+              "e1f5607f510e66b5df94a4210525cbe05dafed0a027261f48e28bc9b1e168ed7",
+              "c3d7946e1aaecfac32c6da8abd5d43ba7dff42cc5737ab42e864df5b6559265f",
+              "b8334f008503f3b8617b18fded49da9673bd9abeaf3e1fa9f98f6ae991616fff",
+              "917d128fa8eae1ad6607a1bfd09c969ed5e1c3b998a3d3ffcc9efb2cf0c20144",
+              "b41862559d8fc65e78abd6e066f2dcbccea7f7d4950c61661a444945fff428f1",
+              "9b85576ffdb7c16f2eb70c356e5bc2224041e3c4970a4c10f2c49d6a1f440413",
+              "2305dd13e3d84d58305ca84bb2aad63ea27e97ef47ff711921a7dd6909778581",
+              "ac5ace2c775d4b4a0ba652a18496f2341f80a8a483d40351b0be521fbed7c2f1",
+              "52766c98f88f20a3d426ccb68d384610bb48e3fbb6d7cfd964d8ad5164210866"
+            ]
+          },
+          "numLeaves": "10",
+          "password": "",
+          "hasPassword": false,
+          "treeOptions": {
+            "fillDefaultHash": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        },
+        "name": "useOverall",
+        "description": ""
+      },
       "approvalCriteria": {
         "mustOwnBadges": [],
         "approvalAmounts": {
@@ -151,7 +198,7 @@
           "perInitiatedByAddressApprovalAmount": "0"
         },
         "maxNumTransfers": {
-          "overallMaxNumTransfers": "0",
+          "overallMaxNumTransfers": "10",
           "perFromAddressMaxNumTransfers": "0",
           "perToAddressMaxNumTransfers": "0",
           "perInitiatedByAddressMaxNumTransfers": "1"
@@ -165,18 +212,18 @@
                 "badgeIds": [
                   {
                     "start": "1",
-                    "end": "100"
+                    "end": "1"
                   }
                 ],
                 "ownershipTimes": [
                   {
-                    "start": "1692018000000",
-                    "end": "1723554000000"
+                    "start": "1",
+                    "end": "18446744073709551615"
                   }
                 ]
               }
             ],
-            "incrementBadgeIdsBy": "0",
+            "incrementBadgeIdsBy": "1",
             "incrementOwnershipTimesBy": "0"
           },
           "orderCalculationMethod": {
@@ -188,13 +235,12 @@
           }
         },
         "merkleChallenge": {
-          "root": "5ffc1cbadb7b964d8010322eb91fa27bc67e9041377e990b681d2468716fe90b",
-          "expectedProofLength": "0",
-          "useCreatorAddressAsLeaf": false,
-          "useLeafIndexForTransferOrder": false,
-          "maxUsesPerLeaf": "1",
+          "root": "381863812adc4abcc0c4411fb2b82df5bd07818a7ccb03765b8f922c8e31885c",
+          "expectedProofLength": "4",
           "uri": "",
-          "customData": ""
+          "customData": "",
+          "useCreatorAddressAsLeaf": false,
+          "maxUsesPerLeaf": "1"
         },
         "requireToEqualsInitiatedBy": false,
         "requireFromEqualsInitiatedBy": false,
@@ -202,63 +248,8 @@
         "requireFromDoesNotEqualInitiatedBy": false,
         "overridesToIncomingApprovals": false,
         "overridesFromOutgoingApprovals": true
-      }
-    },
-    {
-      "fromMappingId": "AllWithoutMint",
-      "toMappingId": "AllWithoutMint",
-      "initiatedByMappingId": "AllWithoutMint",
-      "badgeIds": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ],
-      "ownershipTimes": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ],
-      "toMapping": {
-        "mappingId": "AllWithoutMint",
-        "addresses": [
-          "Mint"
-        ],
-        "includeAddresses": false,
-        "uri": "",
-        "customData": "",
-        "createdBy": ""
       },
-      "fromMapping": {
-        "mappingId": "AllWithoutMint",
-        "addresses": [
-          "Mint"
-        ],
-        "includeAddresses": false,
-        "uri": "",
-        "customData": "",
-        "createdBy": ""
-      },
-      "initiatedByMapping": {
-        "mappingId": "AllWithoutMint",
-        "addresses": [
-          "Mint"
-        ],
-        "includeAddresses": false,
-        "uri": "",
-        "customData": "",
-        "createdBy": ""
-      },
-      "approvalId": "afdssdafa",
-      "amountTrackerId": "fdkladsfasdfasf",
-      "challengeTrackerId": "fdhhjkasdfafsdsafhdj",
-      "transferTimes": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ]
+      "uri": "ipfs://QmSAtEKR67z2hhMvnyLEoKSJgq2qxb4ovefyRW8eSXuAMZ"
     }
   ],
   "updateStandardsTimeline": true,

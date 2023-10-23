@@ -201,9 +201,8 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     }
 
     const usernames = reqBody.accountsToFetch.filter(x => x.username).map(x => x.username).filter(x => x !== undefined) as string[];
-    console.time('resolveUsernames');
+
     const profileDocs = await resolveUsernames(usernames);
-    console.timeEnd('resolveUsernames');
     const allQueries = profileDocs.map(x => { return { address: x._id, fetchOptions: reqBody.accountsToFetch.find(y => y.username === x.username) } });
 
     for (const accountFetchOptions of reqBody.accountsToFetch) {
@@ -211,16 +210,10 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         allQueries.push({ address: accountFetchOptions.address, fetchOptions: accountFetchOptions });
       }
     }
-    console.time('getBatchAccountInformation');
     const accountInfos = await getBatchAccountInformation(allQueries);
-    console.timeEnd('getBatchAccountInformation');
-    console.time('getBatchProfileInformation');
     const profileInfos = await getBatchProfileInformation(allQueries);
-    console.timeEnd('getBatchProfileInformation');
-    console.time('convertToBitBadgesUserInfo');
     console.log(profileInfos, accountInfos);
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
-    console.timeEnd('convertToBitBadgesUserInfo');
 
 
     const additionalInfoPromises = [];
@@ -240,7 +233,6 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         }, account.cosmosAddress, query.fetchOptions));
       }
     }
-    console.time('additionalInfos');
 
     const additionalInfos = await Promise.all(additionalInfoPromises);
     for (const query of allQueries) {
@@ -257,10 +249,6 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
         }
       }
     }
-
-    console.timeEnd('additionalInfos');
-
-    console.log(userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)));
 
     return res.status(200).send({ accounts: userInfos.map(x => convertBitBadgesUserInfo(x, Stringify)) });
   } catch (e) {
