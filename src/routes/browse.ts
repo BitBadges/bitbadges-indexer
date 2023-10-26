@@ -157,6 +157,8 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     const allAccounts = await Promise.all(promises);
 
+
+
     return res.status(200).send({
       collections: {
         // 'featured': collections,

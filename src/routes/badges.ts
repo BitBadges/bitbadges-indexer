@@ -99,7 +99,6 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
 
     const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(x => { return { mappingId: x } }), false);
 
-
     return res.status(200).send({
       owners: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails).map((balance) => {
         return {
@@ -127,6 +126,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       },
     });
   } catch (e) {
+    console.error(e);
     return res.status(500).send({
       error: serializeError(e),
       message: 'Error fetching owners for collection. Please try again later.'
