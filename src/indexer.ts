@@ -15,6 +15,7 @@ import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
+import { AIRDROP_DB } from './db/db'
 import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
 import { addAnnouncement } from './routes/announcements'
@@ -27,7 +28,7 @@ import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
-import { addBalancesToOffChainStorageHandler, addApprovalDetailsToOffChainStorageHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
+import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
 import { getRefreshStatus, refreshMetadata } from './routes/refresh'
@@ -35,7 +36,6 @@ import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteRev
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-import { AIRDROP_DB, API_KEYS_DB, insertToDB } from './db/db'
 
 export const OFFLINE_MODE = false;
 export const TIME_MODE = false;
@@ -96,47 +96,47 @@ app.use(cors({
   credentials: true,
 }))
 
-app.use(async (req, res, next) => {
-  //Check if trusted origin
-  const origin = req.headers.origin;
-  if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io')) {
-    return next();
-  } else {
-    //Validate API key
-    const apiKey = req.headers['x-api-key'];
-    try {
-      console.log('API key', apiKey);
-      if (!apiKey) {
-        throw new Error('Unauthorized request. API key is required.');
-      }
+// app.use(async (req, res, next) => {
+//   //Check if trusted origin
+//   const origin = req.headers.origin;
+//   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io')) {
+//     return next();
+//   } else {
+//     //Validate API key
+//     const apiKey = req.headers['x-api-key'];
+//     try {
+//       console.log('API key', apiKey);
+//       if (!apiKey) {
+//         throw new Error('Unauthorized request. API key is required.');
+//       }
 
-      const doc = await API_KEYS_DB.get(apiKey as string);
+//       const doc = await API_KEYS_DB.get(apiKey as string);
 
-      const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
-      if (lastRequestWasYesterday) {
-        doc.numRequests = 0;
-      }
+//       const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
+//       if (lastRequestWasYesterday) {
+//         doc.numRequests = 0;
+//       }
 
-      if (doc.numRequests > 10000) {
-        throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
-      }
+//       if (doc.numRequests > 10000) {
+//         throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+//       }
 
-      await insertToDB(API_KEYS_DB, {
-        ...doc,
-        numRequests: doc.numRequests + 1,
-        lastRequest: Date.now(),
-      });
+//       await insertToDB(API_KEYS_DB, {
+//         ...doc,
+//         numRequests: doc.numRequests + 1,
+//         lastRequest: Date.now(),
+//       });
 
-      return next();
-    } catch (error) {
-      console.log(error);
-      const errorResponse: ErrorResponse = {
-        message: 'Unauthorized request. API key is required.',
-      }
-      return res.status(401).json(errorResponse);
-    }
-  }
-});
+//       return next();
+//     } catch (error) {
+//       console.log(error);
+//       const errorResponse: ErrorResponse = {
+//         message: 'Unauthorized request. API key is required.',
+//       }
+//       return res.status(401).json(errorResponse);
+//     }
+//   }
+// });
 
 
 var websiteOnlyCorsOptions = {

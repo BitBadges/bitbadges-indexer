@@ -12,9 +12,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
   }
-
-  fetchName = false;
-
+  
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
