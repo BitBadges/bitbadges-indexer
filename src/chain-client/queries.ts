@@ -47,6 +47,8 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
     pubKeyStr = Buffer.from(pub_key).toString('base64');
   }
 
+  console.log('fetched pub key', pubKeyStr);
+
   return {
     publicKey: pubKeyStr,
     sequence: accountObj.sequence ? accountObj.sequence.toString() : "0",

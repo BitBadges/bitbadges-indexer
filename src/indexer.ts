@@ -35,7 +35,7 @@ import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteRev
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-import { AIRDROP_DB } from './db/db'
+import { AIRDROP_DB, API_KEYS_DB, insertToDB } from './db/db'
 
 export const OFFLINE_MODE = false;
 export const TIME_MODE = false;
@@ -94,49 +94,49 @@ const port = process.env.port ? Number(process.env.port) : 3001
 app.use(cors({
   origin: true,
   credentials: true,
-}));
+}))
 
-// app.use(async (req, res, next) => {
-//   //Check if trusted origin
-//   const origin = req.headers.origin;
-//   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io')) {
-//     return next();
-//   } else {
-//     //Validate API key
-//     const apiKey = req.headers['x-api-key'];
-//     try {
-//       console.log('API key', apiKey);
-//       if (!apiKey) {
-//         throw new Error('Unauthorized request. API key is required.');
-//       }
+app.use(async (req, res, next) => {
+  //Check if trusted origin
+  const origin = req.headers.origin;
+  if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io')) {
+    return next();
+  } else {
+    //Validate API key
+    const apiKey = req.headers['x-api-key'];
+    try {
+      console.log('API key', apiKey);
+      if (!apiKey) {
+        throw new Error('Unauthorized request. API key is required.');
+      }
 
-//       const doc = await API_KEYS_DB.get(apiKey as string);
+      const doc = await API_KEYS_DB.get(apiKey as string);
 
-//       const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
-//       if (lastRequestWasYesterday) {
-//         doc.numRequests = 0;
-//       }
+      const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
+      if (lastRequestWasYesterday) {
+        doc.numRequests = 0;
+      }
 
-//       if (doc.numRequests > 10000) {
-//         throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
-//       }
+      if (doc.numRequests > 10000) {
+        throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+      }
 
-//       await insertToDB(API_KEYS_DB, {
-//         ...doc,
-//         numRequests: doc.numRequests + 1,
-//         lastRequest: Date.now(),
-//       });
+      await insertToDB(API_KEYS_DB, {
+        ...doc,
+        numRequests: doc.numRequests + 1,
+        lastRequest: Date.now(),
+      });
 
-//       return next();
-//     } catch (error) {
-//       console.log(error);
-//       const errorResponse: ErrorResponse = {
-//         message: 'Unauthorized request. API key is required.',
-//       }
-//       return res.status(401).json(errorResponse);
-//     }
-//   }
-// });
+      return next();
+    } catch (error) {
+      console.log(error);
+      const errorResponse: ErrorResponse = {
+        message: 'Unauthorized request. API key is required.',
+      }
+      return res.status(401).json(errorResponse);
+    }
+  }
+});
 
 
 var websiteOnlyCorsOptions = {
@@ -154,9 +154,11 @@ app.use(limiter);
 app.use(responseTime((req: Request, response: Response, time: number) => {
   if (TIME_MODE) {
     console.log(`${req.method} ${req.url}: ${time} ms`);
+    console.log(req.body.collectionsToFetch?.map((x: any) => x.collectionId.toString()));
+    console.log(req.body.accountsToFetch?.map((x: any) => x.address))
     if (time > 1000) {
       console.log('SLOW REQUEST!');
-      console.log(JSON.stringify(req.body, null, 2));
+      console.log(JSON.stringify(req.body, null, 2).substring(0, 250))
     }
   }
 

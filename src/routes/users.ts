@@ -12,6 +12,7 @@ import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+import { applyAddressMappingsToUserPermissions } from './balances';
 
 const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
 const s3 = new AWS.S3({
@@ -32,7 +33,7 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
   for (const address of addressesToFetchWithSequence) {
     promises.push(client.badgesQueryClient?.badges.getAccountInfo(address));
   }
-  if (addressesToFetchWithoutSequence.length > 0) promises.push(ACCOUNTS_DB.fetch({ keys: addressesToFetchWithoutSequence }, { include_docs: true }));
+  if (addressesToFetchWithoutSequence.length > 0) promises.push(ACCOUNTS_DB.fetch({ keys: addressesToFetchWithoutSequence.map(x => convertToCosmosAddress(x)) }, { include_docs: true }));
   const results = await Promise.all(promises);
 
   for (let i = 0; i < addressesToFetchWithSequence.length; i++) {
@@ -44,6 +45,7 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
     const fetchResult = results[addressesToFetchWithSequence.length] as nano.DocumentFetchResponse<AccountDoc<JSPrimitiveNumberType>>;
     const docs = getDocsFromNanoFetchRes(fetchResult, true);
     for (const address of addressesToFetchWithoutSequence) {
+
       const doc = docs.find(x => x._id === convertToCosmosAddress(address));
       if (doc) {
         accountInfos.push(doc);
@@ -212,7 +214,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     }
     const accountInfos = await getBatchAccountInformation(allQueries);
     const profileInfos = await getBatchProfileInformation(allQueries);
-    console.log(profileInfos, accountInfos);
+
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
 
 
@@ -412,6 +414,16 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
       addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
       addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
     }
+
+    for (const incoming of balance.userPermissions.canUpdateIncomingApprovals) {
+      addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
+      addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
+    }
+
+    for (const outgoing of balance.userPermissions.canUpdateOutgoingApprovals) {
+      addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
+      addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
+    }
   }
 
   const addressMappingsToPopulate = await getAddressMappingsFromDB(addressMappingIdsToFetch, true);
@@ -426,6 +438,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         ...collected,
         incomingApprovals: appendDefaultForIncomingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
         outgoingApprovals: appendDefaultForOutgoingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
+        userPermissions: applyAddressMappingsToUserPermissions(collected.userPermissions, addressMappingsToPopulate),
       };
     }),
     claimAlerts: claimAlertsRes.docs.map(x => convertClaimAlertDoc(x, Stringify)).map(removeCouchDBDetails),

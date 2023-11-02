@@ -262,9 +262,7 @@ export async function createIndexesAndViews() {
             
             if (
               doc.from !== "Mint" &&
-              doc.from !== "Total" &&
-              Array.isArray(doc.balances) &&
-              doc.balances.some(balance => balance.amount > 0)
+              doc.from !== "Total"
             ) {
               emit(doc.from, null);
             }
@@ -272,9 +270,7 @@ export async function createIndexesAndViews() {
             for (const address of doc.to) {
               if (
                 address !== "Mint" &&
-                address !== "Total" &&
-                Array.isArray(doc.balances) &&
-                doc.balances.some(balance => balance.amount > 0)
+                address !== "Total"
               ) {
                 emit(address, null);
               }

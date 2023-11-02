@@ -1,9 +1,30 @@
-import { BalanceInfoWithDetails, GetBadgeBalanceByAddressRouteRequestBody, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, convertBalanceDoc, convertCollectionDoc } from "bitbadgesjs-utils";
+import { AddressMapping, JSPrimitiveNumberType, UserPermissions } from "bitbadgesjs-proto";
+import { BalanceInfoWithDetails, GetBadgeBalanceByAddressRouteRequestBody, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertUserPermissionsWithDetails } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { BALANCES_DB, COLLECTIONS_DB } from "../db/db";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+
+export const applyAddressMappingsToUserPermissions = (userPermissions: UserPermissions<JSPrimitiveNumberType>, addressMappings: AddressMapping[]): UserPermissionsWithDetails<JSPrimitiveNumberType> => {
+  return {
+    ...userPermissions,
+    canUpdateIncomingApprovals: userPermissions.canUpdateIncomingApprovals.map((x) => {
+      return {
+        ...x,
+        fromMapping: addressMappings.find((y) => y.mappingId === x.fromMappingId) as AddressMapping,
+        initiatedByMapping: addressMappings.find((y) => y.mappingId === x.initiatedByMappingId) as AddressMapping,
+      }
+    }),
+    canUpdateOutgoingApprovals: userPermissions.canUpdateOutgoingApprovals.map((x) => {
+      return {
+        ...x,
+        toMapping: addressMappings.find((y) => y.mappingId === x.toMappingId) as AddressMapping,
+        initiatedByMapping: addressMappings.find((y) => y.mappingId === x.initiatedByMappingId) as AddressMapping,
+      }
+    })
+  }
+}
 
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBadgeBalanceByAddressRouteResponse<NumberType>>) => {
   //TODO: Support inherited balances
@@ -25,7 +46,6 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
     for (const outgoing of collection.defaultUserOutgoingApprovals) {
       addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
-
     }
 
     for (const incoming of response?.incomingApprovals ?? []) {
@@ -33,6 +53,22 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
     }
 
     for (const outgoing of response?.outgoingApprovals ?? []) {
+      addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+    }
+
+    for (const incoming of response?.userPermissions.canUpdateIncomingApprovals ?? []) {
+      addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
+    }
+
+    for (const outgoing of response?.userPermissions.canUpdateOutgoingApprovals ?? []) {
+      addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+    }
+
+    for (const incoming of collection?.defaultUserPermissions?.canUpdateIncomingApprovals ?? []) {
+      addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
+    }
+
+    for (const outgoing of collection?.defaultUserPermissions?.canUpdateOutgoingApprovals ?? []) {
       addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
     }
 
@@ -63,7 +99,8 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
     const balanceToReturnConverted: BalanceInfoWithDetails<string> = {
       ...balanceToReturn,
       incomingApprovals: appendDefaultForIncomingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults),
-      outgoingApprovals: appendDefaultForOutgoingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults)
+      outgoingApprovals: appendDefaultForOutgoingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults),
+      userPermissions: convertUserPermissionsWithDetails(applyAddressMappingsToUserPermissions(balanceToReturn.userPermissions, addressMappings), Stringify),
     }
 
 

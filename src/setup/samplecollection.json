@@ -62,8 +62,7 @@
   "offChainBalancesMetadataTimeline": [],
   "customDataTimeline": [],
   "standardsTimeline": [],
-  "contractAddressTimeline": [],
-  "isArchivedTimeline": [],
+  
   "collectionPermissions": {
     "canDeleteCollection": [],
     "canArchiveCollection": [
@@ -83,7 +82,6 @@
         ]
       }
     ],
-    "canUpdateContractAddress": [],
     "canUpdateOffChainBalancesMetadata": [],
     "canUpdateStandards": [],
     "canUpdateCustomData": [],

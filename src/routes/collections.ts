@@ -1,5 +1,5 @@
-import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertContractAddressTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange, deepCopy } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, ApprovalInfoDetails, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertApprovalInfoDetails, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullContractAddressTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange, deepCopy } from "bitbadgesjs-proto";
+import { AnnouncementDoc, AnnouncementInfo, ApprovalInfoDetails, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertApprovalInfoDetails, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 
 import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
@@ -11,6 +11,7 @@ import { compareObjects } from "../utils/compare";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+import { applyAddressMappingsToUserPermissions } from "./balances";
 
 const { SHA256 } = CryptoJS;
 
@@ -133,6 +134,24 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       });
     }
 
+    for (const incomingPermission of collectionRes.defaultUserPermissions.canUpdateIncomingApprovals) {
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: incomingPermission.fromMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: incomingPermission.initiatedByMappingId
+      });
+    }
+
+    for (const outgoingPermission of collectionRes.defaultUserPermissions.canUpdateOutgoingApprovals) {
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: outgoingPermission.toMappingId
+      });
+      addressMappingIdsToFetch.push({
+        collectionId: collectionRes.collectionId, mappingId: outgoingPermission.initiatedByMappingId
+      });
+    }
+
 
     for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovals) {
       addressMappingIdsToFetch.push({
@@ -237,6 +256,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
         }
       }),
+      defaultUserPermissions: applyAddressMappingsToUserPermissions(collectionRes.defaultUserPermissions, addressMappings),
       collectionPermissions: {
         ...collectionRes.collectionPermissions,
         canUpdateCollectionApprovals: collectionRes.collectionPermissions.canUpdateCollectionApprovals.map(x => {
@@ -369,9 +389,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       collectionToReturn.customDataTimeline = getFullCustomDataTimeline(
         collectionToReturn.customDataTimeline.map(x => convertCustomDataTimeline(x, BigIntify))
       ).map(x => convertCustomDataTimeline(x, Stringify));
-      collectionToReturn.contractAddressTimeline = getFullContractAddressTimeline(
-        collectionToReturn.contractAddressTimeline.map(x => convertContractAddressTimeline(x, BigIntify))
-      ).map(x => convertContractAddressTimeline(x, Stringify));
       collectionToReturn.standardsTimeline = getFullStandardsTimeline(
         collectionToReturn.standardsTimeline.map(x => convertStandardsTimeline(x, BigIntify))
       ).map(x => convertStandardsTimeline(x, Stringify));
@@ -402,8 +419,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       if (approval.uri) {
         const claimFetch = claimFetches.find((fetch) => fetch.uri === approval.uri);
         if (!claimFetch || !claimFetch.content) continue;
-        
-        console.log(claimFetch.content);
+
         approval.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
         if (approval.approvalCriteria?.merkleChallenge?.uri) {
           approval.approvalCriteria.merkleChallenge.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);

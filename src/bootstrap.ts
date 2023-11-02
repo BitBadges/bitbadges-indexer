@@ -258,6 +258,8 @@ export async function bootstrapCollections() {
 
   for (let i = 0; i < jsonObjects.length; i++) {
     console.log(jsonFileNames[i]);
+    if (jsonFileNames[i].startsWith('1_')) continue
+    // 
     const chain = { ...BETANET_CHAIN_DETAILS, chain: SupportedChain.ETH }
     const sender = {
       accountAddress: convertToCosmosAddress(ethWallet.address),

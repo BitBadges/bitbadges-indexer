@@ -13,7 +13,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
     throw new Error('Account info and cosmos account details must be the same length');
   }
 
-
+  fetchName = false;
 
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
@@ -35,6 +35,8 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       }
 
+
+      //If we have a public key, we can determine the chain from that
       let ethTxCount = 0;
       if (cosmosAccountInfo.publicKey && cosmosAccountInfo.chain !== SupportedChain.UNKNOWN) {
         return {
@@ -43,6 +45,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       }
 
+      //If we have a latestSignedInChain, we can determine the chain from that
       const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
       if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.ETH) {
         return {
@@ -56,6 +59,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       }
 
+      //If we have neither, we can check if they have any transactions on the ETH chain
       const cachedEthTxCount = await ETH_TX_COUNT_DB.get(ethAddress).catch(catch404);
       if (cachedEthTxCount && cachedEthTxCount.count) {
         return { address: ethAddress, chain: SupportedChain.ETH }
@@ -70,6 +74,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         });
       }
 
+      //Else, we 
       return {
         address: ethTxCount > 0 ? ethAddress : address,
         chain: ethTxCount > 0 ? SupportedChain.ETH : getChainForAddress(address),
@@ -372,39 +377,11 @@ export async function executeListsQuery(cosmosAddress: string, bookmark?: string
   if (QUERY_TIME_MODE) console.time('executeListsQuery');
   const collectedRes = await ADDRESS_MAPPINGS_DB.find({
     selector: {
-      "$or": [
-        {
-          "$and": [{
-            "addresses": {
-              "$elemMatch": {
-                "$eq": cosmosAddress,
-              },
-            },
-          },
-          {
-            "includeAddresses": {
-              "$eq": true,
-            },
-          }],
+      "addresses": {
+        "$elemMatch": {
+          "$eq": cosmosAddress,
         },
-        {
-          "$and": [{
-            //Is not in the list
-            "addresses": {
-              "$not": {
-                "$elemMatch": {
-                  "$eq": cosmosAddress,
-                },
-              },
-            },
-          },
-          {
-            "includeAddresses": {
-              "$eq": false,
-            },
-          }],
-        }
-      ]
+      },
     },
     bookmark: bookmark ? bookmark : undefined
   });

@@ -87,7 +87,6 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
       offChainBalancesMetadataTimeline: [],
       customDataTimeline: [],
       standardsTimeline: [],
-      contractAddressTimeline: [],
       isArchivedTimeline: [],
       collectionPermissions: {
         canUpdateCollectionMetadata: [],
@@ -96,7 +95,6 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
         canCreateMoreBadges: [],
         canDeleteCollection: [],
         canUpdateCollectionApprovals: [],
-        canUpdateContractAddress: [],
         canUpdateCustomData: [],
         canUpdateManager: [],
         canUpdateOffChainBalancesMetadata: [],
@@ -182,7 +180,6 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
       canCreateMoreBadges: [],
       canDeleteCollection: [],
       canUpdateCollectionApprovals: [],
-      canUpdateContractAddress: [],
       canUpdateCustomData: [],
       canUpdateManager: [],
       canUpdateOffChainBalancesMetadata: [],
@@ -221,10 +218,6 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
 
   if (msg.updateStandardsTimeline) {
     collection.standardsTimeline = msg.standardsTimeline ?? [];
-  }
-
-  if (msg.updateContractAddressTimeline) {
-    collection.contractAddressTimeline = msg.contractAddressTimeline ?? [];
   }
 
   if (msg.updateIsArchivedTimeline) {

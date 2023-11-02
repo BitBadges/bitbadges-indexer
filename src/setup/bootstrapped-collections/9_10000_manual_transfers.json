@@ -256,7 +256,6 @@
       }
     ],
     "canUpdateCollectionMetadata": [],
-    "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
     "canUpdateManager": [
       {
@@ -338,7 +337,6 @@
       "fromMappingId": "Mint",
       "toMappingId": "AllWithMint",
       "initiatedByMappingId": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
-      
       "fromMapping": {
         "mappingId": "Mint",
         "addresses": [
@@ -486,8 +484,6 @@
   ],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
-  "updateContractAddressTimeline": true,
-  "contractAddressTimeline": [],
   "updateIsArchivedTimeline": true,
   "isArchivedTimeline": []
 }

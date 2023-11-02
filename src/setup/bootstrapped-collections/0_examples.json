@@ -33,7 +33,6 @@
   "collectionPermissions": {
     "canDeleteCollection": [],
     "canArchiveCollection": [],
-    "canUpdateContractAddress": [],
     "canUpdateOffChainBalancesMetadata": [],
     "canUpdateStandards": [],
     "canUpdateCustomData": [],
@@ -191,8 +190,6 @@
   "collectionApprovals": [],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
-  "updateContractAddressTimeline": true,
-  "contractAddressTimeline": [],
   "updateIsArchivedTimeline": true,
   "isArchivedTimeline": []
 }

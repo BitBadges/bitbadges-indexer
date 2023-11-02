@@ -37,7 +37,6 @@
     "canUpdateBadgeMetadata": [],
     "canUpdateCollectionApprovals": [],
     "canUpdateCollectionMetadata": [],
-    "canUpdateContractAddress": [],
     "canUpdateCustomData": [],
     "canUpdateManager": [],
     "canUpdateOffChainBalancesMetadata": [],
@@ -104,8 +103,6 @@
   "collectionApprovals": [],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
-  "updateContractAddressTimeline": true,
-  "contractAddressTimeline": [],
   "updateIsArchivedTimeline": true,
   "isArchivedTimeline": []
 }

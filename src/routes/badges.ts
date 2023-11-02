@@ -5,6 +5,7 @@ import { BALANCES_DB } from "../db/db";
 import { removeCouchDBDetails } from "../utils/couchdb-utils";
 import { getAddressMappingsFromDB } from "./utils";
 import { Response, Request } from 'express';
+import { applyAddressMappingsToUserPermissions } from "./balances";
 
 export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersForBadgeRouteResponse<NumberType>>) => {
   try {
@@ -93,6 +94,16 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
         addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
 
       }
+
+      for (const incomingTransfer of balanceDoc.userPermissions.canUpdateIncomingApprovals) {
+        addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
+        addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
+      }
+
+      for (const outgoingTransfer of balanceDoc.userPermissions.canUpdateOutgoingApprovals) {
+        addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
+        addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
+      }
     }
 
     addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
@@ -116,7 +127,8 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
               toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,
               initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
             }
-          })
+          }),
+          userPermissions: applyAddressMappingsToUserPermissions(balance.userPermissions, addressMappings),
         }
       }),
       pagination: {
