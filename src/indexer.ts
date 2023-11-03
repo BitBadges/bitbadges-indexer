@@ -99,7 +99,7 @@ app.use(cors({
 // app.use(async (req, res, next) => {
 //   //Check if trusted origin
 //   const origin = req.headers.origin;
-//   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io')) {
+//   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io') || origin === 'https://api.bitbadges.io') {
 //     return next();
 //   } else {
 //     //Validate API key
@@ -180,10 +180,10 @@ app.use(expressSession({
 app.use(cookieParser());
 
 // parse application/x-www-form-urlencoded
-app.use(express.urlencoded({ limit: '10mb', extended: true }))
+app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
 // parse application/json
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({ limit: '50mb' }))
 
 app.use((req, res, next) => {
   // if (!TIME_MODE) {
@@ -196,7 +196,7 @@ app.use((req, res, next) => {
 
 app.get("/", (req: Request, res: Response) => {
   res.send({
-    message: "Hello from the BitBadges indexer!",
+    message: "Hello from the BitBadges indexer! See docs.bitbadges.io for documentation.",
   })
 })
 
