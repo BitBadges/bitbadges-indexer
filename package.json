@@ -60,7 +60,7 @@
     "express-session": "^1.17.3",
     "ipfs-http-client": "^56.0.2",
     "joi": "^17.7.1",
-    "jquery": "3.3.1",
+    "jquery": "3.5.0",
     "lockr": "0.8.4",
     "merkletreejs": "^0.3.9",
     "moralis": "^2.22.5",
