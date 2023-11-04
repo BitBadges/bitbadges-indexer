@@ -67,7 +67,7 @@
     "multer": "^1.4.5-lts.1",
     "nano": "^10.1.2",
     "node-fetch": "^2.6.9",
-    "protobufjs": "7.0.0",
+    "protobufjs": "7.2.4",
     "query-string": "7.1.1",
     "react": "18.1.0",
     "react-dom": "18.1.0",
