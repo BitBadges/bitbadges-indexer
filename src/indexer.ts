@@ -99,7 +99,7 @@ app.use(cors({
 // app.use(async (req, res, next) => {
 //   //Check if trusted origin
 //   const origin = req.headers.origin;
-//   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io') || origin === 'https://api.bitbadges.io') {
+//   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io') || origin === 'https:/.bitbadges.io') {
 //     return next();
 //   } else {
 //     //Validate API key
@@ -201,75 +201,75 @@ app.get("/", (req: Request, res: Response) => {
 })
 
 //Status
-app.post("/api/v0/status", getStatusHandler);
+app.post("/v0/status", getStatusHandler);
 
 //Search
-app.post("/api/v0/search/:searchValue", searchHandler);
+app.post("/v0/search/:searchValue", searchHandler);
 
 //Collections
-app.post("/api/v0/collection/batch", getCollections)
-app.post("/api/v0/collection/:collectionId", getCollectionById)
-app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);
-app.post("/api/v0/collection/:collectionId/metadata", getMetadataForCollection)
-app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
-app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
+app.post("/v0/collection/batch", getCollections)
+app.post("/v0/collection/:collectionId", getCollectionById)
+app.post('/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);
+app.post("/v0/collection/:collectionId/metadata", getMetadataForCollection)
+app.post('/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
+app.post('/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
 
-app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata); //Write route
-app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus); //Write route
+app.post('/v0/collection/:collectionId/refresh', refreshMetadata); //Write route
+app.post('/v0/collection/:collectionId/refreshStatus', getRefreshStatus); //Write route
 
-app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
-app.post('/api/v0/collection/:collectionId/password/:cid/:password', authorizeBlockinRequest, getMerkleChallengeCodeViaPassword); //Write route
+app.post('/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
+app.post('/v0/collection/:collectionId/password/:cid/:password', authorizeBlockinRequest, getMerkleChallengeCodeViaPassword); //Write route
 
-app.post('/api/v0/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
-app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
+app.post('/v0/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
+app.post('/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
 
-// `/api/v0/collection/${collectionId.toString()}/deleteReview/${reviewId}`;
-app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest, deleteReview); //Write route
-app.post('/api/v0/deleteAnnouncement/:announcementId', authorizeBlockinRequest, deleteAnnouncement); //Write route
+// `/v0/collection/${collectionId.toString()}/deleteReview/${reviewId}`;
+app.post('/v0/deleteReview/:reviewId', authorizeBlockinRequest, deleteReview); //Write route
+app.post('/v0/deleteAnnouncement/:announcementId', authorizeBlockinRequest, deleteAnnouncement); //Write route
 
 
 //User
-app.post('/api/v0/user/batch', getAccounts);
-app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, upload.single('profilePicImageFile'), updateAccountInfo); //Write route
-app.post('/api/v0/user/:addressOrUsername', getAccount);
-app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
+app.post('/v0/user/batch', getAccounts);
+app.post('/v0/user/updateAccount', authorizeBlockinRequest, upload.single('profilePicImageFile'), updateAccountInfo); //Write route
+app.post('/v0/user/:addressOrUsername', getAccount);
+app.post('/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 
 //IPFS
-app.post('/api/v0/addMetadataToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addMetadataToIpfsHandler); //
-app.post('/api/v0/addApprovalDetailsToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addApprovalDetailsToOffChainStorageHandler); //
-app.post('/api/v0/addBalancesToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addBalancesToOffChainStorageHandler); //
+app.post('/v0/addMetadataToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addMetadataToIpfsHandler); //
+app.post('/v0/addApprovalDetailsToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addApprovalDetailsToOffChainStorageHandler); //
+app.post('/v0/addBalancesToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addBalancesToOffChainStorageHandler); //
 
 //Blockin Auth
-app.post('/api/v0/auth/getChallenge', getChallenge);
-app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
-app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
-app.post('/api/v0/auth/status', checkifSignedInHandler);
+app.post('/v0/auth/getChallenge', getChallenge);
+app.post('/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
+app.post('/v0/auth/logout', removeBlockinSessionCookie);
+app.post('/v0/auth/status', checkifSignedInHandler);
 
 //Browse
-app.post('/api/v0/browse', getBrowseCollections);
+app.post('/v0/browse', getBrowseCollections);
 
 //Broadcasting
-app.post('/api/v0/broadcast', broadcastTx);
-app.post('/api/v0/simulate', simulateTx);
+app.post('/v0/broadcast', broadcastTx);
+app.post('/v0/simulate', simulateTx);
 
 //Fetch arbitrary metadata
-app.post('/api/v0/metadata', cors(websiteOnlyCorsOptions), fetchMetadataDirectly);
+app.post('/v0/metadata', cors(websiteOnlyCorsOptions), fetchMetadataDirectly);
 
 //Faucet
-app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
+app.post('/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
 
 //Address Mappings
-app.post('/api/v0/addressMappings', getAddressMappings);
-app.post('/api/v0/addressMappings/update', authorizeBlockinRequest, updateAddressMappings);
-app.post('/api/v0/addressMappings/delete', authorizeBlockinRequest, deleteAddressMappings);
+app.post('/v0/addressMappings', getAddressMappings);
+app.post('/v0/addressMappings/update', authorizeBlockinRequest, updateAddressMappings);
+app.post('/v0/addressMappings/delete', authorizeBlockinRequest, deleteAddressMappings);
 
 //Approvals
-app.post('/api/v0/approvals', getApprovals);
+app.post('/v0/approvals', getApprovals);
 
 //Merkle Challenge Tracker
-app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
+app.post('/v0/merkleChallenges', getMerkleChallengeTrackers);
 
-app.get('/api/v0/airdrop/balances', async (req, res) => {
+app.get('/v0/airdrop/balances', async (req, res) => {
   const allAirdropped = await AIRDROP_DB.list();
   const airdropped = allAirdropped.rows.map(row => row.id);
   const balancesMap: OffChainBalancesMap<bigint> = {};
