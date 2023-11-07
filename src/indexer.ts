@@ -7,15 +7,13 @@ import { config } from "dotenv"
 import express, { Express, Request, Response } from "express"
 import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
-import fs from 'fs'
 import { Server } from "http"
-import https from 'https'
 import { create } from 'ipfs-http-client'
 import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { AIRDROP_DB } from './db/db'
+import { AIRDROP_DB, API_KEYS_DB, insertToDB } from './db/db'
 import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
 import { addAnnouncement } from './routes/announcements'
@@ -38,7 +36,7 @@ import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 
 export const OFFLINE_MODE = false;
-export const TIME_MODE = false;
+export const TIME_MODE = process.env.TIME_MODE === 'true' || false;
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 
 config()
@@ -96,47 +94,47 @@ app.use(cors({
   credentials: true,
 }))
 
-// app.use(async (req, res, next) => {
-//   //Check if trusted origin
-//   const origin = req.headers.origin;
-//   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io') || origin === 'https://api.bitbadges.io') {
-//     return next();
-//   } else {
-//     //Validate API key
-//     const apiKey = req.headers['x-api-key'];
-//     try {
-//       console.log('API key', apiKey);
-//       if (!apiKey) {
-//         throw new Error('Unauthorized request. API key is required.');
-//       }
+app.use(async (req, res, next) => {
+  //Check if trusted origin
+  const origin = req.headers.origin;
+  if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io') || origin === 'https://api.bitbadges.io') {
+    return next();
+  } else {
+    //Validate API key
+    const apiKey = req.headers['x-api-key'];
+    try {
 
-//       const doc = await API_KEYS_DB.get(apiKey as string);
+      if (!apiKey) {
+        throw new Error('Unauthorized request. API key is required.');
+      }
 
-//       const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
-//       if (lastRequestWasYesterday) {
-//         doc.numRequests = 0;
-//       }
+      const doc = await API_KEYS_DB.get(apiKey as string);
 
-//       if (doc.numRequests > 10000) {
-//         throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
-//       }
+      const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
+      if (lastRequestWasYesterday) {
+        doc.numRequests = 0;
+      }
 
-//       await insertToDB(API_KEYS_DB, {
-//         ...doc,
-//         numRequests: doc.numRequests + 1,
-//         lastRequest: Date.now(),
-//       });
+      if (doc.numRequests > 10000) {
+        throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+      }
 
-//       return next();
-//     } catch (error) {
-//       console.log(error);
-//       const errorResponse: ErrorResponse = {
-//         message: 'Unauthorized request. API key is required.',
-//       }
-//       return res.status(401).json(errorResponse);
-//     }
-//   }
-// });
+      await insertToDB(API_KEYS_DB, {
+        ...doc,
+        numRequests: doc.numRequests + 1,
+        lastRequest: Date.now(),
+      });
+
+      return next();
+    } catch (error) {
+      console.log(error);
+      const errorResponse: ErrorResponse = {
+        message: 'Unauthorized request. API key is required.',
+      }
+      return res.status(401).json(errorResponse);
+    }
+  }
+});
 
 
 var websiteOnlyCorsOptions = {
@@ -154,17 +152,11 @@ app.use(limiter);
 app.use(responseTime((req: Request, response: Response, time: number) => {
   if (TIME_MODE) {
     console.log(`${req.method} ${req.url}: ${time} ms`);
-    console.log(req.body.collectionsToFetch?.map((x: any) => x.collectionId.toString()));
-    console.log(req.body.accountsToFetch?.map((x: any) => x.address))
-    if (time > 1000) {
+    if (time > 1500) {
       console.log('SLOW REQUEST!');
       console.log(JSON.stringify(req.body, null, 2).substring(0, 250))
     }
   }
-
-  // console.log(JSON.stringify(req.body, null, 2));
-
-
 }));
 
 
@@ -185,14 +177,14 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }))
 // parse application/json
 app.use(express.json({ limit: '50mb' }))
 
-app.use((req, res, next) => {
-  // if (!TIME_MODE) {
-  //   console.log();
-  //   console.log(req.method, req.url);
-  //   console.log(JSON.stringify(req.body, null, 2));
-  // }
-  next();
-});
+// app.use((req, res, next) => {
+//   // if (!TIME_MODE) {
+//   //   console.log();
+//   //   console.log(req.method, req.url);
+//   //   console.log(JSON.stringify(req.body, null, 2));
+//   // }
+//   next();
+// });
 
 app.get("/", (req: Request, res: Response) => {
   res.send({
@@ -291,8 +283,12 @@ app.get('/api/v0/airdrop/balances', async (req, res) => {
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {
   if (!OFFLINE_MODE) {
-    setTimeout(poll, 1)
-    setTimeout(pollUris, 1)
+    if (process.env.DISABLE_BLOCKCHAIN_POLLER !== 'true') {
+      setTimeout(poll, 1)
+    }
+    if (process.env.DISABLE_URI_POLLER !== 'true') {
+      setTimeout(pollUris, 1)
+    }
   }
 }
 
@@ -304,16 +300,8 @@ process.on("SIGINT", () => {
   })
 })
 
-const server: Server =
-  https.createServer(
-    {
-      key: fs.readFileSync("server.key"),
-      cert: fs.readFileSync("server.cert"),
-    },
-    app
-  )
-    .listen(port, () => {
-      init().catch(console.error).then(() => {
-        console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
-      })
-    })
+const server: Server = app.listen(port, () => {
+  init().catch(console.error).then(() => {
+    console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString())
+  })
+})

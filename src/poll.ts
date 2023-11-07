@@ -24,15 +24,44 @@ import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
 
 
-const pollIntervalMs = 1_000
-const uriPollIntervalMs = 1_000
+const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000
+const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000
+
 let outageTime: Date | undefined
 
 const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
+let currRpcIdx = -1;
 
-export const QUEUE_TIME_MODE = false
+async function connectToRpc() {
+  //If we have a currClient,, move that to the end of the rpcs array. It failed so we try it last
+  if (currRpcIdx > -1) {
+    const currRpc = rpcs.splice(currRpcIdx, 1)[0];
+    rpcs.push(currRpc);
+  }
+
+
+
+  for (let i = 0; i < rpcs.length; i++) {
+    try {
+      const newClient = await IndexerStargateClient.connect(rpcs[i])
+      console.log("Connected to chain-id:", await newClient.getChainId())
+      setClient(newClient)
+      currRpcIdx = i;
+      break;
+    } catch (e) {
+      console.log(`Error connecting to chain client at ${rpcs[i]}. Trying new one....`)
+    }
+  }
+
+
+  if (!client) throw new Error('Could not connect to any chain client')
+}
+
+export const QUEUE_TIME_MODE = process.env.QUEUE_TIME_MODE == 'true';
 
 export const pollUris = async () => {
+
+
   if (TIME_MODE && QUEUE_TIME_MODE) {
     console.time("pollUris");
   }
@@ -75,18 +104,7 @@ export const poll = async () => {
     // Connect to the chain client (this is first-time only)
     // This could be in init() but it is here in case indexer is started w/o the chain running
     if (!client) {
-      for (let i = 0; i < rpcs.length; i++) {
-        try {
-          const newClient = await IndexerStargateClient.connect(rpcs[i])
-          console.log("Connected to chain-id:", await newClient.getChainId())
-          setClient(newClient)
-          break;
-        } catch (e) {
-          console.log(`Error connecting to chain client at ${rpcs[i]}. Trying new one....`)
-        }
-      }
-
-      if (!client) throw new Error('Could not connect to any chain client')
+      connectToRpc();
     }
     // const _status = await getStatus();
     // let status = convertStatusDoc(_status, BigIntify);
@@ -160,16 +178,7 @@ export const poll = async () => {
     if (e && e.code === 'ECONNREFUSED') {
       try {
         outageTime = outageTime || new Date();
-        for (let i = 0; i < rpcs.length; i++) {
-          try {
-            const newClient = await IndexerStargateClient.connect(rpcs[i])
-            console.log("Connected to chain-id:", await newClient.getChainId())
-            setClient(newClient)
-            break;
-          } catch (e) {
-            console.log(`Error connecting to chain client at ${rpcs[i]}. Trying new one....`)
-          }
-        }
+        connectToRpc();
 
         if (!TIME_MODE) process.stdout.write('\n');
       } catch (e) {
@@ -457,7 +466,4 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       }]
     });
   }
-
-
-
 }

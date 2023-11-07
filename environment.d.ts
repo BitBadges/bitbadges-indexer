@@ -20,6 +20,13 @@ declare global {
       PORT: string //string number ex: "3000"
       SPACES_ACCESS_KEY_ID: string //string number ex: "1"
       SPACES_SECRET_ACCESS_KEY: string //string number ex: "1"
+      POLL_INTERVAL_MS: string //string number ex: "1000"
+      URI_POLL_INTERVAL_MS: string //string number ex: "1000"
+      DISABLE_URI_POLLER: string //string number ex: "false"
+      DISABLE_BLOCKCHAIN_POLLER: string //string number ex: "false"
+      TIME_MODE: string //string number ex: "false"
+      QUEUE_TIME_MODE: string //string number ex: "false"
+      DEV_MODE: string //string number ex: "false"
     }
   }
 }
