@@ -9,6 +9,8 @@ import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
 import { Server } from "http"
 import { create } from 'ipfs-http-client'
+import fs from 'fs'
+import https from 'https'
 import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
@@ -300,8 +302,26 @@ process.on("SIGINT", () => {
   })
 })
 
-const server: Server = app.listen(port, () => {
-  init().catch(console.error).then(() => {
-    console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString())
+
+let server: Server;
+if (process.env.START_WITH_HTTPS === 'true') {
+  server =
+    https.createServer(
+      {
+        key: fs.readFileSync("server.key"),
+        cert: fs.readFileSync("server.cert"),
+      },
+      app
+    )
+      .listen(port, () => {
+        init().catch(console.error).then(() => {
+          console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
+        })
+      })
+} else {
+  server = app.listen(port, () => {
+    init().catch(console.error).then(() => {
+      console.log(`\nserver started at port ${port}`, Date.now().toLocaleString())
+    })
   })
-})
+}

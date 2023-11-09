@@ -376,30 +376,30 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
 
     let msg: any = null;
     switch (typeUrl) {
-      case "/bitbadges.bitbadgeschain.badges.MsgTransferBadges":
-        const transferMsg = convertFromProtoToMsgTransferBadges(tx.bitbadges.bitbadgeschain.badges.MsgTransferBadges.deserialize(value))
+      case "/badges.MsgTransferBadges":
+        const transferMsg = convertFromProtoToMsgTransferBadges(tx.badges.MsgTransferBadges.deserialize(value))
         await handleMsgTransferBadges(transferMsg, status, docs, indexed.hash)
         // Don't need to track transfers (we do it in TRANSFER_ACTIVITY)
         // msg = transferMsg;
         break;
-      case "/bitbadges.bitbadgeschain.badges.MsgDeleteCollection":
-        const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.bitbadges.bitbadgeschain.badges.MsgDeleteCollection.deserialize(value))
+      case "/badges.MsgDeleteCollection":
+        const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.badges.MsgDeleteCollection.deserialize(value))
         await handleMsgDeleteCollection(newDeleteMsg, status, docs);
         msg = newDeleteMsg;
         break;
-      case "/bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings":
-        const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.bitbadges.bitbadgeschain.badges.MsgCreateAddressMappings.deserialize(value))
+      case "/badges.MsgCreateAddressMappings":
+        const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.badges.MsgCreateAddressMappings.deserialize(value))
         await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs, indexed.hash);
         //Don't need to track, we have created at and address mappings on-chain are permanent and immutable
         // msg = newAddressMappingsMsg;
         break;
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdateCollection":
-        const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.bitbadges.bitbadgeschain.badges.MsgUpdateCollection.deserialize(value))
+      case "/badges.MsgUpdateCollection":
+        const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.badges.MsgUpdateCollection.deserialize(value))
         await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs, indexed.hash)
         msg = newUpdateCollectionMsg;
         break;
-      case "/bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovals":
-        const newUpdateUserApprovalsMsg = convertFromProtoToMsgUpdateUserApprovals(tx.bitbadges.bitbadgeschain.badges.MsgUpdateUserApprovals.deserialize(value))
+      case "/badges.MsgUpdateUserApprovals":
+        const newUpdateUserApprovalsMsg = convertFromProtoToMsgUpdateUserApprovals(tx.badges.MsgUpdateUserApprovals.deserialize(value))
         await handleMsgUpdateUserApprovals(newUpdateUserApprovalsMsg, status, docs, indexed.hash)
         msg = newUpdateUserApprovalsMsg;
         break;

@@ -1,5 +1,5 @@
 import { QueryClient, StargateClient, StargateClientOptions } from "@cosmjs/stargate"
-import { Tendermint34Client } from "@cosmjs/tendermint-rpc"
+import { Tendermint37Client } from "@cosmjs/tendermint-rpc"
 import { BadgesExtension, setupBadgesExtension } from "./queries"
 
 //Credit: Code in this folder is mostly inherited from Cosmos Tutorials (Academy Checkers)
@@ -10,11 +10,11 @@ export class BadgesStargateClient extends StargateClient {
     endpoint: string,
     options?: StargateClientOptions,
   ): Promise<BadgesStargateClient> {
-    const tmClient = await Tendermint34Client.connect(endpoint)
+    const tmClient = await Tendermint37Client.connect(endpoint)
     return new BadgesStargateClient(tmClient, options)
   }
 
-  protected constructor(tmClient: Tendermint34Client | undefined, options: StargateClientOptions = {}) {
+  protected constructor(tmClient: Tendermint37Client | undefined, options: StargateClientOptions = {}) {
     super(tmClient, options)
     if (tmClient) {
       this.badgesQueryClient = QueryClient.withExtensions(tmClient, setupBadgesExtension)

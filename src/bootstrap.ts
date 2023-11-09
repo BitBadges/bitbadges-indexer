@@ -42,7 +42,7 @@ const removeEIP712Domain = (prevTypes: any) => {
 const broadcastTx = async (rawTx: any) => {
   const res = await axios.post(
     `${process.env.API_URL}${generateEndpointBroadcast()}`,
-    generatePostBodyBroadcast(rawTx, BroadcastMode.Block),
+    generatePostBodyBroadcast(rawTx, BroadcastMode.Sync),
   ).catch((e) => {
     if (e && e.response && e.response.data) {
       console.log(e.response.data);
@@ -52,6 +52,19 @@ const broadcastTx = async (rawTx: any) => {
     console.log(e);
     return Promise.reject(e);
   });
+  const txHash = res.data.tx_response.txhash;
+
+  let fetched = false;
+  while (!fetched) {
+    try {
+      const res = await axios.get(`${process.env.API_URL}/cosmos/tx/v1beta1/txs/${txHash}`);
+      fetched = true;
+      return res;
+    } catch (e) {
+      //wait 1 sec
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
 
   return res;
 }
@@ -320,7 +333,9 @@ export async function bootstrapCollections() {
     console.log(res.data);
 
     const rawLog = JSON.parse(res.data.tx_response.raw_log);
-    const collectionId = rawLog[0].events[0].attributes.find((log: any) => log.key === 'collectionId').value;
+    console.log(rawLog);
+
+    const collectionId = rawLog[0].events[1].attributes.find((log: any) => log.key === 'collectionId').value;
 
     console.log("Created Collection", i + 1, "with collectionId", collectionId);
     //Handle the manual transfers collection. Creates an on-chain collection w/ 10000 badges and transfers those badges to random or specified addresses
