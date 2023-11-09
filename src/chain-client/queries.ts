@@ -35,7 +35,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
   let pubKeyStr = '';
   let chain = getChainForAddress(accountObj.address ? accountObj.address : '');
   if (accountObj.pub_key?.type_url) {
-    if (accountObj.pub_key.type_url === '/ethermint.crypto.v1.ethsecp256k1.PubKey') {
+    if (accountObj.pub_key.type_url === '/ethermint.PubKey') {
       chain = SupportedChain.ETH
     } else if (accountObj.pub_key.type_url === '/cosmos.crypto.secp256k1.PubKey') {
       chain = SupportedChain.COSMOS
