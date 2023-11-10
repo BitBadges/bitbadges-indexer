@@ -99,7 +99,8 @@ app.use(cors({
 app.use(async (req, res, next) => {
   //Check if trusted origin
   const origin = req.headers.origin;
-  if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io') || origin === 'https://api.bitbadges.io') {
+
+  if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io')) {
     return next();
   } else {
     //Validate API key
