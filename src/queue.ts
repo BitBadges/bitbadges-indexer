@@ -43,7 +43,7 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   let refreshRequestTime = Date.now();
 
   //TODO: validate uri
-  
+
 
   //TODO: Get _conflicts and only take the one with latest time
   //Check if we need to refresh

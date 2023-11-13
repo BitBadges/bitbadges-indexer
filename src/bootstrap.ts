@@ -2,27 +2,60 @@ import { Secp256k1 } from '@cosmjs/crypto';
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { Account, SigningStargateClient, assertIsDeliverTxSuccess } from "@cosmjs/stargate";
 import axios from "axios";
-import { Numberify, SupportedChain, createTxMsgCreateAddressMappings, createTxMsgTransferBadges, createTxMsgUpdateCollection, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
+import { MessageGenerated, MsgUpdateCollection, SupportedChain, createMsgCreateAddressMappings, createMsgUpdateCollection, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
+
 import { BroadcastMode, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-provider";
-import { BETANET_CHAIN_DETAILS, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { BETANET_CHAIN_DETAILS, Numberify, convertToCosmosAddress } from "bitbadgesjs-utils";
+import crypto from 'crypto';
+import env from 'dotenv';
 import { ethers } from "ethers";
 import fs from 'fs';
 import path from 'path';
-import env from 'dotenv';
-import crypto from 'crypto';
 
 env.config();
 
-const MANUAL_TRANSFERS = true;
-const NUM_MANUAL_TRANSFERS = 10;
+// const MANUAL_TRANSFERS = true;
+// const NUM_MANUAL_TRANSFERS = 10;
 const fromMnemonic = process.env.FAUCET_MNEMONIC as string;
 // const ADDRESSES_TO_TRANSFER_TO: string[] = ["cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x", "cosmos1rgtvs7f82uprnlkdxsadye20mqtgyuj7n4npzz"];
-const ADDRESSES_TO_TRANSFER_TO: string[] = [];
+// const ADDRESSES_TO_TRANSFER_TO: string[] = [];
 
 async function main() {
   try {
-    await bootstrapLists();
-    await bootstrapCollections();
+    const chain = { ...BETANET_CHAIN_DETAILS, chain: SupportedChain.ETH }
+    let sequence = 0;
+    const sender = {
+      accountAddress: convertToCosmosAddress(ethWallet.address),
+      sequence: sequence++,
+      accountNumber: Numberify(account.accountNumber),
+      pubkey: base64PubKey,
+    };
+
+    const msgs: MessageGenerated[] = [];
+    // await deleteCollection();
+    msgs.push(...bootstrapLists());
+    msgs.push(...bootstrapCollections());
+
+
+    const txn = createTransactionPayload({ chain, sender, memo: '', fee: { denom: 'badge', amount: '1', gas: '4000000' } }, msgs);
+    if (!txn.eipToSign) throw new Error("No eip to sign");
+
+    let sig = await ethWallet._signTypedData(
+      txn.eipToSign.domain as any,
+      removeEIP712Domain(txn.eipToSign.types),
+      txn.eipToSign.message as any
+    );
+
+    let txnExtension = signatureToWeb3Extension(chain, sender, sig)
+
+    // Create the txRaw
+    let rawTx = createTxRawEIP712(
+      txn.legacyAmino.body,
+      txn.legacyAmino.authInfo,
+      txnExtension,
+    )
+
+    await broadcastTx(rawTx);
   } catch (e) {
     console.log(e);
   }
@@ -52,16 +85,24 @@ const broadcastTx = async (rawTx: any) => {
     console.log(e);
     return Promise.reject(e);
   });
+
   const txHash = res.data.tx_response.txhash;
+  const code = res.data.tx_response.code;
+  if (code !== undefined && code !== 0) {
+    throw new Error(`Error broadcasting transaction: Code ${code}: ${JSON.stringify(res.data.tx_response, null, 2)}`);
+  }
 
   let fetched = false;
   while (!fetched) {
     try {
       const res = await axios.get(`${process.env.API_URL}/cosmos/tx/v1beta1/txs/${txHash}`);
       fetched = true;
+
+      console.log(res);
       return res;
     } catch (e) {
       //wait 1 sec
+      console.log('Waiting 1 sec to fetch tx');
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
@@ -154,7 +195,7 @@ function getAndParseJsonFiles(directoryPath: string, jsonObjects: any[], jsonFil
   });
 }
 
-export async function bootstrapLists() {
+export function bootstrapLists() {
   //parse ./helpers/10000_addresses.txt
   const addresses = fs.readFileSync('./src/setup/helpers/10000_addresses.txt', 'utf-8').split('\n').map(x => x.trim()).filter(x => x !== '').map(x => convertToCosmosAddress(x));
 
@@ -169,76 +210,36 @@ export async function bootstrapLists() {
   getAndParseJsonFiles(subdirectoryPath, jsonObjects, jsonFileNames);
 
 
-  //Step 3. Buiild andbroadcast transactions
-  let sequence = 0;
-
+  const msgs = [];
   // for (let i = 0; i < 100000; i++) {
   // console.log(jsonObjects.length);
   for (let i = 0; i < jsonObjects.length; i++) {
-    console.log("Creating collection #", i + 1);
-    const chain = { ...BETANET_CHAIN_DETAILS, chain: SupportedChain.ETH }
-    const sender = {
-      accountAddress: convertToCosmosAddress(ethWallet.address),
-      sequence: sequence++,
-      accountNumber: Numberify(account.accountNumber),
-      pubkey: base64PubKey,
-    };
 
-    const txn = createTxMsgCreateAddressMappings(
-      chain,
-      sender,
-      {
-        denom: 'badge',
-        amount: '1',
-        gas: '2000000',
-      },
-      '',
-      {
-        creator: convertToCosmosAddress(ethWallet.address),
-        addressMappings: [{
-          ...jsonObjects[i],
-          mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
-          //random bool
-          includeAddresses: Math.random() < 0.5,
-        }, {
-          ...jsonObjects[i],
-          mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
-          addresses: addresses.slice(0, 1000),
-          includeAddresses: Math.random() < 0.5,
-        }]
-      }
-    );
-
-
-    let sig = await ethWallet._signTypedData(
-      txn.eipToSign.domain as any,
-      removeEIP712Domain(txn.eipToSign.types),
-      txn.eipToSign.message as any
-    );
-
-    let txnExtension = signatureToWeb3Extension(chain, sender, sig)
-
-
-    // Create the txRaw
-    let rawTx = createTxRawEIP712(
-      txn.legacyAmino.body,
-      txn.legacyAmino.authInfo,
-      txnExtension,
+    const msg1 = createMsgCreateAddressMappings(
+      convertToCosmosAddress(ethWallet.address),
+      [{
+        ...jsonObjects[i],
+        mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
+        //random bool
+        includeAddresses: Math.random() < 0.5,
+      }, {
+        ...jsonObjects[i],
+        mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
+        addresses: addresses.slice(0, 1000),
+        includeAddresses: Math.random() < 0.5,
+      }]
     )
 
-
-
-    const res = await broadcastTx(rawTx);
-    console.log(jsonFileNames[i]);
-    console.log("Created List", i + 1);
-    console.log(res.data);
+    msgs.push(msg1);
   }
   // }
+
+  return msgs;
 }
 
 
 
-export async function bootstrapCollections() {
+export function bootstrapCollections() {
   const subdirectoryPath = './src/setup/bootstrapped-collections';
 
   // Initialize an array to store the parsed JSON objects
@@ -263,157 +264,139 @@ export async function bootstrapCollections() {
   jsonObjects = jointJsonObjects.map((jsonObject) => jsonObject.object);
 
 
-
-  //Step 3. Buiild andbroadcast transactions
-  let sequence = 1;
-  // console.log(jsonObjects.length);
-  // let manualTransfersId;
+  const msgs = [];
 
   for (let i = 0; i < jsonObjects.length; i++) {
     console.log(jsonFileNames[i]);
     if (jsonFileNames[i].startsWith('1_')) continue
-    // 
-    const chain = { ...BETANET_CHAIN_DETAILS, chain: SupportedChain.ETH }
-    const sender = {
-      accountAddress: convertToCosmosAddress(ethWallet.address),
-      sequence: sequence++,
-      accountNumber: Numberify(account.accountNumber),
-      pubkey: base64PubKey,
-    };
 
-    const txn = createTxMsgUpdateCollection(
-      chain,
-      sender,
-      {
-        denom: 'badge',
-        amount: '1',
-        gas: '180000',
-      },
-      '',
-      {
-        ...jsonObjects[i],
-        creator: convertToCosmosAddress(ethWallet.address),
-        managerTimeline: jsonFileNames[i] === "9_10000_manual_transfers.json" ? [{
-          timelineTimes: [{ start: "1", end: Number.MAX_SAFE_INTEGER.toString() }],
-          manager: convertToCosmosAddress(ethWallet.address)
-        }] : jsonObjects[i].managerTimeline,
-        collectionApprovals: jsonFileNames[i] === "9_10000_manual_transfers.json" ?
-          jsonObjects[i].collectionApprovals.map((x: any, idx: any) => {
-            if (idx == 0) {
-              return { ...x, initiatedByMappingId: convertToCosmosAddress(ethWallet.address) }
-            } else return x
-          }) : jsonObjects[i].collectionApprovals,
-        // inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
-      }
+    const obj = {
+      ...jsonObjects[i],
+      creator: convertToCosmosAddress(ethWallet.address),
+      managerTimeline: jsonFileNames[i] === "9_10000_manual_transfers.json" ? [{
+        timelineTimes: [{ start: "1", end: Number.MAX_SAFE_INTEGER.toString() }],
+        manager: convertToCosmosAddress(ethWallet.address)
+      }] : jsonObjects[i].managerTimeline,
+      collectionApprovals: jsonFileNames[i] === "9_10000_manual_transfers.json" ?
+        jsonObjects[i].collectionApprovals.map((x: any, idx: any) => {
+          if (idx == 0) {
+            return { ...x, initiatedByMappingId: convertToCosmosAddress(ethWallet.address) }
+          } else return x
+        }) : jsonObjects[i].collectionApprovals,
+      // inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
+    } as Required<MsgUpdateCollection<string>>
+
+    const msg = createMsgUpdateCollection(
+      convertToCosmosAddress(ethWallet.address),
+      obj.collectionId,
+      obj.balancesType,
+      obj.defaultOutgoingApprovals,
+      obj.defaultIncomingApprovals,
+      obj.defaultAutoApproveSelfInitiatedOutgoingTransfers,
+      obj.defaultAutoApproveSelfInitiatedIncomingTransfers,
+      obj.defaultUserPermissions,
+      obj.badgesToCreate,
+      obj.updateCollectionPermissions,
+      obj.collectionPermissions,
+      obj.updateManagerTimeline,
+      obj.managerTimeline,
+      obj.updateCollectionMetadataTimeline,
+      obj.collectionMetadataTimeline,
+      obj.updateBadgeMetadataTimeline,
+      obj.badgeMetadataTimeline,
+      obj.updateOffChainBalancesMetadataTimeline,
+      obj.offChainBalancesMetadataTimeline,
+      obj.updateCustomDataTimeline,
+      obj.customDataTimeline,
+      obj.updateCollectionApprovals,
+      obj.collectionApprovals,
+      obj.updateStandardsTimeline,
+      obj.standardsTimeline,
+      obj.updateIsArchivedTimeline,
+      obj.isArchivedTimeline,
     );
 
-    // console.log(JSON.stringify(jsonObjects[i].collectionApprovals))
-    // console.log(JSON.stringify(txn.eipToSign.message, null, 2));
+    msgs.push(msg);
 
-    let sig = await ethWallet._signTypedData(
-      txn.eipToSign.domain as any,
-      removeEIP712Domain(txn.eipToSign.types),
-      txn.eipToSign.message as any
-    );
 
-    let txnExtension = signatureToWeb3Extension(chain, sender, sig)
 
-    // Create the txRaw
-    let rawTx = createTxRawEIP712(
-      txn.legacyAmino.body,
-      txn.legacyAmino.authInfo,
-      txnExtension,
-    )
-    // console.log(JSON.stringify(txn.eipToSign.message, null, 2))
-    // return
-    // console.log(JSON.stringify(txn.eipToSign.message, null, 2));
-    // return
 
-    const res = await broadcastTx(rawTx);
-    console.log(res.data);
+    // if (jsonFileNames[i] === "9_10000_manual_transfers.json" && !MANUAL_TRANSFERS) continue;
+    // else if (jsonFileNames[i] === "9_10000_manual_transfers.json") {
+    //   // manualTransfersId = collectionId;
 
-    const rawLog = JSON.parse(res.data.tx_response.raw_log);
-    console.log(rawLog);
+    //   // console.log(collectionId);
 
-    const collectionId = rawLog[0].events[1].attributes.find((log: any) => log.key === 'collectionId').value;
+    //   for (let j = 1; j <= NUM_MANUAL_TRANSFERS; j++) {
+    //     if (j % 10 === 0) console.log("Transfer", j);
 
-    console.log("Created Collection", i + 1, "with collectionId", collectionId);
-    //Handle the manual transfers collection. Creates an on-chain collection w/ 10000 badges and transfers those badges to random or specified addresses
+    //     let toAddress = '';
+    //     if (ADDRESSES_TO_TRANSFER_TO.length > 0) {
+    //       const numTransfersPerAddress = NUM_MANUAL_TRANSFERS / ADDRESSES_TO_TRANSFER_TO.length;
+    //       const addressIdx = Math.floor((j - 1) / numTransfersPerAddress);
+    //       toAddress = ADDRESSES_TO_TRANSFER_TO[addressIdx];
+    //     } else {
+    //       const toWallet = ethers.Wallet.createRandom();
+    //       toAddress = convertToCosmosAddress(toWallet.address);
+    //     }
+    //     console.log(toAddress);
 
-    if (jsonFileNames[i] === "9_10000_manual_transfers.json" && !MANUAL_TRANSFERS) continue;
-    else if (jsonFileNames[i] === "9_10000_manual_transfers.json") {
-      // manualTransfersId = collectionId;
+    //     const transferTxn = createTxMsgTransferBadges(
+    //       chain,
+    //       {
+    //         accountAddress: convertToCosmosAddress(ethWallet.address),
+    //         sequence: sequence++,
+    //         accountNumber: Numberify(account.accountNumber),
+    //         pubkey: base64PubKey,
+    //       },
+    //       {
+    //         denom: 'badge',
+    //         amount: '1',
+    //         gas: '180000',
+    //       },
+    //       '',
+    //       {
+    //         creator: convertToCosmosAddress(ethWallet.address),
+    //         collectionId: collectionId.toString(),
+    //         transfers: [
+    //           {
+    //             from: "Mint",
+    //             toAddresses: [toAddress],
+    //             balances: [{
+    //               amount: '1',
+    //               badgeIds: [{ start: j.toString(), end: j.toString() }],
+    //               ownershipTimes: [{ start: "1", end: "18446744073709551615" }]
+    //             }]
+    //           }
+    //         ]
+    //       }
+    //     );
+    //     if (!transferTxn.eipToSign) throw new Error("No eip to sign");
 
-      // console.log(collectionId);
+    //     console.log(JSON.stringify(transferTxn.eipToSign.message, null, 2));
 
-      for (let j = 1; j <= NUM_MANUAL_TRANSFERS; j++) {
-        if (j % 10 === 0) console.log("Transfer", j);
+    //     let sig = await ethWallet._signTypedData(
+    //       transferTxn.eipToSign.domain as any,
+    //       removeEIP712Domain(transferTxn.eipToSign.types),
+    //       transferTxn.eipToSign.message as any
+    //     );
 
-        let toAddress = '';
-        if (ADDRESSES_TO_TRANSFER_TO.length > 0) {
-          const numTransfersPerAddress = NUM_MANUAL_TRANSFERS / ADDRESSES_TO_TRANSFER_TO.length;
-          const addressIdx = Math.floor((j - 1) / numTransfersPerAddress);
-          toAddress = ADDRESSES_TO_TRANSFER_TO[addressIdx];
-        } else {
-          const toWallet = ethers.Wallet.createRandom();
-          toAddress = convertToCosmosAddress(toWallet.address);
-        }
-        console.log(toAddress);
+    //     let txnExtension = signatureToWeb3Extension(chain, sender, sig)
 
-        const transferTxn = createTxMsgTransferBadges(
-          chain,
-          {
-            accountAddress: convertToCosmosAddress(ethWallet.address),
-            sequence: sequence++,
-            accountNumber: Numberify(account.accountNumber),
-            pubkey: base64PubKey,
-          },
-          {
-            denom: 'badge',
-            amount: '1',
-            gas: '180000',
-          },
-          '',
-          {
-            creator: convertToCosmosAddress(ethWallet.address),
-            collectionId: collectionId.toString(),
-            transfers: [
-              {
-                from: "Mint",
-                toAddresses: [toAddress],
-                balances: [{
-                  amount: '1',
-                  badgeIds: [{ start: j.toString(), end: j.toString() }],
-                  ownershipTimes: [{ start: "1", end: "18446744073709551615" }]
-                }]
-              }
-            ]
-          }
-        );
-
-        console.log(JSON.stringify(transferTxn.eipToSign.message, null, 2));
-
-        let sig = await ethWallet._signTypedData(
-          transferTxn.eipToSign.domain as any,
-          removeEIP712Domain(transferTxn.eipToSign.types),
-          transferTxn.eipToSign.message as any
-        );
-
-        let txnExtension = signatureToWeb3Extension(chain, sender, sig)
-
-        // Create the txRaw
-        let rawTx = createTxRawEIP712(
-          transferTxn.legacyAmino.body,
-          transferTxn.legacyAmino.authInfo,
-          txnExtension,
-        )
-        const res = await broadcastTx(rawTx);
-        console.log(res.data);
-      }
-    }
+    //     // Create the txRaw
+    //     let rawTx = createTxRawEIP712(
+    //       transferTxn.legacyAmino.body,
+    //       transferTxn.legacyAmino.authInfo,
+    //       txnExtension,
+    //     )
+    //     const res = await broadcastTx(rawTx);
+    //     console.log(res.data);
+    //   }
+    // }
 
   }
 
+  return msgs;
 }
 
 main()

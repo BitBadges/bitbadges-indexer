@@ -3,8 +3,8 @@ import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
-import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx'
-import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx'
+import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
+import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
 import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertStatusDoc } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import nano from "nano"
@@ -377,36 +377,36 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     let msg: any = null;
     switch (typeUrl) {
       case "/badges.MsgTransferBadges":
-        const transferMsg = convertFromProtoToMsgTransferBadges(tx.badges.MsgTransferBadges.deserialize(value))
+        const transferMsg = convertFromProtoToMsgTransferBadges(tx.MsgTransferBadges.fromBinary(value))
         await handleMsgTransferBadges(transferMsg, status, docs, indexed.hash)
         // Don't need to track transfers (we do it in TRANSFER_ACTIVITY)
         // msg = transferMsg;
         break;
       case "/badges.MsgDeleteCollection":
-        const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.badges.MsgDeleteCollection.deserialize(value))
+        const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.MsgDeleteCollection.fromBinary(value))
         await handleMsgDeleteCollection(newDeleteMsg, status, docs);
         msg = newDeleteMsg;
         break;
       case "/badges.MsgCreateAddressMappings":
-        const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.badges.MsgCreateAddressMappings.deserialize(value))
+        const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.MsgCreateAddressMappings.fromBinary(value))
         await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs, indexed.hash);
         //Don't need to track, we have created at and address mappings on-chain are permanent and immutable
         // msg = newAddressMappingsMsg;
         break;
       case "/badges.MsgUpdateCollection":
-        const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.badges.MsgUpdateCollection.deserialize(value))
+        const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.MsgUpdateCollection.fromBinary(value))
         await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs, indexed.hash)
         msg = newUpdateCollectionMsg;
         break;
       case "/badges.MsgUpdateUserApprovals":
-        const newUpdateUserApprovalsMsg = convertFromProtoToMsgUpdateUserApprovals(tx.badges.MsgUpdateUserApprovals.deserialize(value))
+        const newUpdateUserApprovalsMsg = convertFromProtoToMsgUpdateUserApprovals(tx.MsgUpdateUserApprovals.fromBinary(value))
         await handleMsgUpdateUserApprovals(newUpdateUserApprovalsMsg, status, docs, indexed.hash)
         msg = newUpdateUserApprovalsMsg;
         break;
       case "/cosmos.bank.v1beta1.MsgSend":
-        const newMsgSend = bank.cosmos.bank.v1beta1.MsgSend.deserialize(value);
-        const fromAddress = newMsgSend.toObject().from_address;
-        const toAddress = newMsgSend.toObject().to_address;
+        const newMsgSend = bank.MsgSend.fromBinary(value);
+        const fromAddress = newMsgSend.fromAddress;
+        const toAddress = newMsgSend.toAddress;
         if (fromAddress && fromAddress != "") await handleNewAccountByAddress(fromAddress, docs)
         if (toAddress && toAddress != "") await handleNewAccountByAddress(toAddress, docs)
       // Don't need to track MsgSends

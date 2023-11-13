@@ -1,8 +1,8 @@
 import { createProtobufRpcClient, QueryClient } from "@cosmjs/stargate";
 import { cosmosToEth } from "bitbadgesjs-address-converter";
-import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth";
-import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query";
-import * as ethermint from 'bitbadgesjs-proto/dist/proto/ethermint/crypto/v1/ethsecp256k1/keys';
+import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth_pb";
+import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query_pb";
+import * as ethermint from 'bitbadgesjs-proto/dist/proto/ethermint/keys_pb';
 import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-utils";
 
 /**
@@ -27,23 +27,23 @@ export interface BadgesExtension {
 
 const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
   //Native Cosmos SDK x/auth query for account information
-  const accountInfo = accountQuery.cosmos.auth.v1beta1.QueryAccountResponse.deserialize(accountPromise).account
-  const accountInfoValue = accountInfo.toObject().value;
+  const accountInfo = accountQuery.QueryAccountResponse.fromBinary(accountPromise).account
+  const accountInfoValue = accountInfo?.value;
   if (!accountInfoValue) throw new Error("Account not found");
 
-  const accountObj = account.cosmos.auth.v1beta1.BaseAccount.deserialize(accountInfoValue).toObject();
+  const accountObj = account.BaseAccount.fromBinary(accountInfoValue);
   let pubKeyStr = '';
   let chain = getChainForAddress(accountObj.address ? accountObj.address : '');
-  if (accountObj.pub_key?.type_url) {
-    if (accountObj.pub_key.type_url === '/ethermint.PubKey') {
+  if (accountObj.pubKey?.typeUrl) {
+    if (accountObj.pubKey.typeUrl === '/ethermint.PubKey') {
       chain = SupportedChain.ETH
-    } else if (accountObj.pub_key.type_url === '/cosmos.crypto.secp256k1.PubKey') {
+    } else if (accountObj.pubKey.typeUrl === '/cosmos.crypto.secp256k1.PubKey') {
       chain = SupportedChain.COSMOS
     }
   }
 
-  if (accountObj.pub_key?.value) {
-    const pub_key = ethermint.ethermint.crypto.v1.ethsecp256k1.PubKey.deserialize(accountObj.pub_key.value).key;
+  if (accountObj.pubKey?.value) {
+    const pub_key = ethermint.PubKey.fromBinary(accountObj.pubKey.value).key;
     pubKeyStr = Buffer.from(pub_key).toString('base64');
   }
 
@@ -52,7 +52,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
   return {
     publicKey: pubKeyStr,
     sequence: accountObj.sequence ? accountObj.sequence.toString() : "0",
-    accountNumber: accountObj.account_number !== undefined && accountObj.account_number >= 0 ? accountObj.account_number.toString() : "0",
+    accountNumber: accountObj.accountNumber !== undefined && accountObj.accountNumber >= 0 ? accountObj.accountNumber.toString() : "0",
     chain,
     ethAddress: accountObj.address ? cosmosToEth(accountObj.address) : '',
     cosmosAddress: accountObj.address ? convertToCosmosAddress(accountObj.address) : '',
@@ -70,7 +70,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
         try {
           //Native Cosmos SDK x/auth query for account information
 
-          const accountData = accountQuery.cosmos.auth.v1beta1.QueryAccountRequest.fromObject({ address: cosmosAddress }).serialize();
+          const accountData = new accountQuery.QueryAccountRequest({ address: cosmosAddress }).toBinary();
           const accountPromise = await rpc.request(
             'cosmos.auth.v1beta1.Query',
             'Account',

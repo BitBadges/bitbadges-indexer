@@ -100,7 +100,6 @@ app.use(async (req, res, next) => {
   //Check if trusted origin
   const origin = req.headers.origin;
 
-  console.log("ORIGIN", origin);
   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io')) {
     return next();
   } else {
