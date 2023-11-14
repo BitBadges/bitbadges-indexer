@@ -1,4 +1,4 @@
-import EthDriver from 'blockin-eth-driver';
+import EthDriver from './EthDriver';
 import CosmosDriver from 'blockin-cosmos-driver';
 
 const ethDriver = new EthDriver('0x1', undefined);

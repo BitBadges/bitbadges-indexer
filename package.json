@@ -40,7 +40,6 @@
     "bitbadgesjs-utils": "^1.1.271",
     "blockin": "^1.2.58",
     "blockin-cosmos-driver": "^1.0.3",
-    "blockin-eth-driver": "^1.0.14",
     "connect-timeout": "^1.9.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
