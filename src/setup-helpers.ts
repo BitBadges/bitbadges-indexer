@@ -7,6 +7,9 @@ config()
 const nano = Nano(`${process.env.DB_URL}`);
 
 export async function deleteDatabases() {
+  await nano.db.destroy('reports').catch((e) => { if (e.statusCode !== 404) throw e });
+
+
   //Deterministic
   await nano.db.destroy('accounts').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('collections').catch((e) => { if (e.statusCode !== 404) throw e });
@@ -15,6 +18,7 @@ export async function deleteDatabases() {
   await nano.db.destroy('merkle-challenges').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('msgs').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('off-chain-urls').catch((e) => { if (e.statusCode !== 404) throw e });
+
 
   //Can be, but may have off-chain features
 
@@ -38,8 +42,9 @@ export async function deleteDatabases() {
   //Manual - Fine since we are the only ones writing to it. Eventually will populate. Also will be replaced by a badge long term.
   await nano.db.destroy('api-keys').catch((e) => { if (e.statusCode !== 404) throw e });
 
+
   //Local and not replicated
-  await nano.db.destroy('errors').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('errors').catch((e) => { if (e.statusCode !== 404) throw e })
 
   //Are probably fine but could have data races with lastSeenActivity
   await nano.db.destroy('announcements').catch((e) => { if (e.statusCode !== 404) throw e });
@@ -91,6 +96,7 @@ export async function createDatabases() {
   await nano.db.create('eth-tx-count');
   await nano.db.create('msgs');
   await nano.db.create('off-chain-urls');
+  await nano.db.create('reports');
 
 
   //_utils, _replicator, _global_changes, _metadata

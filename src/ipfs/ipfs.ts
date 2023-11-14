@@ -5,18 +5,11 @@ import last from 'it-last';
 import { getStatus } from '../db/status';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { FETCHES_DB, OFF_CHAIN_URLS_DB, insertToDB } from '../db/db';
-import { ipfsClient } from "../indexer";
-import AWS from 'aws-sdk';
+import { ipfsClient, s3 } from "../indexer";
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { catch404 } from '../utils/couchdb-utils';
 
-const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
-const s3 = new AWS.S3({
-  endpoint: spacesEndpoint,
-  accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
-  secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY
-});
 
 export const getFromIpfs = async (path: string) => {
   if (!path) return { file: '{}' }

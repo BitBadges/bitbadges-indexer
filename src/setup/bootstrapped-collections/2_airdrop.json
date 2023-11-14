@@ -92,7 +92,7 @@
         }
       ],
       "offChainBalancesMetadata": {
-        "uri": "https://api.bitbadges.io/api/v0/airdrop/balances",
+        "uri": "https://bitbadges.nyc3.cdn.digitaloceanspaces.com/airdrop/balances",
         "customData": ""
       }
     }

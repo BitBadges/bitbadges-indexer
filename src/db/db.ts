@@ -12,6 +12,13 @@ export interface ApiKeyDoc {
   lastRequest: number;
 }
 
+export interface ReportDoc {
+  collectionId?: number;
+  mappingId?: string;
+  addressOrUsername?: string;
+  reason: string;
+}
+
 export interface EthTxCountDoc {
   count: number;
   lastFetched: number;
@@ -33,7 +40,7 @@ export interface OffChainUrlDoc {
   collectionId: number;
 }
 
-export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc;
+export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc | ReportDoc;
 
 export const OFF_CHAIN_URLS_DB = nano.db.use<OffChainUrlDoc>('off-chain-urls');
 export const API_KEYS_DB = nano.db.use<ApiKeyDoc>('api-keys');
@@ -58,6 +65,7 @@ export const APPROVALS_TRACKER_DB = nano.db.use<ApprovalsTrackerDoc<JSPrimitiveN
 export const CLAIM_ALERTS_DB = nano.db.use<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts');
 export const ETH_TX_COUNT_DB = nano.db.use<EthTxCountDoc>('eth-tx-count');
 export const MSGS_DB = nano.db.use<MsgDoc>('msgs');
+export const REPORTS_DB = nano.db.use<ReportDoc>('reports');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
   const res = await insertMany(db, [doc]);
@@ -120,6 +128,8 @@ export async function convertDocsToStoreInDb(db: Nano.DocumentScope<BitBadgesDoc
       convertedDoc = doc as MsgDoc;
     } else if (db.config.db === OFF_CHAIN_URLS_DB.config.db) {
       convertedDoc = doc as OffChainUrlDoc;
+    } else if (db.config.db === REPORTS_DB.config.db) {
+      convertedDoc = doc as ReportDoc;
     }
 
     convertedDocs.push(convertedDoc as BitBadgesDocumentBase<JSPrimitiveNumberType> & Nano.Document);

@@ -2,8 +2,11 @@ import { Secp256k1 } from '@cosmjs/crypto';
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { Account, SigningStargateClient, assertIsDeliverTxSuccess } from "@cosmjs/stargate";
 import axios from "axios";
-import { MessageGenerated, MsgUpdateCollection, SupportedChain, createMsgCreateAddressMappings, createMsgUpdateCollection, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
+import { MessageGenerated, MsgUpdateCollection, SupportedChain, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
 
+import { MsgCreateAddressMappings as ProtoMsgCreateAddressMappings, MsgUpdateCollection as ProtoMsgUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
+
+import { createProtoMsg } from 'bitbadgesjs-proto/dist/proto-types/base'
 import { BroadcastMode, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-provider";
 import { BETANET_CHAIN_DETAILS, Numberify, convertToCosmosAddress } from "bitbadgesjs-utils";
 import crypto from 'crypto';
@@ -33,8 +36,8 @@ async function main() {
 
     const msgs: MessageGenerated[] = [];
     // await deleteCollection();
-    msgs.push(...bootstrapLists());
-    msgs.push(...bootstrapCollections());
+    msgs.push(...bootstrapLists().map(x => createProtoMsg(x)));
+    msgs.push(...bootstrapCollections().map(x => createProtoMsg(x)))
 
 
     const txn = createTransactionPayload({ chain, sender, memo: '', fee: { denom: 'badge', amount: '1', gas: '4000000' } }, msgs);
@@ -211,13 +214,11 @@ export function bootstrapLists() {
 
 
   const msgs = [];
-  // for (let i = 0; i < 100000; i++) {
-  // console.log(jsonObjects.length);
   for (let i = 0; i < jsonObjects.length; i++) {
+    const msg1 = new ProtoMsgCreateAddressMappings({
+      creator: convertToCosmosAddress(ethWallet.address),
+      addressMappings: [{
 
-    const msg1 = createMsgCreateAddressMappings(
-      convertToCosmosAddress(ethWallet.address),
-      [{
         ...jsonObjects[i],
         mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
         //random bool
@@ -228,7 +229,7 @@ export function bootstrapLists() {
         addresses: addresses.slice(0, 1000),
         includeAddresses: Math.random() < 0.5,
       }]
-    )
+    });
 
     msgs.push(msg1);
   }
@@ -270,6 +271,7 @@ export function bootstrapCollections() {
     console.log(jsonFileNames[i]);
     if (jsonFileNames[i].startsWith('1_')) continue
 
+
     const obj = {
       ...jsonObjects[i],
       creator: convertToCosmosAddress(ethWallet.address),
@@ -286,35 +288,10 @@ export function bootstrapCollections() {
       // inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
     } as Required<MsgUpdateCollection<string>>
 
-    const msg = createMsgUpdateCollection(
-      convertToCosmosAddress(ethWallet.address),
-      obj.collectionId,
-      obj.balancesType,
-      obj.defaultOutgoingApprovals,
-      obj.defaultIncomingApprovals,
-      obj.defaultAutoApproveSelfInitiatedOutgoingTransfers,
-      obj.defaultAutoApproveSelfInitiatedIncomingTransfers,
-      obj.defaultUserPermissions,
-      obj.badgesToCreate,
-      obj.updateCollectionPermissions,
-      obj.collectionPermissions,
-      obj.updateManagerTimeline,
-      obj.managerTimeline,
-      obj.updateCollectionMetadataTimeline,
-      obj.collectionMetadataTimeline,
-      obj.updateBadgeMetadataTimeline,
-      obj.badgeMetadataTimeline,
-      obj.updateOffChainBalancesMetadataTimeline,
-      obj.offChainBalancesMetadataTimeline,
-      obj.updateCustomDataTimeline,
-      obj.customDataTimeline,
-      obj.updateCollectionApprovals,
-      obj.collectionApprovals,
-      obj.updateStandardsTimeline,
-      obj.standardsTimeline,
-      obj.updateIsArchivedTimeline,
-      obj.isArchivedTimeline,
-    );
+    const msg = new ProtoMsgUpdateCollection({
+      ...obj,
+      creator: obj.creator,
+    });
 
     msgs.push(msg);
 

@@ -10,7 +10,7 @@ import { catch404 } from "../utils/couchdb-utils";
 
 const { AES } = CryptoJS;
 
-const IPFS_UPLOAD_BYTES_LIMIT = 100000000; //100MB
+const IPFS_UPLOAD_BYTES_LIMIT = 1000000000; //1GB
 
 export const updateIpfsTotals = async (address: string, size: number, req: AuthenticatedRequest<NumberType>) => {
   const _ipfsTotalsDoc = await IPFS_TOTALS_DB.get(address).catch(catch404);
@@ -49,7 +49,7 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
       size = Buffer.byteLength(JSON.stringify(req.body));
 
       if (req.session.ipfsTotal + size > IPFS_UPLOAD_BYTES_LIMIT) {
-        return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
+        return res.status(400).send({ message: `This upload will cause you to exceed your storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
       }
 
       let urlPath = undefined;
@@ -78,7 +78,7 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error adding balances to IPFS. Please try again later."
+      message: "Error adding balances to storage."
     })
   }
 }

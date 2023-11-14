@@ -1,5 +1,5 @@
 import { AddressMapping, JSPrimitiveNumberType, UserPermissions } from "bitbadgesjs-proto";
-import { BalanceInfoWithDetails, GetBadgeBalanceByAddressRouteRequestBody, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertUserPermissionsWithDetails } from "bitbadgesjs-utils";
+import { BalanceInfoWithDetails, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertUserPermissionsWithDetails } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { BALANCES_DB, COLLECTIONS_DB } from "../db/db";
@@ -29,8 +29,6 @@ export const applyAddressMappingsToUserPermissions = (userPermissions: UserPermi
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBadgeBalanceByAddressRouteResponse<NumberType>>) => {
   //TODO: Support inherited balances
   try {
-
-    const reqBody = req.body as GetBadgeBalanceByAddressRouteRequestBody;
 
     const cosmosAddress = `${req.params.cosmosAddress.toString()}`;
     const docId = `${req.params.collectionId}:${cosmosAddress}`
@@ -98,8 +96,8 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
     const balanceToReturnConverted: BalanceInfoWithDetails<string> = {
       ...balanceToReturn,
-      incomingApprovals: appendDefaultForIncomingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults),
-      outgoingApprovals: appendDefaultForOutgoingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress, reqBody.doNotHandleAllAndAppendDefaults),
+      incomingApprovals: appendDefaultForIncomingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress),
+      outgoingApprovals: appendDefaultForOutgoingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress),
       userPermissions: convertUserPermissionsWithDetails(applyAddressMappingsToUserPermissions(balanceToReturn.userPermissions, addressMappings), Stringify),
     }
 

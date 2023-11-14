@@ -1,5 +1,6 @@
+import AWS from 'aws-sdk'
 import axios from 'axios'
-import { ErrorResponse, OffChainBalancesMap } from 'bitbadgesjs-utils'
+import { ErrorResponse } from 'bitbadgesjs-utils'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import { Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
@@ -7,15 +8,15 @@ import { config } from "dotenv"
 import express, { Express, Request, Response } from "express"
 import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
-import { Server } from "http"
-import { create } from 'ipfs-http-client'
 import fs from 'fs'
+import { Server } from "http"
 import https from 'https'
+import { create } from 'ipfs-http-client'
 import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { AIRDROP_DB, API_KEYS_DB, insertToDB } from './db/db'
+import { API_KEYS_DB, REPORTS_DB, insertToDB } from './db/db'
 import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
 import { addAnnouncement } from './routes/announcements'
@@ -40,7 +41,12 @@ import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 export const OFFLINE_MODE = false;
 export const TIME_MODE = process.env.TIME_MODE === 'true' || false;
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
-
+const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
+export const s3 = new AWS.S3({
+  endpoint: spacesEndpoint,
+  accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
+  secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY
+});
 config()
 
 // Basic rate limiting middleware for Express. Limits requests to 30 per minute.
@@ -198,6 +204,18 @@ app.get("/", (req: Request, res: Response) => {
 //Status
 app.post("/api/v0/status", getStatusHandler);
 
+//Reports
+app.post("/api/v0/report", cors(websiteOnlyCorsOptions), authorizeBlockinRequest, async (req, res) => {
+  try {
+    const report = req.body;
+    await insertToDB(REPORTS_DB, report);
+    return res.status(200).send({ message: 'Report successfully submitted.' });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({ message: e.message });
+  }
+});
+
 //Search
 app.post("/api/v0/search/:searchValue", searchHandler);
 
@@ -263,25 +281,6 @@ app.post('/api/v0/approvals', getApprovals);
 
 //Merkle Challenge Tracker
 app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
-
-app.get('/api/v0/airdrop/balances', async (req, res) => {
-  const allAirdropped = await AIRDROP_DB.list();
-  const airdropped = allAirdropped.rows.map(row => row.id);
-  const balancesMap: OffChainBalancesMap<bigint> = {};
-  for (const address of airdropped) {
-    balancesMap[address] = [{
-      amount: 1n,
-      badgeIds: [{
-        start: 1n, end: 1n,
-      }],
-      ownershipTimes: [{
-        start: 1n, end: 18446744073709551615n,
-      }],
-    }
-    ];
-  }
-  return res.send(balancesMap);
-});
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {
