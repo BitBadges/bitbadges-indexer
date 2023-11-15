@@ -106,6 +106,8 @@ app.use(async (req, res, next) => {
   //Check if trusted origin
   const origin = req.headers.origin;
 
+  console.log("ORIGIN", origin);
+
   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io')) {
     return next();
   } else {
@@ -146,12 +148,15 @@ app.use(async (req, res, next) => {
 });
 
 
+
+
 var websiteOnlyCorsOptions = {
   //localhost or deployed
 
   origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL : 'https://bitbadges.io',
   optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
 }
+const websiteOnlyCors = cors(websiteOnlyCorsOptions);
 
 
 //Use limiter but provide a custom error response
@@ -248,9 +253,9 @@ app.post('/api/v0/user/:addressOrUsername', getAccount);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 
 //IPFS
-app.post('/api/v0/addMetadataToIpfs', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addMetadataToIpfsHandler); //
-app.post('/api/v0/addApprovalDetailsToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addApprovalDetailsToOffChainStorageHandler); //
-app.post('/api/v0/addBalancesToOffChainStorage', cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addBalancesToOffChainStorageHandler); //
+app.post('/api/v0/addMetadataToIpfs', websiteOnlyCors, authorizeBlockinRequest, addMetadataToIpfsHandler); //
+app.post('/api/v0/addApprovalDetailsToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, addApprovalDetailsToOffChainStorageHandler); //
+app.post('/api/v0/addBalancesToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, addBalancesToOffChainStorageHandler); //
 
 //Blockin Auth
 app.post('/api/v0/auth/getChallenge', getChallenge);
@@ -266,7 +271,7 @@ app.post('/api/v0/broadcast', broadcastTx);
 app.post('/api/v0/simulate', simulateTx);
 
 //Fetch arbitrary metadata
-app.post('/api/v0/metadata', cors(websiteOnlyCorsOptions), fetchMetadataDirectly);
+app.post('/api/v0/metadata', websiteOnlyCors, fetchMetadataDirectly);
 
 //Faucet
 app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
