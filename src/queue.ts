@@ -1,6 +1,6 @@
 import axios from "axios";
 import { AddressMapping, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
-import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityInfoBase, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityInfoBase, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getReservedAddressMapping, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
 import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
@@ -11,6 +11,7 @@ import { compareObjects } from "./utils/compare";
 import { catch404 } from "./utils/couchdb-utils";
 import { cleanBalances, cleanApprovalInfo, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
+import { getAddressMappingsFromDB } from "./routes/utils";
 
 //1. Upon initial TX (new collection or URIs updating): 
 // 	1. Trigger collection, claims, first X badges, and balances to queue in QUEUE_DB
@@ -140,12 +141,22 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     let isPermanent = false;
     //If we are here, we need to fetch from the source
     if (uri.startsWith('ipfs://')) {
+
       const _res: any = await getFromIpfs(uri.replace('ipfs://', ''));
 
       res = JSON.parse(_res.file);
       isPermanent = true;
     } else {
-      const _res = await axios.get(uri).then((res) => res.data);
+
+      const ownDigitalOceanSpaces = uri.startsWith('https://bitbadges.nyc3.digitaloceanspaces.com');
+      const options = ownDigitalOceanSpaces ? {
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      } : undefined;
+
+
+      const _res = await axios.get(uri, options).then((res) => res.data);
       res = _res;
     }
 
@@ -153,7 +164,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     if (res.image) { //res.image is required for all metadata and not included in any other type
       dbType = 'Metadata';
       res = cleanMetadata(res);
-    } else if (Object.keys(res).every((key) => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS)) { //If it has at least one valid address as a key, it is a balances doc
+    } else if (Object.values(res).some(x => Array.isArray(x))) {
       dbType = 'Balances';
       res = cleanBalances(res);
       res = convertOffChainBalancesMap(res, BigIntify);
@@ -383,9 +394,41 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   let balanceMap = balancesMap;
   //We have to update the existing balances with the new balances, if the collection already exists
   //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
-  const mapKeys = Object.keys(balanceMap).filter(key => isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS)
+  const mapKeys = [];
+  const balanceMapKeys = Object.keys(balanceMap);
+
+  const newBalanceMap = {};
+  for (const key of balanceMapKeys) {
+    let addressMapping = getReservedAddressMapping(key);
+    if (!addressMapping) {
+      const res = await getAddressMappingsFromDB([{ mappingId: key }], false);
+      addressMapping = res[0];
+    }
+
+    if (!addressMapping.includeAddresses) {
+      throw new Error("Blacklists are not supported for address mappings: " + key);
+    }
+    if (addressMapping.mappingId.indexOf("_") >= 0) {
+      throw new Error("Address mappings cannot be off-chain: " + key);
+    }
+    if (mapKeys.length + addressMapping.addresses.length > MAX_NUM_ADDRESSES) {
+      throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
+    }
+
+    const addresses = addressMapping.addresses.map(x => convertToCosmosAddress(x))
+    mapKeys.push(...addresses);
+    for (const address of addresses) {
+      newBalanceMap[address] = balanceMap[key];
+    }
+  }
+
+  balanceMap = newBalanceMap;
+
   if (mapKeys.length == 0) {
     throw new Error('No valid addresses found in balances map');
+  }
+  if (mapKeys.length > MAX_NUM_ADDRESSES) {
+    throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
   }
 
 
@@ -461,9 +504,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
 
     //Update the balance documents
     const entries = Object.entries(balanceMap);
-    if (entries.length > MAX_NUM_ADDRESSES) {
-      throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
-    }
+
 
     for (const [key, val] of entries) {
       if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
