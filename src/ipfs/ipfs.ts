@@ -198,24 +198,24 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   const status = await getStatus();
   let idx = 0;
   for await (const result of metadataResults) {
+
     results.push({ cid: result.cid.toString() });
 
-    if (result) {
-      if (idx === 0 && collectionMetadata) {
-        collectionMetadataResult = { cid: result.cid.toString() };
-      } else {
-        badgeMetadataResults.push({ cid: result.cid.toString() });
-      }
-
-      await insertToDB(FETCHES_DB, {
-        _id: `ipfs://${result.cid.toString()}`,
-        fetchedAt: BigInt(Date.now()),
-        fetchedAtBlock: status.block.height,
-        content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
-        db: 'Metadata',
-        isPermanent: true
-      });
+    if (idx === 0 && collectionMetadata) {
+      collectionMetadataResult = { cid: result.cid.toString() };
+    } else {
+      badgeMetadataResults.push({ cid: result.cid.toString() });
     }
+
+    await insertToDB(FETCHES_DB, {
+      _id: `ipfs://${result.cid.toString()}`,
+      fetchedAt: BigInt(Date.now()),
+      fetchedAtBlock: status.block.height,
+      content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
+      db: 'Metadata',
+      isPermanent: true
+    });
+
     idx++;
   }
 

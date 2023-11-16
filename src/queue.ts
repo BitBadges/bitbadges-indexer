@@ -531,11 +531,12 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
     //uses binary search here to make it a little quicker.
     const docsEntries = Object.entries(docs.balances);
     for (const [key, val] of docsEntries) {
+      if (!val) continue
+      if (val.cosmosAddress === 'Mint' || val.cosmosAddress === 'Total') continue;
+
       if (docBalancesCopy[key]?.balances && compareObjects(docBalancesCopy[key]?.balances, val?.balances)) {
         delete docs.balances[key];
       } else {
-        if (!val) continue
-        if (val.cosmosAddress === 'Mint' || val.cosmosAddress === 'Total') continue;
 
         const newActivity: TransferActivityInfoBase<bigint> & nano.MaybeIdentifiedDocument = {
           _id: `collection-${val.collectionId}:bal_-${val.cosmosAddress}-${mintDoc.fetchedAt}`,
