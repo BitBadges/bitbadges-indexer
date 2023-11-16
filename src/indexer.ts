@@ -39,6 +39,7 @@ import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 
 export const OFFLINE_MODE = false;
+
 export const TIME_MODE = process.env.TIME_MODE === 'true' || false;
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
@@ -106,7 +107,7 @@ app.use(async (req, res, next) => {
   //Check if trusted origin
   const origin = req.headers.origin;
 
-  console.log("ORIGIN", origin);
+  // console.log("ORIGIN", origin);
 
   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io')) {
     return next();

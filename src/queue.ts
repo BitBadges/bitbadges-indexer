@@ -531,7 +531,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
     //uses binary search here to make it a little quicker.
     const docsEntries = Object.entries(docs.balances);
     for (const [key, val] of docsEntries) {
-      if (docBalancesCopy[key] && compareObjects(docBalancesCopy[key], val)) {
+      if (docBalancesCopy[key]?.balances && compareObjects(docBalancesCopy[key]?.balances, val?.balances)) {
         delete docs.balances[key];
       } else {
         if (!val) continue
