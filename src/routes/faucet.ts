@@ -101,7 +101,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
       await insertToDB(AIRDROP_DB, { ...doc, hash: result.transactionHash, timestamp: Date.now() });
 
       //trigger refresh
-      await refreshCollection("2");
+      await refreshCollection("2", true);
 
 
       const allAirdropped = await AIRDROP_DB.list();
@@ -125,7 +125,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
 
       const params = {
         Body: binaryData,
-        Bucket: 'bitbadges',
+        Bucket: 'bitbadges-balances',
         Key: 'airdrop/balances',
         ACL: 'public-read', // Set the ACL as needed
         ContentType: 'application/json', // Set the content type to JSON

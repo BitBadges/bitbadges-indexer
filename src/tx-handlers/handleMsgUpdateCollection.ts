@@ -240,7 +240,7 @@ export const handleMsgUpdateCollection = async (msg: MsgUpdateCollection<bigint>
   }
 
   //TODO: handle in docs cache
-  if (collection.offChainBalancesMetadataTimeline.length > 0 && collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.startsWith('https://bitbadges.nyc3.digitaloceanspaces.com/balances/')) {
+  if (collection.offChainBalancesMetadataTimeline.length > 0 && collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/')) {
     const uri = collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri;
     const customData = collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.customData;
     if (customData && uri.split('/').pop() === customData) {

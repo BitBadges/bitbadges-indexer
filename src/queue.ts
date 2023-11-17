@@ -1,17 +1,17 @@
 import axios from "axios";
 import { AddressMapping, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
-import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityInfoBase, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getReservedAddressMapping, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityInfoBase, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
 import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
 import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE } from "./poll";
+import { getAddressMappingsFromDB } from "./routes/utils";
 import { compareObjects } from "./utils/compare";
 import { catch404 } from "./utils/couchdb-utils";
-import { cleanBalances, cleanApprovalInfo, cleanMetadata } from "./utils/dataCleaners";
+import { cleanApprovalInfo, cleanBalances, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
-import { getAddressMappingsFromDB } from "./routes/utils";
 
 //1. Upon initial TX (new collection or URIs updating): 
 // 	1. Trigger collection, claims, first X badges, and balances to queue in QUEUE_DB
@@ -148,7 +148,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       isPermanent = true;
     } else {
 
-      const ownDigitalOceanSpaces = uri.startsWith('https://bitbadges.nyc3.digitaloceanspaces.com');
+      const ownDigitalOceanSpaces = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com');
       const options = ownDigitalOceanSpaces ? {
         headers: {
           'Cache-Control': 'no-cache',
@@ -170,9 +170,10 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       res = convertOffChainBalancesMap(res, BigIntify);
 
       //Compare res and fetchDoc.content and only update trigger balances writes if they are different. Else, just update fetchedAt
-      const contentIsSame = fetchDoc && fetchDoc.content && compareObjects(fetchDoc.content, res);
+      //TODO: I don't think this works if we updated in a diff collection but not his one
+      // const contentIsSame = fetchDoc && fetchDoc.content && compareObjects(fetchDoc.content, res);
 
-      await handleBalances(res, queueObj, block, contentIsSame);
+      await handleBalances(res, queueObj, block); //, contentIsSame)
     } else {
       dbType = 'ApprovalInfo';
       res = cleanApprovalInfo(res);
@@ -195,12 +196,12 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
 }
 
 const MIN_TIME_BETWEEN_REFRESHES = process.env.MIN_TIME_BETWEEN_REFRESHES ? BigInt(process.env.MIN_TIME_BETWEEN_REFRESHES) : BigInt(1000 * 60 * 5); //5 minutes
-export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, refreshRequestTime: bigint) => {
+export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, refreshRequestTime: bigint, forceful?: boolean) => {
 
   const _refreshesRes = await REFRESHES_DB.get(collectionId);
   const refreshesRes = convertRefreshDoc(_refreshesRes, BigIntify);
 
-  if (refreshesRes.refreshRequestTime + MIN_TIME_BETWEEN_REFRESHES > Date.now()) {
+  if (!forceful && refreshesRes.refreshRequestTime + MIN_TIME_BETWEEN_REFRESHES > Date.now()) {
     //If we have refreshed recently, do not spam it
     return refreshesRes.refreshRequestTime + MIN_TIME_BETWEEN_REFRESHES - BigInt(Date.now());
   }
@@ -395,15 +396,13 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   //We have to update the existing balances with the new balances, if the collection already exists
   //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
   const mapKeys = [];
+
   const balanceMapKeys = Object.keys(balanceMap);
 
   const newBalanceMap = {};
   for (const key of balanceMapKeys) {
-    let addressMapping = getReservedAddressMapping(key);
-    if (!addressMapping) {
-      const res = await getAddressMappingsFromDB([{ mappingId: key }], false);
-      addressMapping = res[0];
-    }
+    const res = await getAddressMappingsFromDB([{ mappingId: key }], false);
+    const addressMapping = res[0];
 
     if (!addressMapping.includeAddresses) {
       throw new Error("Blacklists are not supported for address mappings: " + key);
@@ -427,10 +426,10 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   if (mapKeys.length == 0) {
     throw new Error('No valid addresses found in balances map');
   }
+
   if (mapKeys.length > MAX_NUM_ADDRESSES) {
     throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
   }
-
 
   //Check the total doc first. If undefined, we can assume the rest are undefined (since this collection has never had balances before)
   //Saves us from fetching 10000+ or however many undefined docs if we dont need to

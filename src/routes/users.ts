@@ -363,13 +363,13 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   }
 
   if (managingBookmark !== undefined) {
-    asyncOperations.push(() => executeManagingQuery(cosmosAddress, managingBookmark));
+    asyncOperations.push(() => executeManagingQuery(cosmosAddress, profileInfo, managingBookmark));
   } else {
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
 
   if (createdByBookmark !== undefined) {
-    asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, createdByBookmark));
+    asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, profileInfo, createdByBookmark));
   } else {
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
@@ -558,6 +558,12 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
         _id: cosmosAddress,
         _rev: undefined,
       }
+    }
+
+    if (reqBody.customPages?.find(x => x.title === 'Hidden')) {
+      return res.status(400).send({
+        message: 'You cannot create a custom page with the title "Hidden".'
+      })
     }
 
     if (reqBody.username) {

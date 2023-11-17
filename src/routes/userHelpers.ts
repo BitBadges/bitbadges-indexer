@@ -12,7 +12,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
   }
-  
+
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
@@ -490,7 +490,7 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
 }
 
 
-export async function executeManagingQuery(cosmosAddress: string, bookmark?: string,) {
+export async function executeManagingQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeManagingQuery');
   //keep searching until we have min 25 non-hidden docs
   let docsLeft = 25;
@@ -502,7 +502,14 @@ export async function executeManagingQuery(cosmosAddress: string, bookmark?: str
 
     let viewDocs = view.rows.map((row) => row.id);
 
-    //TODO: Handle hidden?
+    //TODO: Make this more robust. Should we be filtering only if they hide whole collection (all badge IDs) or minimum of 1?
+    viewDocs = viewDocs.filter((doc) => {
+      if (profileInfo.hiddenBadges?.find((hiddenBadge) => hiddenBadge.collectionId === BigInt(doc))) {
+        return false;
+      }
+      return true;
+    });
+
 
     docs.push(...viewDocs);
     docsLeft -= viewDocs.length;
@@ -523,7 +530,7 @@ export async function executeManagingQuery(cosmosAddress: string, bookmark?: str
   return collectedRes;
 }
 
-export async function executeCreatedByQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeCreatedByQuery');
   //keep searching until we have min 25 non-hidden docs
   let docsLeft = 25;
@@ -534,6 +541,14 @@ export async function executeCreatedByQuery(cosmosAddress: string, bookmark?: st
     const view = await COLLECTIONS_DB.view('created_by', 'byCreator', { key: cosmosAddress, limit: 25, skip: Number(currBookmark) ?? 0 });
 
     let viewDocs = view.rows.map((row) => row.id);
+
+    //TODO: Make this more robust. Should we be filtering only if they hide whole collection (all badge IDs) or minimum of 1?
+    viewDocs = viewDocs.filter((doc) => {
+      if (profileInfo.hiddenBadges?.find((hiddenBadge) => hiddenBadge.collectionId === BigInt(doc))) {
+        return false;
+      }
+      return true;
+    });
 
     docs.push(...viewDocs);
     docsLeft -= viewDocs.length;

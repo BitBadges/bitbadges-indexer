@@ -103,7 +103,7 @@ export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMa
 
     const params = {
       Body: binaryData,
-      Bucket: 'bitbadges',
+      Bucket: 'bitbadges-balances',
       Key: 'balances/' + path,
       ACL: 'public-read', // Set the ACL as needed
       ContentType: 'application/json', // Set the content type to JSON

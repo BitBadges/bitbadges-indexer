@@ -49,7 +49,7 @@ export const getRefreshStatus = async (req: Request, res: Response<RefreshStatus
   }
 }
 
-export const refreshCollection = async (collectionId: string) => {
+export const refreshCollection = async (collectionId: string, forceful?: boolean) => {
   const _collection = await COLLECTIONS_DB.get(collectionId);
   const collection = convertCollectionDoc(_collection, BigIntify);
   const docs: DocsCache = {
@@ -68,7 +68,7 @@ export const refreshCollection = async (collectionId: string) => {
 
   let refreshTime = BigInt(Date.now());
 
-  const invalidRefresh = await updateRefreshDoc(docs, collection.collectionId.toString(), refreshTime);
+  const invalidRefresh = await updateRefreshDoc(docs, collection.collectionId.toString(), refreshTime, forceful);
 
   if (!invalidRefresh) {
     await pushCollectionFetchToQueue(docs, collection, refreshTime);
