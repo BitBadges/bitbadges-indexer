@@ -614,8 +614,6 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       telegram: reqBody.telegram ?? profileInfo.telegram,
       seenActivity: reqBody.seenActivity?.toString() ?? profileInfo.seenActivity,
       readme: reqBody.readme ?? profileInfo.readme,
-      onlyShowApproved: reqBody.onlyShowApproved ?? profileInfo.onlyShowApproved,
-      shownBadges: reqBody.shownBadges ?? profileInfo.shownBadges,
       hiddenBadges: reqBody.hiddenBadges ?? profileInfo.hiddenBadges,
       customPages: reqBody.customPages ?? profileInfo.customPages,
       profilePicUrl: profilePicUrl ?? profileInfo.profilePicUrl,

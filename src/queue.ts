@@ -12,6 +12,8 @@ import { compareObjects } from "./utils/compare";
 import { catch404 } from "./utils/couchdb-utils";
 import { cleanApprovalInfo, cleanBalances, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
+import CryptoJS from "crypto-js";
+const { SHA256 } = CryptoJS
 
 //1. Upon initial TX (new collection or URIs updating): 
 // 	1. Trigger collection, claims, first X badges, and balances to queue in QUEUE_DB
@@ -170,10 +172,8 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       res = convertOffChainBalancesMap(res, BigIntify);
 
       //Compare res and fetchDoc.content and only update trigger balances writes if they are different. Else, just update fetchedAt
-      //TODO: I don't think this works if we updated in a diff collection but not his one
-      // const contentIsSame = fetchDoc && fetchDoc.content && compareObjects(fetchDoc.content, res);
 
-      await handleBalances(res, queueObj, block); //, contentIsSame)
+      await handleBalances(res, queueObj, block)
     } else {
       dbType = 'ApprovalInfo';
       res = cleanApprovalInfo(res);
@@ -363,7 +363,8 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
 
 const MAX_NUM_ADDRESSES = 15000;
 
-const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>, block: bigint, onlyUpdateFetchedAt?: boolean) => {
+const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>, block: bigint) => {
+  const balanceMapHash = SHA256(JSON.stringify(balanceMap)).toString();
 
   if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances');
   //Pretty much, this function is responsible for updating the balances docs in BALANCES_DB for off-chain balance JSONs 
@@ -390,9 +391,6 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   };
 
 
-
-  //Handle balance doc creation
-  let balanceMap = balancesMap;
   //We have to update the existing balances with the new balances, if the collection already exists
   //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
   const mapKeys = [];
@@ -446,13 +444,14 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
   const totalDoc = docs.balances[`${queueObj.collectionId}:Total`];
   if (!totalDoc) throw new Error('Total doc not found');
 
-  // const isContentSameAsLastUpdate = false;
-  const isContentSameAsLastUpdate = onlyUpdateFetchedAt || (sanityCheckDoc && mintDoc.uri === queueObj.uri && mintDoc.isPermanent);
+
+  const isContentSameAsLastUpdate = (totalDoc.contentHash && balanceMapHash === totalDoc.contentHash) || (sanityCheckDoc && mintDoc.uri === queueObj.uri && mintDoc.isPermanent);
   if (isContentSameAsLastUpdate) {
     docs.balances[`${queueObj.collectionId}:Mint`] = {
       ...convertBalanceDoc(mintDoc, BigIntify),
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block,
+
     }
 
     docs.balances[`${queueObj.collectionId}:Total`] = {
@@ -461,7 +460,6 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       fetchedAtBlock: block,
     }
   } else {
-
     const allPreviousDocIds = await BALANCES_DB.partitionedList(`${queueObj.collectionId}`)
     const allIdsToFetch = new Set([
       ...mapKeys.map((key) => `${queueObj.collectionId}:${key}`),
@@ -472,20 +470,19 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       ...allIdsToFetch,
     ] : [], [], [], [], []);
 
-
     const docBalancesCopy = deepCopy(docs.balances);
-
     //Set all balances to empty array
     for (const key of allIdsToFetch) {
       let balanceDoc = docs.balances[`${key}`];
       if (!balanceDoc) continue //For TS, we know it exists
+      if (balanceDoc.cosmosAddress === 'Mint' || balanceDoc.cosmosAddress === 'Total') continue;
+
       balanceDoc = {
         ...balanceDoc,
         balances: [],
       }
-      docs.balances[`${queueObj.collectionId}:${key}`] = balanceDoc;
+      docs.balances[`${key}`] = balanceDoc;
     }
-
 
     const totalSupplysDoc = docs.balances[`${queueObj.collectionId}:Total`];
     if (!totalSupplysDoc) throw new Error('Total supplys doc not found');
@@ -495,7 +492,8 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block,
       uri: queueObj.uri,
-      isPermanent: queueObj.uri.startsWith('ipfs://')
+      isPermanent: queueObj.uri.startsWith('ipfs://'),
+      contentHash: balanceMapHash,
     }
 
 
@@ -570,6 +568,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
     //Also merge balance docs if balances are equal so that we create one doc with X to addresses instead of X docs with 1 to address
     //uses binary search here to make it a little quicker.
     const docsEntries = Object.entries(docs.balances);
+
     for (const [key, val] of docsEntries) {
       if (!val) continue
       if (val.cosmosAddress === 'Mint' || val.cosmosAddress === 'Total') continue;
@@ -577,6 +576,24 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
       if (docBalancesCopy[key]?.balances && compareObjects(docBalancesCopy[key]?.balances, val?.balances)) {
         delete docs.balances[key];
       } else {
+        const balances = val.balances.map(x => convertBalance(x, BigIntify));
+        //We want to include any updated badges that now have zero balance 
+        //(e.g. going from [x1 ID 1] -> [x1 of ID 2], we want to display x0 of ID 1 and x1 of ID 2)
+
+        const prevBalances = docBalancesCopy[key]?.balances.map(x => convertBalance(x, BigIntify)) ?? [];
+        const inOldButNotNew = subtractBalances(balances, prevBalances, true).filter(x => x.amount > 0n);
+
+        //These values are not in the new (x0 amount)
+        //We want to add them to the balances doc with amount 0
+        if (inOldButNotNew.length > 0) {
+          balances.push(...inOldButNotNew.map(x => {
+            return {
+              ...x,
+              amount: 0n,
+            }
+          }));
+        }
+
 
         const newActivity: TransferActivityInfoBase<bigint> & nano.MaybeIdentifiedDocument = {
           _id: `collection-${val.collectionId}:bal_-${val.cosmosAddress}-${mintDoc.fetchedAt}`,
@@ -584,7 +601,7 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
           from: 'Mint',
           to: [val.cosmosAddress],
           collectionId: BigInt(val.collectionId),
-          balances: val.balances.map(x => convertBalance(x, BigIntify)),
+          balances: balances,
           timestamp: BigInt(Date.now()),
           memo: '',
           initiatedBy: '',
@@ -603,12 +620,12 @@ const handleBalances = async (balancesMap: OffChainBalancesMap<bigint>, queueObj
     }
   }
 
+
   if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances - flush only');
   if (TIME_MODE && QUEUE_TIME_MODE) console.log("Flushing docs (balances, activityToAdd)", Object.keys(docs.balances).length, docs.activityToAdd.length);
   //TODO: Eventually, we should make this a transactional all-or-nothing update with QUEUE_DB.destroy
   await flushCachedDocs(docs);
   if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances - flush only');
-
   if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances');
 }
 

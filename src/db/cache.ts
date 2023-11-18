@@ -200,7 +200,6 @@ export async function flushCachedDocs(docs: DocsCache, msgDocs?: MsgDoc[], statu
     const queueDocs = docs.queueDocsToAdd;
     const claimAlertDocs = docs.claimAlertsToAdd;
 
-
     if (activityDocs.length) {
       promises.push(insertMany(TRANSFER_ACTIVITY_DB, activityDocs));
     }

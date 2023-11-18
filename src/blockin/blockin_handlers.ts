@@ -40,6 +40,9 @@ export function checkIfAuthenticated(req: AuthenticatedRequest<NumberType>) {
 
 export async function checkIfManager(req: AuthenticatedRequest<NumberType>, collectionId: NumberType) {
   if (!checkIfAuthenticated(req)) return false;
+  //TODO: Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
+
+  
 
   const collectionIdStr = BigInt(collectionId).toString();
   const _collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);

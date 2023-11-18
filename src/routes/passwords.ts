@@ -1,5 +1,5 @@
 import { Mutex } from "async-mutex";
-import { BigIntify, GetMerkleChallengeCodeViaPasswordRouteResponse, NumberType, convertPasswordDoc } from "bitbadgesjs-utils";
+import { BigIntify, GetCodeForPasswordRouteResponse, NumberType, convertPasswordDoc } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -18,7 +18,7 @@ const documentMutexesMutex = new Mutex();
 
 //TODO: In the future, we should probably look to change this approach to a more scalable and high throughput approach  
 //This is a simple approach that will work 99% of the time for now
-export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res: Response<GetMerkleChallengeCodeViaPasswordRouteResponse<NumberType>>) => {
+export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res: Response<GetCodeForPasswordRouteResponse<NumberType>>) => {
   try {
     let documentMutex: Mutex | undefined = undefined;
     // acquire the mutex for the documentMutexes map

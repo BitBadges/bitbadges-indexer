@@ -621,6 +621,8 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       metadata: {
         ...convertMetadata(results[resultIdx].content ?? DefaultPlaceholderMetadata, BigIntify),
         _isUpdating: results[resultIdx].updating,
+        fetchedAt: results[resultIdx].fetchedAt,
+        fetchedAtBlock: results[resultIdx].fetchedAtBlock
       }
     });
   }

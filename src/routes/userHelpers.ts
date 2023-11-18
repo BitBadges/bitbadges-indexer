@@ -162,7 +162,7 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
   const docs = [];
 
   while (docsLeft > 0) {
-    const view = await TRANSFER_ACTIVITY_DB.view(activityDesignDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(currBookmark) ?? 0 });
+    const view = await TRANSFER_ACTIVITY_DB.view(activityDesignDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(currBookmark) ?? 0, descending: true });
 
     let viewDocs = view.rows.map((row) => {
       return {
@@ -211,7 +211,7 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
             }
             ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
           }
-        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
+        }).filter((doc) => doc !== undefined);
 
         viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
       }

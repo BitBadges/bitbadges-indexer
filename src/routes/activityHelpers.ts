@@ -1,4 +1,4 @@
-import { GetBadgeActivityRouteResponse, MerkleChallengeTrackerIdDetails, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
+import { GetBadgeActivityRouteResponse, ChallengeTrackerIdDetails, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { ANNOUNCEMENTS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, MERKLE_CHALLENGES_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
 import { catch404, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { AmountTrackerIdDetails } from "bitbadgesjs-proto";
@@ -64,7 +64,7 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
         }
       }
     },
-    sort: ["timestamp"],
+    sort: [{ timestamp: "desc" }],
     bookmark: bookmark ? bookmark : undefined,
   });
 
@@ -89,7 +89,8 @@ export async function executeCollectionActivityQuery(collectionId: string, bookm
         "$gt": null
       },
     },
-    sort: ["timestamp"],
+    //desc
+    sort: [{ timestamp: "desc" }],
     bookmark: bookmark ? bookmark : undefined,
   });
 
@@ -162,7 +163,7 @@ export async function executeCollectionMerkleChallengesQuery(collectionId: strin
   return claimsRes;
 }
 
-export async function executeMerkleChallengeByIdsQuery(collectionId: string, challengeIdsToFetch: MerkleChallengeTrackerIdDetails<NumberType>[]) {
+export async function executeMerkleChallengeByIdsQuery(collectionId: string, challengeIdsToFetch: ChallengeTrackerIdDetails<NumberType>[]) {
   if (challengeIdsToFetch.length > 100) {
     throw new Error("You can only fetch up to 100 merkle challenges at a time.");
   }

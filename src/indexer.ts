@@ -25,7 +25,7 @@ import { getOwnersForBadge } from './routes/badges'
 import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
 import { getBrowseCollections } from './routes/browse'
-import { getMerkleChallengeTrackers } from './routes/challengeTrackers'
+import { getChallengeTrackers } from './routes/challengeTrackers'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
@@ -286,7 +286,7 @@ app.post('/api/v0/addressMappings/delete', authorizeBlockinRequest, deleteAddres
 app.post('/api/v0/approvals', getApprovals);
 
 //Merkle Challenge Tracker
-app.post('/api/v0/merkleChallenges', getMerkleChallengeTrackers);
+app.post('/api/v0/challenges', getChallengeTrackers);
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

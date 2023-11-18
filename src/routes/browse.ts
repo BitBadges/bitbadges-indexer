@@ -177,9 +177,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       profiles: {
         'featured': [
           ...allAccounts,
-          ...allAccounts,
-          ...allAccounts,
-          ...allAccounts,
         ].map(x => removeCouchDBDetails(x)),
       },
     });

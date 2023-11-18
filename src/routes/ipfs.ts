@@ -7,6 +7,7 @@ import { addBalancesToOffChainStorage, addApprovalDetailsToOffChainStorage, addM
 import { cleanBalances } from "../utils/dataCleaners";
 import CryptoJS from "crypto-js";
 import { catch404 } from "../utils/couchdb-utils";
+import { refreshCollection } from "./refresh";
 
 const { AES } = CryptoJS;
 
@@ -33,10 +34,8 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
   const req = expressReq as AuthenticatedRequest<NumberType>;
   const reqBody = req.body as AddBalancesToOffChainStorageRouteRequestBody;
 
-
-
   try {
-    //Do I really need to check manager? Only amnager can update the on-chain URL
+    //Do I really need to check manager? Only manager can update the on-chain URL
     if (BigInt(reqBody.collectionId) > 0) {
       const managerCheck = checkIfManager(req, reqBody.collectionId);
       if (!managerCheck) throw new Error('You are not the manager of this collection');
@@ -72,6 +71,8 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
     }
 
     await updateIpfsTotals(req.session.cosmosAddress, size, req);
+    await refreshCollection(reqBody.collectionId.toString(), true);
+
 
     return res.status(200).send({ uri: result.uri, result: result });
   } catch (e) {
@@ -124,7 +125,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
       return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
     }
 
-    
+
 
     const result = await addApprovalDetailsToOffChainStorage(reqBody.name, reqBody.description, challengeDetails);
     if (!result) {

@@ -10,6 +10,7 @@ import { GetTokensFromFaucetRouteResponse, NumberType, OffChainBalancesMap } fro
 import { catch404 } from "../utils/couchdb-utils";
 import { refreshCollection } from "./refresh";
 import { s3 } from "../indexer";
+import { DEV_MODE } from "../constants";
 
 // Create a mutex to protect the faucet from double spending
 // TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency); it will work for now  but needs a refactor
@@ -100,39 +101,38 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
       const doc = await AIRDROP_DB.get(req.session.cosmosAddress);
       await insertToDB(AIRDROP_DB, { ...doc, hash: result.transactionHash, timestamp: Date.now() });
 
-      //trigger refresh
-      await refreshCollection("2", true);
 
-
-      const allAirdropped = await AIRDROP_DB.list();
-      const airdropped = allAirdropped.rows.map(row => row.id);
-      const balancesMap: OffChainBalancesMap<bigint> = {};
-      for (const address of airdropped) {
-        balancesMap[address] = [{
-          amount: 1n,
-          badgeIds: [{
-            start: 1n, end: 1n,
-          }],
-          ownershipTimes: [{
-            start: 1n, end: 18446744073709551615n,
-          }],
+      if (!DEV_MODE) {
+        const allAirdropped = await AIRDROP_DB.list();
+        const airdropped = allAirdropped.rows.map(row => row.id);
+        const balancesMap: OffChainBalancesMap<bigint> = {};
+        for (const address of airdropped) {
+          balancesMap[address] = [{
+            amount: 1n,
+            badgeIds: [{
+              start: 1n, end: 1n,
+            }],
+            ownershipTimes: [{
+              start: 1n, end: 18446744073709551615n,
+            }],
+          }];
         }
-        ];
+
+        const binaryData = JSON.stringify(balancesMap);
+
+
+        const params = {
+          Body: binaryData,
+          Bucket: 'bitbadges-balances',
+          Key: 'airdrop/balances',
+          ACL: 'public-read', // Set the ACL as needed
+          ContentType: 'application/json', // Set the content type to JSON
+        };
+        await s3.upload(params).promise();
+
+        //trigger refresh
+        await refreshCollection("2", true);
       }
-
-      const binaryData = JSON.stringify(balancesMap);
-
-
-      const params = {
-        Body: binaryData,
-        Bucket: 'bitbadges-balances',
-        Key: 'airdrop/balances',
-        ACL: 'public-read', // Set the ACL as needed
-        ContentType: 'application/json', // Set the content type to JSON
-      };
-      await s3.upload(params).promise();
-      
-
 
       return res.status(200).send(result);
     } catch (e) {

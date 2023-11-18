@@ -1,13 +1,13 @@
-import { GetMerkleChallengeTrackersRouteRequestBody, GetMerkleChallengeTrackersRouteResponse, NumberType } from "bitbadgesjs-utils";
+import { GetChallengeTrackersRouteRequestBody, GetChallengeTrackersRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { MERKLE_CHALLENGES_DB } from "../db/db";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 
-export const getMerkleChallengeTrackers = async (req: Request, res: Response<GetMerkleChallengeTrackersRouteResponse<NumberType>>) => {
+export const getChallengeTrackers = async (req: Request, res: Response<GetChallengeTrackersRouteResponse<NumberType>>) => {
   try {
-    const reqBody = req.body as GetMerkleChallengeTrackersRouteRequestBody;
-    let challengeIdDetails = reqBody.merkleChallengeTrackerIds;
+    const reqBody = req.body as GetChallengeTrackersRouteRequestBody;
+    let challengeIdDetails = reqBody.challengeTrackerIds;
     const docIds = [];
 
     if (challengeIdDetails.length > 100) {
@@ -24,7 +24,7 @@ export const getMerkleChallengeTrackers = async (req: Request, res: Response<Get
     const docs = getDocsFromNanoFetchRes(fetchRes);
 
 
-    return res.status(200).send({ merkleChallengeTrackers: [...docs.map(x => removeCouchDBDetails(x))] });
+    return res.status(200).send({ challengeTrackers: [...docs.map(x => removeCouchDBDetails(x))] });
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),

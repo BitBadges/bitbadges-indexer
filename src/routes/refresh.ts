@@ -87,8 +87,6 @@ export const refreshCollection = async (collectionId: string, forceful?: boolean
 export const refreshMetadata = async (req: Request, res: Response<RefreshMetadataRouteResponse<NumberType>>) => {
   /**
    * Refreshes metadata for a collection or a specific badge.
-   * 
-   * Requires the mutex to be controlled to update the metadata queue and prevent data races.
    */
   try {
     const cooldownSeconds = await refreshCollection(req.params.collectionId);
