@@ -9,7 +9,6 @@ import express, { Express, Request, Response } from "express"
 import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
 import fs from 'fs'
-import { Server } from "http"
 import https from 'https'
 import { create } from 'ipfs-http-client'
 import multer from 'multer'
@@ -302,23 +301,23 @@ const init = async () => {
 
 process.on("SIGINT", () => {
   if (timer) clearTimeout(timer)
-  server.close(() => {
+  server?.close(() => {
     console.log("server closed")
     process.exit(0)
   })
 })
 
 
-let server: Server =
+
+let server = process.env.DISABLE_API === 'true' ? undefined :
   https.createServer(
     {
       key: fs.readFileSync("server.key"),
       cert: fs.readFileSync("server.cert"),
     },
     app
-  )
-    .listen(port, () => {
-      init().catch(console.error).then(() => {
-        console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
-      })
+  ).listen(port, () => {
+    init().catch(console.error).then(() => {
+      console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
     })
+  })

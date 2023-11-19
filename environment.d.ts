@@ -34,8 +34,9 @@ declare global {
       SPACES_SECRET_ACCESS_KEY: string //string number ex: "1"
 
       //Turn off the URI or blockchain pollers
-      DISABLE_URI_POLLER: string //string number ex: "false"
-      DISABLE_BLOCKCHAIN_POLLER: string //string number ex: "false"
+      DISABLE_URI_POLLER: string //string boolean ex: "false"
+      DISABLE_BLOCKCHAIN_POLLER: string //string boolean ex: "false"
+      DISABLE_API: string //string boolean ex: "false"
 
       //Development flags
       TIME_MODE: string //boolean string ex: "false"
