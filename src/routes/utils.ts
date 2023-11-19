@@ -2,6 +2,7 @@ import { AddressMapping, BigIntify, JSPrimitiveNumberType, NumberType, Stringify
 import { AddressMappingWithMetadata, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressMapping } from "bitbadgesjs-utils";
 import { ADDRESS_MAPPINGS_DB, FETCHES_DB } from "../db/db";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { complianceDoc } from "../poll";
 
 export async function getAddressMappingsFromDB(mappingIds: {
   mappingId: string;
@@ -59,7 +60,15 @@ export async function getAddressMappingsFromDB(mappingIds: {
   }
 
 
-  return addressMappings;
+  return addressMappings.map(x => {
+    const isNSFW = complianceDoc?.addressMappings.nsfw.find((y) => y.mappingId === x.mappingId);
+    const isReported = complianceDoc?.addressMappings.reported.find((y) => y.mappingId === x.mappingId);
+    return {
+      ...x,
+      nsfw: isNSFW,
+      reported: isReported,
+    }
+  })
 }
 
 

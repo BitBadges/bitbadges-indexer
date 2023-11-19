@@ -5,13 +5,13 @@ import { Block, IndexedTx } from "@cosmjs/stargate"
 import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
-import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertStatusDoc } from "bitbadgesjs-utils"
+import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import nano from "nano"
 import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
-import { ERRORS_DB, MsgDoc } from "./db/db"
+import { COMPLIANCE_DB, ERRORS_DB, MsgDoc } from "./db/db"
 import { getStatus } from "./db/status"
 import { TIME_MODE, client, setClient, setTimer } from "./indexer"
 import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
@@ -22,6 +22,7 @@ import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollecti
 import { handleMsgUpdateUserApprovals } from "./tx-handlers/handleMsgUpdateUserApprovals"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
+import { catch404 } from "./utils/couchdb-utils"
 
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000
@@ -96,10 +97,13 @@ export const pollUris = async () => {
   setTimer(newTimer);
 }
 
+export let complianceDoc: ComplianceDoc<bigint> | undefined = undefined;
+
 export const poll = async () => {
   if (TIME_MODE && QUEUE_TIME_MODE) {
     console.time("poll");
   }
+
   try {
     // Connect to the chain client (this is first-time only)
     // This could be in init() but it is here in case indexer is started w/o the chain running
@@ -116,6 +120,13 @@ export const poll = async () => {
     const _status = await getStatus();
     let status = convertStatusDoc(_status, BigIntify);
 
+    //Every 50 blocks, query the compliance doc to be used
+    if (status.block.height % 50n == 0n) {
+      const res = await COMPLIANCE_DB.get('compliance').catch(catch404);
+      if (res) complianceDoc = convertComplianceDoc(res, BigIntify);
+    }
+
+
     while (!caughtUp) {
       // We fetch initial status at beginning of block and do not write anything in DB until flush at end of block
       // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
@@ -124,6 +135,8 @@ export const poll = async () => {
         caughtUp = true;
         break;
       }
+
+
 
       let docs: DocsCache = {
         accounts: {},

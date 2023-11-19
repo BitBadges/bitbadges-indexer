@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Nano from "nano";
-import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, API_KEYS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
+import { ADDRESS_MAPPINGS_DB, ANNOUNCEMENTS_DB, API_KEYS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, COMPLIANCE_DB, REVIEWS_DB, STATUS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "./db/db";
 
 config()
 
@@ -18,6 +18,7 @@ export async function deleteDatabases() {
   await nano.db.destroy('merkle-challenges').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('msgs').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('off-chain-urls').catch((e) => { if (e.statusCode !== 404) throw e });
+  await nano.db.destroy('compliance').catch((e) => { if (e.statusCode !== 404) throw e });
 
 
   //Can be, but may have off-chain features
@@ -97,6 +98,7 @@ export async function createDatabases() {
   await nano.db.create('msgs');
   await nano.db.create('off-chain-urls');
   await nano.db.create('reports');
+  await nano.db.create('compliance');
 
 
   //_utils, _replicator, _global_changes, _metadata
@@ -124,7 +126,21 @@ export async function initStatus() {
     ],
   })
 
-
+  await insertToDB(COMPLIANCE_DB, {
+    _id: 'compliance',
+    badges: {
+      nsfw: [],
+      reported: [],
+    },
+    addressMappings: {
+      nsfw: [],
+      reported: [],
+    },
+    accounts: {
+      nsfw: [],
+      reported: [],
+    },
+  })
 }
 
 export async function createIndexesAndViews() {

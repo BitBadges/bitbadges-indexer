@@ -1,11 +1,13 @@
 import { JSPrimitiveNumberType, NumberType } from 'bitbadgesjs-proto';
-import { AccountDoc, AccountInfoBase, ActivityInfoBase, AddressMappingDoc, AirdropDoc, AirdropInfoBase, AnnouncementDoc, AnnouncementInfoBase, ApprovalsTrackerDoc, BalanceDoc, BalanceInfoBase, ClaimAlertDoc, CollectionDoc, CollectionInfoBase, ErrorDoc, FetchDoc, FetchInfoBase, IPFSTotalsDoc, IPFSTotalsInfoBase, MerkleChallengeDoc, MerkleChallengeInfoBase, NumberifyIfPossible, PasswordDoc, PasswordInfoBase, ProfileDoc, ProfileInfoBase, QueueDoc, QueueInfoBase, RefreshDoc, RefreshInfoBase, ReviewDoc, ReviewInfoBase, StatusDoc, StatusInfoBase, TransferActivityDoc, TransferActivityInfoBase, convertAccountDoc, convertAddressMappingDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertClaimAlertDoc, convertCollectionDoc, convertFetchDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, ActivityInfoBase, AddressMappingDoc, AirdropDoc, AirdropInfoBase, AnnouncementDoc, AnnouncementInfoBase, ApprovalsTrackerDoc, BalanceDoc, BalanceInfoBase, ClaimAlertDoc, CollectionDoc, CollectionInfoBase, ComplianceDoc, ErrorDoc, FetchDoc, FetchInfoBase, IPFSTotalsDoc, IPFSTotalsInfoBase, MerkleChallengeDoc, MerkleChallengeInfoBase, NumberifyIfPossible, PasswordDoc, PasswordInfoBase, ProfileDoc, ProfileInfoBase, QueueDoc, QueueInfoBase, RefreshDoc, RefreshInfoBase, ReviewDoc, ReviewInfoBase, StatusDoc, StatusInfoBase, TransferActivityDoc, TransferActivityInfoBase, convertAccountDoc, convertAddressMappingDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertClaimAlertDoc, convertCollectionDoc, convertComplianceDoc, convertFetchDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { config } from "dotenv";
 import Nano from "nano";
 
 config();
 
 const nano = Nano(`${process.env.DB_URL}`);
+
+
 
 export interface ApiKeyDoc {
   numRequests: number;
@@ -40,7 +42,7 @@ export interface OffChainUrlDoc {
   collectionId: number;
 }
 
-export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc | ReportDoc;
+export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T>
 
 export const OFF_CHAIN_URLS_DB = nano.db.use<OffChainUrlDoc>('off-chain-urls');
 export const API_KEYS_DB = nano.db.use<ApiKeyDoc>('api-keys');
@@ -66,6 +68,7 @@ export const CLAIM_ALERTS_DB = nano.db.use<ClaimAlertDoc<JSPrimitiveNumberType>>
 export const ETH_TX_COUNT_DB = nano.db.use<EthTxCountDoc>('eth-tx-count');
 export const MSGS_DB = nano.db.use<MsgDoc>('msgs');
 export const REPORTS_DB = nano.db.use<ReportDoc>('reports');
+export const COMPLIANCE_DB = nano.db.use<ComplianceDoc<JSPrimitiveNumberType>>('compliance');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
   const res = await insertMany(db, [doc]);
@@ -130,6 +133,8 @@ export async function convertDocsToStoreInDb(db: Nano.DocumentScope<BitBadgesDoc
       convertedDoc = doc as OffChainUrlDoc;
     } else if (db.config.db === REPORTS_DB.config.db) {
       convertedDoc = doc as ReportDoc;
+    } else if (db.config.db === COMPLIANCE_DB.config.db) {
+      convertedDoc = convertComplianceDoc(doc as ComplianceDoc<NumberType>, NumberifyIfPossible);
     }
 
     convertedDocs.push(convertedDoc as BitBadgesDocumentBase<JSPrimitiveNumberType> & Nano.Document);

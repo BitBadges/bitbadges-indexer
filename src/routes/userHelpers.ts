@@ -5,6 +5,7 @@ import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_A
 import { OFFLINE_MODE, client } from "../indexer";
 import { catch404 } from "../utils/couchdb-utils";
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../utils/ensResolvers";
+import { complianceDoc } from "../poll";
 
 const QUERY_TIME_MODE = false;
 
@@ -101,6 +102,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
     const airdropInfo = results[i + 2] as { _id: string, airdropped: boolean } | undefined;
     const chainResolve = results[i + 3] as { address: string, chain: SupportedChain }
 
+    const isNSFW = complianceDoc?.accounts.nsfw.find(x => x.cosmosAddress === accountInfo.cosmosAddress);
+    const isReported = complianceDoc?.accounts.reported.find(x => x.cosmosAddress === accountInfo.cosmosAddress);
+
     resultsToReturn.push({
       ...profileInfo,
       ...nameAndAvatarRes,
@@ -121,6 +125,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       claimAlerts: [],
       approvalsTrackers: [],
       views: {},
+      nsfw: isNSFW ? isNSFW : undefined,
+      reported: isReported ? isReported : undefined,
+      
       //We don't want to return these to the user
       _id: accountInfo.cosmosAddress,
       _rev: undefined,
