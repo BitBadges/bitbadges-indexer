@@ -6,7 +6,7 @@ import Nano from "nano";
 config();
 
 const LocalNano = Nano(`${process.env.DB_URL}`);
-const ClusteredNano = Nano(`${process.env.CLUSTERED_DB_URL}`);
+// const LocalNano = Nano(`${process.env.CLUSTERED_DB_URL}`);
 
 
 export interface ApiKeyDoc {
@@ -44,12 +44,12 @@ export interface OffChainUrlDoc {
 
 export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T>
 
-//Fetches / Queue stuff
-export const FETCHES_DB = ClusteredNano.db.use<FetchDoc<JSPrimitiveNumberType>>('fetches');
-export const QUEUE_DB = ClusteredNano.db.use<QueueDoc<JSPrimitiveNumberType>>('queue');
-export const OFF_CHAIN_BALANCES_DB = ClusteredNano.db.use<BalanceDoc<JSPrimitiveNumberType>>('balances');
-export const OFF_CHAIN_TRANSFER_ACTIVITY = ClusteredNano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
-export const REFRESHES_DB = ClusteredNano.db.use<RefreshDoc<JSPrimitiveNumberType>>('refreshes');
+//Fetches / Queue stuff - ClusteredNano
+export const FETCHES_DB = LocalNano.db.use<FetchDoc<JSPrimitiveNumberType>>('fetches');
+export const QUEUE_DB = LocalNano.db.use<QueueDoc<JSPrimitiveNumberType>>('queue');
+// export const OFF_CHAIN_BALANCES_DB = LocalNano.db.use<BalanceDoc<JSPrimitiveNumberType>>('balances');
+// export const OFF_CHAIN_TRANSFER_ACTIVITY = LocalNano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
+export const REFRESHES_DB = LocalNano.db.use<RefreshDoc<JSPrimitiveNumberType>>('refreshes');
 //load balancer???
 
 
