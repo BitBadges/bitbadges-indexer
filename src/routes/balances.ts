@@ -27,7 +27,6 @@ export const applyAddressMappingsToUserPermissions = (userPermissions: UserPermi
 }
 
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBadgeBalanceByAddressRouteResponse<NumberType>>) => {
-  //TODO: Support inherited balances
   try {
 
     const cosmosAddress = `${req.params.cosmosAddress.toString()}`;

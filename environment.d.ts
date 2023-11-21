@@ -9,6 +9,8 @@ declare global {
       INFURA_SECRET_KEY: string
 
       DB_URL: string // CouchDB URL w/ proper authentication: ex: "http://username:password@localhost:5984"
+      CLUSTERED_DB_URL: string // CouchDB URL w/ proper authentication: ex: "http://username:password@localhost:5984"
+      
       SESSION_SECRET: string, //Secret entropy for session cookies ex: "mysecret"
       INFURA_API_KEY: string  //API key for infura
 

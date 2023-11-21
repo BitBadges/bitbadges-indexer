@@ -3,7 +3,7 @@ import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { recursivelyDeleteFalseProperties } from "./handleMsgUpdateCollection"
+import { recursivelyDeleteFalseProperties } from "./handleMsgUniversalUpdateCollection"
 
 export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
@@ -33,7 +33,7 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
       updateHistory: [],
     }
   }
-  
+
   balancesDoc.updateHistory.push({
     block: status.block.height,
     blockTimestamp: status.block.timestamp,

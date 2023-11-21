@@ -50,7 +50,7 @@ export function cleanApprovalInfo(res: any): ApprovalInfo {
     description: typeof res.description === "string" ? res.description : "",
     hasPassword: typeof res.hasPassword === "boolean" ? res.hasPassword : false,
     password: typeof res.password === "string" ? res.password : undefined,
-    challengeDetails: res.challengeDetails, // TODO: Update with the actual type if possible
+    challengeDetails: res.challengeDetails,
   };
 }
 

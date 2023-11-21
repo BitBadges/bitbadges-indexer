@@ -13,6 +13,8 @@ import { catch404 } from "./utils/couchdb-utils";
 import { cleanApprovalInfo, cleanBalances, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
 import CryptoJS from "crypto-js";
+import Joi from "joi";
+
 const { SHA256 } = CryptoJS
 
 //1. Upon initial TX (new collection or URIs updating): 
@@ -45,12 +47,16 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   let needsRefresh = false;
   let refreshRequestTime = Date.now();
 
-  //TODO: validate uri
 
 
-  //TODO: Get _conflicts and only take the one with latest time
+  const isValidUri = Joi.string().uri().validate(uri);
+  if (isValidUri.error) {
+    throw new Error(`Invalid URI: ${uri}`);
+  }
+
   //Check if we need to refresh
 
+  //TODO: Get all refresh _conflicts and only take the one with latest time
   const fetchDocPromise = FETCHES_DB.get(uri).catch(catch404);
   const refreshDocPromise = REFRESHES_DB.get(collectionId);
 
@@ -183,10 +189,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       ...fetchDoc,
       _id: uri,
       _rev: fetchDoc ? fetchDoc._rev : undefined,
-      //TODO: If dbType == Balances, we should not store the content here. We already stored balances in a separate DB so it makes no sense to doubly store content here. 
-      //      Same with addBalancesToOffChainStorage. However, it gets a little weird bc we don't call handleBalances when we upload to IPFS but we do here.
       content: res,
-
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block,
       db: dbType,
@@ -636,7 +639,6 @@ export const fetchUrisFromQueue = async (block: bigint) => {
   const BASE_DELAY = process.env.BASE_DELAY ? Number(process.env.BASE_DELAY) : 1000 * 60 * 60 * 1; //1 hour
   let numFetchesLeft = NUM_METADATA_FETCHES_PER_BLOCK;
 
-  //Random skip amount so we don't fetch the same every time
   const numDocsInDB = await QUEUE_DB.info().then((res) => res.doc_count);
   if (numDocsInDB == 0) return;
 
@@ -717,27 +719,53 @@ export const fetchUrisFromQueue = async (block: bigint) => {
 }
 
 export const purgeQueueDocs = async () => {
+  //Purge all deleted docs from this load balancer that are older than 24 hours
+  //We keep for 24 hours for replication purposes
+  //Any deleted from other load balancers, we can delete right away
   const res = await QUEUE_DB.find({
     selector: {
-      _deleted: {
-        "$eq": true
-      }
+      _id: { $gt: null },
+      $or: [
+        {
+          $and: [
+            {
+              loadBalanceId: {
+                "$ne": LOAD_BALANCER_ID
+              },
+            },
+            {
+              _deleted: {
+                "$eq": true
+              }
+            }
+          ],
+        },
+        {
+          $and: [
+            {
+              loadBalanceId: {
+                "$eq": LOAD_BALANCER_ID
+              },
+            },
+            {
+              deletedAt: {
+                "$lte": Date.now() - 1000 * 60 * 60 * 24
+              }
+            }
+          ]
+        }
+      ],
+
     },
   });
   const docs = res.docs.map((doc) => convertQueueDoc(doc, Numberify));
 
+  if (docs.length == 0) return;
+
   let docsToPurge = {};
   for (const doc of docs) {
-    //Purge all deleted docs from this load balancer that are older than 24 hours
-    //Keep for 24 hours for replication purposes
-    if (doc.loadBalanceId === LOAD_BALANCER_ID) {
-      if (doc.deletedAt && doc.deletedAt + 1000 * 60 * 60 * 24 < Date.now()) {
-        docsToPurge[doc._id] = doc._rev;
-      }
-    } else {
-      //Purge all deleted docs that are not from the current load balancer
-      docsToPurge[doc._id] = doc._rev;
-    }
+
+    docsToPurge[doc._id] = doc._rev;
   }
 
   await axios.post(process.env.DB_URL + '/queue/_purge', docsToPurge);

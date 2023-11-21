@@ -15,7 +15,7 @@ import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { API_KEYS_DB, REPORTS_DB, insertToDB } from './db/db'
+import { API_KEYS_DB, REPORTS_DB, ReportDoc, insertToDB } from './db/db'
 import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
 import { addAnnouncement } from './routes/announcements'
@@ -213,7 +213,14 @@ app.post("/api/v0/status", getStatusHandler);
 app.post("/api/v0/report", cors(websiteOnlyCorsOptions), authorizeBlockinRequest, async (req, res) => {
   try {
     const report = req.body;
-    await insertToDB(REPORTS_DB, report);
+
+    const reportDoc: ReportDoc = {
+      collectionId: report.collectionId,
+      mappingId: report.mappingId,
+      addressOrUsername: report.addressOrUsername,
+      reason: report.reason,
+    }
+    await insertToDB(REPORTS_DB, reportDoc);
     return res.status(200).send({ message: 'Report successfully submitted.' });
   } catch (e) {
     console.error(e);

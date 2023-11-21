@@ -2,7 +2,7 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
+import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
 import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc } from "bitbadgesjs-utils"
@@ -18,11 +18,13 @@ import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
-import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
+import { handleMsgUniversalUpdateCollection } from "./tx-handlers/handleMsgUniversalUpdateCollection"
 import { handleMsgUpdateUserApprovals } from "./tx-handlers/handleMsgUpdateUserApprovals"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
 import { catch404 } from "./utils/couchdb-utils"
+import { handleMsgCreateCollection } from "./tx-handlers/handleMsgCreateCollection"
+import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
 
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000
@@ -406,10 +408,20 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         //Don't need to track, we have created at and address mappings on-chain are permanent and immutable
         // msg = newAddressMappingsMsg;
         break;
-      case "/badges.MsgUpdateCollection":
-        const newUpdateCollectionMsg = convertFromProtoToMsgUpdateCollection(tx.MsgUpdateCollection.fromBinary(value))
-        await handleMsgUpdateCollection(newUpdateCollectionMsg, status, docs, indexed.hash)
+      case "/badges.MsgUniversalUpdateCollection":
+        const newUpdateCollectionMsg = convertFromProtoToMsgUniversalUpdateCollection(tx.MsgUniversalUpdateCollection.fromBinary(value))
+        await handleMsgUniversalUpdateCollection(newUpdateCollectionMsg, status, docs, indexed.hash)
         msg = newUpdateCollectionMsg;
+        break;
+      case "/badges.MsgCreateCollection":
+        const newCreateMsg = convertFromProtoToMsgCreateCollection(tx.MsgCreateCollection.fromBinary(value))
+        await handleMsgCreateCollection(newCreateMsg, status, docs, indexed.hash)
+        msg = newCreateMsg;
+        break;
+      case "/badges.MsgUpdateCollection":
+        const newUpdateMsg = convertFromProtoToMsgUpdateCollection(tx.MsgUpdateCollection.fromBinary(value))
+        await handleMsgUpdateCollection(newUpdateMsg, status, docs, indexed.hash)
+        msg = newUpdateMsg;
         break;
       case "/badges.MsgUpdateUserApprovals":
         const newUpdateUserApprovalsMsg = convertFromProtoToMsgUpdateUserApprovals(tx.MsgUpdateUserApprovals.fromBinary(value))
@@ -420,8 +432,8 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const newMsgSend = bank.MsgSend.fromBinary(value);
         const fromAddress = newMsgSend.fromAddress;
         const toAddress = newMsgSend.toAddress;
-        if (fromAddress && fromAddress != "") await handleNewAccountByAddress(fromAddress, docs)
-        if (toAddress && toAddress != "") await handleNewAccountByAddress(toAddress, docs)
+        if (fromAddress) await handleNewAccountByAddress(fromAddress, docs)
+        if (toAddress ) await handleNewAccountByAddress(toAddress, docs)
       // Don't need to track MsgSends
       // msg = newMsgSend;
       default:
@@ -431,7 +443,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       if (msg.collectionId !== undefined && BigIntify(msg.collectionId) == 0n) {
         //Don't track, we have created at
       } else {
-        //We switched to track everything in updateHistory
+        //Deprecated: We switched to track everything in updateHistory
         // msgDocs.push({
         //   _id: `${indexed.height}-${indexed.txIndex}-${messageIdx}`,
         //   // msg: msg,

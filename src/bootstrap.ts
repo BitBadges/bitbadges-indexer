@@ -2,9 +2,9 @@ import { Secp256k1 } from '@cosmjs/crypto';
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { Account, SigningStargateClient, assertIsDeliverTxSuccess } from "@cosmjs/stargate";
 import axios from "axios";
-import { MessageGenerated, MsgUpdateCollection, SupportedChain, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
+import { MessageGenerated, MsgUniversalUpdateCollection, SupportedChain, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
 
-import { MsgCreateAddressMappings as ProtoMsgCreateAddressMappings, MsgUpdateCollection as ProtoMsgUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
+import { MsgCreateAddressMappings as ProtoMsgCreateAddressMappings, MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
 
 import { createProtoMsg } from 'bitbadgesjs-proto/dist/proto-types/base'
 import { BroadcastMode, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-provider";
@@ -286,9 +286,9 @@ export function bootstrapCollections() {
           } else return x
         }) : jsonObjects[i].collectionApprovals,
       // inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
-    } as Required<MsgUpdateCollection<string>>
+    } as Required<MsgUniversalUpdateCollection<string>>
 
-    const msg = new ProtoMsgUpdateCollection({
+    const msg = new ProtoMsgUniversalUpdateCollection({
       ...obj,
       creator: obj.creator,
     });

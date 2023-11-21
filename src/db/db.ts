@@ -5,8 +5,8 @@ import Nano from "nano";
 
 config();
 
-const nano = Nano(`${process.env.DB_URL}`);
-
+const LocalNano = Nano(`${process.env.DB_URL}`);
+const ClusteredNano = Nano(`${process.env.CLUSTERED_DB_URL}`);
 
 
 export interface ApiKeyDoc {
@@ -44,31 +44,55 @@ export interface OffChainUrlDoc {
 
 export type BitBadgesDocumentBase<T extends NumberType> = TransferActivityInfoBase<T> | ReviewInfoBase<T> | AnnouncementInfoBase<T> | ActivityInfoBase<T> | ProfileInfoBase<T> | AccountInfoBase<T> | CollectionInfoBase<T> | StatusInfoBase<T> | PasswordInfoBase<T> | BalanceInfoBase<T> | MerkleChallengeInfoBase<T> | FetchInfoBase<T> | QueueInfoBase<T> | RefreshInfoBase<T> | IPFSTotalsInfoBase<T> | ErrorDoc | AirdropInfoBase<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T>
 
-export const OFF_CHAIN_URLS_DB = nano.db.use<OffChainUrlDoc>('off-chain-urls');
-export const API_KEYS_DB = nano.db.use<ApiKeyDoc>('api-keys');
-export const TRANSFER_ACTIVITY_DB = nano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
-export const PROFILES_DB = nano.db.use<ProfileDoc<JSPrimitiveNumberType>>('profiles');
-export const ACCOUNTS_DB = nano.db.use<AccountDoc<JSPrimitiveNumberType>>('accounts');
-export const COLLECTIONS_DB = nano.db.use<CollectionDoc<JSPrimitiveNumberType>>('collections');
-export const STATUS_DB = nano.db.use<StatusDoc<JSPrimitiveNumberType>>('status');
-export const ERRORS_DB = nano.db.use<ErrorDoc>('errors');
-export const PASSWORDS_DB = nano.db.use<PasswordDoc<JSPrimitiveNumberType>>('passwords');
-export const AIRDROP_DB = nano.db.use<AirdropDoc<JSPrimitiveNumberType>>('airdrop');
-export const BALANCES_DB = nano.db.use<BalanceDoc<JSPrimitiveNumberType>>('balances');
-export const MERKLE_CHALLENGES_DB = nano.db.use<MerkleChallengeDoc<JSPrimitiveNumberType>>('merkle-challenges');
-export const FETCHES_DB = nano.db.use<FetchDoc<JSPrimitiveNumberType>>('fetches');
-export const QUEUE_DB = nano.db.use<QueueDoc<JSPrimitiveNumberType>>('queue');
-export const IPFS_TOTALS_DB = nano.db.use<IPFSTotalsDoc<JSPrimitiveNumberType>>('ipfs-totals');
-export const REFRESHES_DB = nano.db.use<RefreshDoc<JSPrimitiveNumberType>>('refreshes');
-export const ANNOUNCEMENTS_DB = nano.db.use<AnnouncementDoc<JSPrimitiveNumberType>>('announcements');
-export const REVIEWS_DB = nano.db.use<ReviewDoc<JSPrimitiveNumberType>>('reviews');
-export const ADDRESS_MAPPINGS_DB = nano.db.use<AddressMappingDoc<JSPrimitiveNumberType>>('address-mappings');
-export const APPROVALS_TRACKER_DB = nano.db.use<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers');
-export const CLAIM_ALERTS_DB = nano.db.use<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts');
-export const ETH_TX_COUNT_DB = nano.db.use<EthTxCountDoc>('eth-tx-count');
-export const MSGS_DB = nano.db.use<MsgDoc>('msgs');
-export const REPORTS_DB = nano.db.use<ReportDoc>('reports');
-export const COMPLIANCE_DB = nano.db.use<ComplianceDoc<JSPrimitiveNumberType>>('compliance');
+//Fetches / Queue stuff
+export const FETCHES_DB = ClusteredNano.db.use<FetchDoc<JSPrimitiveNumberType>>('fetches');
+export const QUEUE_DB = ClusteredNano.db.use<QueueDoc<JSPrimitiveNumberType>>('queue');
+export const OFF_CHAIN_BALANCES_DB = ClusteredNano.db.use<BalanceDoc<JSPrimitiveNumberType>>('balances');
+export const OFF_CHAIN_TRANSFER_ACTIVITY = ClusteredNano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
+export const REFRESHES_DB = ClusteredNano.db.use<RefreshDoc<JSPrimitiveNumberType>>('refreshes');
+//load balancer???
+
+
+//Local Deterministic from BC - Deterministic Cluster????
+export const OFF_CHAIN_URLS_DB = LocalNano.db.use<OffChainUrlDoc>('off-chain-urls');
+export const COLLECTIONS_DB = LocalNano.db.use<CollectionDoc<JSPrimitiveNumberType>>('collections');
+export const STATUS_DB = LocalNano.db.use<StatusDoc<JSPrimitiveNumberType>>('status');
+export const ACCOUNTS_DB = LocalNano.db.use<AccountDoc<JSPrimitiveNumberType>>('accounts');
+export const APPROVALS_TRACKER_DB = LocalNano.db.use<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers');
+export const ADDRESS_MAPPINGS_DB = LocalNano.db.use<AddressMappingDoc<JSPrimitiveNumberType>>('address-mappings');
+export const BALANCES_DB = LocalNano.db.use<BalanceDoc<JSPrimitiveNumberType>>('balances');
+export const TRANSFER_ACTIVITY_DB = LocalNano.db.use<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity');
+export const MERKLE_CHALLENGES_DB = LocalNano.db.use<MerkleChallengeDoc<JSPrimitiveNumberType>>('merkle-challenges');
+export const MSGS_DB = LocalNano.db.use<MsgDoc>('msgs');
+
+//Local
+export const ERRORS_DB = LocalNano.db.use<ErrorDoc>('errors');
+
+//To put into clustered eventually
+
+
+// (lastSeenActivity)
+export const ANNOUNCEMENTS_DB = LocalNano.db.use<AnnouncementDoc<JSPrimitiveNumberType>>('announcements');
+export const REVIEWS_DB = LocalNano.db.use<ReviewDoc<JSPrimitiveNumberType>>('reviews');
+export const CLAIM_ALERTS_DB = LocalNano.db.use<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts');
+
+export const REPORTS_DB = LocalNano.db.use<ReportDoc>('reports');
+export const COMPLIANCE_DB = LocalNano.db.use<ComplianceDoc<JSPrimitiveNumberType>>('compliance');
+export const ETH_TX_COUNT_DB = LocalNano.db.use<EthTxCountDoc>('eth-tx-count');
+
+//Fine but need sticky sessions / no quick updates on diff nodes
+//OFFCHAIN_ADDRESS_MAPPINGS_DB
+export const PROFILES_DB = LocalNano.db.use<ProfileDoc<JSPrimitiveNumberType>>('profiles');
+
+//Absolutely needs consistency
+export const PASSWORDS_DB = LocalNano.db.use<PasswordDoc<JSPrimitiveNumberType>>('passwords');
+
+//I think I am okay with these being clustered but not a perfect solution
+export const API_KEYS_DB = LocalNano.db.use<ApiKeyDoc>('api-keys');
+export const IPFS_TOTALS_DB = LocalNano.db.use<IPFSTotalsDoc<JSPrimitiveNumberType>>('ipfs-totals');
+
+//Only for betanet
+export const AIRDROP_DB = LocalNano.db.use<AirdropDoc<JSPrimitiveNumberType>>('airdrop');
 
 export async function insertToDB(db: Nano.DocumentScope<BitBadgesDocumentBase<JSPrimitiveNumberType>>, doc: BitBadgesDocumentBase<NumberType> & Nano.MaybeDocument & { _deleted?: boolean }) {
   const res = await insertMany(db, [doc]);
