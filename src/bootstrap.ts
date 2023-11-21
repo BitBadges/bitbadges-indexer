@@ -37,6 +37,7 @@ async function main() {
     const msgs: MessageGenerated[] = [];
     // await deleteCollection();
     msgs.push(...bootstrapLists().map(x => createProtoMsg(x)));
+
     msgs.push(...bootstrapCollections().map(x => createProtoMsg(x)))
 
 
@@ -265,7 +266,7 @@ export function bootstrapCollections() {
   jsonObjects = jointJsonObjects.map((jsonObject) => jsonObject.object);
 
 
-  const msgs = [];
+  const msgs: ProtoMsgUniversalUpdateCollection[] = [];
 
   for (let i = 0; i < jsonObjects.length; i++) {
     console.log(jsonFileNames[i]);
@@ -370,7 +371,6 @@ export function bootstrapCollections() {
     //     console.log(res.data);
     //   }
     // }
-
   }
 
   return msgs;
