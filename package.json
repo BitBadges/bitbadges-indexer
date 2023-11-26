@@ -36,7 +36,7 @@
     "aws-sdk": "^2.1488.0",
     "axios": "^1.3.3",
     "bech32": "^2.0.0",
-    "bitbadgesjs-proto": "^0.1.180",
+    "bitbadgesjs-proto": "^0.1.182",
     "bitbadgesjs-utils": "^1.1.294",
     "blockin": "^1.2.58",
     "blockin-cosmos-driver": "^1.0.3",
