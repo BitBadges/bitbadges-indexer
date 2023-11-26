@@ -138,7 +138,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   const badgeMetadataResults = [];
 
   const imageFiles = [];
-  if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
+  if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:')) {
     const blob = await dataUrlToFile(collectionMetadata.image);
     imageFiles.push({
       content: new Uint8Array(blob)
@@ -146,7 +146,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   }
 
   for (const metadata of badgeMetadata) {
-    if (metadata.image && metadata.image.startsWith('data:image')) {
+    if (metadata.image && metadata.image.startsWith('data:')) {
       const blob = await dataUrlToFile(metadata.image);
       imageFiles.push({
         content: new Uint8Array(blob)
@@ -163,7 +163,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
       results.push({ cid: imageResult.cid.toString() });
     }
 
-    if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:image')) {
+    if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:')) {
       const result = cids.shift();
       if (result) {
         collectionMetadata.image = 'ipfs://' + result;
@@ -171,7 +171,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     }
 
     for (const metadata of badgeMetadata) {
-      if (metadata.image && metadata.image.startsWith('data:image')) {
+      if (metadata.image && metadata.image.startsWith('data:')) {
         const result = cids.shift();
         if (result) metadata.image = 'ipfs://' + result;
       }

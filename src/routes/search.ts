@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType, UintRange } from "bitbadgesjs-proto";
-import { AccountInfo, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AccountInfo, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -10,6 +10,7 @@ import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAddressMappingsFromDB } from "./utils";
+import { cosmosToEth } from "bitbadgesjs-address-converter";
 
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
@@ -60,6 +61,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const selectorCriteria: any[] = [
       { "ethAddress": { "$regex": `(?i)${searchValue}` } },
+      { "solAddress": { "$regex": `(?i)${searchValue}` } },
       { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
       { "cosmosAddress": { "$in": cosmosAddresses } },
     ];
@@ -97,11 +99,15 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [...accountsResponseDocs.map(removeCouchDBDetails)];
     if (isAddressValid(searchValue)
-      && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue)) {
+      && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue || account.solAddress === searchValue)) {
+      const chain = getChainForAddress(searchValue);
+
       if (searchValue === 'Mint') allAccounts.push(convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify));
       else allAccounts.push({
         _id: convertToCosmosAddress(searchValue),
-        ethAddress: searchValue,
+
+        solAddress: chain === SupportedChain.SOLANA ? searchValue : '',
+        ethAddress: cosmosToEth(convertToCosmosAddress(searchValue)),
         cosmosAddress: convertToCosmosAddress(searchValue),
         chain: getChainForAddress(searchValue),
         publicKey: '',
@@ -110,10 +116,11 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     if (resolvedEnsAddress
-      && !accountsResponseDocs.find((account) => account.ethAddress === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress)) {
+      && !accountsResponseDocs.find((account) => account.ethAddress === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress || account.solAddress === resolvedEnsAddress)) {
       allAccounts.push({
         _id: convertToCosmosAddress(resolvedEnsAddress),
         ethAddress: resolvedEnsAddress,
+        solAddress: '',
         cosmosAddress: convertToCosmosAddress(resolvedEnsAddress),
         chain: getChainForAddress(resolvedEnsAddress),
         publicKey: '',

@@ -4,8 +4,9 @@ import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
+import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
-import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc } from "bitbadgesjs-utils"
+import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import nano from "nano"
 import { serializeError } from "serialize-error"
@@ -367,22 +368,21 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       }
     }
   }
-  // // console.log(decodedTx.body);
-  // function convertTransfer<T extends NumberType, U extends NumberType>(transfer: Transfer<T>, convertFunction: (item: T) => U, populateOptionalFields?: boolean): Transfer<U> {
-  //   return deepCopy({
-  //     ...transfer,
-  //     balances: transfer.balances.map((b) => convertBalance(b, convertFunction)),
-  //     precalculateBalancesFromApproval: transfer.precalculateBalancesFromApproval ?? (populateOptionalFields ? {
-  //       approvalId: '',
-  //       approvalLevel: '',
-  //       approverAddress: ''
-  //     } : undefined),
-  //     merkleProofs: transfer.merkleProofs ?? (populateOptionalFields ? [] : undefined),
-  //     prioritizedApprovals: transfer.prioritizedApprovals ?? (populateOptionalFields ? [] : undefined),
-  //     memo: transfer.memo ?? (populateOptionalFields ? '' : undefined),
-  //     onlyCheckPrioritizedApprovals: transfer.onlyCheckPrioritizedApprovals ?? (populateOptionalFields ? false : undefined),
-  //   })
-  // }
+
+
+  for (const extensionOption of decodedTx.body.extensionOptions) {
+    const typeUrl = extensionOption.typeUrl;
+    const val = extensionOption.value;
+
+    if (typeUrl === '/solana.ExtensionOptionsWeb3TxSolana') {
+      const web3Tx = solana.ExtensionOptionsWeb3TxSolana.fromBinary(val);
+      const solAddress = web3Tx.solAddress;
+      if (solAddress) {
+        const cosmosAddress = convertToCosmosAddress(solAddress);
+        if (cosmosAddress) await handleNewAccountByAddress(cosmosAddress, docs, solAddress);
+      }
+    }
+  }
 
   // let messageIdx = 0;
   for (const message of decodedTx.body.messages) {
@@ -433,7 +433,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const fromAddress = newMsgSend.fromAddress;
         const toAddress = newMsgSend.toAddress;
         if (fromAddress) await handleNewAccountByAddress(fromAddress, docs)
-        if (toAddress ) await handleNewAccountByAddress(toAddress, docs)
+        if (toAddress) await handleNewAccountByAddress(toAddress, docs)
       // Don't need to track MsgSends
       // msg = newMsgSend;
       default:

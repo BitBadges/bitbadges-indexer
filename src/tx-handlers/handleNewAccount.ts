@@ -14,15 +14,25 @@ import { client } from "../indexer";
 /**
  * Handles a new account by address.
  */
-export const handleNewAccountByAddress = async (cosmosAddress: string, docs: DocsCache): Promise<void> => {
+export const handleNewAccountByAddress = async (cosmosAddress: string, docs: DocsCache, solanaAddress?: string): Promise<void> => {
 
   if (!docs.accounts[cosmosAddress]) {
     await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], [], [], []);
   }
 
-  //If we already have an account doc, we don't need to do anything
+
+
+
+  //If we already have an account doc with an acct number and public key, we don't need to do anything
   const _accountDoc = docs.accounts[`${cosmosAddress}`]
-  if (_accountDoc && _accountDoc.accountNumber > 0n && _accountDoc.chain !== SupportedChain.UNKNOWN) {
+  //TODO: Does this eventually write even if unchanged?
+  if (_accountDoc && _accountDoc.accountNumber > 0n && _accountDoc.publicKey) {
+    //if we have a valid solana address for the first time, we add it to the account doc
+    //note that the chain checks this is the correct address (matches signer key)
+    if (_accountDoc.chain === SupportedChain.SOLANA && solanaAddress && !_accountDoc.solAddress) {
+      _accountDoc.solAddress = solanaAddress
+      docs.accounts[cosmosAddress] = _accountDoc
+    }
     return; //Already handled
   }
 
@@ -33,6 +43,7 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
       _rev: undefined,
       ...docs.accounts[cosmosAddress],
       ...accountInfo,
+      solAddress: solanaAddress ? solanaAddress : docs.accounts[cosmosAddress]?.solAddress ?? '', //Solana address is inserted manually by extension options (bc we can't revert the hash)
       sequence: undefined, //We dynamically fetch this currently. Can maybe do it here in the future.
     }, BigIntify);
   }

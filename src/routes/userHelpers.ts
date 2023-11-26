@@ -1,6 +1,6 @@
 import { cosmosToEth } from "bitbadgesjs-address-converter";
 import { BigIntify, JSPrimitiveNumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, SupportedChain, convertToCosmosAddress, getChainForAddress, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
+import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, SupportedChain, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
 import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ETH_TX_COUNT_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "../db/db";
 import { OFFLINE_MODE, client } from "../indexer";
 import { catch404 } from "../utils/couchdb-utils";
@@ -18,16 +18,16 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
     let isMint = accountInfos[i].cosmosAddress === 'Mint';
-    promises.push(isMint || OFFLINE_MODE || !fetchName ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress));
+    promises.push(isMint || OFFLINE_MODE || !fetchName || cosmosAccountInfo.chain !== SupportedChain.ETH ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress));
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
     promises.push(isMint ? undefined : AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).catch(catch404))
     promises.push(isMint ? async () => {
       return { address: cosmosAccountInfo.cosmosAddress, chain: SupportedChain.UNKNOWN }
     } : async () => {
-      const address = cosmosAccountInfo.cosmosAddress;
+      const cosmosAddress = cosmosAccountInfo.cosmosAddress;
       const profileDoc = profileInfos[i];
 
-      if (!isAddressValid(address)) {
+      if (!isAddressValid(cosmosAddress)) {
         return {
           address: '',
           chain: SupportedChain.UNKNOWN
@@ -36,16 +36,20 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
 
 
       //If we have a public key, we can determine the chain from that
+      console.log(cosmosAccountInfo, profileDoc);
+
       let ethTxCount = 0;
-      if (cosmosAccountInfo.publicKey && cosmosAccountInfo.chain !== SupportedChain.UNKNOWN) {
+      if (cosmosAccountInfo.publicKey) {
         return {
-          address: cosmosAccountInfo.chain === SupportedChain.ETH ? cosmosAccountInfo.ethAddress : cosmosAccountInfo.cosmosAddress,
+          address: cosmosAccountInfo.chain === SupportedChain.ETH ? cosmosAccountInfo.ethAddress
+            : cosmosAccountInfo.chain === SupportedChain.SOLANA ? cosmosAccountInfo.solAddress
+              : cosmosAccountInfo.cosmosAddress,
           chain: cosmosAccountInfo.chain
         }
       }
 
       //If we have a latestSignedInChain, we can determine the chain from that
-      const ethAddress = getChainForAddress(address) === SupportedChain.ETH ? address : cosmosToEth(address);
+      const ethAddress = cosmosToEth(cosmosAccountInfo.cosmosAddress);
       if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.ETH) {
         return {
           address: ethAddress,
@@ -53,8 +57,13 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       } else if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.COSMOS) {
         return {
-          address: getChainForAddress(address) === SupportedChain.COSMOS ? address : convertToCosmosAddress(address),
+          address: cosmosAddress,
           chain: SupportedChain.COSMOS
+        }
+      } else if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.SOLANA) {
+        return {
+          address: cosmosAccountInfo.solAddress,
+          chain: SupportedChain.SOLANA
         }
       }
 
@@ -73,10 +82,18 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         });
       }
 
-      //Else, we 
+      let defaultedAddr = cosmosAddress;
+      if (accountInfos[i].chain === SupportedChain.ETH) {
+        defaultedAddr = ethAddress;
+      } else if (accountInfos[i].chain === SupportedChain.SOLANA) {
+        defaultedAddr = cosmosAccountInfo.solAddress;
+      }
+
+      //Else, we check ETH txs and default to cosmos address if none
+      //Should we support solana or something by default?
       return {
-        address: ethTxCount > 0 ? ethAddress : address,
-        chain: ethTxCount > 0 ? SupportedChain.ETH : getChainForAddress(address),
+        address: ethTxCount > 0 ? ethAddress : defaultedAddr,
+        chain: ethTxCount > 0 ? SupportedChain.ETH : accountInfos[i].chain
       }
     });
   }
@@ -127,7 +144,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       views: {},
       nsfw: isNSFW ? isNSFW : undefined,
       reported: isReported ? isReported : undefined,
-      
+
       //We don't want to return these to the user
       _id: accountInfo.cosmosAddress,
       _rev: undefined,

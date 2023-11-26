@@ -1,7 +1,9 @@
 import EthDriver from './EthDriver';
 import CosmosDriver from 'blockin-cosmos-driver';
+import SolDriver from './SolDriver';
 
 const ethDriver = new EthDriver('0x1', undefined);
+const solDriver = new SolDriver('');
 const cosmosDriver = new CosmosDriver('bitbadges_1-1');
 
 export const getChainDriver = (chain: string) => {
@@ -10,6 +12,8 @@ export const getChainDriver = (chain: string) => {
       return cosmosDriver;
     case 'Ethereum':
       return ethDriver;
+    case 'Solana':
+      return solDriver;
     default:
       return ethDriver;
   }

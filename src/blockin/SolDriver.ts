@@ -1,8 +1,7 @@
 import { IChainDriver } from "blockin"
 import { Asset } from "blockin/dist/types/verify.types"
-import { Buffer } from "buffer"
-import { recoverPersonalSignature } from "eth-sig-util"
-import { ethers } from "ethers"
+import bs58 from "bs58"
+import nacl from "tweetnacl"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
 
 /**
@@ -14,61 +13,61 @@ import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
  * Note that the Blockin library also has many convenient, chain-generic functions that implement
  * this logic for creating / verifying challenges. Before using, you will have to setChainDriver(new EthDriver(.....)) first.
  */
-export default class EthDriver implements IChainDriver<bigint> {
-  moralisDetails
+export default class SolDriver implements IChainDriver<bigint> {
   chain
-  constructor(chain: string, MORALIS_DETAILS: any) {
-    this.moralisDetails = MORALIS_DETAILS
-      ? MORALIS_DETAILS
-      : {
-        apiKey: '',
-      }
-    // if (MORALIS_DETAILS) Moralis.start(this.moralisDetails)
+  constructor(chain: string) {
     this.chain = chain
   }
 
   async parseChallengeStringFromBytesToSign(txnBytes: Uint8Array) {
     const txnString = new TextDecoder().decode(txnBytes)
-    const txnString2 = Buffer.from(txnString.substring(2), "hex").toString()
-    return txnString2
+    return txnString
   }
+
+
   isValidAddress(address: string) {
-    return ethers.utils.isAddress(address)
+    return address.length === 44
   }
+
+
   async verifySignature(originalChallengeToUint8Array: Uint8Array, signedChallenge: Uint8Array, originalAddress: string) {
-    const original = new TextDecoder().decode(originalChallengeToUint8Array)
-    const signed = new TextDecoder().decode(signedChallenge)
-    const recoveredAddr = recoverPersonalSignature({
-      data: original,
-      sig: signed,
-    })
-    if (recoveredAddr.toLowerCase() !== originalAddress.toLowerCase()) {
-      throw `Signature Invalid: Expected ${originalAddress} but got ${recoveredAddr}`
+    const solanaPublicKeyBase58 = originalAddress;
+
+    // Decode the base58 Solana public key
+    const solanaPublicKeyBuffer = bs58.decode(solanaPublicKeyBase58);
+    const verified = nacl.sign.detached.verify(
+      originalChallengeToUint8Array,
+      signedChallenge,
+      solanaPublicKeyBuffer
+    )
+
+    if (!verified) {
+      throw `Signature Invalid`
     }
   }
 
 
   async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: object): Promise<any> {
 
-    let ethAssets: Asset<bigint>[] = []
+    let solAssets: Asset<bigint>[] = []
     let bitbadgesAssets: Asset<bigint>[] = []
     if (resources) {
 
     }
 
     if (_assets) {
-      ethAssets = _assets.filter((elem) => elem.chain === "Ethereum")
+      solAssets = _assets.filter((elem) => elem.chain === "Solana")
       bitbadgesAssets = _assets.filter((elem) => elem.chain === "BitBadges")
     }
 
-    if (ethAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
+    if (solAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
 
     if (bitbadgesAssets.length > 0) {
       await verifyBitBadgesAssets(bitbadgesAssets, address, balancesSnapshot)
     }
 
-    if (ethAssets.length > 0) {
-      throw new Error(`Ethereum assets are not yet supported`)
+    if (solAssets.length > 0) {
+      throw new Error(`Solana assets are not yet supported`)
     }
   }
 }

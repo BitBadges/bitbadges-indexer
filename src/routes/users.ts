@@ -1,5 +1,5 @@
 
-import { BigIntify, JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-proto";
 import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfo, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertProfileDoc, convertProfileInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
@@ -12,6 +12,7 @@ import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../util
 import { applyAddressMappingsToUserPermissions } from './balances';
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+import { cosmosToEth } from "bitbadgesjs-address-converter";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
@@ -29,21 +30,30 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
 
   for (let i = 0; i < addressesToFetchWithSequence.length; i++) {
     let result = results[i] as CleanedCosmosAccountInformation;
-    accountInfos.push(result);
+    accountInfos.push({
+      ...result,
+      solAddress: getChainForAddress(addressesToFetchWithSequence[i]) === SupportedChain.SOLANA ? addressesToFetchWithSequence[i] : '',
+      chain: getChainForAddress(addressesToFetchWithSequence[i]) === SupportedChain.SOLANA ? SupportedChain.SOLANA : result.chain,
+    });
   }
 
   if (addressesToFetchWithoutSequence.length > 0) {
     const fetchResult = results[addressesToFetchWithSequence.length] as nano.DocumentFetchResponse<AccountDoc<JSPrimitiveNumberType>>;
     const docs = getDocsFromNanoFetchRes(fetchResult, true);
     for (const address of addressesToFetchWithoutSequence) {
-
       const doc = docs.find(x => x._id === convertToCosmosAddress(address));
       if (doc) {
-        accountInfos.push(doc);
+        accountInfos.push({
+          ...doc,
+          solAddress: getChainForAddress(address) === SupportedChain.SOLANA ? address : '',
+          chain: getChainForAddress(address),
+        });
       } else {
         accountInfos.push({
           cosmosAddress: convertToCosmosAddress(address),
-          ethAddress: address,
+          // solAddress: convertToCosmosAddress(address),
+          solAddress: getChainForAddress(address) === SupportedChain.SOLANA ? address : '',
+          ethAddress: cosmosToEth(convertToCosmosAddress(address)),
           sequence: 0,
           accountNumber: -1,
           chain: getChainForAddress(address),

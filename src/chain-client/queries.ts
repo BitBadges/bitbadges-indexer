@@ -2,6 +2,7 @@ import { createProtobufRpcClient, QueryClient } from "@cosmjs/stargate";
 import { cosmosToEth } from "bitbadgesjs-address-converter";
 import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth_pb";
 import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query_pb";
+import * as crypto from 'bitbadgesjs-proto/dist/proto/cosmos/crypto/ed25519/keys_pb';
 import * as ethermint from 'bitbadgesjs-proto/dist/proto/ethermint/keys_pb';
 import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-utils";
 
@@ -16,6 +17,7 @@ export interface CleanedCosmosAccountInformation {
   chain: SupportedChain
   cosmosAddress: string
   ethAddress: string
+  // solAddress: string -  can't do it directly here because we don't have the solana address yet (can't revert a hash)
   accountNumber: string
 }
 
@@ -25,7 +27,7 @@ export interface BadgesExtension {
   }
 }
 
-const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
+const getAccountInfoToReturn = (accountPromise: Uint8Array, defaultAddress: string): CleanedCosmosAccountInformation => {
   //Native Cosmos SDK x/auth query for account information
   const accountInfo = accountQuery.QueryAccountResponse.fromBinary(accountPromise).account
   const accountInfoValue = accountInfo?.value;
@@ -33,17 +35,24 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
 
   const accountObj = account.BaseAccount.fromBinary(accountInfoValue);
   let pubKeyStr = '';
-  let chain = getChainForAddress(accountObj.address ? accountObj.address : '');
+  let chain = getChainForAddress(defaultAddress);
   if (accountObj.pubKey?.typeUrl) {
     if (accountObj.pubKey.typeUrl === '/ethermint.PubKey') {
       chain = SupportedChain.ETH
     } else if (accountObj.pubKey.typeUrl === '/cosmos.crypto.secp256k1.PubKey') {
       chain = SupportedChain.COSMOS
+    } else if (accountObj.pubKey.typeUrl === '/cosmos.crypto.ed25519.PubKey') {
+      chain = SupportedChain.SOLANA
     }
   }
 
-  if (accountObj.pubKey?.value) {
+  console.log("Chain: ", chain);
+
+  if (accountObj.pubKey?.value && chain == SupportedChain.ETH) {
     const pub_key = ethermint.PubKey.fromBinary(accountObj.pubKey.value).key;
+    pubKeyStr = Buffer.from(pub_key).toString('base64');
+  } else if (accountObj.pubKey?.value && chain == SupportedChain.SOLANA) {
+    const pub_key = crypto.PubKey.fromBinary(accountObj.pubKey.value).key;
     pubKeyStr = Buffer.from(pub_key).toString('base64');
   }
 
@@ -53,8 +62,8 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array) => {
     accountNumber: accountObj.accountNumber !== undefined && accountObj.accountNumber >= 0 ? accountObj.accountNumber.toString() : "0",
     chain,
     ethAddress: accountObj.address ? cosmosToEth(accountObj.address) : '',
+    // solAddress: '',
     cosmosAddress: accountObj.address ? convertToCosmosAddress(accountObj.address) : '',
-    address: chain === SupportedChain.COSMOS && accountObj.address ? accountObj.address : cosmosToEth(accountObj.address ? accountObj.address : ''),
   }
 }
 
@@ -74,13 +83,15 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
             'Account',
             accountData
           )
-          return getAccountInfoToReturn(accountPromise);
+
+          return getAccountInfoToReturn(accountPromise, address);
         } catch (error) {
           return {
             ethAddress: cosmosToEth(convertToCosmosAddress(address)),
             sequence: "0",
             accountNumber: "-1",
             cosmosAddress: convertToCosmosAddress(address),
+            // solAddress: '',
             chain: getChainForAddress(address),
             publicKey: '',
           }
