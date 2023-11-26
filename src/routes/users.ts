@@ -12,7 +12,7 @@ import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../util
 import { applyAddressMappingsToUserPermissions } from './balances';
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
-import { cosmosToEth } from "bitbadgesjs-address-converter";
+import { cosmosToEth } from "bitbadgesjs-utils";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 

@@ -1,9 +1,9 @@
 import { createProtobufRpcClient, QueryClient } from "@cosmjs/stargate";
-import { cosmosToEth } from "bitbadgesjs-address-converter";
+import { cosmosToEth } from "bitbadgesjs-utils";
 import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth_pb";
 import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query_pb";
 import * as crypto from 'bitbadgesjs-proto/dist/proto/cosmos/crypto/ed25519/keys_pb';
-import * as ethermint from 'bitbadgesjs-proto/dist/proto/ethermint/keys_pb';
+import * as ethereum from 'bitbadgesjs-proto/dist/proto/ethereum/keys_pb';
 import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-utils";
 
 /**
@@ -37,7 +37,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array, defaultAddress: stri
   let pubKeyStr = '';
   let chain = getChainForAddress(defaultAddress);
   if (accountObj.pubKey?.typeUrl) {
-    if (accountObj.pubKey.typeUrl === '/ethermint.PubKey') {
+    if (accountObj.pubKey.typeUrl === '/ethereum.PubKey') {
       chain = SupportedChain.ETH
     } else if (accountObj.pubKey.typeUrl === '/cosmos.crypto.secp256k1.PubKey') {
       chain = SupportedChain.COSMOS
@@ -46,10 +46,8 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array, defaultAddress: stri
     }
   }
 
-  console.log("Chain: ", chain);
-
   if (accountObj.pubKey?.value && chain == SupportedChain.ETH) {
-    const pub_key = ethermint.PubKey.fromBinary(accountObj.pubKey.value).key;
+    const pub_key = ethereum.PubKey.fromBinary(accountObj.pubKey.value).key;
     pubKeyStr = Buffer.from(pub_key).toString('base64');
   } else if (accountObj.pubKey?.value && chain == SupportedChain.SOLANA) {
     const pub_key = crypto.PubKey.fromBinary(accountObj.pubKey.value).key;

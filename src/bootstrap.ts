@@ -7,7 +7,7 @@ import { MessageGenerated, MsgUniversalUpdateCollection, SupportedChain, createT
 import { MsgCreateAddressMappings as ProtoMsgCreateAddressMappings, MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
 
 import { createProtoMsg } from 'bitbadgesjs-proto/dist/proto-types/base'
-import { BroadcastMode, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-provider";
+import { BroadcastMode, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-utils";
 import { BETANET_CHAIN_DETAILS, Numberify, convertToCosmosAddress } from "bitbadgesjs-utils";
 import crypto from 'crypto';
 import env from 'dotenv';

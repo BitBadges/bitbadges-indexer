@@ -1,4 +1,4 @@
-import { cosmosToEth } from "bitbadgesjs-address-converter";
+import { cosmosToEth } from "bitbadgesjs-utils";
 import { BigIntify, JSPrimitiveNumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, SupportedChain, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
 import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ETH_TX_COUNT_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "../db/db";

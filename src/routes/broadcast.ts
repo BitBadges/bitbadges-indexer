@@ -1,5 +1,5 @@
 import axios from "axios";
-import { generateEndpointBroadcast } from "bitbadgesjs-provider";
+import { generateEndpointBroadcast } from "bitbadgesjs-utils";
 import { BroadcastTxRouteRequestBody, BroadcastTxRouteResponse, SimulateTxRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";

@@ -10,7 +10,7 @@ import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAddressMappingsFromDB } from "./utils";
-import { cosmosToEth } from "bitbadgesjs-address-converter";
+import { cosmosToEth } from "bitbadgesjs-utils";
 
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
