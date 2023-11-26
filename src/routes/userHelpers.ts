@@ -177,10 +177,7 @@ const activityDesignDocName = 'transfer_activity_by_address';
 export async function executeActivityQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('activityQuery');
 
-  const onlyShowApproved = profileInfo.onlyShowApproved;
   const hiddenBadges = profileInfo.hiddenBadges ?? [];
-  const shownBadges = profileInfo.shownBadges ?? [];
-
   let docsLeft = 25;
   let currBookmark = bookmark;
   const docs = [];
@@ -196,50 +193,29 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
     })
 
     if (!fetchHidden) {
-      if (onlyShowApproved) {
-        const nonHiddenDocs = viewDocs.map((doc) => {
-          if (!doc || !shownBadges || !doc.balances || !doc.collectionId) return undefined;
-          const matchingShownBadge = shownBadges.find(x => doc.collectionId && x.collectionId == BigInt(doc.collectionId));
-          if (!matchingShownBadge) return undefined;
+      const nonHiddenDocs = viewDocs.map((doc) => {
+        if (!doc || !hiddenBadges || !doc.balances || !doc.collectionId) return undefined;
+        let matchingHiddenBadge = hiddenBadges.find(x => doc.collectionId && x.collectionId == BigInt(doc.collectionId)) ?? {
+          collectionId: BigInt(doc.collectionId),
+          badgeIds: []
+        }
 
-          return {
-            ...doc,
-            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
-
-              const [, removed] = removeUintRangeFromUintRange(matchingShownBadge.badgeIds, balance.badgeIds);
-              return {
-                ...balance,
-                badgeIds: removed
-              }
+        return {
+          ...doc,
+          balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
+            const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
+            return {
+              ...balance,
+              badgeIds: remaining
             }
-            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
           }
-        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
-        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
-      } else {
-        const nonHiddenDocs = viewDocs.map((doc) => {
-          if (!doc || !hiddenBadges || !doc.balances || !doc.collectionId) return undefined;
-          let matchingHiddenBadge = hiddenBadges.find(x => doc.collectionId && x.collectionId == BigInt(doc.collectionId)) ?? {
-            collectionId: BigInt(doc.collectionId),
-            badgeIds: []
-          }
+          ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
+        }
+      }).filter((doc) => doc !== undefined);
 
-          return {
-            ...doc,
-            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
-              const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
-              return {
-                ...balance,
-                badgeIds: remaining
-              }
-            }
-            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
-          }
-        }).filter((doc) => doc !== undefined);
-
-        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
-      }
+      viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
     }
+
 
     //We rely on the fact docs length == 25 so we
 
@@ -317,9 +293,7 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
   if (QUERY_TIME_MODE) console.time('executeCollectedQuery');
   //keep searching until we have min 25 non-hidden docs
 
-  const onlyShowApproved = profileInfo.onlyShowApproved;
   const hiddenBadges = profileInfo.hiddenBadges ?? [];
-  const shownBadges = profileInfo.shownBadges ?? [];
 
   let docsLeft = 25;
   let currBookmark = bookmark;
@@ -330,49 +304,27 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
 
     let viewDocs = view.rows.map((row) => row.doc);
     if (!fetchHidden) {
-      if (onlyShowApproved) {
-        const nonHiddenDocs = viewDocs.map((doc) => {
-          if (!doc || !shownBadges) return undefined;
-          const matchingShownBadge = shownBadges.find(x => x.collectionId == BigInt(doc.collectionId));
-          if (!matchingShownBadge) return undefined;
+      const nonHiddenDocs = viewDocs.map((doc) => {
+        if (!doc || !hiddenBadges) return undefined;
+        let matchingHiddenBadge = hiddenBadges.find(x => x.collectionId == BigInt(doc.collectionId)) ?? {
+          collectionId: BigInt(doc.collectionId),
+          badgeIds: []
+        }
 
-          return {
-            ...doc,
-            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
-
-              const [, removed] = removeUintRangeFromUintRange(matchingShownBadge.badgeIds, balance.badgeIds);
-              return {
-                ...balance,
-                badgeIds: removed
-              }
+        return {
+          ...doc,
+          balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
+            const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
+            return {
+              ...balance,
+              badgeIds: remaining
             }
-            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
           }
-        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
-        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
-      } else {
-        const nonHiddenDocs = viewDocs.map((doc) => {
-          if (!doc || !hiddenBadges) return undefined;
-          let matchingHiddenBadge = hiddenBadges.find(x => x.collectionId == BigInt(doc.collectionId)) ?? {
-            collectionId: BigInt(doc.collectionId),
-            badgeIds: []
-          }
+          ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
+        }
+      }).filter((doc) => doc !== undefined && doc.balances.length > 0);
 
-          return {
-            ...doc,
-            balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
-              const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
-              return {
-                ...balance,
-                badgeIds: remaining
-              }
-            }
-            ).filter((balance) => balance.badgeIds.length > 0).map(x => convertBalance(x, Stringify))
-          }
-        }).filter((doc) => doc !== undefined && doc.balances.length > 0);
-
-        viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
-      }
+      viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._id === doc._id));
     }
 
     //We rely on the fact docs length == 25 so we
