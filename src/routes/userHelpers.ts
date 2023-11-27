@@ -27,6 +27,8 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       const cosmosAddress = cosmosAccountInfo.cosmosAddress;
       const profileDoc = profileInfos[i];
 
+      const solAddress = (cosmosAccountInfo.solAddress ? cosmosAccountInfo.solAddress : profileDoc?.solAddress ?? "")
+
       if (!isAddressValid(cosmosAddress)) {
         return {
           address: '',
@@ -34,15 +36,12 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       }
 
-
-      //If we have a public key, we can determine the chain from that
-      console.log(cosmosAccountInfo, profileDoc);
-
+      //If we have a public key, we can determine the chain from that bc it has been previously set
       let ethTxCount = 0;
       if (cosmosAccountInfo.publicKey) {
         return {
           address: cosmosAccountInfo.chain === SupportedChain.ETH ? cosmosAccountInfo.ethAddress
-            : cosmosAccountInfo.chain === SupportedChain.SOLANA ? cosmosAccountInfo.solAddress
+            : cosmosAccountInfo.chain === SupportedChain.SOLANA ? solAddress
               : cosmosAccountInfo.cosmosAddress,
           chain: cosmosAccountInfo.chain
         }
@@ -62,7 +61,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       } else if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.SOLANA) {
         return {
-          address: cosmosAccountInfo.solAddress,
+          address: solAddress,
           chain: SupportedChain.SOLANA
         }
       }
@@ -86,7 +85,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       if (accountInfos[i].chain === SupportedChain.ETH) {
         defaultedAddr = ethAddress;
       } else if (accountInfos[i].chain === SupportedChain.SOLANA) {
-        defaultedAddr = cosmosAccountInfo.solAddress;
+        defaultedAddr = solAddress;
       }
 
       //Else, we check ETH txs and default to cosmos address if none

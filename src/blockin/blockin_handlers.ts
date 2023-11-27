@@ -1,5 +1,5 @@
 import { BigIntify } from 'bitbadgesjs-proto';
-import { CheckSignInStatusResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getCurrentValueForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
+import { SupportedChain, CheckSignInStatusResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getChainForAddress, getCurrentValueForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
@@ -42,7 +42,7 @@ export async function checkIfManager(req: AuthenticatedRequest<NumberType>, coll
   if (!checkIfAuthenticated(req)) return false;
   //TODO: Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
 
-  
+
 
   const collectionIdStr = BigInt(collectionId).toString();
   const _collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);
@@ -202,6 +202,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
         ...profileDoc,
         _id: req.session.cosmosAddress,
         latestSignedInChain: body.chain,
+        solAddress: getChainForAddress(challenge.address) == SupportedChain.SOLANA ? challenge.address : profileDoc?.solAddress,
       });
     }
 
