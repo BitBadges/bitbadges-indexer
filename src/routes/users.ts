@@ -33,7 +33,6 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
     accountInfos.push({
       ...result,
       solAddress: getChainForAddress(addressesToFetchWithSequence[i]) === SupportedChain.SOLANA ? addressesToFetchWithSequence[i] : '',
-      chain: getChainForAddress(addressesToFetchWithSequence[i]) === SupportedChain.SOLANA ? SupportedChain.SOLANA : result.chain,
     });
   }
 
@@ -46,17 +45,15 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
         accountInfos.push({
           ...doc,
           solAddress: getChainForAddress(address) === SupportedChain.SOLANA ? address : '',
-          chain: getChainForAddress(address),
         });
       } else {
         accountInfos.push({
           cosmosAddress: convertToCosmosAddress(address),
-          // solAddress: convertToCosmosAddress(address),
           solAddress: getChainForAddress(address) === SupportedChain.SOLANA ? address : '',
           ethAddress: cosmosToEth(convertToCosmosAddress(address)),
           sequence: 0,
           accountNumber: -1,
-          chain: getChainForAddress(address),
+          chain: getChainForAddress(address), //By default, if we do not have an account doc yet, we use the requested format
           publicKey: '',
         });
       }

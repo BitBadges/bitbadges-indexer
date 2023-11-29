@@ -17,18 +17,19 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
+    const profileDoc = profileInfos[i];
     let isMint = accountInfos[i].cosmosAddress === 'Mint';
-    promises.push(isMint || OFFLINE_MODE || !fetchName || cosmosAccountInfo.chain !== SupportedChain.ETH ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress));
+
+    promises.push(isMint || OFFLINE_MODE || !fetchName || cosmosAccountInfo.chain !== SupportedChain.ETH
+
+      ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress, !!profileDoc.profilePicUrl));
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
     promises.push(isMint ? undefined : AIRDROP_DB.get(cosmosAccountInfo.cosmosAddress).catch(catch404))
     promises.push(isMint ? async () => {
       return { address: cosmosAccountInfo.cosmosAddress, chain: SupportedChain.UNKNOWN }
     } : async () => {
       const cosmosAddress = cosmosAccountInfo.cosmosAddress;
-      const profileDoc = profileInfos[i];
-
       const solAddress = (cosmosAccountInfo.solAddress ? cosmosAccountInfo.solAddress : profileDoc?.solAddress ?? "")
-
       if (!isAddressValid(cosmosAddress)) {
         return {
           address: '',
@@ -36,7 +37,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       }
 
-      //If we have a public key, we can determine the chain from that bc it has been previously set
+      //If we have a public key, we can determine the chain from the pub key type bc it has been previously set and used
       let ethTxCount = 0;
       if (cosmosAccountInfo.publicKey) {
         return {
@@ -47,7 +48,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         }
       }
 
-      //If we have a latestSignedInChain, we can determine the chain from that
+      //Else if we have a latestSignedInChain, we can determine the chain from that
       const ethAddress = cosmosToEth(cosmosAccountInfo.cosmosAddress);
       if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.ETH) {
         return {
@@ -81,6 +82,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
         });
       }
 
+      //Else, we default to whatever the chain was in the original account doc (which is tyically just the format of the requested address in the query)
       let defaultedAddr = cosmosAddress;
       if (accountInfos[i].chain === SupportedChain.ETH) {
         defaultedAddr = ethAddress;
@@ -154,12 +156,12 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
 }
 
 
-export async function getNameAndAvatar(address: string) {
+export async function getNameAndAvatar(address: string, skipAvatarFetch?: boolean) {
   try {
     const ensName = await getNameForAddress(address);
 
     let details: { avatar?: string } = {};
-    if (ensName) {
+    if (ensName && !skipAvatarFetch) {
       const resolver = await getEnsResolver(ensName);
       if (resolver) {
         details = await getEnsDetails(resolver);

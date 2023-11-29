@@ -1,16 +1,15 @@
 
 import { JSPrimitiveNumberType, UintRange } from "bitbadgesjs-proto";
-import { AccountInfo, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AccountInfo, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
-import { getAddressForName, getEnsResolver } from "../utils/ensResolvers";
+import { getAddressForName } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAddressMappingsFromDB } from "./utils";
-import { cosmosToEth } from "bitbadgesjs-utils";
 
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
@@ -29,10 +28,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     //We try even if it is a valid address, because an ENS name could be a valid address (e.g. 0x123...789.eth)
     try {
-      const resolver = await getEnsResolver(ensToAttempt)
-      if (resolver?.name) {
-        resolvedEnsAddress = await getAddressForName(resolver.name);
-      }
+      resolvedEnsAddress = await getAddressForName(ensToAttempt);
     } catch (e) {
 
     }
