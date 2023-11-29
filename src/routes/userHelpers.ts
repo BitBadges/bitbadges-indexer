@@ -198,8 +198,6 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
       }
     })
 
-    console.log(viewDocs.length);
-
     if (!fetchHidden) {
       const nonHiddenDocs = viewDocs.map((doc) => {
         if (!doc || !hiddenBadges || !doc.balances || !doc.collectionId) return undefined;

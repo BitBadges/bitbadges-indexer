@@ -8,6 +8,7 @@
     "start": "react-app-rewired start",
     "build": "tsc --build ./src",
     "dev": "npx ts-node src/indexer.ts",
+    "indexer-dev": "npx ts-node src/indexer.ts",
     "indexer": "node --experimental-specifier-resolution=node build/dist/indexer.js",
     "setup": "npx ts-node src/setup.ts",
     "setup-and-run": "npm run setup with-delete && npm run indexer-dev",
