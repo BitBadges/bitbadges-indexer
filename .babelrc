@@ -1,1 +1,2 @@
-{  "presets": ["@babel/preset-env", "@babel/plugin-transform-modules-commonjs"]  } 
+//Types 
+{  "presets": ["@babel/preset-env", "@babel/preset-typescript"] }

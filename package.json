@@ -4,13 +4,10 @@
   "description": "Indexer for the bitbadges blockchain",
   "main": "index.js",
   "scripts": {
-    "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' mocha --require ts-node/register 'test/**/*.ts'",
+    "test": "jest /src",
     "start": "react-app-rewired start",
     "build": "tsc --build ./src",
-    "test-react": "react-app-rewired test --env=jsdom",
-    "eject": "react-scripts eject",
-    "deploy": "ren .\\build\\index.html 200.html & surge .\\build",
-    "indexer-dev": "npx ts-node src/indexer.ts",
+    "dev": "npx ts-node src/indexer.ts",
     "indexer": "node --experimental-specifier-resolution=node build/dist/indexer.js",
     "setup": "npx ts-node src/setup.ts",
     "setup-and-run": "npm run setup with-delete && npm run indexer-dev",
@@ -18,15 +15,8 @@
     "bootstrap": "npx ts-node src/bootstrap.ts"
   },
   "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cosmos/academy-checkers-ui.git"
-  },
   "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/cosmos/academy-checkers-ui/issues"
-  },
   "dependencies": {
     "@cosmjs/crypto": "^0.32.0",
     "@cosmjs/encoding": "^0.31.3",
@@ -60,16 +50,24 @@
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
+    "@babel/core": "^7.23.5",
+    "@babel/preset-env": "^7.23.5",
+    "@babel/preset-typescript": "^7.23.3",
     "@types/cookie-parser": "^1.4.3",
     "@types/cors": "^2.8.13",
     "@types/crypto-js": "^4.1.1",
     "@types/dotenv": "8.2.0",
     "@types/express": "4.17.13",
     "@types/express-session": "^1.17.6",
+    "@types/jest": "^29.5.10",
     "@types/multer": "^1.4.8",
     "@types/node": "18.7.5",
     "@types/response-time": "^2.3.5",
+    "babel-jest": "^29.7.0",
     "dotenv": "16.0.1",
+    "jest": "^29.7.0",
+    "mocha": "^10.2.0",
+    "ts-jest": "^29.1.1",
     "ts-node": "10.9.1",
     "typescript": "4.6.3"
   },

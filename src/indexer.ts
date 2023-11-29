@@ -1,4 +1,3 @@
-import AWS from 'aws-sdk'
 import axios from 'axios'
 import { ErrorResponse } from 'bitbadgesjs-utils'
 import cookieParser from 'cookie-parser'
@@ -10,12 +9,12 @@ import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
 import fs from 'fs'
 import https from 'https'
-import { create } from 'ipfs-http-client'
 import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { API_KEYS_DB, REPORTS_DB, ReportDoc, insertToDB } from './db/db'
+import { OFFLINE_MODE, TIME_MODE } from './indexer-vars'
 import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
 import { addAnnouncement } from './routes/announcements'
@@ -37,16 +36,8 @@ import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 
-export const OFFLINE_MODE = false;
 
-export const TIME_MODE = process.env.TIME_MODE === 'true' || false;
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
-const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
-export const s3 = new AWS.S3({
-  endpoint: spacesEndpoint,
-  accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
-  secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY
-});
 config()
 
 // Basic rate limiting middleware for Express. Limits requests to 30 per minute.
@@ -64,20 +55,6 @@ const limiter = rateLimit({
   },
 
 })
-
-const auth = 'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
-
-export const LOAD_BALANCER_ID = Number(process.env.LOAD_BALANCER_ID); //string number
-
-export const ipfsClient = create({
-  host: 'ipfs.infura.io',
-  port: 5001,
-  protocol: 'https',
-  headers: {
-    authorization: auth,
-  },
-  timeout: process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000,
-});
 
 export const getAttributeValueByKey = (attributes: Attribute[], key: string): string | undefined => {
   return attributes.find((attribute: Attribute) => attribute.key === key)?.value

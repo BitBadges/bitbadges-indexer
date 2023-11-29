@@ -9,7 +9,7 @@ import { serializeError } from "serialize-error";
 import { GetTokensFromFaucetRouteResponse, NumberType, OffChainBalancesMap } from "bitbadgesjs-utils";
 import { catch404 } from "../utils/couchdb-utils";
 import { refreshCollection } from "./refresh";
-import { s3 } from "../indexer";
+import { s3 } from "../indexer-vars";
 import { DEV_MODE } from "../constants";
 
 // Create a mutex to protect the faucet from double spending

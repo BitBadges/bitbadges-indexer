@@ -14,7 +14,7 @@ import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
 import { COMPLIANCE_DB, ERRORS_DB, MsgDoc } from "./db/db"
 import { getStatus } from "./db/status"
-import { TIME_MODE, client, setClient, setTimer } from "./indexer"
+import { client, setClient, setTimer } from "./indexer"
 import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
@@ -26,6 +26,7 @@ import { handleTransfers } from "./tx-handlers/handleTransfers"
 import { catch404 } from "./utils/couchdb-utils"
 import { handleMsgCreateCollection } from "./tx-handlers/handleMsgCreateCollection"
 import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
+import { TIME_MODE } from "./indexer-vars"
 
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000

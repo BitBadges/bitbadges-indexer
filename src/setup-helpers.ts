@@ -286,7 +286,7 @@ export async function createIndexesAndViews() {
               doc.from !== "Mint" &&
               doc.from !== "Total"
             ) {
-              emit(doc.from, null);
+              emit([doc.from, -1 * doc.timestamp], null);
             }
 
             for (const address of doc.to) {
@@ -294,7 +294,7 @@ export async function createIndexesAndViews() {
                 address !== "Mint" &&
                 address !== "Total"
               ) {
-                emit(address, null);
+                emit([address, -1 *  doc.timestamp], null);
               }
             }
           }

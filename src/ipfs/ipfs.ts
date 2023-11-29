@@ -1,11 +1,11 @@
 import axios from 'axios';
-import { NumberType } from 'bitbadgesjs-proto';
+import { NumberType, deepCopy } from 'bitbadgesjs-proto';
 import { BadgeMetadataDetails, BigIntify, ChallengeDetails, ApprovalInfoDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
 import last from 'it-last';
 import { getStatus } from '../db/status';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { FETCHES_DB, OFF_CHAIN_URLS_DB, insertToDB } from '../db/db';
-import { ipfsClient, s3 } from "../indexer";
+import { ipfsClient, s3 } from "../indexer-vars";
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { catch404 } from '../utils/couchdb-utils';
@@ -133,9 +133,6 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     }
   }
 
-  const results = [];
-  let collectionMetadataResult = undefined;
-  const badgeMetadataResults = [];
 
   const imageFiles = [];
   if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:')) {
@@ -160,7 +157,6 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     const cids = [];
     for await (const imageResult of imageResults) {
       cids.push(imageResult.cid.toString());
-      results.push({ cid: imageResult.cid.toString() });
     }
 
     if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:')) {
@@ -196,30 +192,29 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   //Was being weird with .addAll so we are doing it one by one here...
   //Should probably look into it in the future
   const status = await getStatus();
-  for (let i = 0; i < files.length; i++) {
-    const idx = i;
-    const file = files[i];
+
+  const promises = files.map(async (file, idx) => {
     const result = await ipfsClient.add(file);
-
-    results.push({ cid: result.cid.toString() });
-
-    if (idx === 0 && collectionMetadata) {
-      collectionMetadataResult = { cid: result.cid.toString() };
-    } else {
-      badgeMetadataResults.push({ cid: result.cid.toString() });
-    }
-
     await insertToDB(FETCHES_DB, {
       _id: `ipfs://${result.cid.toString()}`,
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: status.block.height,
       content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
       db: 'Metadata',
-      isPermanent: true
+      isPermanent: true,
     });
-  }
 
-  return { allResults: results, collectionMetadataResult, badgeMetadataResults };
+    return { cid: result.cid.toString() };
+  });
+
+  const promiseResults = await Promise.all(promises);
+
+  const results = deepCopy(promiseResults);
+  const collectionMetadataResult = collectionMetadata ? results.shift() : undefined;
+  const badgeMetadataResults = results;
+
+
+  return { allResults: promiseResults, collectionMetadataResult, badgeMetadataResults };
 }
 
 export const addApprovalDetailsToOffChainStorage = async (name: string, description: string, challengeDetails?: ChallengeDetails<bigint>) => {

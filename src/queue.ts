@@ -4,7 +4,7 @@ import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Num
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
 import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
-import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer";
+import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer-vars";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE } from "./poll";
 import { getAddressMappingsFromDB } from "./routes/utils";

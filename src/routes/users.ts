@@ -7,12 +7,13 @@ import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
 import { CleanedCosmosAccountInformation } from "../chain-client/queries";
 import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
-import { client, s3 } from "../indexer";
+import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { applyAddressMappingsToUserPermissions } from './balances';
 import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 import { cosmosToEth } from "bitbadgesjs-utils";
+import { s3 } from "../indexer-vars";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 

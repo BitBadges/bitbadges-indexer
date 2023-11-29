@@ -2,10 +2,11 @@ import { cosmosToEth } from "bitbadgesjs-utils";
 import { BigIntify, JSPrimitiveNumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, SupportedChain, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
 import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ETH_TX_COUNT_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "../db/db";
-import { OFFLINE_MODE, client } from "../indexer";
+import { client } from "../indexer";
 import { catch404 } from "../utils/couchdb-utils";
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../utils/ensResolvers";
 import { complianceDoc } from "../poll";
+import { OFFLINE_MODE } from "../indexer-vars";
 
 const QUERY_TIME_MODE = false;
 
@@ -184,7 +185,11 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
   const docs = [];
 
   while (docsLeft > 0) {
-    const view = await TRANSFER_ACTIVITY_DB.view(activityDesignDocName, 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(currBookmark) ?? 0, descending: true });
+    const view = await TRANSFER_ACTIVITY_DB.view(activityDesignDocName, 'byCosmosAddress', {
+      startkey: [cosmosAddress, -1 * Number.MAX_SAFE_INTEGER],
+      endkey: [cosmosAddress, Number.MAX_SAFE_INTEGER],
+      include_docs: true, limit: 25, skip: Number(currBookmark) ?? 0
+    });
 
     let viewDocs = view.rows.map((row) => {
       return {
@@ -192,6 +197,8 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
         to: row.doc?.to.includes(cosmosAddress) ? [cosmosAddress] : row.doc?.to //For the user queries, we don't need to return all the to addresses
       }
     })
+
+    console.log(viewDocs.length);
 
     if (!fetchHidden) {
       const nonHiddenDocs = viewDocs.map((doc) => {
