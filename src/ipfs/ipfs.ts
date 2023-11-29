@@ -193,11 +193,13 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     );
   }
 
-  const metadataResults = ipfsClient.addAll(files);
-
+  //Was being weird with .addAll so we are doing it one by one here...
+  //Should probably look into it in the future
   const status = await getStatus();
-  let idx = 0;
-  for await (const result of metadataResults) {
+  for (let i = 0; i < files.length; i++) {
+    const idx = i;
+    const file = files[i];
+    const result = await ipfsClient.add(file);
 
     results.push({ cid: result.cid.toString() });
 
@@ -215,8 +217,6 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
       db: 'Metadata',
       isPermanent: true
     });
-
-    idx++;
   }
 
   return { allResults: results, collectionMetadataResult, badgeMetadataResults };

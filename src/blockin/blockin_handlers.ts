@@ -40,9 +40,7 @@ export function checkIfAuthenticated(req: AuthenticatedRequest<NumberType>) {
 
 export async function checkIfManager(req: AuthenticatedRequest<NumberType>, collectionId: NumberType) {
   if (!checkIfAuthenticated(req)) return false;
-  //TODO: Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
-
-
+  //Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
 
   const collectionIdStr = BigInt(collectionId).toString();
   const _collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);
@@ -157,13 +155,13 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 
   try {
     const generatedEIP4361ChallengeStr: string = await chainDriver.parseChallengeStringFromBytesToSign(body.originalBytes);
-
+    
     const challenge: ChallengeParams<NumberType> = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const verificationResponse = await verifyChallenge(
       body.originalBytes,
       body.signatureBytes,
       BigIntify,
-      {
+      body.options ?? {
         expectedChallengeParams: {
           domain: 'https://bitbadges.io',
           uri: 'https://bitbadges.io',
@@ -208,7 +206,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 
     req.session.save();
 
-    return res.status(200).json({ success: true, successMessage: verificationResponse.message });
+    return res.status(200).json({ success: true, successMessage: verificationResponse.message, qrCodeText: verificationResponse.qrCodeText });
   } catch (err) {
     console.log(err);
 
