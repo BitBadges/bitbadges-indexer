@@ -9,6 +9,7 @@ import { ipfsClient, s3 } from "../indexer-vars";
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { catch404 } from '../utils/couchdb-utils';
+import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 
 
 export const getFromIpfs = async (path: string) => {
@@ -105,12 +106,14 @@ export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMa
       Body: binaryData,
       Bucket: 'bitbadges-balances',
       Key: 'balances/' + path,
-      ACL: 'public-read', // Set the ACL as needed
+      ACL: ObjectCannedACL.public_read,
       ContentType: 'application/json', // Set the content type to JSON
     };
-    const res = await s3.upload(params).promise();
+    await s3.send(new PutObjectCommand(params));
 
-    return { uri: res.Location };
+    const location = 'https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/' + path;
+
+    return { uri: location };
   }
 }
 

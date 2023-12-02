@@ -221,24 +221,28 @@ export async function authorizeBlockinRequest(expressReq: Request, res: Response
 }
 
 export async function genericBlockinVerify(params: VerifySignInRouteRequestBody) {
-  const body = params;
-  if (body.options?.beforeVerification) {
-    throw `You cannot use the beforeVerification option with this endpoint. Please run this verification logic yourself.`;
-  }
-
-  const chainDriver = getChainDriver(body.chain);
-  setChainDriver(chainDriver);
-
-  const verificationResponse = await verifyChallenge(
-    body.message,
-    body.signature, 
-    {
-      ...body.options,
-      beforeVerification: undefined,
+  try {
+    const body = params;
+    if (body.options?.beforeVerification) {
+      throw `You cannot use the beforeVerification option with this endpoint. Please run this verification logic yourself.`;
     }
-  );
 
-  return verificationResponse;
+    const chainDriver = getChainDriver(body.chain);
+    setChainDriver(chainDriver);
+
+    const verificationResponse = await verifyChallenge(
+      body.message,
+      body.signature,
+      {
+        ...body.options,
+        beforeVerification: undefined,
+      }
+    );
+
+    return verificationResponse;
+  } catch (err) {
+    throw new Error(err);
+  }
 }
 
 export async function genericBlockinVerifyHandler(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {

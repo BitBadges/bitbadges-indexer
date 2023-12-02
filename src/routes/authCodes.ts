@@ -45,6 +45,7 @@ export const createAuthCode = async (expressReq: Request, res: Response<CreateBl
       ...reqBody,
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
       params: challengeParams,
+      createdAt: Date.now()
     });
 
     return res.status(200).send({ success: true });
@@ -79,14 +80,19 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
 
       return res.status(200).send({
         message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
-        blockinSuccess: verificationResponse.success,
-        blockinMessage: verificationResponse.message,
+        verificationResponse: {
+          success: verificationResponse.success,
+          verificationMessage: verificationResponse.message
+        }
       });
     } catch (e) {
+
       return res.status(200).send({
         message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
-        blockinSuccess: false,
-        blockinMessage: e.message,
+        verificationResponse: {
+          success: false,
+          verificationMessage: e.message
+        }
       });
     }
 

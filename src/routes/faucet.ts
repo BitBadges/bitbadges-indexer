@@ -11,6 +11,7 @@ import { catch404 } from "../utils/couchdb-utils";
 import { refreshCollection } from "./refresh";
 import { s3 } from "../indexer-vars";
 import { DEV_MODE } from "../constants";
+import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
 
 // Create a mutex to protect the faucet from double spending
 // TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency); it will work for now  but needs a refactor
@@ -125,10 +126,10 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
           Body: binaryData,
           Bucket: 'bitbadges-balances',
           Key: 'airdrop/balances',
-          ACL: 'public-read', // Set the ACL as needed
-          ContentType: 'application/json', // Set the content type to JSON
+          ACL: ObjectCannedACL.public_read,
+          ContentType: 'application/json', 
         };
-        await s3.upload(params).promise();
+        await s3.send(new PutObjectCommand(params))
 
         //trigger refresh
         await refreshCollection("2", true);

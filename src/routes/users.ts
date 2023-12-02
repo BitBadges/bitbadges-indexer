@@ -14,6 +14,7 @@ import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQ
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 import { cosmosToEth } from "bitbadgesjs-utils";
 import { s3 } from "../indexer-vars";
+import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
@@ -636,12 +637,12 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
         Body: binaryData,
         Bucket: 'bitbadges',
         Key: 'profile-pics/' + cosmosAddress,
-        ACL: 'public-read', // Set the ACL as needed
+        ACL: ObjectCannedACL.public_read,
 
       };
 
-      const res = await s3.upload(params).promise();
-      profilePicUrl = res.Location;
+      await s3.send(new PutObjectCommand(params))
+      profilePicUrl = 'https://nyc3.digitaloceanspaces.com/bitbadges/profile-pics/' + cosmosAddress;
     }
 
     const newProfileInfo: ProfileDoc<JSPrimitiveNumberType> = {

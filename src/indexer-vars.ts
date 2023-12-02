@@ -1,4 +1,4 @@
-import AWS from 'aws-sdk'
+import { S3 } from '@aws-sdk/client-s3';
 import { create } from 'ipfs-http-client'
 
 
@@ -8,11 +8,14 @@ export const OFFLINE_MODE = false;
 
 export const TIME_MODE = process.env.TIME_MODE === 'true' || false;
 
-const spacesEndpoint = new AWS.Endpoint('nyc3.digitaloceanspaces.com'); // replace 'nyc3' with your Spaces region if different
-export const s3 = new AWS.S3({
-  endpoint: spacesEndpoint,
-  accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
-  secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY
+export const s3 = new S3({
+  endpoint: "https://nyc3.digitaloceanspaces.com",
+  region: "us-east-1",
+  forcePathStyle: false, // Configures to use subdomain/virtual calling format.
+  credentials: {
+    accessKeyId: process.env.SPACES_ACCESS_KEY_ID,
+    secretAccessKey: process.env.SPACES_SECRET_ACCESS_KEY,
+  },
 });
 
 const auth = 'Basic ' + Buffer.from(process.env.INFURA_ID + ':' + process.env.INFURA_SECRET_KEY).toString('base64');
