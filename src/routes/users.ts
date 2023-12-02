@@ -1,6 +1,6 @@
 
 import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-proto";
-import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfo, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertClaimAlertDoc, convertProfileDoc, convertProfileInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, AnnouncementInfo, BalanceDoc, BalanceInfoWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, BlockinAuthSignatureInfo, ClaimAlertDoc, ClaimAlertInfo, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfo, ProfileInfoBase, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertProfileDoc, convertProfileInfo, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -10,7 +10,7 @@ import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { applyAddressMappingsToUserPermissions } from './balances';
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 import { cosmosToEth } from "bitbadgesjs-utils";
 import { s3 } from "../indexer-vars";
@@ -268,6 +268,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   reviews: ReviewInfo<JSPrimitiveNumberType>[],
   addressMappings: AddressMappingWithMetadata<JSPrimitiveNumberType>[],
   claimAlerts: ClaimAlertInfo<JSPrimitiveNumberType>[],
+  authCodes: BlockinAuthSignatureInfo<JSPrimitiveNumberType>[],
   views: {
     [viewKey: string]: {
       ids: string[],
@@ -283,6 +284,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
     reviews: [],
     addressMappings: [],
     claimAlerts: [],
+    authCodes: [],
     views: {},
   };
 
@@ -298,6 +300,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   const latestAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings')?.bookmark;
   const managingBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'managing')?.bookmark;
   const createdByBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy')?.bookmark;
+  const authCodesBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'authCodes')?.bookmark;
 
   const asyncOperations = [];
   if (collectedBookmark !== undefined) {
@@ -382,6 +385,22 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
 
+  if (authCodesBookmark !== undefined) {
+    const authReq = req as AuthenticatedRequest<NumberType>;
+    if (authReq.session && checkIfAuthenticated(authReq)) {
+      if (authReq.session.cosmosAddress !== cosmosAddress) {
+        throw new Error('You can only fetch auth codes for your own account.');
+      }
+
+      asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, authCodesBookmark));
+    } else {
+      throw new Error('You must be authenticated to fetch auth codes.');
+    }
+
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
   const results = await Promise.all(asyncOperations.map(operation => operation()));
   const response = results[0] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
   const responseWithHidden = results[1] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
@@ -395,6 +414,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   const latestAddressMappingsRes = results[9] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
   const managingRes = results[10] as any
   const createdByRes = results[11] as any
+  const authCodesRes = results[12] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
 
   const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [
     ...addressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
@@ -450,7 +470,17 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
     reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)).map(removeCouchDBDetails),
+    authCodes: authCodesRes.docs.map(x => convertBlockinAuthSignatureDoc(x, Stringify)).map(removeCouchDBDetails),
     views: {
+      'authCodes': reqBody.viewsToFetch.find(x => x.viewKey === 'authCodes') ? {
+        ids: authCodesRes.docs.map(x => x._id),
+        type: 'Auth Codes',
+        pagination: {
+          bookmark: authCodesRes.bookmark ? authCodesRes.bookmark : '',
+          // hasMore: authCodesRes.docs.length === 25
+          hasMore: false //we fetch all auth codes if requested
+        }
+      } : undefined,
       'latestActivity': reqBody.viewsToFetch.find(x => x.viewKey === 'latestActivity') ? {
         ids: activityRes.docs.map(x => x._id),
         type: 'Activity',

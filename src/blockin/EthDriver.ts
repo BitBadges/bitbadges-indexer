@@ -1,9 +1,10 @@
-import { IChainDriver } from "blockin"
+import { IChainDriver, constructChallengeObjectFromString } from "blockin"
 import { Asset } from "blockin/dist/types/verify.types"
 import { Buffer } from "buffer"
 import { recoverPersonalSignature } from "eth-sig-util"
 import { ethers } from "ethers"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
+import { Stringify } from "bitbadgesjs-proto"
 
 /**
  * Ethereum implementation of the IChainDriver interface. This implementation is based off the Moralis API
@@ -28,14 +29,17 @@ export default class EthDriver implements IChainDriver<bigint> {
   }
 
   async parseChallengeStringFromBytesToSign(txnBytes: Uint8Array) {
-    const txnString = new TextDecoder().decode(txnBytes)
-    const txnString2 = Buffer.from(txnString.substring(2), "hex").toString()
-    return txnString2
+    return new TextDecoder().decode(txnBytes)
   }
   isValidAddress(address: string) {
     return ethers.utils.isAddress(address)
   }
-  async verifySignature(originalChallengeToUint8Array: Uint8Array, signedChallenge: Uint8Array, originalAddress: string) {
+
+  async verifySignature(message: string, signature: string) {
+    const originalChallengeToUint8Array = new TextEncoder().encode(message)
+    const signedChallenge = new Uint8Array(Buffer.from(signature, 'utf8'))
+    const originalAddress = constructChallengeObjectFromString(message, Stringify).address
+
     const original = new TextDecoder().decode(originalChallengeToUint8Array)
     const signed = new TextDecoder().decode(signedChallenge)
     const recoveredAddr = recoverPersonalSignature({

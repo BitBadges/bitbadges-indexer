@@ -154,13 +154,12 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
   setChainDriver(chainDriver);
 
   try {
-    const generatedEIP4361ChallengeStr: string = await chainDriver.parseChallengeStringFromBytesToSign(body.originalBytes);
-    
+    const generatedEIP4361ChallengeStr: string = body.message;
+
     const challenge: ChallengeParams<NumberType> = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const verificationResponse = await verifyChallenge(
-      body.originalBytes,
-      body.signatureBytes,
-      BigIntify,
+      body.message,
+      body.signature,
       body.options ?? {
         expectedChallengeParams: {
           domain: 'https://bitbadges.io',
@@ -206,7 +205,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 
     req.session.save();
 
-    return res.status(200).json({ success: true, successMessage: verificationResponse.message, qrCodeText: verificationResponse.qrCodeText });
+    return res.status(200).json({ success: true, successMessage: verificationResponse.message });
   } catch (err) {
     console.log(err);
 
@@ -219,4 +218,41 @@ export async function authorizeBlockinRequest(expressReq: Request, res: Response
 
   if (!checkIfAuthenticated(req)) return returnUnauthorized(res);
   return next();
+}
+
+export async function genericBlockinVerify(params: VerifySignInRouteRequestBody) {
+  const body = params;
+  if (body.options?.beforeVerification) {
+    throw `You cannot use the beforeVerification option with this endpoint. Please run this verification logic yourself.`;
+  }
+
+  const chainDriver = getChainDriver(body.chain);
+  setChainDriver(chainDriver);
+
+  const verificationResponse = await verifyChallenge(
+    body.message,
+    body.signature, 
+    {
+      ...body.options,
+      beforeVerification: undefined,
+    }
+  );
+
+  return verificationResponse;
+}
+
+export async function genericBlockinVerifyHandler(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
+  const req = expressReq as AuthenticatedRequest<NumberType>;
+
+  const body = parse(JSON.stringify(req.body)) as VerifySignInRouteRequestBody;
+
+  try {
+    const verificationResponse = await genericBlockinVerify(body);
+
+    return res.status(200).json({ success: true, successMessage: verificationResponse.message });
+  } catch (err) {
+    console.log(err);
+
+    return res.status(401).json({ success: false, message: `${err.message}` });
+  }
 }

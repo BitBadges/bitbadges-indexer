@@ -6,13 +6,13 @@ import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { COLLECTIONS_DB } from "../db/db";
+import { complianceDoc } from "../poll";
 import { fetchUriFromDb } from "../queue";
 import { compareObjects } from "../utils/compare";
 import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
-import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 import { applyAddressMappingsToUserPermissions } from "./balances";
-import { complianceDoc } from "../poll";
+import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 
 const { SHA256 } = CryptoJS;
 
@@ -437,9 +437,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
     collectionResponses[i] = collectionRes;
   }
-
-
-
   return collectionResponses;
 }
 

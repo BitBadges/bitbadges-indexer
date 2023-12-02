@@ -400,7 +400,7 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
 
   const balanceMapKeys = Object.keys(balanceMap);
 
-  const newBalanceMap = {};
+  const newBalanceMap: OffChainBalancesMap<bigint> = {};
   for (const key of balanceMapKeys) {
     const res = await getAddressMappingsFromDB([{ mappingId: key }], false);
     const addressMapping = res[0];

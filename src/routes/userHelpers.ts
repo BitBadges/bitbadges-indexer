@@ -1,7 +1,7 @@
 import { cosmosToEth } from "bitbadgesjs-utils";
 import { BigIntify, JSPrimitiveNumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, SupportedChain, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
-import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ETH_TX_COUNT_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "../db/db";
+import { ADDRESS_MAPPINGS_DB, AIRDROP_DB, ANNOUNCEMENTS_DB, AUTH_CODES_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ETH_TX_COUNT_DB, REVIEWS_DB, TRANSFER_ACTIVITY_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404 } from "../utils/couchdb-utils";
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../utils/ensResolvers";
@@ -143,6 +143,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       merkleChallenges: [],
       claimAlerts: [],
       approvalsTrackers: [],
+      authCodes: [],
       views: {},
       nsfw: isNSFW ? isNSFW : undefined,
       reported: isReported ? isReported : undefined,
@@ -549,4 +550,22 @@ export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: 
 
   if (QUERY_TIME_MODE) console.timeEnd('executeCreatedByQuery');
   return collectedRes;
+}
+
+
+export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('authCodes');
+  const res = await AUTH_CODES_DB.find({
+    selector: {
+      "cosmosAddress": {
+        "$eq": cosmosAddress,
+      },
+    },
+    bookmark: bookmark ? bookmark : undefined,
+    limit: 1000000, //find all
+  });
+
+
+  if (QUERY_TIME_MODE) console.timeEnd('authCodes');
+  return res;
 }

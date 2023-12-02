@@ -11,7 +11,7 @@ import fs from 'fs'
 import https from 'https'
 import multer from 'multer'
 import responseTime from 'response-time'
-import { authorizeBlockinRequest, checkifSignedInHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
+import { authorizeBlockinRequest, checkifSignedInHandler, genericBlockinVerifyHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { API_KEYS_DB, REPORTS_DB, ReportDoc, insertToDB } from './db/db'
 import { OFFLINE_MODE, TIME_MODE } from './indexer-vars'
@@ -35,6 +35,7 @@ import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteRev
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
+import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes'
 
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
@@ -246,6 +247,7 @@ app.post('/api/v0/auth/getChallenge', getChallenge);
 app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
 app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
 app.post('/api/v0/auth/status', checkifSignedInHandler);
+app.post("/api/v0/auth/genericVerify", genericBlockinVerifyHandler);
 
 //Browse
 app.post('/api/v0/browse', getBrowseCollections);
@@ -270,6 +272,14 @@ app.post('/api/v0/approvals', getApprovals);
 
 //Merkle Challenge Tracker
 app.post('/api/v0/challenges', getChallengeTrackers);
+
+//Blockin Auth Codes
+app.post('/api/v0/authCode', getAuthCode)
+// app.post("/api/v0/authCode/create", authorizeBlockinRequest, createAuthCode)
+app.post("/api/v0/authCode/create", createAuthCode) //we now verify signature with submitted code (thus replacing the authorizeBlockinRequest)
+app.post("/api/v0/authCode/delete", authorizeBlockinRequest, deleteAuthCode)
+
+
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

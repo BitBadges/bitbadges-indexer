@@ -19,7 +19,7 @@ export async function deleteDatabases() {
   await nano.db.destroy('msgs').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('off-chain-urls').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('compliance').catch((e) => { if (e.statusCode !== 404) throw e });
-
+  await nano.db.destroy('auth-codes').catch((e) => { if (e.statusCode !== 404) throw e });
 
   //Can be, but may have off-chain features
 
@@ -99,6 +99,7 @@ export async function createDatabases() {
   await nano.db.create('off-chain-urls');
   await nano.db.create('reports');
   await nano.db.create('compliance');
+  await nano.db.create('auth-codes');
 
 
   //_utils, _replicator, _global_changes, _metadata

@@ -1,8 +1,9 @@
-import { IChainDriver } from "blockin"
+import { IChainDriver, constructChallengeObjectFromString } from "blockin"
 import { Asset } from "blockin/dist/types/verify.types"
 import bs58 from "bs58"
 import nacl from "tweetnacl"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
+import { Stringify } from "bitbadgesjs-proto"
 
 /**
  * Ethereum implementation of the IChainDriver interface. This implementation is based off the Moralis API
@@ -20,8 +21,7 @@ export default class SolDriver implements IChainDriver<bigint> {
   }
 
   async parseChallengeStringFromBytesToSign(txnBytes: Uint8Array) {
-    const txnString = new TextDecoder().decode(txnBytes)
-    return txnString
+    return new TextDecoder().decode(txnBytes)
   }
 
 
@@ -30,14 +30,18 @@ export default class SolDriver implements IChainDriver<bigint> {
   }
 
 
-  async verifySignature(originalChallengeToUint8Array: Uint8Array, signedChallenge: Uint8Array, originalAddress: string) {
+  async verifySignature(message: string, signature: string) {
+    const originalAddress = constructChallengeObjectFromString(message, Stringify).address
     const solanaPublicKeyBase58 = originalAddress;
+
+    const originalBytes = new Uint8Array(Buffer.from(message, 'utf8'));
+    const signatureBytes = new Uint8Array(Buffer.from(signature, 'hex'));
 
     // Decode the base58 Solana public key
     const solanaPublicKeyBuffer = bs58.decode(solanaPublicKeyBase58);
     const verified = nacl.sign.detached.verify(
-      originalChallengeToUint8Array,
-      signedChallenge,
+      originalBytes,
+      signatureBytes,
       solanaPublicKeyBuffer
     )
 

@@ -1,5 +1,5 @@
 import EthDriver from './EthDriver';
-import CosmosDriver from 'blockin-cosmos-driver';
+import CosmosDriver from './CosmosDriver';
 import SolDriver from './SolDriver';
 
 const ethDriver = new EthDriver('0x1', undefined);
