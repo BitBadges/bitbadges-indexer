@@ -1,5 +1,5 @@
-import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { Stringify, JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, convertAddressMappingEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
@@ -50,7 +50,7 @@ export const deleteAddressMappings = async (expressReq: Request, res: Response<D
 export const updateAddressMappings = async (expressReq: Request, res: Response<UpdateAddressMappingsRouteResponse<bigint>>) => {
   try {
     const req = expressReq as AuthenticatedRequest<NumberType>;
-    const reqBody = req.body as UpdateAddressMappingsRouteRequestBody;
+    const reqBody = req.body as UpdateAddressMappingsRouteRequestBody<NumberType>;
     const mappings = reqBody.addressMappings;
     const cosmosAddress = req.session.cosmosAddress
 
@@ -77,6 +77,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
         docs.push({
           ...existingDoc,
           ...mapping,
+          editKeys: mapping.editKeys ? mapping.editKeys.map(x => convertAddressMappingEditKey(x, Stringify)) : existingDoc.editKeys,
           addresses: mapping.addresses.map(x => convertToCosmosAddress(x)),
           updateHistory: [...existingDoc.updateHistory, {
             block: status.block.height,
@@ -88,6 +89,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
       } else {
         docs.push({
           ...mapping,
+          editKeys: mapping.editKeys ? mapping.editKeys.map(x => convertAddressMappingEditKey(x, Stringify)) : undefined,
           addresses: mapping.addresses.map(x => convertToCosmosAddress(x)),
           createdBy: cosmosAddress,
           updateHistory: [{

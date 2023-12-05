@@ -282,7 +282,7 @@ app.post("/api/v0/authCode/create", createAuthCode) //we now verify signature wi
 app.post("/api/v0/authCode/delete", authorizeBlockinRequest, deleteAuthCode)
 
 //Surveys
-app.post('/api/v0/survey/:surveyId/add', addAddressToSurvey);
+app.post('/api/v0/survey/:mappingId/add', addAddressToSurvey);
 
 //Claim Alerts
 app.post('/api/v0/claimAlerts/send', authorizeBlockinRequest, sendClaimAlert);
