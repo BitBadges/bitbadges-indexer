@@ -10,7 +10,7 @@ import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { applyAddressMappingsToUserPermissions } from './balances';
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executeReviewsQuery } from "./userHelpers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 import { cosmosToEth } from "bitbadgesjs-utils";
 import { s3 } from "../indexer-vars";
@@ -302,6 +302,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   const managingBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'managing')?.bookmark;
   const createdByBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy')?.bookmark;
   const authCodesBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'authCodes')?.bookmark;
+  const privateListsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'privateLists')?.bookmark;
 
   const asyncOperations = [];
   if (collectedBookmark !== undefined) {
@@ -402,6 +403,23 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
 
+  if (privateListsBookmark !== undefined) {
+    const authReq = req as AuthenticatedRequest<NumberType>;
+    if (authReq.session && checkIfAuthenticated(authReq)) {
+      if (authReq.session.cosmosAddress !== cosmosAddress) {
+        throw new Error('You can only fetch auth codes for your own account.');
+      }
+
+      asyncOperations.push(() => executePrivateListsQuery(cosmosAddress, privateListsBookmark));
+    } else {
+      throw new Error('You must be authenticated to fetch private lists.');
+    }
+
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
+
   const results = await Promise.all(asyncOperations.map(operation => operation()));
   const response = results[0] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
   const responseWithHidden = results[1] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
@@ -413,15 +431,18 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   const explicitIncludedAddressMappingsRes = results[7] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
   const explicitExcludedAddressMappingsRes = results[8] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
   const latestAddressMappingsRes = results[9] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+
   const managingRes = results[10] as any
   const createdByRes = results[11] as any
   const authCodesRes = results[12] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
+  const privateListsRes = results[13] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
 
   const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [
     ...addressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
     ...explicitIncludedAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
     ...explicitExcludedAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
     ...latestAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
+    ...privateListsRes.docs.map(x => ({ mappingId: x.mappingId })),
   ];
 
   for (const balance of [...response.docs, ...responseWithHidden.docs]) {
@@ -448,7 +469,6 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
 
   const addressMappingsToPopulate = await getAddressMappingsFromDB(addressMappingIdsToFetch, true);
 
-
   return {
     collected: [
       ...response.docs,
@@ -467,6 +487,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
       ...explicitIncludedAddressMappingsRes.docs,
       ...explicitExcludedAddressMappingsRes.docs,
       ...latestAddressMappingsRes.docs,
+      ...privateListsRes.docs
     ].map(x => addressMappingsToPopulate.find(y => y.mappingId === x.mappingId)).filter(x => x !== undefined).map(x => convertAddressMappingWithMetadata(x!, Stringify)),
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -478,7 +499,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Auth Codes',
         pagination: {
           bookmark: authCodesRes.bookmark ? authCodesRes.bookmark : '',
-          // hasMore: authCodesRes.docs.length === 25
+          // hasMore: authCodesRes.docs.length >= 25
           hasMore: false //we fetch all auth codes if requested
         }
       } : undefined,
@@ -487,7 +508,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Activity',
         pagination: {
           bookmark: activityRes.bookmark ? activityRes.bookmark : '',
-          hasMore: activityRes.docs.length === 25
+          hasMore: activityRes.docs.length >= 25
         }
       } : undefined,
       'badgesCollected': reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected') ? {
@@ -513,7 +534,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Announcements',
         pagination: {
           bookmark: announcementsRes.bookmark ? announcementsRes.bookmark : '',
-          hasMore: announcementsRes.docs.length === 25
+          hasMore: announcementsRes.docs.length >= 25
         }
       } : undefined,
       'latestReviews': reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews') ? {
@@ -521,7 +542,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Reviews',
         pagination: {
           bookmark: reviewsRes.bookmark ? reviewsRes.bookmark : '',
-          hasMore: reviewsRes.docs.length === 25
+          hasMore: reviewsRes.docs.length >= 25
         }
       } : undefined,
       'addressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings') ? {
@@ -529,7 +550,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Address Mappings',
         pagination: {
           bookmark: addressMappingsRes.bookmark ? addressMappingsRes.bookmark : '',
-          hasMore: addressMappingsRes.docs.length === 25
+          hasMore: addressMappingsRes.docs.length >= 25
         }
       } : undefined,
       'latestClaimAlerts': reqBody.viewsToFetch.find(x => x.viewKey === 'latestClaimAlerts') ? {
@@ -537,7 +558,15 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Claim Alerts',
         pagination: {
           bookmark: claimAlertsRes.bookmark ? claimAlertsRes.bookmark : '',
-          hasMore: claimAlertsRes.docs.length === 25
+          hasMore: claimAlertsRes.docs.length >= 25
+        }
+      } : undefined,
+      'privateLists': reqBody.viewsToFetch.find(x => x.viewKey === 'privateLists') ? {
+        ids: privateListsRes.docs.map(x => x._id),
+        type: 'Private Lists',
+        pagination: {
+          bookmark: privateListsRes.bookmark ? privateListsRes.bookmark : '',
+          hasMore: privateListsRes.docs.length >= 25
         }
       } : undefined,
       'explicitlyIncludedAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyIncludedAddressMappings') ? {
@@ -545,7 +574,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Address Mappings',
         pagination: {
           bookmark: explicitIncludedAddressMappingsRes.bookmark ? explicitIncludedAddressMappingsRes.bookmark : '',
-          hasMore: explicitIncludedAddressMappingsRes.docs.length === 25
+          hasMore: explicitIncludedAddressMappingsRes.docs.length >= 25
         }
       } : undefined,
       'explicitlyExcludedAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyExcludedAddressMappings') ? {
@@ -553,7 +582,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Address Mappings',
         pagination: {
           bookmark: explicitExcludedAddressMappingsRes.bookmark ? explicitExcludedAddressMappingsRes.bookmark : '',
-          hasMore: explicitExcludedAddressMappingsRes.docs.length === 25
+          hasMore: explicitExcludedAddressMappingsRes.docs.length >= 25
         }
       } : undefined,
       'latestAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings') ? {
@@ -561,7 +590,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Address Mappings',
         pagination: {
           bookmark: latestAddressMappingsRes.bookmark ? latestAddressMappingsRes.bookmark : '',
-          hasMore: latestAddressMappingsRes.docs.length === 25
+          hasMore: latestAddressMappingsRes.docs.length >= 25
         }
       } : undefined,
       'managing': reqBody.viewsToFetch.find(x => x.viewKey === 'managing') ? {
@@ -569,7 +598,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Collections',
         pagination: {
           bookmark: managingRes.bookmark ? managingRes.bookmark : '',
-          hasMore: managingRes.docs.length === 25
+          hasMore: managingRes.docs.length >= 25
         }
       } : undefined,
       'createdBy': reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy') ? {
@@ -577,7 +606,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         type: 'Collections',
         pagination: {
           bookmark: createdByRes.bookmark ? createdByRes.bookmark : '',
-          hasMore: createdByRes.docs.length === 25
+          hasMore: createdByRes.docs.length >= 25
         }
       } : undefined,
     }

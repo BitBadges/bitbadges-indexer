@@ -76,6 +76,9 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       selector: {
         createdBlock: {
           "$gt": null,
+        },
+        private: {
+          "$ne": true
         }
       },
       sort: [{ "createdBlock": "desc" }],

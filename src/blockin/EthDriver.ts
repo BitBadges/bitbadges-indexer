@@ -1,5 +1,5 @@
 import { IChainDriver, constructChallengeObjectFromString } from "blockin"
-import { Asset } from "blockin/dist/types/verify.types"
+import { Asset } from "blockin"
 import { Buffer } from "buffer"
 import { recoverPersonalSignature } from "eth-sig-util"
 import { ethers } from "ethers"

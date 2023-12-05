@@ -19,6 +19,7 @@ import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
 import { addAnnouncement } from './routes/announcements'
 import { getApprovals } from './routes/approvalTrackers'
+import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes'
 import { getOwnersForBadge } from './routes/badges'
 import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
@@ -34,8 +35,9 @@ import { getRefreshStatus, refreshMetadata } from './routes/refresh'
 import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteReview } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
+import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes'
+import { sendClaimAlert } from './routes/claimAlerts'
 
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
@@ -276,8 +278,14 @@ app.post('/api/v0/challenges', getChallengeTrackers);
 //Blockin Auth Codes
 app.post('/api/v0/authCode', getAuthCode)
 // app.post("/api/v0/authCode/create", authorizeBlockinRequest, createAuthCode)
-app.post("/api/v0/authCode/create", createAuthCode) //we now verify signature with submitted code (thus replacing the authorizeBlockinRequest)
+app.post("/api/v0/authCode/create", createAuthCode) //we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest)
 app.post("/api/v0/authCode/delete", authorizeBlockinRequest, deleteAuthCode)
+
+//Surveys
+app.post('/api/v0/survey/:surveyId/add', addAddressToSurvey);
+
+//Claim Alerts
+app.post('/api/v0/claimAlerts/send', authorizeBlockinRequest, sendClaimAlert);
 
 
 

@@ -58,6 +58,7 @@ export async function returnUnauthorized(res: Response<ErrorResponse>, managerRo
   return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : ''}.`, unauthorized: true });
 }
 
+const statement = `Sign this message only if prompted by a trusted party. The signature of this message can be used to authenticate you on BitBadges. By signing, you agree to the BitBadges privacy policy and terms of service.`;
 export async function getChallenge(expressReq: Request, res: Response<GetSignInChallengeRouteResponse<NumberType>>) {
   try {
     const req = expressReq as AuthenticatedRequest<NumberType>;
@@ -88,7 +89,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
     const challengeParams = {
       domain: 'https://bitbadges.io',
-      statement: `BitBadges uses Blockin to authenticate users. By signing in, you agree to our privacy policy and terms of service.`,
+      statement: statement,
       address: reqBody.address,
       uri: 'https://bitbadges.io',
       nonce: req.session.nonce,
@@ -164,6 +165,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
         expectedChallengeParams: {
           domain: 'https://bitbadges.io',
           uri: 'https://bitbadges.io',
+          statement: statement,
         },
         beforeVerification: async (challengeParams) => {
           if (!req.session.nonce) {
@@ -171,7 +173,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
           }
 
           if (challengeParams.nonce !== req.session.nonce) {
-            return Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
+            return Promise.reject(new Error(`Invalid nonce.Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
           }
         }
       }
@@ -209,9 +211,10 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
   } catch (err) {
     console.log(err);
 
-    return res.status(401).json({ success: false, message: `${err.message}` });
+    return res.status(401).json({ success: false, message: `${err.message} ` });
   }
 }
+
 
 export async function authorizeBlockinRequest(expressReq: Request, res: Response<ErrorResponse>, next: NextFunction) {
   const req = expressReq as AuthenticatedRequest<NumberType>;
@@ -224,7 +227,7 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
   try {
     const body = params;
     if (body.options?.beforeVerification) {
-      throw `You cannot use the beforeVerification option with this endpoint. Please run this verification logic yourself.`;
+      throw `You cannot use the beforeVerification option with this endpoint.Please run this verification logic yourself.`;
     }
 
     const chainDriver = getChainDriver(body.chain);
@@ -257,6 +260,6 @@ export async function genericBlockinVerifyHandler(expressReq: Request, res: Resp
   } catch (err) {
     console.log(err);
 
-    return res.status(401).json({ success: false, message: `${err.message}` });
+    return res.status(401).json({ success: false, message: `${err.message} ` });
   }
 }

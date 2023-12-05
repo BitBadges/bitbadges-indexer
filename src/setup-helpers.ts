@@ -19,6 +19,8 @@ export async function deleteDatabases() {
   await nano.db.destroy('msgs').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('off-chain-urls').catch((e) => { if (e.statusCode !== 404) throw e });
   await nano.db.destroy('compliance').catch((e) => { if (e.statusCode !== 404) throw e });
+
+  //to think about
   await nano.db.destroy('auth-codes').catch((e) => { if (e.statusCode !== 404) throw e });
 
   //Can be, but may have off-chain features
@@ -259,7 +261,7 @@ export async function createIndexesAndViews() {
                 address !== "Mint" &&
                 address !== "Total"
               ) {
-                emit(address, null);
+                emit([address, -1 * doc.createdTimestamp], null);
               }
             }
           }

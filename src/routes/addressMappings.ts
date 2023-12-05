@@ -1,8 +1,8 @@
 import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse } from "bitbadgesjs-utils";
+import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { AuthenticatedRequest } from "src/blockin/blockin_handlers";
+import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
 import { ADDRESS_MAPPINGS_DB } from "../db/db";
 import { getStatus } from "../db/status";
 import { catch404, getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
@@ -77,6 +77,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
         docs.push({
           ...existingDoc,
           ...mapping,
+          addresses: mapping.addresses.map(x => convertToCosmosAddress(x)),
           updateHistory: [...existingDoc.updateHistory, {
             block: status.block.height,
             blockTimestamp: status.block.timestamp,
@@ -87,6 +88,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
       } else {
         docs.push({
           ...mapping,
+          addresses: mapping.addresses.map(x => convertToCosmosAddress(x)),
           createdBy: cosmosAddress,
           updateHistory: [{
             block: status.block.height,
@@ -126,6 +128,20 @@ export const getAddressMappings = async (req: Request, res: Response<GetAddressM
     }
 
     const docs = await getAddressMappingsFromDB(mappingIds.map(x => { return { mappingId: x } }), true);
+
+    const hasPrivateMapping = docs.find(x => x.private);
+    if (hasPrivateMapping) {
+      const authReq = req as AuthenticatedRequest<NumberType>;
+
+      if (!checkIfAuthenticated(authReq)) return returnUnauthorized(res);
+
+      const cosmosAddress = authReq.session.cosmosAddress;
+      if (docs.some(x => x.private && x.createdBy !== cosmosAddress)) {
+        return res.status(401).send({
+          message: `Your signed in address ${authReq.session.address} does not have permission to view one or more of the requested address mappings.`
+        })
+      }
+    }
 
     return res.status(200).send({ addressMappings: docs });
   } catch (e) {

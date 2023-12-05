@@ -176,6 +176,8 @@ export async function getNameAndAvatar(address: string, skipAvatarFetch?: boolea
   }
 }
 
+
+
 const activityDesignDocName = 'transfer_activity_by_address';
 export async function executeActivityQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('activityQuery');
@@ -354,47 +356,94 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
   return collectedRes;
 }
 
+
+
 export async function executeListsQuery(cosmosAddress: string, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeListsQuery');
-  const collectedRes = await ADDRESS_MAPPINGS_DB.find({
-    selector: {
-      "addresses": {
-        "$elemMatch": {
-          "$eq": cosmosAddress,
-        },
-      },
-    },
-    bookmark: bookmark ? bookmark : undefined
-  });
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
 
+  while (docsLeft > 0) {
+    const collectedRes = await ADDRESS_MAPPINGS_DB.find({
+      selector: {
+        "addresses": {
+          "$elemMatch": {
+            "$eq": cosmosAddress,
+          },
+        },
+        private: {
+          "$ne": true,
+        }
+      },
+      bookmark: currBookmark ? currBookmark : undefined
+    });
+
+
+    docs.push(...collectedRes.docs);
+    docsLeft -= collectedRes.docs.length;
+
+    currBookmark = collectedRes.bookmark;
+
+    if (collectedRes.docs.length === 0) {
+      break;
+    }
+  }
 
   if (QUERY_TIME_MODE) console.timeEnd('executeListsQuery');
-  return collectedRes;
+  return {
+    docs: docs,
+    bookmark: currBookmark,
+  }
 }
 
 export async function executeExplicitIncludedListsQuery(cosmosAddress: string, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeExplicitIncluded');
-  const collectedRes = await ADDRESS_MAPPINGS_DB.find({
-    selector: {
-      "$or": [
-        {
-          "$and": [{
-            "addresses": {
-              "$elemMatch": {
-                "$eq": cosmosAddress,
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
+
+  while (docsLeft > 0) {
+    const collectedRes = await ADDRESS_MAPPINGS_DB.find({
+      selector: {
+        "$or": [
+          {
+            "$and": [{
+              "addresses": {
+                "$elemMatch": {
+                  "$eq": cosmosAddress,
+                },
               },
             },
-          },
-          {
-            "includeAddresses": {
-              "$eq": true,
-            },
-          }],
+            {
+              "includeAddresses": {
+                "$eq": true,
+              },
+            }],
+          }
+        ],
+        private: {
+          "$ne": true,
         }
-      ]
-    },
-    bookmark: bookmark ? bookmark : undefined
-  });
+      },
+      bookmark: currBookmark ? currBookmark : undefined
+    });
+
+    docs.push(...collectedRes.docs);
+    docsLeft -= collectedRes.docs.length;
+
+    currBookmark = collectedRes.bookmark;
+
+    if (collectedRes.docs.length === 0) {
+      break;
+    }
+
+  }
+
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
+  }
 
 
   if (QUERY_TIME_MODE) console.timeEnd('executeExplicitIncluded');
@@ -403,27 +452,52 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, b
 
 export async function executeExplicitExcludedListsQuery(cosmosAddress: string, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeExplicitExcluded');
-  const collectedRes = await ADDRESS_MAPPINGS_DB.find({
-    selector: {
-      "$or": [
-        {
-          "$and": [{
-            "addresses": {
-              "$elemMatch": {
-                "$eq": cosmosAddress,
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
+
+  while (docsLeft > 0) {
+    const collectedRes = await ADDRESS_MAPPINGS_DB.find({
+      selector: {
+        "$or": [
+          {
+            "$and": [{
+              "addresses": {
+                "$elemMatch": {
+                  "$eq": cosmosAddress,
+                },
               },
             },
-          },
-          {
-            "includeAddresses": {
-              "$eq": false,
-            },
-          }],
+            {
+              "includeAddresses": {
+                "$eq": false,
+              },
+            }],
+          }
+        ],
+        private: {
+          "$ne": true,
         }
-      ]
-    },
-    bookmark: bookmark ? bookmark : undefined
-  });
+      },
+      bookmark: currBookmark ? currBookmark : undefined
+    });
+
+    docs.push(...collectedRes.docs);
+    docsLeft -= collectedRes.docs.length;
+
+    currBookmark = collectedRes.bookmark;
+
+    if (collectedRes.docs.length === 0) {
+      break;
+    }
+
+  }
+
+
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
+  }
 
 
   if (QUERY_TIME_MODE) console.timeEnd('executeExplicitExcluded');
@@ -432,21 +506,45 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, b
 
 export async function executeLatestAddressMappingsQuery(cosmosAddress: string, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeLatestAddressMappingsQuery');
-  const collectedRes = await ADDRESS_MAPPINGS_DB.find({
-    selector: {
-      "addresses": {
-        "$elemMatch": {
-          "$eq": cosmosAddress,
-        },
-      },
-      lastUpdated: {
-        "$gt": null,
-      }
-    },
-    sort: [{ "lastUpdated": "desc" }],
-    bookmark: bookmark ? bookmark : undefined
-  });
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
 
+  while (docsLeft > 0) {
+
+
+    const collectedRes = await ADDRESS_MAPPINGS_DB.find({
+      selector: {
+        "addresses": {
+          "$elemMatch": {
+            "$eq": cosmosAddress,
+          },
+        },
+        lastUpdated: {
+          "$gt": null,
+        },
+        private: {
+          "$ne": true,
+        }
+      },
+      sort: [{ "lastUpdated": "desc" }],
+      bookmark: bookmark ? bookmark : undefined
+    });
+
+    docs.push(...collectedRes.docs);
+    docsLeft -= collectedRes.docs.length;
+
+    currBookmark = collectedRes.bookmark;
+
+    if (collectedRes.docs.length === 0) {
+      break;
+    }
+  }
+
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
+  }
 
   if (QUERY_TIME_MODE) console.timeEnd('executeLatestAddressMappingsQuery');
   return collectedRes;
@@ -455,7 +553,12 @@ export async function executeLatestAddressMappingsQuery(cosmosAddress: string, b
 
 export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeClaimAlertsQuery');
-  const view = await CLAIM_ALERTS_DB.view('claim_alerts_by_address', 'byCosmosAddress', { key: cosmosAddress, include_docs: true, limit: 25, skip: Number(bookmark) ?? 0 });
+  const view = await CLAIM_ALERTS_DB.view('claim_alerts_by_address', 'byCosmosAddress',
+    {
+      startkey: [cosmosAddress, -1 * Number.MAX_SAFE_INTEGER],
+      endkey: [cosmosAddress, Number.MAX_SAFE_INTEGER],
+      include_docs: true, limit: 25, skip: Number(bookmark) ?? 0
+    });
 
   const collectedRes = {
     docs: view.rows.map((row) => {
@@ -567,5 +670,32 @@ export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: st
 
 
   if (QUERY_TIME_MODE) console.timeEnd('authCodes');
+  return res;
+}
+
+
+export async function executePrivateListsQuery(cosmosAddress: string, bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('privateLists');
+
+
+  const res = await ADDRESS_MAPPINGS_DB.find({
+    selector: {
+      "createdBy": {
+        "$eq": cosmosAddress,
+      },
+      "private": {
+        "$eq": true,
+      }
+    },
+    bookmark: bookmark ? bookmark : undefined,
+    limit: 1000000, //find all
+  });
+
+  //Could filter hidden here but they created it so they should be able to see it
+
+
+
+
+  if (QUERY_TIME_MODE) console.timeEnd('privateLists');
   return res;
 }

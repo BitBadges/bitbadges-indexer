@@ -78,7 +78,10 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const addressMappingsQuery = {
       selector: {
-        mappingId: { "$regex": `(?i)${searchValue}` }
+        mappingId: { "$regex": `(?i)${searchValue}` },
+        private: {
+          "$ne": true
+        }
       }
     }
 

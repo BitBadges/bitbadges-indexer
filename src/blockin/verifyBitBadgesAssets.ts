@@ -1,6 +1,6 @@
 import { Balance, convertBalance, BigIntify, convertUintRange, UintRange } from "bitbadgesjs-proto"
 import { convertToCosmosAddress, OffChainBalancesMap, getBalancesForIds } from "bitbadgesjs-utils"
-import { Asset } from "blockin/dist/types/verify.types"
+import { Asset } from "blockin"
 import { BALANCES_DB } from "../db/db"
 import { catch404 } from "../utils/couchdb-utils"
 

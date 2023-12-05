@@ -3,7 +3,7 @@ import axiosApi from 'axios';
 import { Balance, Stringify, UintRange, convertBalance, convertUintRange } from 'bitbadgesjs-proto';
 import { BigIntify, GetBadgeBalanceByAddressRoute, GetBadgeBalanceByAddressRouteSuccessResponse, NumberType, OffChainBalancesMap, SupportedChain, convertToCosmosAddress, getBalancesForIds, getChainForAddress } from 'bitbadgesjs-utils';
 import { CreateAssetParams, IChainDriver, UniversalTxn, constructChallengeObjectFromString } from 'blockin';
-import { Asset } from 'blockin/dist/types/verify.types';
+import { Asset } from 'blockin';
 import { Buffer } from 'buffer';
 import { concat } from 'ethers/lib/utils';
 

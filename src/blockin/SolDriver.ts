@@ -1,5 +1,5 @@
 import { IChainDriver, constructChallengeObjectFromString } from "blockin"
-import { Asset } from "blockin/dist/types/verify.types"
+import { Asset } from "blockin"
 import bs58 from "bs58"
 import nacl from "tweetnacl"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"

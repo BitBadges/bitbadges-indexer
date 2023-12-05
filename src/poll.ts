@@ -87,7 +87,7 @@ export const pollUris = async () => {
 
       await ERRORS_DB.bulk({
         docs: [{
-          error: e,
+          error: serializeError(e),
           function: 'pollUris',
         }]
       });
