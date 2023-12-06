@@ -10,7 +10,7 @@ import { ACCOUNTS_DB, PROFILES_DB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { applyAddressMappingsToUserPermissions } from './balances';
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userHelpers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeCreatedListsQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 import { cosmosToEth } from "bitbadgesjs-utils";
 import { s3 } from "../indexer-vars";
@@ -303,6 +303,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   const createdByBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy')?.bookmark;
   const authCodesBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'authCodes')?.bookmark;
   const privateListsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'privateLists')?.bookmark;
+  const createdListsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'createdLists')?.bookmark;
 
   const asyncOperations = [];
   if (collectedBookmark !== undefined) {
@@ -419,6 +420,12 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
     asyncOperations.push(() => Promise.resolve({ docs: [] }));
   }
 
+  if (createdListsBookmark !== undefined) {
+    asyncOperations.push(() => executeCreatedListsQuery(cosmosAddress, createdListsBookmark));
+  } else {
+    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+  }
+
 
   const results = await Promise.all(asyncOperations.map(operation => operation()));
   const response = results[0] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
@@ -436,6 +443,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
   const createdByRes = results[11] as any
   const authCodesRes = results[12] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
   const privateListsRes = results[13] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const createdListsRes = results[14] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
 
   const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [
     ...addressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
@@ -443,6 +451,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
     ...explicitExcludedAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
     ...latestAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
     ...privateListsRes.docs.map(x => ({ mappingId: x.mappingId })),
+    ...createdListsRes.docs.map(x => ({ mappingId: x.mappingId })),
   ];
 
   for (const balance of [...response.docs, ...responseWithHidden.docs]) {
@@ -487,7 +496,8 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
       ...explicitIncludedAddressMappingsRes.docs,
       ...explicitExcludedAddressMappingsRes.docs,
       ...latestAddressMappingsRes.docs,
-      ...privateListsRes.docs
+      ...privateListsRes.docs,
+      ...createdListsRes.docs
     ].map(x => addressMappingsToPopulate.find(y => y.mappingId === x.mappingId)).filter(x => x !== undefined).map(x => convertAddressMappingWithMetadata(x!, Stringify)),
     activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)).map(removeCouchDBDetails),
     announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)).map(removeCouchDBDetails),
@@ -567,6 +577,14 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileInfo<bigi
         pagination: {
           bookmark: privateListsRes.bookmark ? privateListsRes.bookmark : '',
           hasMore: privateListsRes.docs.length >= 25
+        }
+      } : undefined,
+      'createdLists': reqBody.viewsToFetch.find(x => x.viewKey === 'createdLists') ? {
+        ids: createdListsRes.docs.map(x => x._id),
+        type: 'Created Lists',
+        pagination: {
+          bookmark: createdListsRes.bookmark ? createdListsRes.bookmark : '',
+          hasMore: createdListsRes.docs.length >= 25
         }
       } : undefined,
       'explicitlyIncludedAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyIncludedAddressMappings') ? {

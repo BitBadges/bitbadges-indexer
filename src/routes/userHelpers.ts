@@ -699,3 +699,29 @@ export async function executePrivateListsQuery(cosmosAddress: string, bookmark?:
   if (QUERY_TIME_MODE) console.timeEnd('privateLists');
   return res;
 }
+
+export async function executeCreatedListsQuery(cosmosAddress: string, bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('createdLists');
+
+
+  const res = await ADDRESS_MAPPINGS_DB.find({
+    selector: {
+      "createdBy": {
+        "$eq": cosmosAddress,
+      },
+      "private": {
+        "$eq": false,
+      }
+    },
+    bookmark: bookmark ? bookmark : undefined,
+    limit: 1000000, //find all
+  });
+
+  //Could filter hidden here but they created it so they should be able to see it
+
+
+
+
+  if (QUERY_TIME_MODE) console.timeEnd('createdLists');
+  return res;
+}
