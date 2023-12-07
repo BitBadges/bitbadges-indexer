@@ -14,7 +14,7 @@ import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
 import { COMPLIANCE_DB, ERRORS_DB, MsgDoc } from "./db/db"
 import { getStatus } from "./db/status"
-import { client, setClient, setTimer } from "./indexer"
+import { client, setClient, setTimer, setUriPollerTimer } from "./indexer"
 import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
@@ -98,7 +98,7 @@ export const pollUris = async () => {
   }
 
   const newTimer = setTimeout(pollUris, uriPollIntervalMs);
-  setTimer(newTimer);
+  setUriPollerTimer(newTimer);
 }
 
 export let complianceDoc: ComplianceDoc<bigint> | undefined = undefined;
@@ -493,3 +493,4 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     });
   }
 }
+

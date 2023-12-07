@@ -38,6 +38,7 @@ import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 import { sendClaimAlert } from './routes/claimAlerts'
+import { getFollowDetails, updateFollowDetails } from './routes/follows'
 
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
@@ -73,6 +74,17 @@ export let timer: NodeJS.Timer | undefined
 export const setTimer = (newTimer: NodeJS.Timer) => {
   timer = newTimer
 }
+
+export let uriPollerTimer: NodeJS.Timer | undefined
+export const setUriPollerTimer = (newTimer: NodeJS.Timer) => {
+  uriPollerTimer = newTimer
+}
+
+export let heartbeatTimer: NodeJS.Timer | undefined
+export const setHeartbeatTimer = (newTimer: NodeJS.Timer) => {
+  heartbeatTimer = newTimer
+}
+
 const upload = multer({ dest: 'uploads/' });
 const app: Express = express()
 const port = process.env.port ? Number(process.env.port) : 3001
@@ -181,7 +193,7 @@ app.use(express.json({ limit: '50mb' }))
 // });
 
 app.get("/", (req: Request, res: Response) => {
-  res.send({
+  return res.send({
     message: "Hello from the BitBadges indexer! See docs.bitbadges.io for documentation.",
   })
 })
@@ -287,13 +299,67 @@ app.post('/api/v0/survey/:mappingId/add', addAddressToSurvey);
 //Claim Alerts
 app.post('/api/v0/claimAlerts/send', authorizeBlockinRequest, sendClaimAlert);
 
+//Follow Protocol
+app.post('/api/v0/follow-protocol/update', authorizeBlockinRequest, updateFollowDetails);
+app.post('/api/v0/follow-protocol', getFollowDetails);
+
+
+//TODO: Simple implementation of a one-way heartbeat mode.
+//If the parent process dies, the child process will take over.
+//Probably 
+const NUM_FAILED_HEARTBEATS_BEFORE_SWITCH = 10;
+let numConsecutiveFailedHeartbeats = 0;
+const initHeartbeat = async () => {
+  const PARENT_PROCESS_URL = process.env.PARENT_PROCESS_URL;
+  if (!PARENT_PROCESS_URL) {
+    throw new Error('PARENT_PROCESS_URL not set');
+  }
+
+  const heartbeat = async () => {
+    try {
+      await axios.get(PARENT_PROCESS_URL, {
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.BITBADGES_API_KEY,
+        }
+      });
+
+      return true;
+    } catch (e) {
+      console.log(e);
+      return false;
+    }
+  }
+
+  const isParentAlive = await heartbeat();
+  if (!isParentAlive) {
+    numConsecutiveFailedHeartbeats++;
+    console.log(`Parent process is dead. Failed heartbeats: ${numConsecutiveFailedHeartbeats} / ${NUM_FAILED_HEARTBEATS_BEFORE_SWITCH}`);
+
+    if (numConsecutiveFailedHeartbeats > NUM_FAILED_HEARTBEATS_BEFORE_SWITCH) {
+      console.log('Taking over as parent process.');
+      setTimeout(poll, 1)
+      return;
+    }
+  } else {
+    console.log('Parent process is alive. Still on standby....');
+    numConsecutiveFailedHeartbeats = 0;
+  }
+
+  const newTimer = setTimeout(initHeartbeat, 5000);
+  setHeartbeatTimer(newTimer);
+}
 
 
 //Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {
   if (!OFFLINE_MODE) {
     if (process.env.DISABLE_BLOCKCHAIN_POLLER !== 'true') {
-      setTimeout(poll, 1)
+      if (process.env.HEARTBEAT_MODE === 'true') {
+        setTimeout(initHeartbeat, 1)
+      } else {
+        setTimeout(poll, 1)
+      }
     }
     if (process.env.DISABLE_URI_POLLER !== 'true') {
       setTimeout(pollUris, 1)
@@ -311,7 +377,7 @@ process.on("SIGINT", () => {
 
 
 
-let server = process.env.DISABLE_API === 'true' ? undefined :
+const server = process.env.DISABLE_API === 'true' ? undefined :
   https.createServer(
     {
       key: fs.readFileSync("server.key"),

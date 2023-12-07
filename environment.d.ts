@@ -44,6 +44,10 @@ declare global {
       TIME_MODE: string //boolean string ex: "false"
       QUEUE_TIME_MODE: string //boolean string ex: "false"
       DEV_MODE: string //boolean string ex: "false"
+
+      //Heartbeat mode
+      HEARTBEAT_MODE: string //boolean string ex: "false"
+      PARENT_PROCESS_URL: string //string ex: "https://api.bitbadges.io"
     }
   }
 }
