@@ -1,9 +1,8 @@
 import { AddAddressToSurveyRouteRequestBody, AddAddressToSurveyRouteResponse, NumberType, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import { ADDRESS_MAPPINGS_DB, insertToDB } from "../db/db";
 import { serializeError } from "serialize-error";
-import { catch404 } from "../utils/couchdb-utils";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
+import { AddressMappingModel, mustGetFromDB } from "../db/db";
 
 export const addAddressToSurvey = async (expressReq: Request, res: Response<AddAddressToSurveyRouteResponse>) => {
   try {
@@ -12,10 +11,7 @@ export const addAddressToSurvey = async (expressReq: Request, res: Response<AddA
     const address = reqBody.address;
     const mappingId = req.params.mappingId;
 
-    const mappingDoc = await ADDRESS_MAPPINGS_DB.get(mappingId).catch(catch404);
-    if (!mappingDoc) {
-      throw new Error("No address mapping found for ID " + mappingId);
-    }
+    const mappingDoc = await mustGetFromDB(AddressMappingModel, mappingId);
 
     const editKey = reqBody.editKey;
     if (!mappingDoc.editKeys) {
@@ -47,10 +43,7 @@ export const addAddressToSurvey = async (expressReq: Request, res: Response<AddA
       }
     }
 
-    await insertToDB(ADDRESS_MAPPINGS_DB, {
-      ...mappingDoc,
-      addresses: [...mappingDoc.addresses, convertToCosmosAddress(address)],
-    });
+    await AddressMappingModel.findOneAndUpdate({ _legacyId: mappingId }, { $push: { addresses: convertToCosmosAddress(address) } }).lean().exec();
 
     return res.status(200).send({});
   } catch (e) {

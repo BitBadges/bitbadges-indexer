@@ -1,9 +1,8 @@
 import axios from "axios";
 import { FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import { FETCHES_DB } from "../db/db";
+import { FetchModel, getFromDB } from "../db/db";
 import { getFromIpfs } from "../ipfs/ipfs";
-import { catch404 } from "../utils/couchdb-utils";
 
 
 export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMetadataDirectlyRouteResponse<NumberType>>) => {
@@ -19,7 +18,7 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMet
     for (const uri of uris) {
       promises.push(async () => {
         let metadataRes: any;
-        const fetchDoc = await FETCHES_DB.get(uri).catch(catch404);
+        const fetchDoc = await getFromDB(FetchModel, uri);
 
         if (!fetchDoc) {
           //If we are here, we need to fetch from the source

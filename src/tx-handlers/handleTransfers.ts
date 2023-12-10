@@ -35,8 +35,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
           cosmosAddress: address,
           collectionId: collection.collectionId,
           onChain: collection.balancesType === 'Standard',
-          _id: `${collection.collectionId}:${address}`,
-          _rev: undefined,
+          _legacyId: `${collection.collectionId}:${address}`,
           updateHistory: [],
         };
 
@@ -58,8 +57,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
         cosmosAddress: transfer.from,
         collectionId: collection.collectionId,
         onChain: collection.balancesType === 'Standard',
-        _id: `${collection.collectionId}:${transfer.from}`,
-        _rev: undefined,
+        _legacyId: `${collection.collectionId}:${transfer.from}`,
         updateHistory: [],
       };
 
@@ -72,7 +70,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     docs.balances[`${collection.collectionId}:${transfer.from}`] = fromAddressBalanceDoc;
 
     docs.activityToAdd.push({
-      _id: `collection-${collection.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
+      _legacyId: `collection-${collection.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
       from: transfer.from,
       to: transfer.toAddresses,
       balances: transfer.balances,

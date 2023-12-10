@@ -1,30 +1,30 @@
-import { AddBalancesToOffChainStorageRouteRequestBody, AddBalancesToOffChainStorageRouteResponse, AddApprovalDetailsToOffChainStorageRouteRequestBody, AddApprovalDetailsToOffChainStorageRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
+import { AddApprovalDetailsToOffChainStorageRouteRequestBody, AddApprovalDetailsToOffChainStorageRouteResponse, AddBalancesToOffChainStorageRouteRequestBody, AddBalancesToOffChainStorageRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
+import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager } from "../blockin/blockin_handlers";
-import { COLLECTIONS_DB, IPFS_TOTALS_DB, PASSWORDS_DB, insertToDB } from "../db/db";
-import { addBalancesToOffChainStorage, addApprovalDetailsToOffChainStorage, addMetadataToIpfs } from "../ipfs/ipfs";
+import { CollectionModel, IPFSTotalsModel, PasswordModel, getFromDB, insertToDB, mustGetFromDB } from "../db/db";
+import { addApprovalDetailsToOffChainStorage, addBalancesToOffChainStorage, addMetadataToIpfs } from "../ipfs/ipfs";
 import { cleanBalances } from "../utils/dataCleaners";
-import CryptoJS from "crypto-js";
-import { catch404 } from "../utils/couchdb-utils";
 import { refreshCollection } from "./refresh";
+import mongoose from "mongoose";
 
 const { AES } = CryptoJS;
 
 const IPFS_UPLOAD_BYTES_LIMIT = 1000000000; //1GB
 
 export const updateIpfsTotals = async (address: string, size: number, req: AuthenticatedRequest<NumberType>) => {
-  const _ipfsTotalsDoc = await IPFS_TOTALS_DB.get(address).catch(catch404);
+  const _ipfsTotalsDoc = await getFromDB(IPFSTotalsModel, address);
   let ipfsTotalsDoc = _ipfsTotalsDoc ? {
     ...convertIPFSTotalsDoc(_ipfsTotalsDoc, Number),
     bytesUploaded: Number(_ipfsTotalsDoc.bytesUploaded) + size,
   } : {
-    _id: address,
+    _legacyId: address,
     _rev: undefined,
     bytesUploaded: size,
   };
 
-  await insertToDB(IPFS_TOTALS_DB, ipfsTotalsDoc);
+  await insertToDB(IPFSTotalsModel, ipfsTotalsDoc);
 
   req.session.ipfsTotal = ipfsTotalsDoc.bytesUploaded;
   req.session.save();
@@ -56,7 +56,7 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
       //I think this is safe assuming we only allow updates to the Digital Ocean spaces from this function
       if (BigInt(reqBody.collectionId) > 0) {
         //Get existing urlPath
-        const collectionDoc = await COLLECTIONS_DB.get(reqBody.collectionId.toString());
+        const collectionDoc = await mustGetFromDB(CollectionModel, reqBody.collectionId.toString());
         if (collectionDoc.offChainBalancesMetadataTimeline.length > 0) {
           urlPath = collectionDoc.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.split('/').pop();
         }
@@ -134,28 +134,20 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
 
     const { cid } = result;
 
-    const duplicateCheckRes = await PASSWORDS_DB.find({
-      selector: {
-        createdBy: {
-          "$eq": req.session.cosmosAddress
-        },
-        challengeLevel: {
-          "$eq": "collection"
-        },
-        cid: {
-          "$eq": cid.toString()
-        }
-      }
-    });
+    const duplicateCheckRes = await PasswordModel.find({
+      createdBy: req.session.cosmosAddress,
+      challengeLevel: "collection",
+      cid: cid.toString()
+    }).lean().exec();
 
-
-    if (duplicateCheckRes.docs.length > 0) {
+    if (duplicateCheckRes.length > 0) {
       return res.status(400).send({ message: 'You have already added a challenge with an equivalent CID to IPFS. We do not allow duplicate CIDs.' });
     }
 
     const SYM_KEY = process.env.SYM_KEY;
 
-    await insertToDB(PASSWORDS_DB, {
+    await insertToDB(PasswordModel, {
+      _legacyId: new mongoose.Types.ObjectId().toString(),
       createdBy: req.session.cosmosAddress,
       challengeLevel: "collection",
       collectionId: "-1",
@@ -164,6 +156,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
       claimedUsers: {},
       challengeDetails: challengeDetails ? {
         ...challengeDetails,
+        currCode: "0",
         password: challengeDetails.password ? AES.encrypt(challengeDetails.password, SYM_KEY).toString() : "",
         leavesDetails: {
           ...challengeDetails.leavesDetails,

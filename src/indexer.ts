@@ -13,11 +13,10 @@ import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, genericBlockinVerifyHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { API_KEYS_DB, REPORTS_DB, ReportDoc, insertToDB } from './db/db'
+import { ApiKeyModel, ReportDoc, ReportModel, insertToDB, mustGetFromDB } from './db/db'
 import { OFFLINE_MODE, TIME_MODE } from './indexer-vars'
 import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
-import { addAnnouncement } from './routes/announcements'
 import { getApprovals } from './routes/approvalTrackers'
 import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes'
 import { getOwnersForBadge } from './routes/badges'
@@ -25,20 +24,21 @@ import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
 import { getBrowseCollections } from './routes/browse'
 import { getChallengeTrackers } from './routes/challengeTrackers'
+import { sendClaimAlert } from './routes/claimAlerts'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
+import { getFollowDetails, updateFollowDetails } from './routes/follows'
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
 import { getRefreshStatus, refreshMetadata } from './routes/refresh'
-import { addReviewForCollection, addReviewForUser, deleteAnnouncement, deleteReview } from './routes/reviews'
+import { addReviewForCollection, addReviewForUser, deleteReview } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-import { sendClaimAlert } from './routes/claimAlerts'
-import { getFollowDetails, updateFollowDetails } from './routes/follows'
+import mongoose from 'mongoose'
 
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
@@ -111,7 +111,7 @@ app.use(async (req, res, next) => {
         throw new Error('Unauthorized request. API key is required.');
       }
 
-      const doc = await API_KEYS_DB.get(apiKey as string);
+      const doc = await mustGetFromDB(ApiKeyModel, apiKey as string);
 
       const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
       if (lastRequestWasYesterday) {
@@ -122,7 +122,7 @@ app.use(async (req, res, next) => {
         throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
       }
 
-      await insertToDB(API_KEYS_DB, {
+      await insertToDB(ApiKeyModel, {
         ...doc,
         numRequests: doc.numRequests + 1,
         lastRequest: Date.now(),
@@ -207,12 +207,13 @@ app.post("/api/v0/report", cors(websiteOnlyCorsOptions), authorizeBlockinRequest
     const report = req.body;
 
     const reportDoc: ReportDoc = {
+      _legacyId: new mongoose.Types.ObjectId().toString(),
       collectionId: report.collectionId,
       mappingId: report.mappingId,
       addressOrUsername: report.addressOrUsername,
       reason: report.reason,
     }
-    await insertToDB(REPORTS_DB, reportDoc);
+    await insertToDB(ReportModel, reportDoc);
     return res.status(200).send({ message: 'Report successfully submitted.' });
   } catch (e) {
     console.error(e);
@@ -237,12 +238,10 @@ app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus); //
 app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
 app.post('/api/v0/collection/:collectionId/password/:cid/:password', authorizeBlockinRequest, getMerkleChallengeCodeViaPassword); //Write route
 
-app.post('/api/v0/collection/:collectionId/addAnnouncement', authorizeBlockinRequest, addAnnouncement); //Write route
 app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
 
 // `/api/v0/collection/${collectionId.toString()}/deleteReview/${reviewId}`;
 app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest, deleteReview); //Write route
-app.post('/api/v0/deleteAnnouncement/:announcementId', authorizeBlockinRequest, deleteAnnouncement); //Write route
 
 
 //User
@@ -369,6 +368,8 @@ const init = async () => {
 
 process.on("SIGINT", () => {
   if (timer) clearTimeout(timer)
+  if (uriPollerTimer) clearTimeout(uriPollerTimer)
+  if (heartbeatTimer) clearTimeout(heartbeatTimer)
   server?.close(() => {
     console.log("server closed")
     process.exit(0)

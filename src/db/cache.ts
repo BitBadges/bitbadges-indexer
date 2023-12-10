@@ -1,9 +1,8 @@
-import { JSPrimitiveNumberType } from "bitbadgesjs-proto";
+import { NumberType } from "bitbadgesjs-proto";
 import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc } from "bitbadgesjs-utils";
-import { DocumentFetchResponse } from "nano";
+import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
-import { getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
-import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, APPROVALS_TRACKER_DB, BALANCES_DB, CLAIM_ALERTS_DB, COLLECTIONS_DB, ERRORS_DB, MERKLE_CHALLENGES_DB, MSGS_DB, MsgDoc, PASSWORDS_DB, QUEUE_DB, REFRESHES_DB, TRANSFER_ACTIVITY_DB, insertMany, insertToDB } from "./db";
+import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, MerkleChallengeModel, MsgDoc, MsgModel, PasswordModel, QueueModel, RefreshModel, TransferActivityModel, getManyFromDB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
 /**
@@ -92,13 +91,13 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 
 
     const promises = [];
-    if (cosmosAddresses.length) promises.push(ACCOUNTS_DB.fetch({ keys: cosmosAddresses }, { include_docs: true }));
-    if (collectionDocIds.length) promises.push(COLLECTIONS_DB.fetch({ keys: collectionDocIds }, { include_docs: true }));
-    if (balanceDocIds.length) promises.push(BALANCES_DB.fetch({ keys: balanceDocIds }, { include_docs: true }));
-    if (claimDocIds.length) promises.push(MERKLE_CHALLENGES_DB.fetch({ keys: claimDocIds }, { include_docs: true }));
-    if (approvalsTrackerIds.length) promises.push(APPROVALS_TRACKER_DB.fetch({ keys: approvalsTrackerIds }, { include_docs: true }));
-    if (addressMappingIds.length) promises.push(ADDRESS_MAPPINGS_DB.fetch({ keys: addressMappingIds }, { include_docs: true }));
-    if (passwordDocIds.length) promises.push(PASSWORDS_DB.fetch({ keys: passwordDocIds }, { include_docs: true }));
+    if (cosmosAddresses.length) promises.push(getManyFromDB(AccountModel, cosmosAddresses));
+    if (collectionDocIds.length) promises.push(getManyFromDB(CollectionModel, collectionDocIds));
+    if (balanceDocIds.length) promises.push(getManyFromDB(BalanceModel, balanceDocIds));
+    if (claimDocIds.length) promises.push(getManyFromDB(MerkleChallengeModel, claimDocIds));
+    if (approvalsTrackerIds.length) promises.push(getManyFromDB(ApprovalsTrackerModel, approvalsTrackerIds));
+    if (addressMappingIds.length) promises.push(getManyFromDB(AddressMappingModel, addressMappingIds));
+    if (passwordDocIds.length) promises.push(getManyFromDB(PasswordModel, passwordDocIds));
 
     if (promises.length) {
       const results = await Promise.allSettled(promises);
@@ -109,9 +108,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
       if (cosmosAddresses.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<AccountDoc<JSPrimitiveNumberType>>, true).map(x => convertAccountDoc(x, BigIntify));
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertAccountDoc(x as AccountDoc<NumberType>, BigIntify));
           for (const address of cosmosAddresses) {
-            accountsData[address] = docs.find(x => x._id === address);
+            accountsData[address] = docs.find(x => x._legacyId === address);
           }
         }
       }
@@ -119,9 +118,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
       if (collectionDocIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<CollectionDoc<JSPrimitiveNumberType>>, true).map(x => convertCollectionDoc(x, BigIntify));
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertCollectionDoc(x as CollectionDoc<NumberType>, BigIntify));
           for (const collectionId of collectionDocIds) {
-            collectionData[collectionId] = docs.find(x => x._id === collectionId);
+            collectionData[collectionId] = docs.find(x => x._legacyId === collectionId);
           }
         }
       }
@@ -129,9 +128,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
       if (balanceDocIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<BalanceDoc<JSPrimitiveNumberType>>, true).map(x => convertBalanceDoc(x, BigIntify));
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertBalanceDoc(x as BalanceDoc<NumberType>, BigIntify));
           for (const balanceId of balanceDocIds) {
-            balanceData[balanceId] = docs.find(x => x._id === balanceId);
+            balanceData[balanceId] = docs.find(x => x._legacyId === balanceId);
           }
         }
       }
@@ -139,9 +138,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
       if (claimDocIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<MerkleChallengeDoc<JSPrimitiveNumberType>>, true).map(x => convertMerkleChallengeDoc(x, BigIntify));
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertMerkleChallengeDoc(x as MerkleChallengeDoc<NumberType>, BigIntify));
           for (const claimId of claimDocIds) {
-            claimData[claimId] = docs.find(x => x._id === claimId);
+            claimData[claimId] = docs.find(x => x._legacyId === claimId);
           }
         }
       }
@@ -149,9 +148,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
       if (addressMappingIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<AddressMappingDoc<JSPrimitiveNumberType>>, true).map(x => convertAddressMappingDoc(x, BigIntify));
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertAddressMappingDoc(x as AddressMappingDoc<NumberType>, BigIntify));
           for (const addressMappingId of addressMappingIds) {
-            addressMappingsData[addressMappingId] = docs.find(x => x._id === addressMappingId);
+            addressMappingsData[addressMappingId] = docs.find(x => x._legacyId === addressMappingId);
           }
         }
       }
@@ -159,9 +158,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
       if (approvalsTrackerIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<ApprovalsTrackerDoc<JSPrimitiveNumberType>>, true).map(x => convertApprovalsTrackerDoc(x, BigIntify));
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertApprovalsTrackerDoc(x as ApprovalsTrackerDoc<NumberType>, BigIntify));
           for (const approvalsTrackerId of approvalsTrackerIds) {
-            approvalsTrackerData[approvalsTrackerId] = docs.find(x => x._id === approvalsTrackerId);
+            approvalsTrackerData[approvalsTrackerId] = docs.find(x => x._legacyId === approvalsTrackerId);
           }
         }
       }
@@ -169,9 +168,9 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
       if (passwordDocIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = getDocsFromNanoFetchRes(result.value as DocumentFetchResponse<PasswordDoc<JSPrimitiveNumberType>>, true).map(x => convertPasswordDoc(x, BigIntify));
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertPasswordDoc(x as PasswordDoc<NumberType>, BigIntify));
           for (const passwordDocId of passwordDocIds) {
-            passwordDocs[passwordDocId] = docs.find(x => x._id === passwordDocId);
+            passwordDocs[passwordDocId] = docs.find(x => x._legacyId === passwordDocId);
           }
         }
       }
@@ -184,7 +183,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 }
 
 //Finalize docs at end of handling block(s)
-export async function flushCachedDocs(docs: DocsCache, msgDocs?: MsgDoc[], status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
+export async function flushCachedDocs(session: mongoose.mongo.ClientSession, docs: DocsCache, msgDocs?: MsgDoc[], status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
   try {
     //If we reach here, we assume that all docs are valid and ready to be inserted into the DB (i.e. not undefined) so we can cast safely
     const promises = [];
@@ -201,69 +200,72 @@ export async function flushCachedDocs(docs: DocsCache, msgDocs?: MsgDoc[], statu
     const claimAlertDocs = docs.claimAlertsToAdd;
 
     if (activityDocs.length) {
-      promises.push(insertMany(TRANSFER_ACTIVITY_DB, activityDocs));
+      await insertMany(TransferActivityModel, activityDocs, session);
     }
 
     if (queueDocs.length) {
-      promises.push(insertMany(QUEUE_DB, queueDocs));
+      await insertMany(QueueModel, queueDocs, session);
     }
 
     if (accountDocs.length) {
-      promises.push(insertMany(ACCOUNTS_DB, accountDocs));
+      await insertMany(AccountModel, accountDocs, session);
     }
 
     if (collectionDocs.length) {
-      promises.push(insertMany(COLLECTIONS_DB, collectionDocs));
+      await insertMany(CollectionModel, collectionDocs, session);
     }
 
     if (balanceDocs.length) {
-      promises.push(insertMany(BALANCES_DB, balanceDocs));
+      await insertMany(BalanceModel, balanceDocs, session);
     }
 
     if (claimDocs.length) {
-      promises.push(insertMany(MERKLE_CHALLENGES_DB, claimDocs));
+      await insertMany(MerkleChallengeModel, claimDocs, session);
     }
 
     if (refreshDocs.length) {
-      promises.push(insertMany(REFRESHES_DB, refreshDocs));
+      await insertMany(RefreshModel, refreshDocs, session);
     }
 
     if (approvalsTrackerDocs.length) {
-      promises.push(insertMany(APPROVALS_TRACKER_DB, approvalsTrackerDocs));
+      await insertMany(ApprovalsTrackerModel, approvalsTrackerDocs, session);
     }
 
     if (addressMappingDocs.length) {
-      promises.push(insertMany(ADDRESS_MAPPINGS_DB, addressMappingDocs));
+      await insertMany(AddressMappingModel, addressMappingDocs, session);
     }
 
     if (passwordDocs.length) {
-      promises.push(insertMany(PASSWORDS_DB, passwordDocs));
+      await insertMany(PasswordModel, passwordDocs, session);
     }
 
     if (claimAlertDocs.length) {
-      promises.push(insertMany(CLAIM_ALERTS_DB, claimAlertDocs));
+      await insertMany(ClaimAlertModel, claimAlertDocs, session);
     }
 
     if (msgDocs && msgDocs.length) {
-      promises.push(insertMany(MSGS_DB, msgDocs));
+      await insertMany(MsgModel, msgDocs, session);
     }
 
-    //TODO: Handle if error in one of Promise.all but not the rest (how can we do all or nothing with CouchDB?)
     if (promises.length === 0 && status && skipStatusFlushIfEmptyBlock) {
+
       return false;
     } else if (promises.length || status) {
       if (status) {
-        promises.push(setStatus(status));
+        await setStatus(status, session);
       }
-      await Promise.all(promises);
+
+      //TODO: Apparently, there are issues with using Promise.all() with transactions. We can look into this, but it is still very fast without it.
+      // await Promise.all(promises);
     }
 
     return true;
   } catch (error) {
-    await insertToDB(ERRORS_DB, {
+
+    await insertToDB(ErrorModel, {
+      _legacyId: new mongoose.Types.ObjectId().toString(),
       function: 'flushCachedDocs',
       error: serializeError(error.message),
-      // docs: docs
     });
 
     throw `Error in flushCachedDocs(): ${error}`;

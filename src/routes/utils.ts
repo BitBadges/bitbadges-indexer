@@ -1,7 +1,6 @@
 import { AddressMapping, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserBalance, UserIncomingApproval, UserOutgoingApproval } from "bitbadgesjs-proto";
-import { AddressMappingWithMetadata, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressMapping } from "bitbadgesjs-utils";
-import { ADDRESS_MAPPINGS_DB, FETCHES_DB } from "../db/db";
-import { catch404, getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { AddressMappingWithMetadata, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertAddressMappingWithMetadata, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressMapping } from "bitbadgesjs-utils";
+import { AddressMappingModel, FetchModel, getFromDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 
 export async function getAddressMappingsFromDB(mappingIds: {
@@ -16,7 +15,7 @@ export async function getAddressMappingsFromDB(mappingIds: {
       if (mapping) {
         addressMappings.push({
           ...mapping,
-          _id: '',
+          _legacyId: '',
           updateHistory: [],
           createdBy: '',
           lastUpdated: 0n,
@@ -32,9 +31,8 @@ export async function getAddressMappingsFromDB(mappingIds: {
   addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
 
   if (addressMappingIdsToFetch.length > 0) {
-    const fetchedAddressMappings = await ADDRESS_MAPPINGS_DB.fetch({ keys: addressMappingIdsToFetch.map(x => x.mappingId) }, { include_docs: true });
-    const addressMappingDocs = getDocsFromNanoFetchRes(fetchedAddressMappings);
-    addressMappings.push(...addressMappingDocs.map((doc) => removeCouchDBDetails(doc)));
+    const addressMappingDocs = await mustGetManyFromDB(AddressMappingModel, addressMappingIdsToFetch.map(x => x.mappingId));
+    addressMappings.push(...addressMappingDocs.map((doc) => convertAddressMappingWithMetadata(doc, BigIntify)));
   }
 
   if (fetchMetadata) {
@@ -45,7 +43,7 @@ export async function getAddressMappingsFromDB(mappingIds: {
         if (!uri) {
           return { uri, doc: undefined };
         }
-        const doc = await FETCHES_DB.get(uri).catch(catch404);
+        const doc = await getFromDB(FetchModel, uri);
         return { uri, doc };
       });
 

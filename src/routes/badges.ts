@@ -1,17 +1,16 @@
-import { NumberType, Stringify, AddressMapping } from "bitbadgesjs-proto";
-import { GetOwnersForBadgeRouteResponse, GetOwnersForBadgeRouteRequestBody, convertBalanceDoc } from "bitbadgesjs-utils";
+import { AddressMapping, NumberType, Stringify } from "bitbadgesjs-proto";
+import { GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, convertBalanceDoc } from "bitbadgesjs-utils";
+import { Request, Response } from 'express';
 import { serializeError } from "serialize-error";
-import { BALANCES_DB } from "../db/db";
-import { removeCouchDBDetails } from "../utils/couchdb-utils";
-import { getAddressMappingsFromDB } from "./utils";
-import { Response, Request } from 'express';
+import { BalanceModel, mustGetFromDB } from "../db/db";
 import { applyAddressMappingsToUserPermissions } from "./balances";
+import { getAddressMappingsFromDB } from "./utils";
 
 export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersForBadgeRouteResponse<NumberType>>) => {
   try {
     const reqBody = req.body as GetOwnersForBadgeRouteRequestBody;
 
-    const totalSupplys = await BALANCES_DB.get(`${req.params.collectionId}:Total`);
+    const totalSupplys = await mustGetFromDB(BalanceModel, `${req.params.collectionId}:Total`);
 
     let maxBadgeId = 1n;
     for (const balance of totalSupplys.balances) {
@@ -27,62 +26,43 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
     }
 
-    const ownersResOverview = await BALANCES_DB.partitionInfo(`${req.params.collectionId}`);
-    const numOwners = ownersResOverview.doc_count;
+    const numOwners = await BalanceModel.countDocuments({ collectionId: Number(req.params.collectionId) });
 
-    const ownersRes = await BALANCES_DB.partitionedFind(`${req.params.collectionId}`, {
-      selector: {
-        "cosmosAddress": {
-          //does not equal mint OR total
-          "$and": [
-            {
-              "$ne": "Mint",
-            },
-            {
-              "$ne": "Total",
-            }
-          ]
-        },
-        "balances": {
-          "$elemMatch": {
-            "badgeIds": {
-              "$elemMatch": {
-                "$and": [
-                  {
-                    "start": {
-                      "$and": [
-                        {
-                          "$lte": Number(req.params.badgeId),
-                        },
-                        {
-                          "$type": "number"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "end": {
-                      "$and": [
-                        {
-                          "$gte": Number(req.params.badgeId),
-                        },
-                        {
-                          "$type": "number"
-                        }
-                      ]
-                    }
-                  }
-                ]
+    const ownersRes = await BalanceModel.find({
+      cosmosAddress: {
+        //does not equal mint OR total
+        "$nin": [
+          "Mint",
+          "Total"
+        ]
+      },
+      collectionId: Number(req.params.collectionId),
+      "balances": {
+        "$elemMatch": {
+          "badgeIds": {
+            "$elemMatch": {
+              "start": {
+                "$lte": Number(req.params.badgeId),
+                "$type": "number"
+              },
+              "end": {
+                "$gte": Number(req.params.badgeId),
+                "$type": "number"
               }
             }
           }
         }
-      },
-      bookmark: reqBody.bookmark ? reqBody.bookmark : undefined,
-    });
+      }
+    }).limit(25).skip(reqBody.bookmark ? 25 * Number(reqBody.bookmark) : 0).lean().exec();
+
+    const newBookmark = (reqBody.bookmark ? Number(reqBody.bookmark) + 1 : 1).toString();
+
+
+
+
 
     let addressMappingIdsToFetch = [];
-    for (const balanceDoc of ownersRes.docs) {
+    for (const balanceDoc of ownersRes) {
       for (const incomingTransfer of balanceDoc.incomingApprovals) {
         addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
         addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
@@ -111,7 +91,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
     const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(x => { return { mappingId: x } }), false);
 
     return res.status(200).send({
-      owners: ownersRes.docs.map(doc => convertBalanceDoc(doc, Stringify)).map(removeCouchDBDetails).map((balance) => {
+      owners: ownersRes.map(doc => convertBalanceDoc(doc, Stringify)).map((balance) => {
         return {
           ...balance,
           incomingApprovals: balance.incomingApprovals.map(y => {
@@ -132,8 +112,8 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
         }
       }),
       pagination: {
-        bookmark: ownersRes.bookmark || '',
-        hasMore: ownersRes.docs.length === 25,
+        bookmark: newBookmark.toString(),
+        hasMore: ownersRes.length === 25,
         total: numOwners
       },
     });

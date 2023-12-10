@@ -1,15 +1,13 @@
 import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange, deepCopy } from "bitbadgesjs-proto";
-import { AnnouncementDoc, AnnouncementInfo, ApprovalInfoDetails, ApprovalsTrackerDoc, ApprovalsTrackerInfo, ApprovalsTrackerInfoBase, BadgeMetadataDetails, BalanceDoc, BalanceInfo, BalanceInfoWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, DeletableDocument, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, MerkleChallengeInfo, Metadata, MetadataFetchOptions, ReviewDoc, ReviewInfo, Stringify, TransferActivityDoc, TransferActivityInfo, convertApprovalInfoDetails, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertComplianceDoc, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AnnouncementDoc, ApprovalInfoDetails, ApprovalsTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, convertApprovalInfoDetails, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertComplianceDoc, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 
 import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
-import nano from "nano";
 import { serializeError } from "serialize-error";
-import { COLLECTIONS_DB } from "../db/db";
+import { CollectionModel, mustGetFromDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import { fetchUriFromDb } from "../queue";
 import { compareObjects } from "../utils/compare";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { applyAddressMappingsToUserPermissions } from "./balances";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
@@ -120,8 +118,8 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === collectionQueries[(i) / 10].collectionId.toString());
     if (!collectionRes) continue;
 
-    const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
-    const mintAndTotalBalancesRes = responses[i + 8] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+    const balancesRes = responses[i + 4] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+    const mintAndTotalBalancesRes = responses[i + 8] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
 
     for (const collectionApprovalVal of collectionRes.collectionApprovals) {
       addressMappingIdsToFetch.push({
@@ -235,15 +233,15 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     const query = collectionQueries[(i) / 10];
     const metadataRes: { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] } = responses[i] as { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] };
-    const activityRes = responses[i + 1] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
-    const announcementsRes = responses[i + 2] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
-    const reviewsRes = responses[i + 3] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
-    const balancesRes = responses[i + 4] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
-    const claimsRes = responses[i + 5] as nano.MangoResponse<MerkleChallengeDoc<JSPrimitiveNumberType>>;
-    const specificMerkleChallengesRes = responses[i + 6] as (MerkleChallengeInfo<JSPrimitiveNumberType> & nano.Document & DeletableDocument)[];
-    const specificApprovalsTrackersRes = responses[i + 7] as (ApprovalsTrackerInfoBase<JSPrimitiveNumberType> & nano.Document & DeletableDocument)[];
-    const mintAndTotalBalancesRes = responses[i + 8] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
-    const approvalsTrackersRes = responses[i + 9] as nano.MangoResponse<ApprovalsTrackerDoc<JSPrimitiveNumberType>>;
+    const activityRes = responses[i + 1] as { docs: TransferActivityDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+    const announcementsRes = responses[i + 2] as { docs: any[], pagination: PaginationInfo };
+    const reviewsRes = responses[i + 3] as { docs: ReviewDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+    const balancesRes = responses[i + 4] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+    const claimsRes = responses[i + 5] as { docs: MerkleChallengeDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+    const specificMerkleChallengesRes = responses[i + 6] as (MerkleChallengeDoc<JSPrimitiveNumberType>)[];
+    const specificApprovalsTrackersRes = responses[i + 7] as (ApprovalsTrackerDoc<JSPrimitiveNumberType>)[];
+    const mintAndTotalBalancesRes = responses[i + 8] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+    const approvalsTrackersRes = responses[i + 9] as { docs: ApprovalsTrackerDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
 
 
     const _complianceDoc = complianceDoc ? convertComplianceDoc(complianceDoc, Stringify) : undefined;
@@ -252,8 +250,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     let collectionToReturn: BitBadgesCollection<JSPrimitiveNumberType> = {
       ...collectionRes,
-      _rev: undefined,
-      _deleted: undefined,
       nsfw: isNSFW,
       reported: isReported,
       collectionApprovals: collectionRes.collectionApprovals.map(x => {
@@ -290,12 +286,12 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
         }
       }),
-      activity: activityRes.docs.map(removeCouchDBDetails) as TransferActivityInfo<JSPrimitiveNumberType>[],
-      announcements: announcementsRes.docs.map(removeCouchDBDetails) as AnnouncementInfo<JSPrimitiveNumberType>[],
-      reviews: reviewsRes.docs.map(removeCouchDBDetails) as ReviewInfo<JSPrimitiveNumberType>[],
+      activity: activityRes.docs as TransferActivityDoc<JSPrimitiveNumberType>[],
+      announcements: announcementsRes.docs as AnnouncementDoc<JSPrimitiveNumberType>[],
+      reviews: reviewsRes.docs as ReviewDoc<JSPrimitiveNumberType>[],
       owners: [
-        ...balancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[],
-        ...mintAndTotalBalancesRes.docs.map(removeCouchDBDetails) as BalanceInfo<JSPrimitiveNumberType>[]
+        ...balancesRes.docs as BalanceDoc<JSPrimitiveNumberType>[],
+        ...mintAndTotalBalancesRes.docs as BalanceDoc<JSPrimitiveNumberType>[]
       ].filter((balance, idx, self) => self.findIndex((b) => b.cosmosAddress == balance.cosmosAddress) === idx)
         .map((balance) => {
           return {
@@ -315,63 +311,63 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
               }
             })
           }
-        }) as BalanceInfoWithDetails<JSPrimitiveNumberType>[],
+        }) as BalanceDocWithDetails<JSPrimitiveNumberType>[],
       merkleChallenges: [
-        ...claimsRes.docs.map(removeCouchDBDetails) as MerkleChallengeInfo<JSPrimitiveNumberType>[],
-        ...specificMerkleChallengesRes.map(removeCouchDBDetails) as MerkleChallengeInfo<JSPrimitiveNumberType>[]
+        ...claimsRes.docs as MerkleChallengeDoc<JSPrimitiveNumberType>[],
+        ...specificMerkleChallengesRes as MerkleChallengeDoc<JSPrimitiveNumberType>[]
       ].filter((claim, idx, self) => self.findIndex((c) => JSON.stringify(c) === JSON.stringify(claim)) === idx),
       approvalsTrackers: [
-        ...specificApprovalsTrackersRes.map(removeCouchDBDetails) as ApprovalsTrackerInfo<JSPrimitiveNumberType>[],
-        ...approvalsTrackersRes.docs.map(removeCouchDBDetails) as ApprovalsTrackerInfo<JSPrimitiveNumberType>[]
+        ...specificApprovalsTrackersRes as ApprovalsTrackerDoc<JSPrimitiveNumberType>[],
+        ...approvalsTrackersRes.docs as ApprovalsTrackerDoc<JSPrimitiveNumberType>[]
       ].filter((approval, idx, self) => self.findIndex((a) => JSON.stringify(a) === JSON.stringify(approval)) === idx),
       //Placeholders to be replaced later in function
       cachedBadgeMetadata: [],
       views: {
         'latestActivity': query.viewsToFetch?.find(x => x.viewKey === 'latestActivity') ? {
-          ids: activityRes.docs.map((doc) => doc._id),
+          ids: activityRes.docs.map((doc) => doc._legacyId),
           type: 'Activity',
           pagination: {
-            bookmark: activityRes.bookmark || '',
+            bookmark: activityRes.pagination.bookmark || '',
             hasMore: activityRes.docs.length === 25
           }
         } : undefined,
         'latestAnnouncements': query.viewsToFetch?.find(x => x.viewKey === 'latestAnnouncements') ? {
-          ids: announcementsRes.docs.map((doc) => doc._id),
+          ids: announcementsRes.docs.map((doc) => doc._legacyId),
           type: 'Announcement',
           pagination: {
-            bookmark: announcementsRes.bookmark || '',
+            bookmark: announcementsRes.pagination.bookmark || '',
             hasMore: announcementsRes.docs.length === 25
           }
         } : undefined,
         'latestReviews': query.viewsToFetch?.find(x => x.viewKey === 'latestReviews') ? {
-          ids: reviewsRes.docs.map((doc) => doc._id),
+          ids: reviewsRes.docs.map((doc) => doc._legacyId),
           type: 'Review',
           pagination: {
-            bookmark: reviewsRes.bookmark || '',
+            bookmark: reviewsRes.pagination.bookmark || '',
             hasMore: reviewsRes.docs.length === 25
           }
         } : undefined,
         'owners': query.viewsToFetch?.find(x => x.viewKey === 'owners') ? {
-          ids: balancesRes.docs.map((doc) => doc._id),
+          ids: balancesRes.docs.map((doc) => doc._legacyId),
           type: 'Balance',
           pagination: {
-            bookmark: balancesRes.bookmark || '',
+            bookmark: balancesRes.pagination.bookmark || '',
             hasMore: balancesRes.docs.length === 25
           }
         } : undefined,
         'merkleChallenges': query.viewsToFetch?.find(x => x.viewKey === 'merkleChallenges') ? {
-          ids: claimsRes.docs.map((doc) => doc._id),
+          ids: claimsRes.docs.map((doc) => doc._legacyId),
           type: 'MerkleChallenge',
           pagination: {
-            bookmark: claimsRes.bookmark || '',
+            bookmark: claimsRes.pagination.bookmark || '',
             hasMore: claimsRes.docs.length === 25
           }
         } : undefined,
         'approvalsTrackers': query.viewsToFetch?.find(x => x.viewKey === 'approvalsTrackers') ? {
-          ids: approvalsTrackersRes.docs.map((doc) => doc._id),
+          ids: approvalsTrackersRes.docs.map((doc) => doc._legacyId),
           type: 'ApprovalsTracker',
           pagination: {
-            bookmark: approvalsTrackersRes.bookmark || '',
+            bookmark: approvalsTrackersRes.pagination.bookmark || '',
             hasMore: approvalsTrackersRes.docs.length === 25
           }
         } : undefined,
@@ -441,9 +437,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 }
 
 export async function executeCollectionsQuery(req: Request, collectionQueries: CollectionQueryOptions[]) {
-  const collectionsResponse = await COLLECTIONS_DB.fetch({ keys: collectionQueries.map((query) => `${query.collectionId.toString()}`) }, { include_docs: true });
-  const baseCollections = getDocsFromNanoFetchRes(collectionsResponse);
-
+  const baseCollections = await mustGetManyFromDB(CollectionModel, collectionQueries.map((query) => `${query.collectionId.toString()}`));
   return await executeAdditionalCollectionQueries(req, baseCollections, collectionQueries);
 }
 
@@ -731,7 +725,7 @@ export const getMetadataForCollection = async (req: Request, res: Response<GetMe
   try {
     const reqBody = req.body as GetMetadataForCollectionRouteRequestBody;
 
-    const _collection = await COLLECTIONS_DB.get(req.params.collectionId);
+    const _collection = await mustGetFromDB(CollectionModel, req.params.collectionId);
     const collection = convertCollectionDoc(_collection, BigIntify);
 
     const collectionUri = getCurrentValueForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)))?.collectionMetadata.uri ?? '';

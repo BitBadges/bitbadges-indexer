@@ -1,11 +1,9 @@
 
 import { JSPrimitiveNumberType, UintRange } from "bitbadgesjs-proto";
-import { AccountInfo, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AccountDoc, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import nano from "nano";
 import { serializeError } from "serialize-error";
-import { ACCOUNTS_DB, ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB } from "../db/db";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { AccountModel, AddressMappingModel, CollectionModel, FetchModel, ProfileModel, getManyFromDB } from "../db/db";
 import { getAddressForName } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
@@ -34,26 +32,22 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     // Search metadata of collections for matching names
-    const collectionMetadataQuery: nano.MangoQuery = {
-      selector: {
-        content: {
-          name: { "$regex": `(?i)${searchValue}` }
-        },
-        db: {
-          "$eq": "Metadata"
-        }
-      },
-    }
-
-    const usernameRes = await PROFILES_DB.find({
-      selector: {
-        username: {
+    const collectionMetadataQuery = {
+      content: {
+        name: {
           "$regex": `(?i)${searchValue}`
         }
-      }
-    });
+      },
+      db: "Metadata"
+    }
 
-    const cosmosAddresses = usernameRes.docs.map((doc) => doc._id);
+    const usernameRes = await ProfileModel.find({
+      username: {
+        "$regex": `(?i)${searchValue}`
+      }
+    }).lean().exec();
+
+    const cosmosAddresses = usernameRes.map((doc) => doc._legacyId);
 
     const selectorCriteria: any[] = [
       { "ethAddress": { "$regex": `(?i)${searchValue}` } },
@@ -69,41 +63,39 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     const accountQuery = {
-      selector: {
-        "$or": selectorCriteria,
-      },
+      "$or": selectorCriteria,
     }
 
 
 
     const addressMappingsQuery = {
-      selector: {
-        mappingId: { "$regex": `(?i)${searchValue}` },
-        private: {
-          "$ne": true
-        }
+
+      mappingId: { "$regex": `(?i)${searchValue}` },
+      private: {
+        "$ne": true
       }
+
     }
 
     const results = await Promise.all([
-      FETCHES_DB.find(collectionMetadataQuery),
-      ACCOUNTS_DB.find(accountQuery),
-      ADDRESS_MAPPINGS_DB.find(addressMappingsQuery),
+      FetchModel.find(collectionMetadataQuery).lean().exec(),
+      AccountModel.find(accountQuery).lean().exec(),
+      AddressMappingModel.find(addressMappingsQuery).lean().exec(),
     ]);
 
-    const metadataResponseDocs = results[0].docs;
-    const accountsResponseDocs = results[1].docs;
-    const addressMappingsResponseDocs = results[2].docs;
+    const metadataResponseDocs = results[0];
+    const accountsResponseDocs = results[1];
+    const addressMappingsResponseDocs = results[2];
 
 
-    const allAccounts: AccountInfo<JSPrimitiveNumberType>[] = [...accountsResponseDocs.map(removeCouchDBDetails)];
+    const allAccounts: AccountDoc<JSPrimitiveNumberType>[] = [...accountsResponseDocs];
     if (isAddressValid(searchValue)
       && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue || account.solAddress === searchValue)) {
       const chain = getChainForAddress(searchValue);
 
-      if (searchValue === 'Mint') allAccounts.push(convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify));
+      if (searchValue === 'Mint') allAccounts.push({ ...convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify), _legacyId: MINT_ACCOUNT.cosmosAddress });
       else allAccounts.push({
-        _id: convertToCosmosAddress(searchValue),
+        _legacyId: convertToCosmosAddress(searchValue),
 
         solAddress: chain === SupportedChain.SOLANA ? searchValue : '',
         ethAddress: cosmosToEth(convertToCosmosAddress(searchValue)),
@@ -117,7 +109,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     if (resolvedEnsAddress
       && !accountsResponseDocs.find((account) => account.ethAddress === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress || account.solAddress === resolvedEnsAddress)) {
       allAccounts.push({
-        _id: convertToCosmosAddress(resolvedEnsAddress),
+        _legacyId: convertToCosmosAddress(resolvedEnsAddress),
         ethAddress: resolvedEnsAddress,
         solAddress: '',
         cosmosAddress: convertToCosmosAddress(resolvedEnsAddress),
@@ -129,7 +121,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     allAccounts.sort((a, b) => a.ethAddress.localeCompare(b.ethAddress));
 
-    let uris = metadataResponseDocs.map((doc) => doc._id);
+    let uris = metadataResponseDocs.map((doc) => doc._legacyId);
 
     //Little hacky but we post process the placeholders IDs here if we can
     uris = uris.map((uri) => {
@@ -149,56 +141,56 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }).flat();
 
 
-    const collectionsPromise = COLLECTIONS_DB.find({
-      selector: {
-        "$or": [
-          {
-            collectionId: {
-              "$eq": Number(searchValue)
-            },
+    const collectionsPromise = CollectionModel.find({
+
+      "$or": [
+        {
+          collectionId: {
+            "$eq": Number(searchValue)
           },
-          {
-            collectionMetadataTimeline: {
-              "$elemMatch": {
-                collectionMetadata: {
-                  //This is fine bc collection metadata never has {id} placeholder
+        },
+        {
+          collectionMetadataTimeline: {
+            "$elemMatch": {
+              collectionMetadata: {
+                //This is fine bc collection metadata never has {id} placeholder
+                uri: {
+                  "$in": uris
+                }
+              }
+            }
+          }
+        },
+        {
+          badgeMetadataTimeline: {
+            "$elemMatch": {
+              badgeMetadata: {
+                "$elemMatch": {
+                  //Need to handle regex for {id} placeholder
+                  //The uris in uris do not have {id} placeholder. They are already replaced with the actual ID
                   uri: {
                     "$in": uris
                   }
                 }
               }
             }
-          },
-          {
-            badgeMetadataTimeline: {
-              "$elemMatch": {
-                badgeMetadata: {
-                  "$elemMatch": {
-                    //Need to handle regex for {id} placeholder
-                    //The uris in uris do not have {id} placeholder. They are already replaced with the actual ID
-                    uri: {
-                      "$in": uris
-                    }
-                  }
-                }
-              }
-            }
           }
-        ]
-      }
-    });
+        }
+      ]
+
+    }).lean().exec();
 
     const fetchKeys = allAccounts.map(account => account.cosmosAddress);
-    const fetchPromise = fetchKeys.length ? PROFILES_DB.fetch({ keys: fetchKeys }, { include_docs: true }) : Promise.resolve({ rows: [], offset: 0, total_rows: 0 });
+    const fetchPromise = fetchKeys.length ? getManyFromDB(ProfileModel, fetchKeys) : Promise.resolve([]);
 
     const [collectionsRes, fetchRes] = await Promise.all([collectionsPromise, fetchPromise]);
 
 
     const profileDocs = [];
 
-    const docs = getDocsFromNanoFetchRes(fetchRes, true);
+    const docs = fetchRes;
     for (const account of allAccounts) {
-      const doc = docs.find((doc) => doc._id === account.cosmosAddress);
+      const doc = docs.find((doc) => doc && doc._legacyId === account.cosmosAddress);
       if (doc) {
         profileDocs.push(doc);
       } else {
@@ -209,8 +201,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const collectionsResponsesPromise = executeAdditionalCollectionQueries(
       req,
-      collectionsRes.docs,
-      collectionsRes.docs.map((doc) => {
+      collectionsRes,
+      collectionsRes.map((doc) => {
         return { collectionId: doc.collectionId, metadataToFetch: { uris: uris } };
       })
     );
@@ -220,7 +212,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const addressMappingsToReturnPromise = getAddressMappingsFromDB(
       addressMappingsResponseDocs.map(x => {
         return {
-          mappingId: x._id,
+          mappingId: x._legacyId,
         };
       }),
       true
@@ -261,12 +253,12 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         return Number(x.collectionId) === Number(searchValue) || x.collectionMetadataTimeline.find((timeline) => {
           return uris.includes(timeline.collectionMetadata.uri);
         })
-      }).map((x) => removeCouchDBDetails(x)),
+      }),
       accounts,
       addressMappings: addressMappingsToReturn.map(x => convertAddressMappingWithMetadata(x, Stringify)),
       badges: badges.map((x) => {
         return {
-          collection: removeCouchDBDetails(x.collection),
+          collection: x.collection,
           badgeIds: x.badgeIds,
         }
       })

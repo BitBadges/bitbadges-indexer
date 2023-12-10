@@ -1,21 +1,27 @@
 {
-  "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+  "creator": "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp",
   "collectionId": "0",
-  "balancesType": "Standard",
-  "defaultOutgoingApprovals": [],
-  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
-  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
-  "defaultIncomingApprovals": [],
-  "defaultUserPermissions": {
-    "canUpdateIncomingApprovals": [],
-    "canUpdateOutgoingApprovals": [],
-    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
-    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
-  },
-  "badgesToCreate": [
+  "defaultIncomingApprovals": [
     {
-      "amount": "1",
-      "ownershipTimes": [
+      "fromMappingId": "AllWithMint",
+      "fromMapping": {
+        "mappingId": "AllWithMint",
+        "addresses": [],
+        "includeAddresses": false,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "initiatedByMapping": {
+        "mappingId": "AllWithMint",
+        "addresses": [],
+        "includeAddresses": false,
+        "uri": "",
+        "customData": "",
+        "createdBy": ""
+      },
+      "initiatedByMappingId": "AllWithMint",
+      "transferTimes": [
         {
           "start": "1",
           "end": "18446744073709551615"
@@ -24,33 +30,64 @@
       "badgeIds": [
         {
           "start": "1",
-          "end": "10"
+          "end": "18446744073709551615"
+        }
+      ],
+      "ownershipTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "approvalId": "default-incoming-allowed",
+      "amountTrackerId": "default-incoming-allowed",
+      "challengeTrackerId": "default-incoming-allowed"
+    }
+  ],
+  "defaultOutgoingApprovals": [],
+  "defaultUserPermissions": {
+    "canUpdateIncomingApprovals": [],
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
+  },
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "badgesToCreate": [
+    {
+      "amount": "1",
+      "badgeIds": [
+        {
+          "start": "1",
+          "end": "20"
+        }
+      ],
+      "ownershipTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
         }
       ]
     }
   ],
   "updateCollectionPermissions": true,
+  "balancesType": "Standard",
   "collectionPermissions": {
-    "canDeleteCollection": [],
     "canArchiveCollection": [],
-    "canUpdateOffChainBalancesMetadata": [],
-    "canUpdateStandards": [],
+    "canCreateMoreBadges": [],
+    "canDeleteCollection": [],
+    "canUpdateBadgeMetadata": [],
+    "canUpdateCollectionApprovals": [],
+    "canUpdateCollectionMetadata": [],
     "canUpdateCustomData": [],
     "canUpdateManager": [],
-    "canUpdateCollectionMetadata": [],
-    "canCreateMoreBadges": [],
-    "canUpdateBadgeMetadata": [],
-    "canUpdateCollectionApprovals": []
+    "canUpdateOffChainBalancesMetadata": [],
+    "canUpdateStandards": []
   },
-  "updateManagerTimeline": false,
-  "managerTimeline": [],
-  "updateCollectionMetadataTimeline": true,
-  "collectionMetadataTimeline": [
+  "updateManagerTimeline": true,
+  "managerTimeline": [
     {
-      "collectionMetadata": {
-        "uri": "ipfs://QmbMWdirW8mc6jGwLZE71XuXx91YYDV3Q3rcNHSdrqz2h9",
-        "customData": ""
-      },
+      "manager": "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp",
       "timelineTimes": [
         {
           "start": "1",
@@ -59,125 +96,240 @@
       ]
     }
   ],
+  "updateCollectionMetadataTimeline": true,
+  "collectionMetadataTimeline": [
+    {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "collectionMetadata": {
+        "uri": "ipfs://QmWqkWs28YLDcc1FJuYeQitw7opUNRWXeNjJ6oJigZVM9R",
+        "customData": ""
+      }
+    }
+  ],
   "updateBadgeMetadataTimeline": true,
   "badgeMetadataTimeline": [
     {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
       "badgeMetadata": [
         {
-          "uri": "ipfs://QmaeUrLbDPmpEq34vJeZvGGGfcFFtGmefGRQVne4uVkz8J",
-          "customData": "",
+          "uri": "ipfs://QmTpELFKNwxTEHPSb8Jkkbyt76syfGMdnM8XvQtizZaz8Q",
           "badgeIds": [
             {
               "start": "1",
               "end": "1"
             }
-          ]
+          ],
+          "customData": ""
         },
         {
-          "uri": "ipfs://QmaYbMFY9jrmeuJDqrB6ZadjNuPFKwqHc1nC3f4gVSj7eM",
-          "customData": "",
+          "uri": "ipfs://QmTB6joavWj7ht7sSKtHVLhfBn27uDNh8o4jwYeVRBrT2A",
           "badgeIds": [
             {
               "start": "2",
               "end": "2"
             }
-          ]
+          ],
+          "customData": ""
         },
         {
-          "uri": "ipfs://QmPViVfiZyHrm3yidbesJK8rv9kCu1yCowgYPLPfxvAKcj",
-          "customData": "",
+          "uri": "ipfs://QmboVtMs7thfRUf5pThrWJcTzvNqKU3cDuEZcywanVauAn",
           "badgeIds": [
             {
               "start": "3",
               "end": "3"
             }
-          ]
+          ],
+          "customData": ""
         },
         {
-          "uri": "ipfs://QmP6nm9TkvC1moima3mEed7khhDxuXY2CcacMG8Suctjd6",
-          "customData": "",
+          "uri": "ipfs://QmSCSFSrmpKFxDEUTkCuZexTdGZYvMw9CMo6PC42vXxBjo",
           "badgeIds": [
             {
               "start": "4",
               "end": "4"
             }
-          ]
+          ],
+          "customData": ""
         },
         {
-          "uri": "ipfs://QmU5NKtbPANeYHhpk8ytRFipCRuyfdDRVCRpvygrGGMVtk",
-          "customData": "",
+          "uri": "ipfs://QmVze7pxWwdoBrDRCFjEcUQM8c5H56m2wRETB7qtVgGvD8",
           "badgeIds": [
             {
               "start": "5",
               "end": "5"
             }
-          ]
+          ],
+          "customData": ""
         },
         {
-          "uri": "ipfs://QmXA6iMf4abvys9Sea7Ao7LDbB7aDTTtySCEKKDEJAQqzS",
-          "customData": "",
-          "badgeIds": [
-            {
-              "start": "10",
-              "end": "10"
-            }
-          ]
-        },
-        {
-          "uri": "ipfs://QmbSYvgrEoewv3KLvNPYtVsnWE7eyoGk5n7jwG16NUCG61",
-          "customData": "",
-          "badgeIds": [
-            {
-              "start": "9",
-              "end": "9"
-            }
-          ]
-        },
-        {
-          "uri": "ipfs://QmeisXcBuYp4gz4WZYLJJ3qKFoKDCj1tdJasQEs4zQKMBh",
-          "customData": "",
-          "badgeIds": [
-            {
-              "start": "8",
-              "end": "8"
-            }
-          ]
-        },
-        {
-          "uri": "ipfs://QmQVD3tcjaXKXA7hAgijciuF54NDfnpHCa1t7NTWV4ofxU",
-          "customData": "",
-          "badgeIds": [
-            {
-              "start": "7",
-              "end": "7"
-            }
-          ]
-        },
-        {
-          "uri": "ipfs://QmRPuuqvvEnk4LkwUASZE469ebCc2eYMa7FpFjzHDSmbw6",
-          "customData": "",
+          "uri": "ipfs://QmUtfWovsrmF6W6KKdbutBmcMwgV7Jghqp81EhBeiGhwBW",
           "badgeIds": [
             {
               "start": "6",
               "end": "6"
             }
-          ]
+          ],
+          "customData": ""
         },
         {
-          "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
-          "customData": "",
+          "uri": "ipfs://QmZk9XD1umcszJCoands4WGXV4Ncn2wUE84CRkLYhpEcHV",
+          "badgeIds": [
+            {
+              "start": "7",
+              "end": "7"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmbKkEijLYu5qrbdeTDaa426tCmjThghXn2hoiKcYTBydg",
+          "badgeIds": [
+            {
+              "start": "8",
+              "end": "8"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmQWbwQVdrcL3GyruudaBuwByNTFehmW29JKh1kRkjACvv",
+          "badgeIds": [
+            {
+              "start": "9",
+              "end": "9"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmSrz8c4WGbopewiviavA9skDeMKzrVAEncYVmCeAoZkGt",
+          "badgeIds": [
+            {
+              "start": "10",
+              "end": "10"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmVbFz9tZ1krdTRjYAaFNq8ETpX4aauAqGqQ3UkouLLsti",
           "badgeIds": [
             {
               "start": "11",
+              "end": "11"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmUVwmC1jj13zbWdZXAP6pSWbsPTY8u9BAHN1pc4iUFNu3",
+          "badgeIds": [
+            {
+              "start": "12",
+              "end": "12"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmRuHQ5voGvry25x8EptUM8CrXQ4WYdLq6TMyKNK5sihAA",
+          "badgeIds": [
+            {
+              "start": "13",
+              "end": "13"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmNYkE7qbCdmnDE5aNMm5ucmehZv1FEA84trJkknbgxkTs",
+          "badgeIds": [
+            {
+              "start": "14",
+              "end": "14"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmPaSeuruZDtgG5AQgv8ipBUKMDdaMYP48ZuQaVnVPsTpk",
+          "badgeIds": [
+            {
+              "start": "15",
+              "end": "15"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmXrvAom8Uj7sWVJEW2bs89uDnGJqTpKXBXeP7QgNDArKR",
+          "badgeIds": [
+            {
+              "start": "16",
+              "end": "16"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmPTxJJr4XBcGv4bssCagiQX4MKuzyBG4kD51yU2JA7wqx",
+          "badgeIds": [
+            {
+              "start": "17",
+              "end": "17"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmWY5n4j8J4qEmtqSZHWXzkEgFyYsRKpA72oE5tMJ7dJKP",
+          "badgeIds": [
+            {
+              "start": "19",
+              "end": "19"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://Qma5Qi1q8iprCr8ubnLb2fXpb3rnFWBJeJW1athSmMHjcS",
+          "badgeIds": [
+            {
+              "start": "18",
+              "end": "18"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmZoFLi2sRCLwY6eSTByeNVamgHock98VtNm5KbZFVacpS",
+          "badgeIds": [
+            {
+              "start": "20",
+              "end": "20"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmQKn1G41gcVEZPenXjtTTQfQJnx5Q6fDtZrcSNJvBqxUs",
+          "badgeIds": [
+            {
+              "start": "21",
               "end": "18446744073709551615"
             }
-          ]
-        }
-      ],
-      "timelineTimes": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
+          ],
+          "customData": ""
         }
       ]
     }

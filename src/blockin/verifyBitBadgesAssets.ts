@@ -1,16 +1,13 @@
-import { Balance, convertBalance, BigIntify, convertUintRange, UintRange } from "bitbadgesjs-proto"
-import { convertToCosmosAddress, OffChainBalancesMap, getBalancesForIds } from "bitbadgesjs-utils"
+import { Balance, BigIntify, UintRange, convertBalance, convertUintRange } from "bitbadgesjs-proto"
+import { OffChainBalancesMap, convertToCosmosAddress, getBalancesForIds } from "bitbadgesjs-utils"
 import { Asset } from "blockin"
-import { BALANCES_DB } from "../db/db"
-import { catch404 } from "../utils/couchdb-utils"
+import { BalanceModel, getFromDB } from "../db/db"
 
 export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], address: string, balancesSnapshot?: object): Promise<any> {
   for (const asset of bitbadgesAssets) {
     let docBalances: Balance<bigint>[] = []
     if (!balancesSnapshot) {
-      const balanceDoc = await BALANCES_DB.get(
-        `${asset.collectionId}:${convertToCosmosAddress(address)}`,
-      ).catch(catch404)
+      const balanceDoc = await getFromDB(BalanceModel, `${asset.collectionId}:${convertToCosmosAddress(address)}`)
 
       if (!balanceDoc) {
         docBalances = []

@@ -1,11 +1,10 @@
-import { Stringify, JSPrimitiveNumberType } from "bitbadgesjs-proto";
-import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, convertAddressMappingEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType, Stringify } from "bitbadgesjs-proto";
+import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, convertAddressMappingDoc, convertAddressMappingEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
-import { ADDRESS_MAPPINGS_DB } from "../db/db";
+import { AddressMappingModel, deleteMany, getFromDB, insertMany, mustGetManyFromDB } from "../db/db";
 import { getStatus } from "../db/status";
-import { catch404, getDocsFromNanoFetchRes } from "../utils/couchdb-utils";
 import { getAddressMappingsFromDB } from "./utils";
 
 export const deleteAddressMappings = async (expressReq: Request, res: Response<DeleteAddressMappingsRouteResponse<bigint>>) => {
@@ -18,23 +17,14 @@ export const deleteAddressMappings = async (expressReq: Request, res: Response<D
       throw new Error("You can only delete up to 100 address mappings at a time.");
     }
 
-    const docs = await ADDRESS_MAPPINGS_DB.fetch({ keys: mappingIds });
-    const docsToDelete = getDocsFromNanoFetchRes(docs);
-
+    const docsToDelete = await mustGetManyFromDB(AddressMappingModel, mappingIds);
     for (const doc of docsToDelete) {
       if (doc.createdBy !== req.session.cosmosAddress) {
-        throw new Error("You are not the owner of mapping with ID " + doc._id);
+        throw new Error("You are not the owner of mapping with ID " + doc._legacyId);
       }
     }
 
-    await ADDRESS_MAPPINGS_DB.bulk({
-      docs: docsToDelete.map(x => {
-        return {
-          ...x,
-          _deleted: true,
-        }
-      })
-    });
+    await deleteMany(AddressMappingModel, docsToDelete.map(x => x._legacyId));
 
     return res.status(200).send({})
   } catch (e) {
@@ -49,8 +39,8 @@ export const deleteAddressMappings = async (expressReq: Request, res: Response<D
 
 export const updateAddressMappings = async (expressReq: Request, res: Response<UpdateAddressMappingsRouteResponse<bigint>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
-    const reqBody = req.body as UpdateAddressMappingsRouteRequestBody<NumberType>;
+    const req = expressReq as AuthenticatedRequest<JSPrimitiveNumberType>;
+    const reqBody = req.body as UpdateAddressMappingsRouteRequestBody<JSPrimitiveNumberType>;
     const mappings = reqBody.addressMappings;
     const cosmosAddress = req.session.cosmosAddress
 
@@ -68,8 +58,10 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
     const status = await getStatus();
     const docs: AddressMappingDoc<JSPrimitiveNumberType>[] = [];
     for (const mapping of mappings) {
-      const existingDoc = await ADDRESS_MAPPINGS_DB.get(mapping.mappingId).catch(catch404);
-      if (existingDoc) {
+      const _existingDoc = await getFromDB(AddressMappingModel, mapping.mappingId);
+
+      if (_existingDoc) {
+        const existingDoc = convertAddressMappingDoc(_existingDoc, Stringify);
         if (existingDoc.createdBy !== cosmosAddress) {
           throw new Error("You are not the owner of mapping with ID " + mapping.mappingId);
         }
@@ -97,16 +89,15 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
             blockTimestamp: status.block.timestamp,
             txHash: '',
           }],
-          _id: mapping.mappingId,
+          _legacyId: mapping.mappingId,
           createdBlock: status.block.height,
           lastUpdated: status.block.timestamp,
         });
       }
     }
 
-    await ADDRESS_MAPPINGS_DB.bulk({
-      docs: docs
-    });
+    await insertMany(AddressMappingModel, docs);
+
 
     return res.status(200).send({})
   } catch (e) {

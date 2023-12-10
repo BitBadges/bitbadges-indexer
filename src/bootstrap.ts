@@ -102,7 +102,6 @@ const broadcastTx = async (rawTx: any) => {
       const res = await axios.get(`${process.env.API_URL}/cosmos/tx/v1beta1/txs/${txHash}`);
       fetched = true;
 
-      console.log(res);
       return res;
     } catch (e) {
       //wait 1 sec

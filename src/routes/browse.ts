@@ -1,90 +1,23 @@
 import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
-import nano from "nano";
 import { serializeError } from "serialize-error";
-import { ADDRESS_MAPPINGS_DB, COLLECTIONS_DB, FETCHES_DB, PROFILES_DB, TRANSFER_ACTIVITY_DB } from "../db/db";
-import { removeCouchDBDetails } from "../utils/couchdb-utils";
+import { AddressMappingModel, CollectionModel, FetchModel, ProfileModel, TransferActivityModel } from "../db/db";
 import { executeCollectionsQuery } from "./collections";
 import { getAccountByAddress } from "./users";
 import { getAddressMappingsFromDB } from "./utils";
 
+let cachedResult: GetBrowseCollectionsRouteResponse<NumberType> | undefined = undefined;
+let lastFetchTime = 0;
+
+
 export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
+    if (cachedResult && Date.now() - lastFetchTime < 1000 * 60 * 5) { //5 minutes
+      return res.status(200).send(cachedResult);
+    }
+
+
     //TODO: populate with better data
-
-    const latestQuery: nano.MangoQuery = {
-      selector: {
-        "_id": { "$gt": null },
-        "createdBlock": { "$gt": null }
-      },
-      sort: [{ "createdBlock": "desc" }],
-      limit: 24,
-      update: true,
-    }
-
-    const attendanceQuery: nano.MangoQuery = {
-      selector: {
-        "_id": { "$gt": null },
-        "content": {
-          "category": {
-            "$eq": "Attendance",
-          },
-        },
-        "db": {
-          "$eq": "Metadata",
-        }
-      }
-    }
-
-
-
-    const certificationsQuery = {
-      selector: {
-        "_id": { "$gt": null },
-        "content": {
-
-          "category": {
-            "$eq": "Certification",
-          },
-        },
-        "db": {
-          "$eq": "Metadata",
-        }
-      }
-    }
-
-    const transferActivityQuery: nano.MangoQuery = {
-      selector: {
-        timestamp: {
-          "$gt": null,
-        }
-      },
-      sort: [{ "timestamp": "desc" }],
-      limit: 100,
-    }
-
-    const profilePicUrlQuery: nano.MangoQuery = {
-      selector: {
-        "_id": {
-          "$gt": null,
-        },
-      },
-      limit: 25
-    }
-
-    const addressMappingsQuery: nano.MangoQuery = {
-      selector: {
-        createdBlock: {
-          "$gt": null,
-        },
-        private: {
-          "$ne": true
-        }
-      },
-      sort: [{ "createdBlock": "desc" }],
-      fields: ['_id', '_rev'],
-      limit: 100
-    };
 
     const [
       certificationsCollections,
@@ -94,40 +27,46 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       profiles,
       addressMappings
     ] = await Promise.all([
-      FETCHES_DB.find(certificationsQuery),
-      COLLECTIONS_DB.find(latestQuery),
-      FETCHES_DB.find(attendanceQuery),
-      TRANSFER_ACTIVITY_DB.find(transferActivityQuery),
-      PROFILES_DB.find(profilePicUrlQuery),
-      ADDRESS_MAPPINGS_DB.find(addressMappingsQuery)
+      FetchModel.find({
+        "content.category": "Certification",
+        "db": "Metadata"
+      }).lean().exec(),
+      CollectionModel.find({}).sort({ "createdBlock": -1 }).limit(24).lean().exec(),
+
+      FetchModel.find({
+        "content.category": "Attendance",
+        "db": "Metadata"
+      }).lean().exec(),
+      TransferActivityModel.find({}).sort({ "timestamp": -1 }).limit(100).lean().exec(),
+      ProfileModel.find({}).limit(25).lean().exec(),
+      AddressMappingModel.find({
+
+        private: { "$ne": true }
+      }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
     ]);
 
-    const uris = [...new Set([...attendanceCollections.docs.map(x => x._id), ...certificationsCollections.docs.map(x => x._id)])];
-    const urisQuery: nano.MangoQuery = {
-      selector: {
-        "_id": { "$gt": null },
-        "collectionMetadataTimeline": {
-          "$elemMatch": {
-            "collectionMetadata": {
-              "uri": {
-                "$in": uris
-              }
-            }
-          }
-        }
-      },
-      limit: 100
-    }
 
-    const urisForCollectionQuery = await COLLECTIONS_DB.find(urisQuery);
+
+    const uris = [...new Set([...attendanceCollections.map(x => x._legacyId), ...certificationsCollections.map(x => x._legacyId)])];
+    const urisForCollectionQuery = await CollectionModel.find({
+      collectionMetadataTimeline: {
+        $elemMatch: {
+          collectionMetadata: {
+            uri: {
+              $in: uris,
+            },
+          },
+        },
+      },
+    }).limit(100).lean().exec();
 
 
     const collections = await executeCollectionsQuery(req, [
-      ...latestCollections.docs,
-      ...urisForCollectionQuery.docs,
+      ...latestCollections,
+      ...urisForCollectionQuery,
     ].map(doc => {
       return {
-        collectionId: doc._id,
+        collectionId: doc._legacyId,
         fetchTotalAndMintBalances: true,
         handleAllAndAppendDefaults: true,
         metadataToFetch: {
@@ -139,17 +78,17 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     //latest activity
 
 
-    let addressMappingsToReturn = await getAddressMappingsFromDB(addressMappings.docs.map(x => {
+    let addressMappingsToReturn = await getAddressMappingsFromDB(addressMappings.map(x => {
       return {
-        mappingId: x._id,
+        mappingId: x._legacyId,
       }
     }), true);
 
 
 
     const promises = [];
-    for (const profile of profiles.docs) {
-      promises.push(getAccountByAddress(req, profile._id, {
+    for (const profile of profiles) {
+      promises.push(getAccountByAddress(req, profile._legacyId, {
         viewsToFetch: [{
 
           viewKey: 'badgesCollected',
@@ -160,29 +99,33 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     const allAccounts = await Promise.all(promises);
 
-
-
-    return res.status(200).send({
+    const result = {
       collections: {
         // 'featured': collections,
-        'latest': latestCollections.docs.map(x => collections.find(y => y.collectionId.toString() === x._id.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
-        'attendance': attendanceCollections.docs.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-          attendanceCollections.docs.map(x => x._id).includes(x.collectionMetadata.uri)
+        'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._legacyId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
+        'attendance': attendanceCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
+          attendanceCollections.map(x => x._legacyId).includes(x.collectionMetadata.uri)
         ))).filter(x => x) as BitBadgesCollection<NumberType>[],
-        'certifications': certificationsCollections.docs.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-          certificationsCollections.docs.map(x => x._id).includes(x.collectionMetadata.uri)
+        'certifications': certificationsCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
+          certificationsCollections.map(x => x._legacyId).includes(x.collectionMetadata.uri)
         ))).filter(x => x) as BitBadgesCollection<NumberType>[],
       },
-      activity: activity.docs.map(x => removeCouchDBDetails(x)),
+      activity: activity,
       addressMappings: {
         'latest': addressMappingsToReturn,
       },
       profiles: {
         'featured': [
           ...allAccounts,
-        ].map(x => removeCouchDBDetails(x)),
+        ]
       },
-    });
+    }
+
+    cachedResult = result;
+    lastFetchTime = Date.now();
+
+
+    return res.status(200).send(result);
   } catch (e) {
     console.error(e);
     return res.status(500).send({

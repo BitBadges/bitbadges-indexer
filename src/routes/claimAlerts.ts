@@ -3,7 +3,7 @@ import { SendClaimAlertsRouteRequestBody, SendClaimAlertsRouteResponse, convertT
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager } from "../blockin/blockin_handlers";
-import { CLAIM_ALERTS_DB, insertToDB } from "../db/db";
+import { ClaimAlertModel, insertToDB } from "../db/db";
 
 export const sendClaimAlert = async (expressReq: Request, res: Response<SendClaimAlertsRouteResponse<NumberType>>) => {
   try {
@@ -19,14 +19,14 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
       const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
 
       const doc = {
-        _id: `${claimAlert.collectionId}:${id}`,
+        _legacyId: `${claimAlert.collectionId}:${id}`,
         createdTimestamp: Number(Date.now()),
         collectionId: Number(claimAlert.collectionId),
         message: claimAlert.message,
         cosmosAddresses: [convertToCosmosAddress(claimAlert.recipientAddress)],
       }
 
-      await insertToDB(CLAIM_ALERTS_DB, doc);
+      await insertToDB(ClaimAlertModel, doc);
     }
 
     return res.status(200).send({ success: true });

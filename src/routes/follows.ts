@@ -4,8 +4,7 @@ import { BigIntify, GetFollowDetailsRouteRequestBody, GetFollowDetailsRouteRespo
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { COLLECTIONS_DB, FOLLOWS_DB, insertToDB } from "../db/db";
-import { catch404 } from "../utils/couchdb-utils";
+import { CollectionModel, FollowDetailsModel, getFromDB, insertToDB, mustGetFromDB } from "../db/db";
 import { executeCollectionBalancesQuery } from "./activityHelpers";
 import { executeCollectedQuery } from "./userHelpers";
 
@@ -24,16 +23,16 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     // const followingBookmark = '';
     // const followersBookmark = '';
 
-    let _followDoc = await FOLLOWS_DB.get(reqBody.cosmosAddress).catch(catch404);
+    let _followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
     if (!_followDoc) {
-      _followDoc = {
-        _id: reqBody.cosmosAddress,
+      _followDoc = new FollowDetailsModel({
+        _legacyId: reqBody.cosmosAddress,
         _rev: '',
         cosmosAddress: reqBody.cosmosAddress,
         followingCount: 0,
         followersCount: 0,
         followingCollectionId: 0,
-      }
+      });
     }
     const followDoc = convertFollowDetailsDoc(_followDoc, BigIntify);
 
@@ -54,17 +53,12 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
         if (currBalance <= 0n) continue;
 
 
-        const res = await FOLLOWS_DB.find({
-          selector: {
-            followingCollectionId: {
-              $eq: doc.collectionId
-            }
-          },
-          limit: 1,
-        });
+        const res = await FollowDetailsModel.find({
+          followingCollectionId: Number(doc.collectionId),
+        }).limit(1).lean().exec();
 
-        if (res.docs.length > 0) {
-          followers.push(res.docs[0].cosmosAddress);
+        if (res.length > 0) {
+          followers.push(res[0].cosmosAddress);
         }
       }
 
@@ -77,7 +71,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
       while (hasMore) {
         const res = await executeCollectionBalancesQuery(followDoc.followingCollectionId.toString(), currBookmark);
         hasMore = res.docs.length >= 25;
-        currBookmark = res.bookmark ?? '';
+        currBookmark = res.pagination.bookmark ?? '';
         for (const doc of res.docs) {
           if (!doc) continue;
 
@@ -98,7 +92,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     }
 
     return res.status(200).send({
-      _id: followDoc._id,
+      _legacyId: followDoc._legacyId,
       cosmosAddress: followDoc.cosmosAddress,
       followersCount: followDoc.followersCount,
       followingCount: followDoc.followingCount,
@@ -130,16 +124,16 @@ export const updateFollowDetails = async (expressReq: Request, res: Response<Upd
 
     const cosmosAddress = req.session?.cosmosAddress;
 
-    let _followDoc = await FOLLOWS_DB.get(cosmosAddress).catch(catch404);
+    let _followDoc = await getFromDB(FollowDetailsModel, cosmosAddress);
     if (!_followDoc) {
-      _followDoc = {
-        _id: cosmosAddress,
+      _followDoc = new FollowDetailsModel({
+        _legacyId: cosmosAddress,
         _rev: '',
         cosmosAddress: cosmosAddress,
         followingCount: 0,
         followersCount: 0,
         followingCollectionId: 0,
-      }
+      });
     }
 
     const followDoc = convertFollowDetailsDoc(_followDoc, BigIntify);
@@ -149,14 +143,8 @@ export const updateFollowDetails = async (expressReq: Request, res: Response<Upd
       followDoc.followingCollectionId = BigInt(reqBody.followingCollectionId);
 
       //Ensure the collection exists and meets the criteria for the follow standards
-      const collectionDoc = await COLLECTIONS_DB.get(followDoc.followingCollectionId.toString()).catch(catch404);
-      if (!collectionDoc) {
-        return res.status(400).send({
-          message: "Collection does not exist."
-        });
-      }
+      const collectionDoc = await mustGetFromDB(CollectionModel, reqBody.followingCollectionId.toString());
 
-      console.log(collectionDoc.createdBy, cosmosAddress);
       if (collectionDoc.createdBy !== cosmosAddress) {
         return res.status(400).send({
           message: "Collection was not created by this user."
@@ -168,12 +156,10 @@ export const updateFollowDetails = async (expressReq: Request, res: Response<Upd
       //-Assert correct metadata
       //-Assert at least one badge
       //-Not "No Balances" standard
-
-
     }
 
 
-    await insertToDB(FOLLOWS_DB, followDoc);
+    await insertToDB(FollowDetailsModel, followDoc);
 
     return
   } catch (e) {

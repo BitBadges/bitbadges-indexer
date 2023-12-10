@@ -2,32 +2,31 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { Balance, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
+import { Balance, JSPrimitiveNumberType, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
-import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
+import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
 import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import mongoose from "mongoose"
 import nano from "nano"
 import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
-import { COMPLIANCE_DB, ERRORS_DB, MsgDoc } from "./db/db"
+import { ComplianceModel, ErrorModel, MongoDB, MsgDoc, StatusModel, insertMany, mustGetFromDB } from "./db/db"
 import { getStatus } from "./db/status"
 import { client, setClient, setTimer, setUriPollerTimer } from "./indexer"
+import { TIME_MODE } from "./indexer-vars"
 import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
+import { handleMsgCreateCollection } from "./tx-handlers/handleMsgCreateCollection"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
 import { handleMsgUniversalUpdateCollection } from "./tx-handlers/handleMsgUniversalUpdateCollection"
+import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
 import { handleMsgUpdateUserApprovals } from "./tx-handlers/handleMsgUpdateUserApprovals"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
-import { catch404 } from "./utils/couchdb-utils"
-import { handleMsgCreateCollection } from "./tx-handlers/handleMsgCreateCollection"
-import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollection"
-import { TIME_MODE } from "./indexer-vars"
-
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000
 const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000
@@ -85,14 +84,14 @@ export const pollUris = async () => {
     if (e && e.code !== 'ECONNREFUSED') {
       console.error(e);
 
-      await ERRORS_DB.bulk({
-        docs: [{
-          error: serializeError(e),
-          function: 'pollUris',
-        }]
-      });
+      await insertMany(ErrorModel, [{
+        _legacyId: new mongoose.Types.ObjectId().toString(),
+        error: serializeError(e),
+        function: 'pollUris',
+      }]);
     }
   }
+
   if (TIME_MODE && QUEUE_TIME_MODE) {
     console.timeEnd("pollUris");
   }
@@ -108,7 +107,9 @@ export const poll = async () => {
     console.time("poll");
   }
 
+
   try {
+
     // Connect to the chain client (this is first-time only)
     // This could be in init() but it is here in case indexer is started w/o the chain running
     if (!client) {
@@ -122,14 +123,14 @@ export const poll = async () => {
 
     // If we are behind, go until we catch up
     const _status = await getStatus();
+
     let status = convertStatusDoc(_status, BigIntify);
 
     //Every 50 blocks, query the compliance doc to be used
     if (status.block.height % 50n == 0n) {
-      const res = await COMPLIANCE_DB.get('compliance').catch(catch404);
-      if (res) complianceDoc = convertComplianceDoc(res, BigIntify);
+      const _complianceDoc = await mustGetFromDB(ComplianceModel, 'compliance')
+      complianceDoc = convertComplianceDoc(_complianceDoc, BigIntify);
     }
-
 
     while (!caughtUp) {
       // We fetch initial status at beginning of block and do not write anything in DB until flush at end of block
@@ -156,38 +157,52 @@ export const poll = async () => {
         passwordDocs: {},
       };
 
-      const msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[] = [];
+      const session = await MongoDB.startSession();
+      session.startTransaction();
+      try {
+
+        const msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[] = [];
 
 
-      //Handle printing of status if there was an outage
-      if (outageTime) {
-        if (!TIME_MODE) process.stdout.write('\n');
-        console.log(`Reconnected to chain at block ${status.block.height} after outage of ${new Date().getTime() - outageTime.getTime()} ms`)
+        //Handle printing of status if there was an outage
+        if (outageTime) {
+          if (!TIME_MODE) process.stdout.write('\n');
+          console.log(`Reconnected to chain at block ${status.block.height} after outage of ${new Date().getTime() - outageTime.getTime()} ms`)
+        }
+        outageTime = undefined;
+
+
+        const processing = status.block.height + 1n;
+        if (!TIME_MODE) process.stdout.cursorTo(0);
+
+        const block: Block = await client.getBlock(Number(processing))
+
+        if (!TIME_MODE) process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
+        status.block.timestamp = BigInt(new Date(block.header.time).getTime());
+
+        await handleBlock(block, status, docs, session);
+
+        status.block.height++;
+        status.block.txIndex = 0n;
+
+
+        //Right now, we are banking on all these DB updates succeeding together every time. 
+        //If there is a failure in the middle, it could be bad.
+        const flushed = await flushCachedDocs(session, docs, msgDocs, status, status.block.height < clientHeight);
+        if (flushed) {
+          const status2 = await StatusModel.findOne({}).lean().session(session).exec();
+          status = convertStatusDoc(status2 as StatusDoc<JSPrimitiveNumberType>, BigIntify);
+        }
+
+        await session.commitTransaction();
+        await session.endSession();
+      } catch (e) {
+        console.error(e);
+        await session.abortTransaction();
+        await session.endSession();
+        throw e;
       }
-      outageTime = undefined;
 
-
-      const processing = status.block.height + 1n;
-      if (!TIME_MODE) process.stdout.cursorTo(0);
-
-      const block: Block = await client.getBlock(Number(processing))
-
-      if (!TIME_MODE) process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`)
-      status.block.timestamp = BigInt(new Date(block.header.time).getTime());
-
-      await handleBlock(block, status, docs, msgDocs)
-
-      status.block.height++;
-      status.block.txIndex = 0n;
-
-
-      //Right now, we are banking on all these DB updates succeeding together every time. 
-      //If there is a failure in the middle, it could be bad.
-      const flushed = await flushCachedDocs(docs, msgDocs, status, status.block.height < clientHeight);
-      if (flushed) {
-        const status2 = await getStatus();
-        status = convertStatusDoc(status2, BigIntify);
-      }
     }
   } catch (e) {
     //Error handling
@@ -209,12 +224,11 @@ export const poll = async () => {
     if (e && e.code !== 'ECONNREFUSED') {
       console.error(e);
 
-      await ERRORS_DB.bulk({
-        docs: [{
-          error: serializeError(e),
-          function: 'poll',
-        }]
-      });
+      await insertMany(ErrorModel, [{
+        _legacyId: new mongoose.Types.ObjectId().toString(),
+        error: serializeError(e),
+        function: 'poll',
+      }]);
     }
   }
 
@@ -257,8 +271,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const numTransfers = numTransfersJsonStr && numTransfersJsonStr != "null" ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
 
     docs.approvalsTrackers[docId] = {
-      _id: docId,
-      _rev: undefined,
+      _legacyId: docId,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       approvalLevel: approvalLevel ? approvalLevel : '',
       approverAddress: approverAddress ? approverAddress : '',
@@ -283,8 +296,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     newLeafIndices.push(BigIntify(leafIndex ? leafIndex : 0n));
 
     docs.merkleChallenges[docId] = {
-      _id: docId,
-      _rev: undefined,
+      _legacyId: docId,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       challengeId: challengeId ? challengeId : '',
       challengeLevel: challengeLevel ? challengeLevel : '' as "collection" | "incoming" | "outgoing" | "",
@@ -310,7 +322,7 @@ const getAttributeValueByKey = (attributes: Attribute[], key: string): string | 
   return attributes.find((attribute: Attribute) => attribute.key === key)?.value
 }
 
-const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCache, msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[]) => {
+const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCache, session: mongoose.ClientSession) => {
   if (0 < block.txs.length && !TIME_MODE) console.log("")
 
   //Handle each tx consecutively
@@ -318,7 +330,7 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
     const txHash: string = toHex(sha256(block.txs[Number(status.block.txIndex)])).toUpperCase()
     const indexed: IndexedTx | null = await client.getTx(txHash);
     if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`)
-    await handleTx(indexed, status, docs, msgDocs)
+    await handleTx(indexed, status, docs, session)
     status.block.txIndex++
   }
 
@@ -328,7 +340,7 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
   // await handleEvents(events, status, docs)
 }
 
-const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: DocsCache, msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[]) => {
+const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: DocsCache, session: mongoose.ClientSession) => {
   let decodedTx: DecodedTxRaw;
   try {
     try {
@@ -400,7 +412,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         break;
       case "/badges.MsgDeleteCollection":
         const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.MsgDeleteCollection.fromBinary(value))
-        await handleMsgDeleteCollection(newDeleteMsg, status, docs);
+        await handleMsgDeleteCollection(newDeleteMsg, status, docs, session);
         msg = newDeleteMsg;
         break;
       case "/badges.MsgCreateAddressMappings":
@@ -446,7 +458,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       } else {
         //Deprecated: We switched to track everything in updateHistory
         // msgDocs.push({
-        //   _id: `${indexed.height}-${indexed.txIndex}-${messageIdx}`,
+        //   _legacyId: `${indexed.height}-${indexed.txIndex}-${messageIdx}`,
         //   // msg: msg,
         //   txHash: indexed.hash,
         //   txIndex: indexed.txIndex,
@@ -484,13 +496,13 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     // Handle JSON parsing errors here if needed, or just continue
     console.error("JSON parsing failed. Skipping event as it most likely failed", e);
 
-    await ERRORS_DB.bulk({
-      docs: [{
-        error: serializeError(e),
-        function: 'handleEvents',
-        txHash: indexed.hash,
-      }]
-    });
+
+
+    await insertMany(ErrorModel, [{
+      _legacyId: new mongoose.Types.ObjectId().toString(),
+      error: serializeError(e),
+      function: 'handleEvents' + ' - ' + indexed.hash,
+    }]);
   }
 }
 

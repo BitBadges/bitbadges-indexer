@@ -2,42 +2,31 @@ import { BigIntify, DocsCache, NumberType, RefreshMetadataRouteResponse, Refresh
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { flushCachedDocs } from "../db/cache";
-import { COLLECTIONS_DB, QUEUE_DB } from "../db/db";
+import { CollectionModel, MongoDB, QueueModel, mustGetFromDB } from "../db/db";
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from "../queue";
-import { removeCouchDBDetails } from "../utils/couchdb-utils";
 
 export const getRefreshStatus = async (req: Request, res: Response<RefreshStatusRouteResponse<NumberType>>) => {
   try {
     const collectionId = req.params.collectionId;
 
-    const errorDocs = await QUEUE_DB.find({
-      selector: {
-        collectionId: {
-          $eq: Number(collectionId),
-        },
-        error: {
-          $gt: null,
-        }
-      },
-    });
-    let inQueue = errorDocs.docs.length > 0;
+    const errorDocs = await QueueModel.find({
+      collectionId: Number(collectionId),
+      error: { $exists: true },
+    }).limit(100).lean().exec();
+
+    let inQueue = errorDocs.length > 0;
 
     if (!inQueue) {
-      const docs = await QUEUE_DB.find({
-        selector: {
-          collectionId: {
-            $eq: Number(collectionId),
-          },
-        },
-        limit: 1,
-      });
+      const docs = await QueueModel.find({
+        collectionId: Number(collectionId),
+      }).limit(1).lean().exec();
 
-      inQueue = docs.docs.length > 0;
+      inQueue = docs.length > 0;
     }
 
     return res.status(200).send({
       inQueue,
-      errorDocs: errorDocs.docs.map((doc) => removeCouchDBDetails(doc)),
+      errorDocs: errorDocs,
     });
 
 
@@ -50,7 +39,7 @@ export const getRefreshStatus = async (req: Request, res: Response<RefreshStatus
 }
 
 export const refreshCollection = async (collectionId: string, forceful?: boolean) => {
-  const _collection = await COLLECTIONS_DB.get(collectionId);
+  const _collection = await mustGetFromDB(CollectionModel, collectionId);
   const collection = convertCollectionDoc(_collection, BigIntify);
   const docs: DocsCache = {
     collections: {},
@@ -75,8 +64,17 @@ export const refreshCollection = async (collectionId: string, forceful?: boolean
     if (collection.balancesType === 'Off-Chain') {
       await pushBalancesFetchToQueue(docs, collection, refreshTime);
     }
-
-    await flushCachedDocs(docs);
+    const session = await MongoDB.startSession();
+    try {
+      session.startTransaction();
+      await flushCachedDocs(session, docs);
+      await session.commitTransaction();
+      await session.endSession();
+    } catch (e) {
+      await session.abortTransaction();
+      await session.endSession();
+      throw e;
+    }
 
     return 0;
   } else {

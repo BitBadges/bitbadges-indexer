@@ -4,8 +4,7 @@ import { constructChallengeObjectFromString, constructChallengeStringFromChallen
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, genericBlockinVerify } from "../blockin/blockin_handlers";
-import { AUTH_CODES_DB, insertToDB } from "../db/db";
-import { catch404 } from "../utils/couchdb-utils";
+import { BlockinAuthSignatureModel, deleteMany, insertToDB, mustGetFromDB } from "../db/db";
 
 export const createAuthCode = async (expressReq: Request, res: Response<CreateBlockinAuthCodeRouteResponse>) => {
   try {
@@ -40,8 +39,8 @@ export const createAuthCode = async (expressReq: Request, res: Response<CreateBl
       throw "Signature was invalid: " + response.message;
     }
 
-    await insertToDB(AUTH_CODES_DB, {
-      _id: reqBody.signature,
+    await insertToDB(BlockinAuthSignatureModel, {
+      _legacyId: reqBody.signature,
       ...reqBody,
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
       params: challengeParams,
@@ -63,10 +62,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
     const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetBlockinAuthCodeRouteRequestBody;
 
-    const doc = await AUTH_CODES_DB.get(reqBody.signature).catch(catch404);
-    if (!doc) {
-      throw new Error("Auth code with provided signature not found.");
-    }
+    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
     const params = doc.params;
     try {
       const verificationResponse = await genericBlockinVerify(
@@ -112,12 +108,8 @@ export const deleteAuthCode = async (expressReq: Request, res: Response<DeleteBl
     const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as DeleteBlockinAuthCodeRouteRequestBody;
 
-    const doc = await AUTH_CODES_DB.get(reqBody.signature).catch(catch404);
-    if (!doc) {
-      throw new Error("Auth code with provided signature not found.");
-    }
-
-    await AUTH_CODES_DB.destroy(doc._id, doc._rev);
+    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
+    await deleteMany(BlockinAuthSignatureModel, [doc._legacyId]);
 
     return res.status(200).send({ success: true });
   } catch (e) {

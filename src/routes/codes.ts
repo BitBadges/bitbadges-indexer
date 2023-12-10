@@ -1,18 +1,17 @@
 import { JSPrimitiveNumberType, NumberType } from "bitbadgesjs-proto";
 import { CodesAndPasswords, GetAllCodesAndPasswordsRouteResponse, PasswordDoc } from "bitbadgesjs-utils";
+import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
-import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
-import { PASSWORDS_DB } from "../db/db";
-import CryptoJS from "crypto-js";
+import { PasswordModel } from "../db/db";
 
 const { AES } = CryptoJS;
 
 
 export const getAllCodesAndPasswords = async (expressReq: Request, res: Response<GetAllCodesAndPasswordsRouteResponse<NumberType>>) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>; 
+    const req = expressReq as AuthenticatedRequest<NumberType>;
     const collectionId = Number(req.params.collectionId);
 
     const isManager = await checkIfManager(req, collectionId);
@@ -21,24 +20,13 @@ export const getAllCodesAndPasswords = async (expressReq: Request, res: Response
     const codesAndPasswords: CodesAndPasswords[] = [];
     const codesDocsArr: PasswordDoc<JSPrimitiveNumberType>[] = [];
 
-    let docsLength = -1;
-    let bookmark: string | undefined = undefined;
     do {
-      const docQuery: nano.MangoQuery = {
-        selector: {
-          collectionId: {
-            "$eq": collectionId
-          }
-        },
-        bookmark,
-        limit: 200,
-      }
+      const _codesDocsArr = await PasswordModel.find({
+        collectionId: collectionId
+      }).skip(codesDocsArr.length).limit(200).lean().exec();
 
-      const _codesDocsArr = await PASSWORDS_DB.find(docQuery);
-      codesDocsArr.push(..._codesDocsArr.docs);
-      docsLength = _codesDocsArr.docs.length;
-      bookmark = docQuery.bookmark;
-    } while (docsLength == 200);
+      codesDocsArr.push(..._codesDocsArr as PasswordDoc<JSPrimitiveNumberType>[]);
+    } while (codesDocsArr.length % 200 === 0);
 
 
     const docs = codesDocsArr.filter(doc => doc.docClaimedByCollection);

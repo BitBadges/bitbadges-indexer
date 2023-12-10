@@ -3,10 +3,9 @@ import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-utils"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleApprovals } from "./approvalInfo"
 
+import { OffChainUrlDoc, OffChainUrlModel, getFromDB, insertToDB } from "../db/db"
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
-import { OFF_CHAIN_URLS_DB, insertToDB } from "../db/db"
-import { catch404 } from "../utils/couchdb-utils"
 
 export function recursivelyDeleteFalseProperties(obj: object) {
   if (Array.isArray(obj)) {
@@ -57,8 +56,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
     collectionId = status.nextCollectionId;
 
     docs.collections[status.nextCollectionId.toString()] = {
-      _id: status.nextCollectionId.toString(),
-      _rev: undefined,
+      _legacyId: status.nextCollectionId.toString(),
       collectionId: status.nextCollectionId,
       // inheritedCollectionId: msg.inheritedCollectionId,
 
@@ -105,8 +103,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
 
     if (msg.balancesType === "Standard" || msg.balancesType === "Off-Chain") {
       docs.balances[`${status.nextCollectionId}:Total`] = {
-        _id: `${status.nextCollectionId.toString()}:Total`,
-        _rev: undefined,
+        _legacyId: `${status.nextCollectionId.toString()}:Total`,
         balances: [],
         cosmosAddress: "Total",
         collectionId: status.nextCollectionId,
@@ -125,8 +122,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       }
 
       docs.balances[`${status.nextCollectionId}:Mint`] = {
-        _id: `${status.nextCollectionId.toString()}:Mint`,
-        _rev: undefined,
+        _legacyId: `${status.nextCollectionId.toString()}:Mint`,
         balances: [],
         cosmosAddress: "Mint",
         collectionId: status.nextCollectionId,
@@ -229,8 +225,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
 
 
   docs.refreshes[collection.collectionId.toString()] = {
-    _id: collection.collectionId.toString(),
-    _rev: undefined,
+    _legacyId: collection.collectionId.toString(),
     collectionId: collection.collectionId,
     refreshRequestTime: status.block.timestamp,
   }
@@ -247,9 +242,9 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       //BitBadges hosted on DigitalOcean
       //First collection to use the unique code will be the "owner" collection. Determined via on-chain order. Simply first to use a unique string
       //If there is an existing doc, we do not need to do anything. This also protects against other collections simply using the balances URL of another collection (allowed but they won't be able to edit)
-      const existingDoc = await OFF_CHAIN_URLS_DB.get(customData).catch(catch404);
+      const existingDoc = await getFromDB(OffChainUrlModel, customData);
       if (!existingDoc) {
-        await insertToDB(OFF_CHAIN_URLS_DB, { collectionId: collection.collectionId, _id: customData, _rev: undefined });
+        await insertToDB(OffChainUrlModel, { collectionId: Number(collection.collectionId) } as OffChainUrlDoc);
       }
     }
   }

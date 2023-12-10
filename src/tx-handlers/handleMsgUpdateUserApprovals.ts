@@ -19,8 +19,7 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
   let balancesDoc = docs.balances[`${msg.collectionId}:${msg.creator}`];
   if (!balancesDoc) {
     balancesDoc = {
-      _id: `${msg.collectionId}:${msg.creator}`,
-      _rev: undefined,
+      _legacyId: `${msg.collectionId}:${msg.creator}`,
       balances: [],
       cosmosAddress: msg.creator,
       collectionId: msg.collectionId,
@@ -33,6 +32,7 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
       updateHistory: [],
     }
   }
+  if (!balancesDoc) throw new Error(`Balance ${msg.collectionId}:${msg.creator} does not exist`); //For TS
 
   balancesDoc.updateHistory.push({
     block: status.block.height,

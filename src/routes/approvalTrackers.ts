@@ -1,8 +1,7 @@
 import { GetApprovalsRouteRequestBody, GetApprovalsRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { APPROVALS_TRACKER_DB } from "../db/db";
-import { getDocsFromNanoFetchRes, removeCouchDBDetails } from "../utils/couchdb-utils";
+import { ApprovalsTrackerModel, mustGetManyFromDB } from "../db/db";
 
 export const getApprovals = async (req: Request, res: Response<GetApprovalsRouteResponse<NumberType>>) => {
   try {
@@ -20,11 +19,10 @@ export const getApprovals = async (req: Request, res: Response<GetApprovalsRoute
     }
 
 
-    const fetchRes = await APPROVALS_TRACKER_DB.fetch({ keys: docIds });
-    const docs = getDocsFromNanoFetchRes(fetchRes);
+    const docs = await mustGetManyFromDB(ApprovalsTrackerModel, docIds);
 
 
-    return res.status(200).send({ approvalTrackers: [...docs.map(x => removeCouchDBDetails(x))] });
+    return res.status(200).send({ approvalTrackers: [...docs] });
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),

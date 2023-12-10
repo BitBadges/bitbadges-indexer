@@ -1,6 +1,5 @@
 import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertPasswordDoc, convertToCosmosAddress } from "bitbadgesjs-utils";
-import nano from "nano";
-import { PASSWORDS_DB } from "../db/db";
+import { PasswordModel } from "../db/db";
 import { getApprovalInfoIdForQueueDb, pushApprovalInfoFetchToQueue } from "../queue";
 import { getLoadBalancerId } from "../utils/loadBalancer";
 
@@ -26,42 +25,42 @@ export const handleApprovals = async (docs: DocsCache, collectionDoc: Collection
 
 
           //The following is to handle if there are multiple claims using the same uri (and thus the same file contents)
-          //If the collection was created through our API, we previously made a document in PASSWORDS_DB with docClaimedByCollection = false and the correct passwords
+          //If the collection was created through our API, we previously made a document in PasswordModel with docClaimedByCollection = false and the correct passwords
           //To prevent duplicates, we "claim" the document by setting docClaimedByCollection = true
           //We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
           if (approval.uri.startsWith('ipfs://')) {
             const cid = approval.uri.replace('ipfs://', '').split('/')[0];
 
-            const docQuery: nano.MangoQuery = {
-              selector: {
-                docClaimedByCollection: {
-                  "$eq": false
-                },
-                cid: {
-                  "$eq": cid
-                },
-                createdBy: {
-                  "$eq": collectionDoc.createdBy
-                }
-              }
-            }
+            const docQuery = {
+              docClaimedByCollection: false,
+              cid: cid,
+              createdBy: collectionDoc.createdBy,
+            };
 
-            const docResult = await PASSWORDS_DB.find(docQuery);
-            if (docResult.docs.length) {
-              const doc = docResult.docs[0];
+            const docResult = await PasswordModel.find(docQuery).lean().exec();
+            if (docResult.length) {
+              const doc = docResult[0];
 
-              docs.passwordDocs[doc._id] = {
-                ...convertPasswordDoc(doc, BigIntify),
+              const convertedDoc = convertPasswordDoc(doc as any, BigIntify);
+
+              docs.passwordDocs[doc._legacyId] = {
+                ...convertedDoc,
                 docClaimedByCollection: true,
                 collectionId: collectionDoc.collectionId,
+                challengeDetails: convertedDoc.challengeDetails ? {
+                  ...convertedDoc.challengeDetails,
+                  currCode: convertedDoc.challengeDetails?.currCode ? BigInt(convertedDoc.challengeDetails.currCode) : 0n,
+                } : undefined,
               }
+
+              console.log("TEST2");
 
               if (merkleChallenge?.useCreatorAddressAsLeaf) {
                 if (doc.challengeDetails?.leavesDetails.isHashed == false) {
                   const addresses = doc.challengeDetails?.leavesDetails.leaves.map(leaf => convertToCosmosAddress(leaf));
                   const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
                   docs.claimAlertsToAdd.push({
-                    _id: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
+                    _legacyId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
                     createdTimestamp: status.block.timestamp,
                     collectionId: collectionDoc.collectionId,
                     cosmosAddresses: addresses,

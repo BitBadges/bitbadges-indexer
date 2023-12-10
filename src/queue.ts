@@ -1,48 +1,45 @@
 import axios from "axios";
 import { AddressMapping, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
-import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityInfoBase, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import CryptoJS from "crypto-js";
+import Joi from "joi";
+import mongoose from "mongoose";
 import nano from "nano";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
-import { BALANCES_DB, FETCHES_DB, QUEUE_DB, REFRESHES_DB, insertToDB } from "./db/db";
+import { BalanceModel, FetchModel, MongoDB, QueueModel, RefreshModel, deleteMany, getFromDB, insertToDB, mustGetFromDB } from "./db/db";
 import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer-vars";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE } from "./poll";
 import { getAddressMappingsFromDB } from "./routes/utils";
 import { compareObjects } from "./utils/compare";
-import { catch404 } from "./utils/couchdb-utils";
 import { cleanApprovalInfo, cleanBalances, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
-import CryptoJS from "crypto-js";
-import Joi from "joi";
 
 const { SHA256 } = CryptoJS
 
 //1. Upon initial TX (new collection or URIs updating): 
-// 	1. Trigger collection, claims, first X badges, and balances to queue in QUEUE_DB
-// 	2. Add collection to REFRESHES_DB
+// 	1. Trigger collection, claims, first X badges, and balances to queue in QueueModel
+// 	2. Add collection to RefreshModel
 // 2. Upon fetch request:
-// 	1. Check if URI is to be refreshed in REFRESHES_DB
-// 	2. If to be refreshed or not in FETCHES_DB, add to queue. Return adding to queue message or old cached version.
-// 	3. Else, return FETCHES_DB cached version
+// 	1. Check if URI is to be refreshed in RefreshModel
+// 	2. If to be refreshed or not in FetchModel, add to queue. Return adding to queue message or old cached version.
+// 	3. Else, return FetchModel cached version
 // 	4. If in queue or just added to queue, return flag
-// 3. For refresh requests, update REFRESHES_DB
+// 3. For refresh requests, update RefreshModel
 // 	1. Do same as initial TX
 // 	2. Refresh queue buffer time - Can't spam. 60 second timeout
-// 4. Aggressively prune old QUEUE_DB doc IDs, once _deleted is true. Once deleted, we will never use the doc again.
+// 4. Aggressively prune old QueueModel doc IDs, once _deleted is true. Once deleted, we will never use the doc again.
 // 	1. For own node's docs, keep _deleted for much longer for replication purposes (24 hours)
 // 	2. For others, we can delete right upon receiving _deleted = true
 // 5. When fetching from queue, check if lastFetchedAt > refreshRequestTime (i.e. do not fetch if we have already fetched after latest refresh time)
-// 	1. This is fine because we have a no-conflict system for FETCHES_DB
+// 	1. This is fine because we have a no-conflict system for FetchModel
 // 	2. Implemented with exponential backoff where delay = 2^numRetries * BASE_DELAY 
 // 	3. BASE_DELAY = 12 hours
 
-//Upon fetch request, check in REFRESHES_DB if it is to be refreshed
+//Upon fetch request, check in RefreshModel if it is to be refreshed
 export const fetchUriFromDb = async (uri: string, collectionId: string) => {
-  let fetchDoc: (FetchDoc<JSPrimitiveNumberType> & nano.Document) | undefined;
-  let refreshDoc: (RefreshDoc<JSPrimitiveNumberType> & {
-    _id: string;
-    _rev: string;
-  }) | undefined;
+  let fetchDoc: (FetchDoc<JSPrimitiveNumberType>) | undefined;
+  let refreshDoc: (RefreshDoc<JSPrimitiveNumberType>) | undefined;
   let alreadyInQueue = false;
   let needsRefresh = false;
   let refreshRequestTime = Date.now();
@@ -57,8 +54,8 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   //Check if we need to refresh
 
   //TODO: Get all refresh _conflicts and only take the one with latest time
-  const fetchDocPromise = FETCHES_DB.get(uri).catch(catch404);
-  const refreshDocPromise = REFRESHES_DB.get(collectionId);
+  const fetchDocPromise = getFromDB(FetchModel, uri);
+  const refreshDocPromise = mustGetFromDB(RefreshModel, collectionId);
 
   [fetchDoc, refreshDoc] = await Promise.all([fetchDocPromise, refreshDocPromise]);
 
@@ -69,26 +66,26 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
 
   /*
     Below, we use a clever approach to prevent multiple queue documents for the same URI and same refresh request.
-    This is in case the REFRESHES_DB is ahead of the QUEUE_DB. If REFRESHES_DB is ahead, we do not want
+    This is in case the RefreshModel is ahead of the QueueModel. If RefreshModel is ahead, we do not want
     all N nodes to pick up on the fact that it needs a refresh and create N separate queue documents. Instead, we want
-    only one queue document to be created. To do this, we use the _rev of the refresh document as the _id of the queue document.
+    only one queue document to be created. To do this, we use the refreshRequestTime of the refresh document as the _legacyId of the queue document.
     This way, the same exact document is created by all N nodes and will not cause any conflicts.
   */
 
   //If not already in queue and we need to refresh, add to queue
   if (needsRefresh) {
-
+    const id = `${uri}-${refreshDoc.refreshRequestTime}`;
     //Check if already in queue
-    const res = await QUEUE_DB.get(`${uri}-${refreshDoc._rev}`).catch(catch404);
+    const res = await getFromDB(QueueModel, id);
     if (res) {
       alreadyInQueue = true;
     }
 
     if (!alreadyInQueue) {
-      const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc._rev}`); //`${uri}-${refreshDoc._rev}
+      const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc.refreshRequestTime}`); //`${uri}-${refreshDoc.refreshRequestTime}
 
-      await insertToDB(QUEUE_DB, {
-        _id: `${uri}-${refreshDoc._rev}`,
+      await insertToDB(QueueModel, {
+        _legacyId: `${uri}-${refreshDoc.refreshRequestTime}`,
         _rev: undefined,
         uri: uri,
         collectionId: collectionId,
@@ -110,19 +107,19 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
 }
 
 export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>, block: bigint) => {
-  let fetchDoc: (FetchDoc<bigint> & nano.IdentifiedDocument & nano.MaybeRevisionedDocument) | undefined;
+  let fetchDoc: (FetchDoc<bigint>) | undefined;
   let needsRefresh = false;
   let dbType: 'ApprovalInfo' | 'Metadata' | 'Balances' = 'Metadata';
 
 
 
   //Get document from cache if it exists
-  const _fetchDoc = await FETCHES_DB.get(uri).catch(catch404);
+  const _fetchDoc = await getFromDB(FetchModel, uri);
   fetchDoc = _fetchDoc ? convertFetchDoc(_fetchDoc, BigIntify) : undefined;
 
   //If permanent, do not need to fetch from source
   if (fetchDoc && fetchDoc.isPermanent) {
-    await insertToDB(FETCHES_DB, {
+    await insertToDB(FetchModel, {
       ...fetchDoc,
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block
@@ -185,10 +182,9 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       res = cleanApprovalInfo(res);
     }
 
-    await insertToDB(FETCHES_DB, {
+    await insertToDB(FetchModel, {
       ...fetchDoc,
-      _id: uri,
-      _rev: fetchDoc ? fetchDoc._rev : undefined,
+      _legacyId: uri,
       content: res,
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block,
@@ -201,7 +197,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
 const MIN_TIME_BETWEEN_REFRESHES = process.env.MIN_TIME_BETWEEN_REFRESHES ? BigInt(process.env.MIN_TIME_BETWEEN_REFRESHES) : BigInt(1000 * 60 * 5); //5 minutes
 export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, refreshRequestTime: bigint, forceful?: boolean) => {
 
-  const _refreshesRes = await REFRESHES_DB.get(collectionId);
+  const _refreshesRes = await mustGetFromDB(RefreshModel, collectionId);
   const refreshesRes = convertRefreshDoc(_refreshesRes, BigIntify);
 
   if (!forceful && refreshesRes.refreshRequestTime + MIN_TIME_BETWEEN_REFRESHES > Date.now()) {
@@ -224,7 +220,7 @@ export const getApprovalInfoIdForQueueDb = (entropy: string, collectionId: strin
 
 export const pushApprovalInfoFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, uri: string, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _id: deterministicEntropy ? getApprovalInfoIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), uri.toString()) : undefined,
+    _legacyId: deterministicEntropy ? getApprovalInfoIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), uri.toString()) : new mongoose.Types.ObjectId().toString(),
     uri: uri,
     collectionId: BigInt(collection.collectionId),
     numRetries: 0n,
@@ -252,7 +248,7 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
   for (const uri of nonDuplicates) {
     const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "")) : 0;
     docs.queueDocsToAdd.push({
-      _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "") : undefined,
+      _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "") : new mongoose.Types.ObjectId().toString(),
       uri: uri,
       collectionId: BigInt(collection.collectionId),
       numRetries: 0n,
@@ -296,7 +292,7 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
       if (uri) {
         const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`)) : 0;
         docs.queueDocsToAdd.push({
-          _id: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`) : undefined,
+          _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`) : new mongoose.Types.ObjectId().toString(),
           uri: uri,
           collectionId: collection.collectionId,
           numRetries: 0n,
@@ -317,7 +313,7 @@ export const getAddressMappingIdForQueueDb = (entropy: string, mappingId: string
 
 export const pushAddressMappingFetchToQueue = async (docs: DocsCache, mapping: AddressMapping, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _id: deterministicEntropy ? getAddressMappingIdForQueueDb(deterministicEntropy, mapping.mappingId) : undefined,
+    _legacyId: deterministicEntropy ? getAddressMappingIdForQueueDb(deterministicEntropy, mapping.mappingId) : new mongoose.Types.ObjectId().toString(),
     uri: mapping.uri,
     numRetries: 0n,
     collectionId: 0n,
@@ -339,7 +335,7 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
   }
 
   //We currently only fetch the balances URI for the current time or (if it doesn't exist) the first time
-  //This is because BALANCES_DB is a complete overwrite of the balances, so we don't want to overwrite the balances with the wrong balances
+  //This is because BalanceModel is a complete overwrite of the balances, so we don't want to overwrite the balances with the wrong balances
   //Also note that there is no need to specify >1 timeline values because they can just do so with ownership times
   let idx = getCurrentIdxForTimeline(collection.offChainBalancesMetadataTimeline);
   idx = idx == -1 ? 0 : idx;
@@ -347,10 +343,10 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
   if (!uriToFetch) uriToFetch = timelineVal.offChainBalancesMetadata.uri;
 
   const offChainBalancesMetadata = timelineVal.offChainBalancesMetadata;
-  const docId = deterministicEntropy ? getBalancesIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "") : undefined;
+  const docId = deterministicEntropy ? getBalancesIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "") : new mongoose.Types.ObjectId().toString();
   const loadBalanceId = getLoadBalancerId(docId ?? "");
   docs.queueDocsToAdd.push({
-    _id: docId,
+    _legacyId: docId,
     uri: offChainBalancesMetadata.uri,
     collectionId: collection.collectionId,
     refreshRequestTime: refreshTime,
@@ -359,8 +355,6 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
 
     nextFetchTime: BigInt(Date.now()),
   })
-
-
 }
 
 
@@ -370,8 +364,8 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
   const balanceMapHash = SHA256(JSON.stringify(balanceMap)).toString();
 
   if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances');
-  //Pretty much, this function is responsible for updating the balances docs in BALANCES_DB for off-chain balance JSONs 
-  //This is to make them compatible with our existing on-chain balances docs in BALANCES_DB
+  //Pretty much, this function is responsible for updating the balances docs in BalanceModel for off-chain balance JSONs 
+  //This is to make them compatible with our existing on-chain balances docs in BalanceModel
   //We treat it as at the beginning of this function, "Mint" holds all the balances (i.e. the balances of "Total") defined on-chain
   //Then, we treat each new key in the map as a transfer from "Mint" to the address
   //If it underflows, we throw an error because the balancesUri is lying or overallocating balances
@@ -434,7 +428,7 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
 
   //Check the total doc first. If undefined, we can assume the rest are undefined (since this collection has never had balances before)
   //Saves us from fetching 10000+ or however many undefined docs if we dont need to
-  const sanityCheckDoc = await BALANCES_DB.head(`${queueObj.collectionId}:Total`).catch(catch404);
+  const sanityCheckDoc = await getFromDB(BalanceModel, `${queueObj.collectionId}:Total`);
 
   await fetchDocsForCacheIfEmpty(docs, [], [], [
     `${queueObj.collectionId}:Mint`,
@@ -463,10 +457,13 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
       fetchedAtBlock: block,
     }
   } else {
-    const allPreviousDocIds = await BALANCES_DB.partitionedList(`${queueObj.collectionId}`)
+    const allPreviousDocIds = await BalanceModel.find({
+      collectionId: Number(queueObj.collectionId),
+    }).lean().exec();
+
     const allIdsToFetch = new Set([
       ...mapKeys.map((key) => `${queueObj.collectionId}:${key}`),
-      ...allPreviousDocIds.rows.map(x => x.id),
+      ...allPreviousDocIds.map(x => x._legacyId),
     ]);
 
     await fetchDocsForCacheIfEmpty(docs, [], [], sanityCheckDoc ? [
@@ -509,8 +506,7 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
     for (const [key, val] of entries) {
       if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
         docs.balances[`${queueObj.collectionId}:${key}`] = {
-          _rev: docs.balances[`${queueObj.collectionId}:${key}`]?._rev ?? undefined,
-          _id: `${queueObj.collectionId}:${key}`,
+          _legacyId: `${queueObj.collectionId}:${key}`,
           balances: val,
           //Off-Chain Balances so we don't care ab approvals or permissions
           incomingApprovals: [],
@@ -543,8 +539,7 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
 
 
     docs.balances[`${queueObj.collectionId}:Mint`] = {
-      _rev: docs.balances[`${queueObj.collectionId}:Mint`]?._rev ?? undefined,
-      _id: `${queueObj.collectionId}:Mint`,
+      _legacyId: `${queueObj.collectionId}:Mint`,
       balances: remainingSupplys.map(x => convertBalance(x, BigIntify)),
       //Off-Chain Balances so we don't care ab approvals or permissions
       incomingApprovals: [],
@@ -598,8 +593,8 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
         }
 
 
-        const newActivity: TransferActivityInfoBase<bigint> & nano.MaybeIdentifiedDocument = {
-          _id: `collection-${val.collectionId}:bal_-${val.cosmosAddress}-${mintDoc.fetchedAt}`,
+        const newActivity: TransferActivityDoc<bigint> = {
+          _legacyId: new mongoose.Types.ObjectId().toString(),
           method: 'Transfer',
           from: 'Mint',
           to: [val.cosmosAddress],
@@ -626,8 +621,18 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
 
   if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances - flush only');
   if (TIME_MODE && QUEUE_TIME_MODE) console.log("Flushing docs (balances, activityToAdd)", Object.keys(docs.balances).length, docs.activityToAdd.length);
-  //TODO: Eventually, we should make this a transactional all-or-nothing update with QUEUE_DB.destroy
-  await flushCachedDocs(docs);
+  const session = await MongoDB.startSession();
+  try {
+    session.startTransaction();
+    await flushCachedDocs(session, docs);
+    await session.commitTransaction();
+    await session.endSession();
+  } catch (e) {
+    await session.abortTransaction();
+    await session.endSession();
+    throw e;
+  }
+
   if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances - flush only');
   if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances');
 }
@@ -639,23 +644,22 @@ export const fetchUrisFromQueue = async (block: bigint) => {
   const BASE_DELAY = process.env.BASE_DELAY ? Number(process.env.BASE_DELAY) : 1000 * 60 * 60 * 1; //1 hour
   let numFetchesLeft = NUM_METADATA_FETCHES_PER_BLOCK;
 
-  const numDocsInDB = await QUEUE_DB.info().then((res) => res.doc_count);
+  const numDocsInDB = await QueueModel.countDocuments();
   if (numDocsInDB == 0) return;
 
-  const queueRes = await QUEUE_DB.find({
-    selector: {
-      _id: { $gt: null },
-      loadBalanceId: {
-        "$eq": LOAD_BALANCER_ID
-      },
-      nextFetchTime: {
-        "$lte": Date.now()
-      },
+  const queueRes = await QueueModel.find({
+    _legacyId: { $exists: true },
+    loadBalanceId: LOAD_BALANCER_ID,
+    nextFetchTime: {
+      "$lte": Date.now() - 1000 * 30 * 1 //If it is too quick, we sometimes have data race issues
     },
-    limit: NUM_METADATA_FETCHES_PER_BLOCK
-  });
+    deletedAt: {
+      "$exists": false
+    },
+  }).limit(NUM_METADATA_FETCHES_PER_BLOCK).lean().exec();
 
-  const queue = queueRes.docs.map((doc) => convertQueueDoc(doc, BigIntify));
+
+  const queue = queueRes.map((doc) => convertQueueDoc(doc, BigIntify));
   const queueItems: (QueueDoc<bigint> & nano.DocumentGetResponse)[] = [];
 
   while (numFetchesLeft > 0 && queue.length > 0) {
@@ -666,6 +670,7 @@ export const fetchUrisFromQueue = async (block: bigint) => {
     queue.shift()
     numFetchesLeft--;
   }
+
   const promises = [];
   for (const queueObj of queueItems) {
     promises.push(fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj, block));
@@ -682,7 +687,7 @@ export const fetchUrisFromQueue = async (block: bigint) => {
 
     if (result.status == 'fulfilled') {
       try {
-        handlingPromises.push(insertToDB(QUEUE_DB, {
+        handlingPromises.push(insertToDB(QueueModel, {
           ...queueObj,
           _deleted: true,
           deletedAt: BigInt(Date.now()),
@@ -703,7 +708,7 @@ export const fetchUrisFromQueue = async (block: bigint) => {
       }
       const delay = BASE_DELAY * Math.pow(2, Number(queueObj.numRetries + 1n));
 
-      handlingPromises.push(insertToDB(QUEUE_DB, {
+      handlingPromises.push(insertToDB(QueueModel, {
         ...queueObj,
         lastFetchedAt: BigInt(Date.now()),
         error: reason,
@@ -719,54 +724,19 @@ export const fetchUrisFromQueue = async (block: bigint) => {
 }
 
 export const purgeQueueDocs = async () => {
-  //Purge all deleted docs from this load balancer that are older than 24 hours
-  //We keep for 24 hours for replication purposes
+  //Purge all deleted docs from this load balancer that are older than 1 hour
+  //We keep for 1 hour for replication purposes
   //Any deleted from other load balancers, we can delete right away
-  const res = await QUEUE_DB.find({
-    selector: {
-      _id: { $gt: null },
-      $or: [
-        {
-          $and: [
-            {
-              loadBalanceId: {
-                "$ne": LOAD_BALANCER_ID
-              },
-            },
-            {
-              _deleted: {
-                "$eq": true
-              }
-            }
-          ],
-        },
-        {
-          $and: [
-            {
-              loadBalanceId: {
-                "$eq": LOAD_BALANCER_ID
-              },
-            },
-            {
-              deletedAt: {
-                "$lte": Date.now() - 1000 * 60 * 60 * 24
-              }
-            }
-          ]
-        }
-      ],
-
+  const res = await QueueModel.find({
+    loadBalanceId: LOAD_BALANCER_ID,
+    deletedAt: {
+      "$lte": Date.now() - 1000 * 60 * 60 * 1
     },
-  });
-  const docs = res.docs.map((doc) => convertQueueDoc(doc, Numberify));
+  }).lean().exec();
+
+  const docs = res.map((doc) => convertQueueDoc(doc, Numberify));
 
   if (docs.length == 0) return;
 
-  let docsToPurge = {};
-  for (const doc of docs) {
-
-    docsToPurge[doc._id] = doc._rev;
-  }
-
-  await axios.post(process.env.DB_URL + '/queue/_purge', docsToPurge);
+  await deleteMany(QueueModel, docs.map(x => x._legacyId));
 }

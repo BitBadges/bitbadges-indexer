@@ -1,15 +1,14 @@
+import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import axios from 'axios';
 import { NumberType, deepCopy } from 'bitbadgesjs-proto';
-import { BadgeMetadataDetails, BigIntify, ChallengeDetails, ApprovalInfoDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
-import last from 'it-last';
-import { getStatus } from '../db/status';
-import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
-import { FETCHES_DB, OFF_CHAIN_URLS_DB, insertToDB } from '../db/db';
-import { ipfsClient, s3 } from "../indexer-vars";
+import { ApprovalInfoDetails, BadgeMetadataDetails, BigIntify, ChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
 import crypto from 'crypto';
+import last from 'it-last';
+import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { AuthenticatedRequest } from '../blockin/blockin_handlers';
-import { catch404 } from '../utils/couchdb-utils';
-import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
+import { FetchModel, OffChainUrlModel, getFromDB, insertToDB } from '../db/db';
+import { getStatus } from '../db/status';
+import { ipfsClient, s3 } from "../indexer-vars";
 
 
 export const getFromIpfs = async (path: string) => {
@@ -73,8 +72,8 @@ export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMa
 
     const result = await last(ipfsClient.addAll(files));
     if (result) {
-      await insertToDB(FETCHES_DB, {
-        _id: `ipfs://${result.cid.toString()}`,
+      await insertToDB(FetchModel, {
+        _legacyId: `ipfs://${result.cid.toString()}`,
         fetchedAt: BigInt(Date.now()),
         fetchedAtBlock: status.block.height,
         content: balances,
@@ -96,7 +95,7 @@ export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMa
     if (BigInt(collectionId) > 0 && !urlPath) {
       throw new Error('Could not resolve urlPath when updating an existing off-chain URL');
     } else if (BigInt(collectionId) > 0 && urlPath) {
-      const urlDoc = await OFF_CHAIN_URLS_DB.get(urlPath).catch(catch404);
+      const urlDoc = await getFromDB(OffChainUrlModel, urlPath);
       if (!urlDoc || BigInt(urlDoc.collectionId) != BigInt(collectionId)) {
         throw new Error('The existing off-chain URL does not belong to this collection.');
       }
@@ -145,6 +144,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     });
   }
 
+
   for (const metadata of badgeMetadata) {
     if (metadata.image && metadata.image.startsWith('data:')) {
       const blob = await dataUrlToFile(metadata.image);
@@ -154,13 +154,15 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     }
   }
 
-  //We currently don't store the images in CouchDB, so we don't need to add them to FETCHES_DB
+  //We currently don't store the images in CouchDB, so we don't need to add them to FetchModel
   if (imageFiles.length > 0) {
-    const imageResults = ipfsClient.addAll(imageFiles);
-    const cids = [];
-    for await (const imageResult of imageResults) {
-      cids.push(imageResult.cid.toString());
+    const promises = [];
+    for (const imageFile of imageFiles) {
+      promises.push(ipfsClient.add(imageFile));
     }
+
+    const imageResults = await Promise.all(promises);
+    const cids = imageResults.map(x => x.cid.toString());
 
     if (collectionMetadata && collectionMetadata.image && collectionMetadata.image.startsWith('data:')) {
       const result = cids.shift();
@@ -172,6 +174,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     for (const metadata of badgeMetadata) {
       if (metadata.image && metadata.image.startsWith('data:')) {
         const result = cids.shift();
+        console.log(result);
         if (result) metadata.image = 'ipfs://' + result;
       }
     }
@@ -198,8 +201,8 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
 
   const promises = files.map(async (file, idx) => {
     const result = await ipfsClient.add(file);
-    await insertToDB(FETCHES_DB, {
-      _id: `ipfs://${result.cid.toString()}`,
+    await insertToDB(FetchModel, {
+      _legacyId: `ipfs://${result.cid.toString()}`,
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: status.block.height,
       content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
@@ -247,8 +250,8 @@ export const addApprovalDetailsToOffChainStorage = async (name: string, descript
   if (!result) return undefined;
 
   const status = await getStatus();
-  await insertToDB(FETCHES_DB, {
-    _id: `ipfs://${result.cid.toString()}`,
+  await insertToDB(FetchModel, {
+    _legacyId: `ipfs://${result.cid.toString()}`,
     fetchedAt: BigInt(Date.now()),
     fetchedAtBlock: status.block.height,
     content: {

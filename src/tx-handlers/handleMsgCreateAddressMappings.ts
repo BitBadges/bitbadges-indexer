@@ -18,8 +18,8 @@ export const handleMsgCreateAddressMappings = async (msg: MsgCreateAddressMappin
 
 
     docs.addressMappings[`${addressMapping.mappingId}`] = {
-      _id: `${addressMapping.mappingId}`,
-      _rev: undefined,
+      _legacyId: `${addressMapping.mappingId}`,
+
       ...addressMapping,
       createdBlock: status.block.height,
       lastUpdated: status.block.timestamp,

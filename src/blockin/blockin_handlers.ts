@@ -1,12 +1,11 @@
 import { BigIntify } from 'bitbadgesjs-proto';
-import { SupportedChain, CheckSignInStatusResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, ErrorResponse, getChainForAddress, getCurrentValueForTimeline, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, Numberify, NumberType, SignOutResponse, VerifySignInRouteRequestBody, VerifySignInRouteResponse } from 'bitbadgesjs-utils';
+import { CheckSignInStatusResponse, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, NumberType, Numberify, SignOutResponse, SupportedChain, VerifySignInRouteRequestBody, VerifySignInRouteResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, getChainForAddress, getCurrentValueForTimeline } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
-import { COLLECTIONS_DB, insertToDB, IPFS_TOTALS_DB, PROFILES_DB } from '../db/db';
-import { catch404 } from '../utils/couchdb-utils';
+import { CollectionModel, IPFSTotalsModel, ProfileModel, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
 
@@ -43,7 +42,7 @@ export async function checkIfManager(req: AuthenticatedRequest<NumberType>, coll
   //Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
 
   const collectionIdStr = BigInt(collectionId).toString();
-  const _collection = await COLLECTIONS_DB.get(`${collectionIdStr}`);
+  const _collection = await mustGetFromDB(CollectionModel, collectionIdStr);
   const collection = convertCollectionDoc(_collection, BigIntify);
 
   const manager = getCurrentValueForTimeline(collection.managerTimeline)?.manager;
@@ -188,8 +187,8 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     }
 
     const [ipfsDoc, profileDoc] = await Promise.all([
-      IPFS_TOTALS_DB.get(req.session.cosmosAddress).catch(catch404),
-      PROFILES_DB.get(req.session.cosmosAddress).catch(catch404)
+      getFromDB(IPFSTotalsModel, req.session.cosmosAddress),
+      getFromDB(ProfileModel, req.session.cosmosAddress),
     ]);
 
     const ipfsTotals = ipfsDoc ? convertIPFSTotalsDoc(ipfsDoc, Numberify) : null;
@@ -197,9 +196,9 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 
 
     if (!profileDoc || (profileDoc && profileDoc.latestSignedInChain !== body.chain)) {
-      await insertToDB(PROFILES_DB, {
+      await insertToDB(ProfileModel, {
         ...profileDoc,
-        _id: req.session.cosmosAddress,
+        _legacyId: req.session.cosmosAddress,
         latestSignedInChain: body.chain,
         solAddress: getChainForAddress(challenge.address) == SupportedChain.SOLANA ? challenge.address : profileDoc?.solAddress,
       });

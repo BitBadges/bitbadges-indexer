@@ -20,9 +20,6 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
     await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], [], [], []);
   }
 
-
-
-
   //If we already have an account doc with an acct number and public key, we don't need to do anything
   const _accountDoc = docs.accounts[`${cosmosAddress}`]
   //TODO: Does this eventually write even if unchanged?
@@ -39,8 +36,7 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
   const accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(cosmosAddress)
   if (accountInfo) {
     docs.accounts[cosmosAddress] = convertAccountDoc({
-      _id: `${cosmosAddress}`,
-      _rev: undefined,
+      _legacyId: `${cosmosAddress}`,
       ...docs.accounts[cosmosAddress],
       ...accountInfo,
       solAddress: solanaAddress ? solanaAddress : docs.accounts[cosmosAddress]?.solAddress ?? '', //Solana address is inserted manually by extension options (bc we can't revert the hash)

@@ -3,11 +3,10 @@ import { SigningStargateClient, assertIsDeliverTxSuccess } from "@cosmjs/stargat
 import { Mutex } from "async-mutex";
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { AIRDROP_DB, insertToDB } from "../db/db";
+import { AirdropModel, getFromDB, insertToDB, mustGetFromDB } from "../db/db";
 import _ from "environment"
 import { serializeError } from "serialize-error";
 import { GetTokensFromFaucetRouteResponse, NumberType, OffChainBalancesMap } from "bitbadgesjs-utils";
-import { catch404 } from "../utils/couchdb-utils";
 import { refreshCollection } from "./refresh";
 import { s3 } from "../indexer-vars";
 import { DEV_MODE } from "../constants";
@@ -36,12 +35,12 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
         return { authenticated: false, message: 'You must Sign In w/ Ethereum.' };
       }
 
-      const doc = await AIRDROP_DB.get(req.session.cosmosAddress).catch(catch404);
+      const doc = await getFromDB(AirdropModel, req.session.cosmosAddress);
 
       if (doc && doc.airdropped) {
         return { message: "Already airdropped" };
       } else {
-        await insertToDB(AIRDROP_DB, { ...doc, airdropped: true, _id: req.session.cosmosAddress, timestamp: Date.now() });
+        await insertToDB(AirdropModel, { ...doc, airdropped: true, _legacyId: req.session.cosmosAddress, timestamp: Date.now() });
         return null;
       }
     });
@@ -97,15 +96,19 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
       const result = await signingClient.sendTokens(firstAccount.address, to, [amount], fee);
       assertIsDeliverTxSuccess(result);
 
-
-
-      const doc = await AIRDROP_DB.get(req.session.cosmosAddress);
-      await insertToDB(AIRDROP_DB, { ...doc, hash: result.transactionHash, timestamp: Date.now() });
+      await insertToDB(AirdropModel, {
+        _legacyId: req.session.cosmosAddress,
+        airdropped: true,
+        hash: result.transactionHash, timestamp: Date.now()
+      });
 
 
       if (!DEV_MODE) {
-        const allAirdropped = await AIRDROP_DB.list();
-        const airdropped = allAirdropped.rows.map(row => row.id);
+
+
+
+        const allAirdropped = await AirdropModel.find().exec();
+        const airdropped = allAirdropped.filter(doc => doc.airdropped).map(doc => doc._legacyId);
         const balancesMap: OffChainBalancesMap<bigint> = {};
         for (const address of airdropped) {
           balancesMap[address] = [{
@@ -127,7 +130,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
           Bucket: 'bitbadges-balances',
           Key: 'airdrop/balances',
           ACL: ObjectCannedACL.public_read,
-          ContentType: 'application/json', 
+          ContentType: 'application/json',
         };
         await s3.send(new PutObjectCommand(params))
 
@@ -138,8 +141,8 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
       return res.status(200).send(result);
     } catch (e) {
       //Handle case where sending tokens fails. Need to revert the airdrop status
-      const doc = await AIRDROP_DB.get(req.session.cosmosAddress);
-      await insertToDB(AIRDROP_DB, { ...doc, airdropped: false, timestamp: Date.now() });
+      const doc = await mustGetFromDB(AirdropModel, req.session.cosmosAddress);
+      await insertToDB(AirdropModel, { ...doc, airdropped: false, timestamp: Date.now() });
       throw e;
     }
   } catch (e) {

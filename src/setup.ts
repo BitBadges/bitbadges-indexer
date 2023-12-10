@@ -1,5 +1,6 @@
+import { MongoDB } from "./db/db";
 import {
-  createDatabases, initStatus, createIndexesAndViews,
+  initStatus, createIndexesAndViews,
   deleteDatabases
 } from "./setup-helpers"
 
@@ -9,9 +10,11 @@ async function main() {
       await deleteDatabases();
     }
 
-    await createDatabases(); //If there is an error, we assume the database already exists and continue
+    // await createDatabases(); //If there is an error, we assume the database already exists and continue
     await initStatus();
     await createIndexesAndViews();
+
+    await MongoDB.close();
 
     // await bootstrapCollections();
   } catch (e) {
