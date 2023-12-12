@@ -127,7 +127,7 @@ export const poll = async () => {
     let status = convertStatusDoc(_status, BigIntify);
 
     //Every 50 blocks, query the compliance doc to be used
-    if (status.block.height % 50n == 0n) {
+    if (status.block.height % 50n == 0n || !complianceDoc) {
       const _complianceDoc = await mustGetFromDB(ComplianceModel, 'compliance')
       complianceDoc = convertComplianceDoc(_complianceDoc, BigIntify);
     }
@@ -346,6 +346,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     try {
       JSON.parse(indexed.rawLog)
     } catch (e) {
+      console.error(indexed.rawLog);
       throw new Error(`Error parsing rawLog for tx ${indexed.hash}. Skipping tx as it most likely failed...`)
     }
     if (indexed.code) {

@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
 import fs from 'fs'
 import https from 'https'
+import mongoose from 'mongoose'
 import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, genericBlockinVerifyHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
@@ -24,7 +25,7 @@ import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
 import { getBrowseCollections } from './routes/browse'
 import { getChallengeTrackers } from './routes/challengeTrackers'
-import { sendClaimAlert } from './routes/claimAlerts'
+import { getClaimAlertsForCollection, sendClaimAlert } from './routes/claimAlerts'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
 import { getTokensFromFaucet } from './routes/faucet'
@@ -38,7 +39,6 @@ import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-import mongoose from 'mongoose'
 
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
@@ -302,6 +302,7 @@ app.post('/api/v0/claimAlerts/send', authorizeBlockinRequest, sendClaimAlert);
 app.post('/api/v0/follow-protocol/update', authorizeBlockinRequest, updateFollowDetails);
 app.post('/api/v0/follow-protocol', getFollowDetails);
 
+app.post('/api/v0/claimAlerts', authorizeBlockinRequest, getClaimAlertsForCollection);
 
 //TODO: Simple implementation of a one-way heartbeat mode.
 //If the parent process dies, the child process will take over.
@@ -390,3 +391,7 @@ const server = process.env.DISABLE_API === 'true' ? undefined :
       console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
     })
   })
+
+app.listen(3005, () => {
+  console.log(`\nserver started at http://localhost:${3005}`, Date.now().toLocaleString());
+})

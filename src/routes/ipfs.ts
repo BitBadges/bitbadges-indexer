@@ -40,7 +40,6 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
       const managerCheck = checkIfManager(req, reqBody.collectionId);
       if (!managerCheck) throw new Error('You are not the manager of this collection');
     }
-
     let result = undefined;
     let size = 0;
     if (reqBody.balances) {
@@ -61,7 +60,6 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
           urlPath = collectionDoc.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.split('/').pop();
         }
       }
-
       const balances = cleanBalances(reqBody.balances);
       result = await addBalancesToOffChainStorage(balances, reqBody.method, reqBody.collectionId, req, urlPath);
     }
@@ -71,7 +69,7 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
     }
 
     await updateIpfsTotals(req.session.cosmosAddress, size, req);
-    await refreshCollection(reqBody.collectionId.toString(), true);
+    if (BigInt(reqBody.collectionId) > 0) await refreshCollection(reqBody.collectionId.toString(), true);
 
 
     return res.status(200).send({ uri: result.uri, result: result });

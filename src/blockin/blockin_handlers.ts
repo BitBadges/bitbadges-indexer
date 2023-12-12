@@ -6,7 +6,6 @@ import { Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
 import { CollectionModel, IPFSTotalsModel, ProfileModel, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
-import { parse } from '../utils/preserveJson';
 import { getChainDriver } from './blockin';
 
 export interface BlockinSession<T extends NumberType> extends Session {
@@ -148,7 +147,7 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
 export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest<NumberType>;
 
-  const body = parse(JSON.stringify(req.body)) as VerifySignInRouteRequestBody;
+  const body = req.body as VerifySignInRouteRequestBody;
 
   const chainDriver = getChainDriver(body.chain);
   setChainDriver(chainDriver);
@@ -250,7 +249,7 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
 export async function genericBlockinVerifyHandler(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest<NumberType>;
 
-  const body = parse(JSON.stringify(req.body)) as VerifySignInRouteRequestBody;
+  const body = req.body as VerifySignInRouteRequestBody;
 
   try {
     const verificationResponse = await genericBlockinVerify(body);

@@ -1,7 +1,9 @@
-import { AddressMapping, JSPrimitiveNumberType, UserPermissions } from "bitbadgesjs-proto";
-import { BalanceDocWithDetails, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertUserPermissionsWithDetails } from "bitbadgesjs-utils";
+import axios from "axios";
+import { AddressMapping, Balance, BigIntify, JSPrimitiveNumberType, UserPermissions, convertBalance, convertOffChainBalancesMetadataTimeline } from "bitbadgesjs-proto";
+import { BalanceDocWithDetails, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertToCosmosAddress, convertUserPermissionsWithDetails, getCurrentValueForTimeline } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
+import { getFromIpfs } from "../ipfs/ipfs";
 import { BalanceModel, CollectionModel, getFromDB, mustGetFromDB } from "../db/db";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 
@@ -28,10 +30,67 @@ export const applyAddressMappingsToUserPermissions = (userPermissions: UserPermi
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBadgeBalanceByAddressRouteResponse<NumberType>>) => {
   try {
 
-    const cosmosAddress = `${req.params.cosmosAddress.toString()}`;
+    const cosmosAddress = `${convertToCosmosAddress(req.params.cosmosAddress).toString()}`;
     const docId = `${req.params.collectionId}:${cosmosAddress}`
     const _collection = await mustGetFromDB(CollectionModel, req.params.collectionId);
     const collection = convertCollectionDoc(_collection, Stringify);
+
+    if (collection.balancesType === "Off-Chain - Non-Indexed") {
+      //we need to fetch from source directly
+      const uri = getCurrentValueForTimeline(collection.offChainBalancesMetadataTimeline.map(x => convertOffChainBalancesMetadataTimeline(x, BigIntify)))?.offChainBalancesMetadata.uri
+      const uriToFetch = uri?.replace("{address}", convertToCosmosAddress(cosmosAddress));
+
+      let balancesRes = undefined;
+      //If we are here, we need to fetch from the source
+      if (uriToFetch?.startsWith('ipfs://')) {
+        const _res: any = await getFromIpfs(uriToFetch.replace('ipfs://', ''));
+        balancesRes = JSON.parse(_res.file).balances;
+      } else if (uriToFetch) {
+        const _res = await axios.get(uriToFetch).then((res) => res.data);
+        balancesRes = _res.balances
+      }
+
+      //Check if valid array
+      const balances: Balance<NumberType>[] = balancesRes && Array.isArray(balancesRes) && balancesRes.every((balance: any) => typeof balance === "object")
+        ? balancesRes.map((balance: any) => ({
+          amount: balance.amount ? BigInt(balance.amount).toString() : "0",
+          badgeIds: Array.isArray(balance.badgeIds) && balance.badgeIds.every((badgeId: any) => typeof badgeId === "object")
+            ? balance.badgeIds.map((badgeId: any) => ({
+              start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
+              end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
+            }))
+            : [],
+          ownershipTimes: Array.isArray(balance.ownershipTimes) && balance.ownershipTimes.every((badgeId: any) => typeof badgeId === "object")
+            ? balance.ownershipTimes.map((badgeId: any) => ({
+              start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
+              end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
+            }))
+            : [],
+        })) : [];
+
+      return res.status(200).send({
+        balance: {
+          collectionId: req.params.collectionId,
+          cosmosAddress: req.params.cosmosAddress,
+          balances: balances.map(x => convertBalance(x, BigIntify)),
+
+          incomingApprovals: [],
+          outgoingApprovals: [],
+          autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
+          autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
+          userPermissions: {
+            canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+            canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+            canUpdateIncomingApprovals: [],
+            canUpdateOutgoingApprovals: [],
+          },
+          onChain: false,
+          updateHistory: [],
+          _legacyId: req.params.collectionId + ':' + cosmosAddress
+        }
+
+      });
+    }
 
     const response = await getFromDB(BalanceModel, docId);
 

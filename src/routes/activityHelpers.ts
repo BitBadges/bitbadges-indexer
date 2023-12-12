@@ -1,7 +1,7 @@
 import { AmountTrackerIdDetails } from "bitbadgesjs-proto";
-import { ChallengeTrackerIdDetails, GetBadgeActivityRouteResponse, NumberType, Stringify, convertTransferActivityDoc } from "bitbadgesjs-utils";
+import { ChallengeTrackerIdDetails, GetBadgeActivityRouteResponse, NumberType, Stringify, convertToCosmosAddress, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { ApprovalsTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel, getFromDB, mustGetFromDB } from "../db/db";
-
+import { complianceDoc } from "../poll";
 
 export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse<NumberType>> {
   //Check if badgeId > Number.MAX_SAFE_INTEGER
@@ -57,7 +57,6 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
       hasMore: docs.length === pageSize,
     }
   };
-
 }
 
 export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string) {
@@ -89,8 +88,10 @@ export async function executeCollectionReviewsQuery(collectionId: string, bookma
     collectionId: Number(collectionId),
   }).sort({ timestamp: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
 
+
+
   return {
-    docs: reviewsRes,
+    docs: reviewsRes.filter(x => complianceDoc?.accounts.reported.find(y => y.cosmosAddress === convertToCosmosAddress(x.from)) === undefined),
     pagination: {
       bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
       hasMore: reviewsRes.length === 25,
@@ -161,7 +162,6 @@ export async function executeMerkleChallengeByIdsQuery(collectionId: string, cha
   }));
 
   return docs;
-
 }
 
 export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: AmountTrackerIdDetails<bigint>[]) {

@@ -631,10 +631,9 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
     const cosmosAddress = req.session.cosmosAddress;
     let profileInfo = await getFromDB(ProfileModel, cosmosAddress);
     if (!profileInfo) {
-      profileInfo = new ProfileModel({
+      profileInfo = {
         _legacyId: cosmosAddress,
-
-      });
+      };
     }
 
     if (reqBody.customPages?.find(x => x.title === 'Hidden')) {

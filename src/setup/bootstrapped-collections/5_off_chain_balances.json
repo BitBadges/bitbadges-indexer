@@ -29,7 +29,7 @@
     }
   ],
   "updateCollectionPermissions": true,
-  "balancesType": "Off-Chain",
+  "balancesType": "Off-Chain - Indexed",
   "collectionPermissions": {
     "canArchiveCollection": [],
     "canCreateMoreBadges": [

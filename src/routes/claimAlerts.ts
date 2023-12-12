@@ -1,5 +1,5 @@
 import { NumberType } from "bitbadgesjs-proto";
-import { SendClaimAlertsRouteRequestBody, SendClaimAlertsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { GetClaimAlertsForCollectionRouteRequestBody, GetClaimAlertsForCollectionRouteResponse, SendClaimAlertsRouteRequestBody, SendClaimAlertsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager } from "../blockin/blockin_handlers";
@@ -35,6 +35,37 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
     return res.status(500).send({
       error: serializeError(e),
       message: "Error adding announcement. Please try again later."
+    })
+  }
+}
+
+export async function getClaimAlertsForCollection(expressReq: Request, res: Response<GetClaimAlertsForCollectionRouteResponse<NumberType>>) {
+  try {
+    const req = expressReq as AuthenticatedRequest<NumberType>;
+    const reqBody = req.body as GetClaimAlertsForCollectionRouteRequestBody<NumberType>;
+
+    const collectionId = Number(reqBody.collectionId);
+
+    const isManager = await checkIfManager(req, collectionId);
+    if (!isManager) {
+      return res.status(403).send({ message: 'You must be the manager of the collection you are trying to get claim alerts for.' });
+    }
+
+    const claimAlerts = await ClaimAlertModel.find({
+      collectionId: collectionId
+    }).lean().limit(25).skip(reqBody.bookmark ? 25 * Number(reqBody.bookmark) : 0).exec();
+
+    const pagination = {
+      bookmark: (reqBody.bookmark ? Number(reqBody.bookmark) + 1 : 1).toString(),
+      hasMore: claimAlerts.length === 25,
+    }
+
+    return res.status(200).send({ claimAlerts, pagination });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error getting claim alerts. Please try again later."
     })
   }
 }

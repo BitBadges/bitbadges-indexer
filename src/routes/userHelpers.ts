@@ -177,7 +177,7 @@ export async function getNameAndAvatar(address: string, skipAvatarFetch?: boolea
 export async function executeActivityQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('activityQuery');
 
-  const hiddenBadges = profileInfo.hiddenBadges ?? [];
+  const hiddenBadges = [...profileInfo.hiddenBadges ?? [], ...complianceDoc?.badges.reported ?? []];
   let docsLeft = 25;
   let currBookmark = bookmark;
   const docs = [];
@@ -253,26 +253,6 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
   return collectedRes;
 }
 
-export async function getAllCollectionIdsOwned(cosmosAddress: string) {
-  if (QUERY_TIME_MODE) console.time('getAllCollectionIdsOwned');
-
-  const view = await BalanceModel.find({
-    cosmosAddress: cosmosAddress,
-    balances: {
-      "$elemMatch": {
-        "amount": {
-          "$gt": 0,
-        }
-      }
-    }
-  }).lean().exec();
-
-  const collections = view.map((doc) => doc.collectionId);
-
-  if (QUERY_TIME_MODE) console.timeEnd('getAllCollectionIdsOwned');
-  return collections;
-}
-
 
 export async function executeAnnouncementsQuery(cosmosAddress: string, bookmark?: string) {
   return {
@@ -306,7 +286,7 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
   if (QUERY_TIME_MODE) console.time('executeCollectedQuery');
   //keep searching until we have min 25 non-hidden docs
 
-  const hiddenBadges = profileInfo.hiddenBadges ?? [];
+  const hiddenBadges = [...profileInfo.hiddenBadges ?? [], ...complianceDoc?.badges.reported ?? []];
 
   let docsLeft = 25;
   let currBookmark = bookmark;
@@ -390,7 +370,7 @@ export async function executeListsQuery(cosmosAddress: string, bookmark?: string
     }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
 
 
-    docs.push(...collectedRes);
+    docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
     currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
@@ -437,7 +417,7 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, b
       }
     }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
 
-    docs.push(...collectedRes);
+    docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
     currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
@@ -488,7 +468,7 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, b
       }
     }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
 
-    docs.push(...collectedRes);
+    docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
     currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
@@ -533,7 +513,7 @@ export async function executeLatestAddressMappingsQuery(cosmosAddress: string, b
 
     }).sort({ lastUpdated: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
 
-    docs.push(...collectedRes);
+    docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
     currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
@@ -605,6 +585,11 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
       if (profileInfo.hiddenBadges?.find((hiddenBadge) => hiddenBadge.collectionId === BigInt(doc))) {
         return false;
       }
+
+      if (complianceDoc?.badges?.reported?.find((reported) => reported.collectionId === BigInt(doc))) {
+        return false;
+      }
+
       return true;
     });
 
@@ -647,6 +632,11 @@ export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: 
       if (profileInfo.hiddenBadges?.find((hiddenBadge) => hiddenBadge.collectionId === BigInt(doc))) {
         return false;
       }
+
+      if (complianceDoc?.badges?.reported?.find((reported) => reported.collectionId === BigInt(doc))) {
+        return false;
+      }
+
       return true;
     });
 

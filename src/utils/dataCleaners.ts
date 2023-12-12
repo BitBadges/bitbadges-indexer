@@ -3,22 +3,11 @@ import {
   NumberType,
 } from "bitbadgesjs-proto";
 import {
+  Metadata,
   NumberifyIfPossible,
   OffChainBalancesMap,
   convertOffChainBalancesMap
 } from "bitbadgesjs-utils";
-
-interface Metadata {
-  name?: string;
-  description?: string;
-  image?: string;
-  creator?: string;
-  validFrom?: any[]; // Update with the actual type if possible
-  color?: string;
-  category?: string;
-  externalUrl?: string;
-  tags?: string[];
-}
 
 interface ApprovalInfo {
   name?: string;
@@ -28,19 +17,22 @@ interface ApprovalInfo {
   challengeDetails?: any; // Update with the actual type if possible
 }
 
-export function cleanMetadata(res: any): Metadata {
+export function cleanMetadata(res: any): Metadata<NumberType> {
   return {
     name: typeof res.name === "string" ? res.name : "",
     description: typeof res.description === "string" ? res.description : "",
     image: typeof res.image === "string" ? res.image : "",
-    creator: typeof res.creator === "string" ? res.creator : undefined,
-    validFrom: res.validFrom ? [] : undefined,
+    validFrom: res.validFrom ? res.validFrom.map((badgeId: any) => ({
+      start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
+      end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
+    })) : undefined,
     color: typeof res.color === "string" ? res.color : undefined,
     category: typeof res.category === "string" ? res.category : undefined,
     externalUrl: typeof res.externalUrl === "string" ? res.externalUrl : undefined,
     tags: Array.isArray(res.tags) && res.tags.every((tag: any) => typeof tag === "string")
       ? res.tags
       : undefined,
+    socials: typeof res.socials === "object" ? res.socials : undefined,
   };
 }
 

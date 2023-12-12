@@ -245,8 +245,8 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
 
     const _complianceDoc = complianceDoc ? convertComplianceDoc(complianceDoc, Stringify) : undefined;
-    const isNSFW = _complianceDoc?.badges?.nsfw?.find(x => x.collectionId === collectionRes.collectionId);
-    const isReported = _complianceDoc?.badges?.reported?.find(x => x.collectionId === collectionRes.collectionId);
+    const isNSFW = _complianceDoc?.badges?.nsfw?.find(x => BigInt(x.collectionId) === BigInt(collectionRes.collectionId));
+    const isReported = _complianceDoc?.badges?.reported?.find(x => BigInt(x.collectionId) === BigInt(collectionRes.collectionId));
 
     let collectionToReturn: BitBadgesCollection<JSPrimitiveNumberType> = {
       ...collectionRes,

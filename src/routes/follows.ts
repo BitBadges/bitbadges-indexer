@@ -25,14 +25,13 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
 
     let _followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
     if (!_followDoc) {
-      _followDoc = new FollowDetailsModel({
+      _followDoc = {
         _legacyId: reqBody.cosmosAddress,
-        _rev: '',
         cosmosAddress: reqBody.cosmosAddress,
         followingCount: 0,
         followersCount: 0,
         followingCollectionId: 0,
-      });
+      };
     }
     const followDoc = convertFollowDetailsDoc(_followDoc, BigIntify);
 
@@ -51,7 +50,6 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
 
         const currBalance = getBalanceForIdAndTime(1n, BigInt(Date.now()), doc.balances.map(x => convertBalance(x, BigIntify)));
         if (currBalance <= 0n) continue;
-
 
         const res = await FollowDetailsModel.find({
           followingCollectionId: Number(doc.collectionId),
@@ -122,18 +120,17 @@ export const updateFollowDetails = async (expressReq: Request, res: Response<Upd
     const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as UpdateFollowDetailsRouteRequestBody<NumberType>;
 
-    const cosmosAddress = req.session?.cosmosAddress;
+    const cosmosAddress = req.session.cosmosAddress;
 
     let _followDoc = await getFromDB(FollowDetailsModel, cosmosAddress);
     if (!_followDoc) {
-      _followDoc = new FollowDetailsModel({
+      _followDoc = {
         _legacyId: cosmosAddress,
-        _rev: '',
         cosmosAddress: cosmosAddress,
         followingCount: 0,
         followersCount: 0,
         followingCollectionId: 0,
-      });
+      };
     }
 
     const followDoc = convertFollowDetailsDoc(_followDoc, BigIntify);
@@ -157,8 +154,6 @@ export const updateFollowDetails = async (expressReq: Request, res: Response<Upd
       //-Assert at least one badge
       //-Not "No Balances" standard
     }
-
-
     await insertToDB(FollowDetailsModel, followDoc);
 
     return

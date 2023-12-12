@@ -169,7 +169,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     if (res.image) { //res.image is required for all metadata and not included in any other type
       dbType = 'Metadata';
       res = cleanMetadata(res);
-    } else if (Object.values(res).some(x => Array.isArray(x))) {
+    } else if (Object.values(res).some(x => Array.isArray(x)) || Object.keys(res).length == 0) {
       dbType = 'Balances';
       res = cleanBalances(res);
       res = convertOffChainBalancesMap(res, BigIntify);
@@ -418,9 +418,7 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
 
   balanceMap = newBalanceMap;
 
-  if (mapKeys.length == 0) {
-    throw new Error('No valid addresses found in balances map');
-  }
+  
 
   if (mapKeys.length > MAX_NUM_ADDRESSES) {
     throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
@@ -441,14 +439,12 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
   const totalDoc = docs.balances[`${queueObj.collectionId}:Total`];
   if (!totalDoc) throw new Error('Total doc not found');
 
-
   const isContentSameAsLastUpdate = (totalDoc.contentHash && balanceMapHash === totalDoc.contentHash) || (sanityCheckDoc && mintDoc.uri === queueObj.uri && mintDoc.isPermanent);
   if (isContentSameAsLastUpdate) {
     docs.balances[`${queueObj.collectionId}:Mint`] = {
       ...convertBalanceDoc(mintDoc, BigIntify),
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block,
-
     }
 
     docs.balances[`${queueObj.collectionId}:Total`] = {

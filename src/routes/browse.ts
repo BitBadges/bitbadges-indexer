@@ -1,10 +1,11 @@
-import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType } from "bitbadgesjs-utils";
+import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AddressMappingModel, CollectionModel, FetchModel, ProfileModel, TransferActivityModel } from "../db/db";
 import { executeCollectionsQuery } from "./collections";
 import { getAccountByAddress } from "./users";
 import { getAddressMappingsFromDB } from "./utils";
+import { complianceDoc } from "../poll";
 
 let cachedResult: GetBrowseCollectionsRouteResponse<NumberType> | undefined = undefined;
 let lastFetchTime = 0;
@@ -99,7 +100,11 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     const allAccounts = await Promise.all(promises);
 
-    const result = {
+
+
+
+
+    let result = {
       collections: {
         // 'featured': collections,
         'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._legacyId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
@@ -119,6 +124,20 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
           ...allAccounts,
         ]
       },
+    }
+
+    //Make sure no reported stuff gets populated
+    result.collections = {
+      latest: result.collections.latest.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
+      attendance: result.collections.attendance.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
+      certifications: result.collections.certifications.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
+    }
+    result.activity = result.activity.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
+    result.addressMappings = {
+      latest: result.addressMappings.latest.filter(x => complianceDoc?.addressMappings.reported?.some(y => y.mappingId === x.mappingId) !== true),
+    }
+    result.profiles = {
+      featured: result.profiles.featured.filter(x => complianceDoc?.accounts.reported?.some(y => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true),
     }
 
     cachedResult = result;

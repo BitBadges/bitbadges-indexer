@@ -78,7 +78,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       defaultAutoApproveSelfInitiatedIncomingTransfers: msg.defaultAutoApproveSelfInitiatedIncomingTransfers ?? false,
       defaultAutoApproveSelfInitiatedOutgoingTransfers: msg.defaultAutoApproveSelfInitiatedOutgoingTransfers ?? false,
       createdBy: msg.creator,
-      balancesType: msg.balancesType as "Standard" | "Inherited" | "Off-Chain",
+      balancesType: msg.balancesType as "Standard" | "Inherited" | "Off-Chain - Indexed" | "Off-Chain - Non-Indexed",
       collectionApprovals: [],
       collectionMetadataTimeline: [],
       badgeMetadataTimeline: [],
@@ -101,7 +101,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       updateHistory: [],
     }
 
-    if (msg.balancesType === "Standard" || msg.balancesType === "Off-Chain") {
+    if (msg.balancesType === "Standard" || msg.balancesType === "Off-Chain - Indexed" || msg.balancesType === "Off-Chain - Non-Indexed") {
       docs.balances[`${status.nextCollectionId}:Total`] = {
         _legacyId: `${status.nextCollectionId.toString()}:Total`,
         balances: [],
@@ -244,7 +244,10 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       //If there is an existing doc, we do not need to do anything. This also protects against other collections simply using the balances URL of another collection (allowed but they won't be able to edit)
       const existingDoc = await getFromDB(OffChainUrlModel, customData);
       if (!existingDoc) {
-        await insertToDB(OffChainUrlModel, { collectionId: Number(collection.collectionId) } as OffChainUrlDoc);
+        await insertToDB(OffChainUrlModel, {
+          _legacyId: customData,
+          collectionId: Number(collection.collectionId)
+        } as OffChainUrlDoc);
       }
     }
   }

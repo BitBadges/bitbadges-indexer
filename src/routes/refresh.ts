@@ -61,9 +61,10 @@ export const refreshCollection = async (collectionId: string, forceful?: boolean
 
   if (!invalidRefresh) {
     await pushCollectionFetchToQueue(docs, collection, refreshTime);
-    if (collection.balancesType === 'Off-Chain') {
+    if (collection.balancesType === 'Off-Chain - Indexed') {
       await pushBalancesFetchToQueue(docs, collection, refreshTime);
     }
+
     const session = await MongoDB.startSession();
     try {
       session.startTransaction();

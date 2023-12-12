@@ -189,10 +189,6 @@ export async function insertToDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
   session?: mongoose.mongo.ClientSession
 ) {
   const convertedDocs = await convertDocsToStoreInDb(model, [doc]);
-  if (model.modelName === PasswordModel.modelName) {
-    console.log(convertedDocs);
-    console.log({ ...convertedDocs[0] });
-  }
 
   const currDoc = await model.exists({ _legacyId: convertedDocs[0]._legacyId });
   if (!currDoc) {

@@ -8,6 +8,7 @@ import { getAddressForName } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAddressMappingsFromDB } from "./utils";
+import { complianceDoc } from "../poll";
 
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
@@ -248,7 +249,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       }
     }
 
-    return res.json({
+    //Make sure no NSFW or reported stuff gets populated
+    let result = {
       collections: collectionsResponses.filter((x) => {
         return Number(x.collectionId) === Number(searchValue) || x.collectionMetadataTimeline.find((timeline) => {
           return uris.includes(timeline.collectionMetadata.uri);
@@ -262,7 +264,15 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
           badgeIds: x.badgeIds,
         }
       })
-    })
+    }
+
+    //Make sure no NSFW or reported stuff gets populated
+    result.collections = result.collections.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
+    result.accounts = result.accounts.filter(x => complianceDoc?.accounts.reported?.some(y => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true);
+    result.addressMappings = result.addressMappings.filter(x => complianceDoc?.addressMappings.reported?.some(y => y.mappingId === x.mappingId) !== true);
+    result.badges = result.badges.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collection.collectionId)) !== true);
+
+    return res.json(result);
   } catch (e) {
     console.error(e);
     return res.status(500).json({
