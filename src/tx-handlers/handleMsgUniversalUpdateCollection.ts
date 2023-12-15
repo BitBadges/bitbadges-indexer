@@ -20,24 +20,10 @@ export function recursivelyDeleteFalseProperties(obj: object) {
 
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
-      const prop = obj[key];
+      const prop = obj[key as keyof typeof obj] as unknown;
 
       if (prop && typeof prop === 'object') {
         recursivelyDeleteFalseProperties(prop);
-
-        if (
-          prop.hasOwnProperty('invertDefault') ||
-          prop.hasOwnProperty('allValues') ||
-          prop.hasOwnProperty('noValues')
-        ) {
-          if (
-            !prop.invertDefault &&
-            !prop.allValues &&
-            !prop.noValues
-          ) {
-            delete obj[key];
-          }
-        }
       }
     }
   }

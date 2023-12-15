@@ -55,6 +55,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
           followingCollectionId: Number(doc.collectionId),
         }).limit(1).lean().exec();
 
+
         if (res.length > 0) {
           followers.push(res[0].cosmosAddress);
         }

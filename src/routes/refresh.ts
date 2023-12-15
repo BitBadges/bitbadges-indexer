@@ -2,7 +2,7 @@ import { BigIntify, DocsCache, NumberType, RefreshMetadataRouteResponse, Refresh
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { flushCachedDocs } from "../db/cache";
-import { CollectionModel, MongoDB, QueueModel, mustGetFromDB } from "../db/db";
+import { CollectionModel, QueueModel, mustGetFromDB } from "../db/db";
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from "../queue";
 
 export const getRefreshStatus = async (req: Request, res: Response<RefreshStatusRouteResponse<NumberType>>) => {
@@ -65,17 +65,7 @@ export const refreshCollection = async (collectionId: string, forceful?: boolean
       await pushBalancesFetchToQueue(docs, collection, refreshTime);
     }
 
-    const session = await MongoDB.startSession();
-    try {
-      session.startTransaction();
-      await flushCachedDocs(session, docs);
-      await session.commitTransaction();
-      await session.endSession();
-    } catch (e) {
-      await session.abortTransaction();
-      await session.endSession();
-      throw e;
-    }
+    await flushCachedDocs(docs);
 
     return 0;
   } else {

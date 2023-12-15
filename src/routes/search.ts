@@ -195,7 +195,9 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       if (doc) {
         profileDocs.push(doc);
       } else {
-        profileDocs.push({})
+        profileDocs.push({
+          _legacyId: account.cosmosAddress,
+        })
       }
     }
 

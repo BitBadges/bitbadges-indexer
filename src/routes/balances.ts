@@ -88,7 +88,6 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
           updateHistory: [],
           _legacyId: req.params.collectionId + ':' + cosmosAddress
         }
-
       });
     }
 

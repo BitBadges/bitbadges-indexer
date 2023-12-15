@@ -1,13 +1,13 @@
 
 import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
 import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-proto";
-import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ProfileInfoBase, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated } from "../blockin/blockin_handlers";
 import { CleanedCosmosAccountInformation } from "../chain-client/queries";
-import { AccountModel, MongoDB, ProfileModel, UsernameModel, deleteMany, getFromDB, getManyFromDB, insertToDB } from "../db/db";
+import { AccountModel, ProfileModel, UsernameModel, deleteMany, getFromDB, getManyFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { s3 } from "../indexer-vars";
 import { applyAddressMappingsToUserPermissions } from './balances';
@@ -63,10 +63,12 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
 }
 
 async function getBatchProfileInformation(queries: { address: string, fetchOptions?: AccountFetchOptions }[]) {
-  const profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[] = [];
+  const profileInfos: ProfileDoc<JSPrimitiveNumberType>[] = [];
   const addressesToFetch = queries.map(x => convertToCosmosAddress(x.address));
 
-  if (addressesToFetch.length === 0) return addressesToFetch.map(x => ({}));
+  if (addressesToFetch.length === 0) return addressesToFetch.map(x => ({
+    _legacyId: x,
+  }));
 
   const docs = await getManyFromDB(ProfileModel, addressesToFetch);
 
@@ -75,7 +77,9 @@ async function getBatchProfileInformation(queries: { address: string, fetchOptio
     if (doc) {
       profileInfos.push(doc);
     } else {
-      profileInfos.push({});
+      profileInfos.push({
+        _legacyId: address,
+      });
     }
   }
 
@@ -99,7 +103,7 @@ export const getAccountByAddress = async (req: Request, address: string, fetchOp
   if (fetchOptions) {
     //account is currently a BitBadgesUserInfo with no portfolio info
     const portfolioRes = await getAdditionalUserInfo(req, {
-      ...profileInfo,
+      ...convertProfileDoc(profileInfo, BigIntify),
       _legacyId: convertToCosmosAddress(address),
     }, account.cosmosAddress, fetchOptions);
     account = {
@@ -161,7 +165,7 @@ export const getAccount = async (req: Request, res: Response<GetAccountRouteResp
   try {
     const reqBody = req.body as GetAccountRouteRequestBody;
 
-    let account: BitBadgesUserInfo<JSPrimitiveNumberType>;
+    let account: BitBadgesUserInfo<NumberType>;
     if (isAddressValid(req.params.addressOrUsername)) {
       account = await getAccountByAddress(req, req.params.addressOrUsername, reqBody);
     } else {
@@ -220,8 +224,8 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
 
         additionalInfoPromises.push(getAdditionalUserInfo(req, {
           ...convertProfileDoc({
+            ...profileInfos[idx],
             _legacyId: convertToCosmosAddress(account.cosmosAddress),
-            ...profileInfos[idx]
           }, BigIntify),
         }, account.cosmosAddress, query.fetchOptions));
       }
@@ -687,31 +691,27 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
         message: 'Profile information is too large to store. Please reduce the size of the details for your profile.'
       })
     }
-    const session = await MongoDB.startSession();
-    session.startTransaction();
-    try {
-      //Delete any previous usernames
-      const previouslyHadUsername = !!profileInfo.username
-      if (previouslyHadUsername && profileInfo.username) await deleteMany(UsernameModel, [profileInfo.username], session);
 
-      if (reqBody.username) {
-        //fail if already taken (upsert = false)
-        try {
-          await UsernameModel.create([{ _legacyId: reqBody.username }], { session });
-        } catch (e) {
-          throw new Error('Username already taken');
-        }
+
+    //Delete any previous usernames
+
+    //We could probably have a more bulletproof way of doing this, but this is fine for now
+    //Didn't want to introduce sessions into this
+    //1. Check if new username exists. If not, claim it
+    //2. Delete any previous usernames
+    if (reqBody.username) {
+      //fail if already taken (upsert = false)
+      try {
+        await UsernameModel.create([{ _legacyId: reqBody.username }]);
+
+        const previouslyHadUsername = !!profileInfo.username
+        if (previouslyHadUsername && profileInfo.username) await deleteMany(UsernameModel, [profileInfo.username]);
+      } catch (e) {
+        throw new Error('Username already taken');
       }
-
-      await insertToDB(ProfileModel, newProfileInfo, session);
-
-      await session.commitTransaction();
-      await session.endSession();
-    } catch (e) {
-      await session.abortTransaction();
-      await session.endSession();
-      throw e;
     }
+
+    await insertToDB(ProfileModel, newProfileInfo);
 
     return res.status(200).send(
       { message: 'Account info updated successfully' }

@@ -1,12 +1,14 @@
 import axios from "axios";
 import { AddressMapping, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
 import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import crypto from 'crypto';
 import CryptoJS from "crypto-js";
 import Joi from "joi";
 import mongoose from "mongoose";
 import nano from "nano";
+import { serializeError } from "serialize-error";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
-import { BalanceModel, FetchModel, MongoDB, QueueModel, RefreshModel, deleteMany, getFromDB, insertToDB, mustGetFromDB } from "./db/db";
+import { BalanceModel, ErrorModel, FetchModel, QueueModel, RefreshModel, deleteMany, getFromDB, insertToDB, mustGetFromDB } from "./db/db";
 import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer-vars";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE } from "./poll";
@@ -86,7 +88,6 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
 
       await insertToDB(QueueModel, {
         _legacyId: `${uri}-${refreshDoc.refreshRequestTime}`,
-        _rev: undefined,
         uri: uri,
         collectionId: collectionId,
         refreshRequestTime,
@@ -112,10 +113,10 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
   let dbType: 'ApprovalInfo' | 'Metadata' | 'Balances' = 'Metadata';
 
 
-
   //Get document from cache if it exists
   const _fetchDoc = await getFromDB(FetchModel, uri);
   fetchDoc = _fetchDoc ? convertFetchDoc(_fetchDoc, BigIntify) : undefined;
+
 
   //If permanent, do not need to fetch from source
   if (fetchDoc && fetchDoc.isPermanent) {
@@ -165,6 +166,8 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       res = _res;
     }
 
+
+
     //Handle different types of docs
     if (res.image) { //res.image is required for all metadata and not included in any other type
       dbType = 'Metadata';
@@ -175,8 +178,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       res = convertOffChainBalancesMap(res, BigIntify);
 
       //Compare res and fetchDoc.content and only update trigger balances writes if they are different. Else, just update fetchedAt
-
-      await handleBalances(res, queueObj, block)
+      await handleBalances(res, queueObj, block);
     } else {
       dbType = 'ApprovalInfo';
       res = cleanApprovalInfo(res);
@@ -184,6 +186,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
 
     await insertToDB(FetchModel, {
       ...fetchDoc,
+
       _legacyId: uri,
       content: res,
       fetchedAt: BigInt(Date.now()),
@@ -220,7 +223,7 @@ export const getApprovalInfoIdForQueueDb = (entropy: string, collectionId: strin
 
 export const pushApprovalInfoFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, uri: string, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _legacyId: deterministicEntropy ? getApprovalInfoIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), uri.toString()) : new mongoose.Types.ObjectId().toString(),
+    _legacyId: deterministicEntropy ? getApprovalInfoIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), uri.toString()) : crypto.randomBytes(16).toString('hex'),
     uri: uri,
     collectionId: BigInt(collection.collectionId),
     numRetries: 0n,
@@ -248,7 +251,7 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
   for (const uri of nonDuplicates) {
     const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "")) : 0;
     docs.queueDocsToAdd.push({
-      _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "") : new mongoose.Types.ObjectId().toString(),
+      _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "") : crypto.randomBytes(16).toString('hex'),
       uri: uri,
       collectionId: BigInt(collection.collectionId),
       numRetries: 0n,
@@ -292,7 +295,7 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
       if (uri) {
         const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`)) : 0;
         docs.queueDocsToAdd.push({
-          _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`) : new mongoose.Types.ObjectId().toString(),
+          _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`) : crypto.randomBytes(16).toString('hex'),
           uri: uri,
           collectionId: collection.collectionId,
           numRetries: 0n,
@@ -313,7 +316,7 @@ export const getAddressMappingIdForQueueDb = (entropy: string, mappingId: string
 
 export const pushAddressMappingFetchToQueue = async (docs: DocsCache, mapping: AddressMapping, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _legacyId: deterministicEntropy ? getAddressMappingIdForQueueDb(deterministicEntropy, mapping.mappingId) : new mongoose.Types.ObjectId().toString(),
+    _legacyId: deterministicEntropy ? getAddressMappingIdForQueueDb(deterministicEntropy, mapping.mappingId) : crypto.randomBytes(16).toString('hex'),
     uri: mapping.uri,
     numRetries: 0n,
     collectionId: 0n,
@@ -360,7 +363,7 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
 
 const MAX_NUM_ADDRESSES = 15000;
 
-const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>, block: bigint) => {
+export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>, block: bigint) => {
   const balanceMapHash = SHA256(JSON.stringify(balanceMap)).toString();
 
   if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances');
@@ -372,7 +375,6 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
 
   //If the provided balances map is the same as the balances map in the database, we do not need to update the balances docs and we only update the fetchedAt properties.
   //Else, we update any new balances
-
   const docs: DocsCache = {
     accounts: {},
     collections: {},
@@ -387,250 +389,251 @@ const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj:
     queueDocsToAdd: [],
   };
 
+  try {
 
-  //We have to update the existing balances with the new balances, if the collection already exists
-  //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
-  const mapKeys = [];
+    //We have to update the existing balances with the new balances, if the collection already exists
+    //This is a complete overwrite of the balances (i.e. we fetch all the balances from the balancesUri and overwrite the existing balances
+    const mapKeys = [];
 
-  const balanceMapKeys = Object.keys(balanceMap);
+    const balanceMapKeys = Object.keys(balanceMap);
 
-  const newBalanceMap: OffChainBalancesMap<bigint> = {};
-  for (const key of balanceMapKeys) {
-    const res = await getAddressMappingsFromDB([{ mappingId: key }], false);
-    const addressMapping = res[0];
+    const newBalanceMap: OffChainBalancesMap<bigint> = {};
+    for (const key of balanceMapKeys) {
+      const res = await getAddressMappingsFromDB([{ mappingId: key }], false);
+      const addressMapping = res[0];
 
-    if (!addressMapping.includeAddresses) {
-      throw new Error("Blacklists are not supported for address mappings: " + key);
+      if (!addressMapping.includeAddresses) {
+        throw new Error("Blacklists are not supported for address mappings: " + key);
+      }
+      if (addressMapping.mappingId.indexOf("_") >= 0) {
+        throw new Error("Address mappings cannot be off-chain: " + key);
+      }
+      if (mapKeys.length + addressMapping.addresses.length > MAX_NUM_ADDRESSES) {
+        throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
+      }
+
+      const addresses = addressMapping.addresses.map(x => convertToCosmosAddress(x))
+      mapKeys.push(...addresses);
+      for (const address of addresses) {
+        newBalanceMap[address] = balanceMap[key];
+      }
     }
-    if (addressMapping.mappingId.indexOf("_") >= 0) {
-      throw new Error("Address mappings cannot be off-chain: " + key);
-    }
-    if (mapKeys.length + addressMapping.addresses.length > MAX_NUM_ADDRESSES) {
+
+    balanceMap = newBalanceMap;
+
+    if (mapKeys.length > MAX_NUM_ADDRESSES) {
       throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
     }
 
-    const addresses = addressMapping.addresses.map(x => convertToCosmosAddress(x))
-    mapKeys.push(...addresses);
-    for (const address of addresses) {
-      newBalanceMap[address] = balanceMap[key];
-    }
-  }
+    //Check the total doc first. If undefined, we can assume the rest are undefined (since this collection has never had balances before)
+    //Saves us from fetching 10000+ or however many undefined docs if we dont need to
 
-  balanceMap = newBalanceMap;
+    await fetchDocsForCacheIfEmpty(docs, [], [], [
+      `${queueObj.collectionId}:Mint`,
+      `${queueObj.collectionId}:Total`,
+    ], [], [], [], []);
 
-  
+    const mintDoc = docs.balances[`${queueObj.collectionId}:Mint`];
+    if (!mintDoc) throw new Error('Mint doc not found');
 
-  if (mapKeys.length > MAX_NUM_ADDRESSES) {
-    throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
-  }
+    const totalDoc = docs.balances[`${queueObj.collectionId}:Total`];
+    if (!totalDoc) throw new Error('Total doc not found');
 
-  //Check the total doc first. If undefined, we can assume the rest are undefined (since this collection has never had balances before)
-  //Saves us from fetching 10000+ or however many undefined docs if we dont need to
-  const sanityCheckDoc = await getFromDB(BalanceModel, `${queueObj.collectionId}:Total`);
-
-  await fetchDocsForCacheIfEmpty(docs, [], [], [
-    `${queueObj.collectionId}:Mint`,
-    `${queueObj.collectionId}:Total`,
-  ], [], [], [], []);
-
-  const mintDoc = docs.balances[`${queueObj.collectionId}:Mint`];
-  if (!mintDoc) throw new Error('Mint doc not found');
-
-  const totalDoc = docs.balances[`${queueObj.collectionId}:Total`];
-  if (!totalDoc) throw new Error('Total doc not found');
-
-  const isContentSameAsLastUpdate = (totalDoc.contentHash && balanceMapHash === totalDoc.contentHash) || (sanityCheckDoc && mintDoc.uri === queueObj.uri && mintDoc.isPermanent);
-  if (isContentSameAsLastUpdate) {
-    docs.balances[`${queueObj.collectionId}:Mint`] = {
-      ...convertBalanceDoc(mintDoc, BigIntify),
-      fetchedAt: BigInt(Date.now()),
-      fetchedAtBlock: block,
-    }
-
-    docs.balances[`${queueObj.collectionId}:Total`] = {
-      ...convertBalanceDoc(totalDoc, BigIntify),
-      fetchedAt: BigInt(Date.now()),
-      fetchedAtBlock: block,
-    }
-  } else {
-    const allPreviousDocIds = await BalanceModel.find({
-      collectionId: Number(queueObj.collectionId),
-    }).lean().exec();
-
-    const allIdsToFetch = new Set([
-      ...mapKeys.map((key) => `${queueObj.collectionId}:${key}`),
-      ...allPreviousDocIds.map(x => x._legacyId),
-    ]);
-
-    await fetchDocsForCacheIfEmpty(docs, [], [], sanityCheckDoc ? [
-      ...allIdsToFetch,
-    ] : [], [], [], [], []);
-
-    const docBalancesCopy = deepCopy(docs.balances);
-    //Set all balances to empty array
-    for (const key of allIdsToFetch) {
-      let balanceDoc = docs.balances[`${key}`];
-      if (!balanceDoc) continue //For TS, we know it exists
-      if (balanceDoc.cosmosAddress === 'Mint' || balanceDoc.cosmosAddress === 'Total') continue;
-
-      balanceDoc = {
-        ...balanceDoc,
-        balances: [],
+    const isContentSameAsLastUpdate = (totalDoc.contentHash && balanceMapHash === totalDoc.contentHash);
+    if (isContentSameAsLastUpdate) {
+      docs.balances[`${queueObj.collectionId}:Mint`] = {
+        ...convertBalanceDoc(mintDoc, BigIntify),
+        fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: block,
       }
-      docs.balances[`${key}`] = balanceDoc;
-    }
 
-    const totalSupplysDoc = docs.balances[`${queueObj.collectionId}:Total`];
-    if (!totalSupplysDoc) throw new Error('Total supplys doc not found');
+      docs.balances[`${queueObj.collectionId}:Total`] = {
+        ...convertBalanceDoc(totalDoc, BigIntify),
+        fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: block,
+      }
+    } else {
+      //TODO: we pretty much just fetch this twice. Just set docs from this fetch
+      //mongo query is much faster than fetchDocsForCacheIfEmpty for large queries (49ms -> 381ms)
+      
+      const allPreviousDocIds = await BalanceModel.find({
+        collectionId: Number(queueObj.collectionId),
+      }).lean().exec();
 
-    docs.balances[`${queueObj.collectionId}:Total`] = {
-      ...totalSupplysDoc,
-      fetchedAt: BigInt(Date.now()),
-      fetchedAtBlock: block,
-      uri: queueObj.uri,
-      isPermanent: queueObj.uri.startsWith('ipfs://'),
-      contentHash: balanceMapHash,
-    }
+      const allIdsToFetch = new Set([
+        ...mapKeys.map((key) => `${queueObj.collectionId}:${key}`),
+        ...allPreviousDocIds.map(x => x._legacyId),
+      ]);
+
+      await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], []);
+
+      const docBalancesCopy = deepCopy(docs.balances);
+      //Set all balances to empty array
+      for (const key of allIdsToFetch) {
+        let balanceDoc = docs.balances[`${key}`];
+        if (!balanceDoc) continue //For TS, we know it exists
+        if (balanceDoc.cosmosAddress === 'Mint' || balanceDoc.cosmosAddress === 'Total') continue;
+
+        balanceDoc = {
+          ...balanceDoc,
+          balances: [],
+        }
+        docs.balances[`${key}`] = balanceDoc;
+      }
+
+      const totalSupplysDoc = docs.balances[`${queueObj.collectionId}:Total`];
+      if (!totalSupplysDoc) throw new Error('Total supplys doc not found');
+
+      docs.balances[`${queueObj.collectionId}:Total`] = {
+        ...totalSupplysDoc,
+        fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: block,
+        uri: queueObj.uri,
+        isPermanent: queueObj.uri.startsWith('ipfs://'),
+        contentHash: balanceMapHash,
+      }
 
 
-    let remainingSupplys = totalSupplysDoc.balances.map(x => convertBalance(x, BigIntify));
+      let remainingSupplys = totalSupplysDoc.balances.map(x => convertBalance(x, BigIntify));
 
-    //Update the balance documents
-    const entries = Object.entries(balanceMap);
+      //Update the balance documents
+      const entries = Object.entries(balanceMap);
 
 
-    for (const [key, val] of entries) {
-      if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
-        docs.balances[`${queueObj.collectionId}:${key}`] = {
-          _legacyId: `${queueObj.collectionId}:${key}`,
-          balances: val,
-          //Off-Chain Balances so we don't care ab approvals or permissions
-          incomingApprovals: [],
-          outgoingApprovals: [],
-          userPermissions: {
-            canUpdateIncomingApprovals: [],
-            canUpdateOutgoingApprovals: [],
-            canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
-            canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
-          },
-          collectionId: queueObj.collectionId,
-          cosmosAddress: key,
-          autoApproveSelfInitiatedIncomingTransfers: false,
-          autoApproveSelfInitiatedOutgoingTransfers: false,
-          onChain: false,
-          updateHistory: [],
-        };
+      for (const [key, val] of entries) {
+        if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
+          docs.balances[`${queueObj.collectionId}:${key}`] = {
+            _legacyId: `${queueObj.collectionId}:${key}`,
+            balances: val,
+            //Off-Chain Balances so we don't care ab approvals or permissions
+            incomingApprovals: [],
+            outgoingApprovals: [],
+            userPermissions: {
+              canUpdateIncomingApprovals: [],
+              canUpdateOutgoingApprovals: [],
+              canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+              canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+            },
+            collectionId: queueObj.collectionId,
+            cosmosAddress: key,
+            autoApproveSelfInitiatedIncomingTransfers: false,
+            autoApproveSelfInitiatedOutgoingTransfers: false,
+            onChain: false,
+            updateHistory: [],
+          };
 
-        //Will throw if underflow and the URI speecifies more badges than what is denoted on the blockchain
-        //This is to enforce that the balancesUri is not lying or overallocating balances 
-        for (const balance of val) {
-          remainingSupplys = subtractBalances([{
-            badgeIds: balance.badgeIds,
-            amount: balance.amount,
-            ownershipTimes: balance.ownershipTimes
-          }], remainingSupplys);
+          //Will throw if underflow and the URI speecifies more badges than what is denoted on the blockchain
+          //This is to enforce that the balancesUri is not lying or overallocating balances 
+          for (const balance of val) {
+            remainingSupplys = subtractBalances([{
+              badgeIds: balance.badgeIds,
+              amount: balance.amount,
+              ownershipTimes: balance.ownershipTimes
+            }], remainingSupplys);
+          }
+        }
+      }
+
+
+      docs.balances[`${queueObj.collectionId}:Mint`] = {
+        _legacyId: `${queueObj.collectionId}:Mint`,
+        balances: remainingSupplys.map(x => convertBalance(x, BigIntify)),
+        //Off-Chain Balances so we don't care ab approvals or permissions
+        incomingApprovals: [],
+        outgoingApprovals: [],
+        userPermissions: {
+          canUpdateIncomingApprovals: [],
+          canUpdateOutgoingApprovals: [],
+          canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+          canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+        },
+        autoApproveSelfInitiatedIncomingTransfers: false,
+        autoApproveSelfInitiatedOutgoingTransfers: false,
+        collectionId: queueObj.collectionId,
+        cosmosAddress: "Mint",
+        fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: block,
+        onChain: false,
+        uri: queueObj.uri,
+        isPermanent: queueObj.uri.startsWith('ipfs://'),
+        updateHistory: []
+      };
+
+      //Delete all docs that were not updated to avoid unnecessary writes to DB using the saved docBalancesCopy
+      //Also merge balance docs if balances are equal so that we create one doc with X to addresses instead of X docs with 1 to address
+      //uses binary search here to make it a little quicker.
+      const docsEntries = Object.entries(docs.balances);
+
+      for (const [key, val] of docsEntries) {
+        if (!val) continue
+        if (val.cosmosAddress === 'Mint' || val.cosmosAddress === 'Total') continue;
+
+        if (docBalancesCopy[key]?.balances && compareObjects(docBalancesCopy[key]?.balances, val?.balances)) {
+          delete docs.balances[key];
+        } else {
+          const balances = val.balances.map(x => convertBalance(x, BigIntify));
+          //We want to include any updated badges that now have zero balance 
+          //(e.g. going from [x1 ID 1] -> [x1 of ID 2], we want to display x0 of ID 1 and x1 of ID 2)
+
+          const prevBalances = docBalancesCopy[key]?.balances.map(x => convertBalance(x, BigIntify)) ?? [];
+          const inOldButNotNew = subtractBalances(balances, prevBalances, true).filter(x => x.amount > 0n);
+
+          //These values are not in the new (x0 amount)
+          //We want to add them to the balances doc with amount 0
+          if (inOldButNotNew.length > 0) {
+            balances.push(...inOldButNotNew.map(x => {
+              return {
+                ...x,
+                amount: 0n,
+              }
+            }));
+          }
+
+
+          const newActivity: TransferActivityDoc<bigint> = {
+            _legacyId: crypto.randomBytes(16).toString('hex'),
+            method: 'Transfer',
+            from: 'Mint',
+            to: [val.cosmosAddress],
+            collectionId: BigInt(val.collectionId),
+            balances: balances,
+            timestamp: BigInt(Date.now()),
+            memo: '',
+            initiatedBy: '',
+            prioritizedApprovals: [],
+            onlyCheckPrioritizedApprovals: false,
+            precalculateBalancesFromApproval: {
+              approvalId: '',
+              approvalLevel: '',
+              approverAddress: '',
+            },
+            block: block,
+          }
+
+          docs.activityToAdd.push(newActivity);
         }
       }
     }
 
+    if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances - flush only');
+    if (TIME_MODE && QUEUE_TIME_MODE) console.log("Flushing docs (balances, activityToAdd)", Object.keys(docs.balances).length, docs.activityToAdd.length);
+    await flushCachedDocs(docs)
 
-    docs.balances[`${queueObj.collectionId}:Mint`] = {
-      _legacyId: `${queueObj.collectionId}:Mint`,
-      balances: remainingSupplys.map(x => convertBalance(x, BigIntify)),
-      //Off-Chain Balances so we don't care ab approvals or permissions
-      incomingApprovals: [],
-      outgoingApprovals: [],
-      userPermissions: {
-        canUpdateIncomingApprovals: [],
-        canUpdateOutgoingApprovals: [],
-        canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
-        canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
-      },
-      autoApproveSelfInitiatedIncomingTransfers: false,
-      autoApproveSelfInitiatedOutgoingTransfers: false,
-      collectionId: queueObj.collectionId,
-      cosmosAddress: "Mint",
-      fetchedAt: BigInt(Date.now()),
-      fetchedAtBlock: block,
-      onChain: false,
-      uri: queueObj.uri,
-      isPermanent: queueObj.uri.startsWith('ipfs://'),
-      updateHistory: []
-    };
-
-    //Delete all docs that were not updated to avoid unnecessary writes to DB using the saved docBalancesCopy
-    //Also merge balance docs if balances are equal so that we create one doc with X to addresses instead of X docs with 1 to address
-    //uses binary search here to make it a little quicker.
-    const docsEntries = Object.entries(docs.balances);
-
-    for (const [key, val] of docsEntries) {
-      if (!val) continue
-      if (val.cosmosAddress === 'Mint' || val.cosmosAddress === 'Total') continue;
-
-      if (docBalancesCopy[key]?.balances && compareObjects(docBalancesCopy[key]?.balances, val?.balances)) {
-        delete docs.balances[key];
-      } else {
-        const balances = val.balances.map(x => convertBalance(x, BigIntify));
-        //We want to include any updated badges that now have zero balance 
-        //(e.g. going from [x1 ID 1] -> [x1 of ID 2], we want to display x0 of ID 1 and x1 of ID 2)
-
-        const prevBalances = docBalancesCopy[key]?.balances.map(x => convertBalance(x, BigIntify)) ?? [];
-        const inOldButNotNew = subtractBalances(balances, prevBalances, true).filter(x => x.amount > 0n);
-
-        //These values are not in the new (x0 amount)
-        //We want to add them to the balances doc with amount 0
-        if (inOldButNotNew.length > 0) {
-          balances.push(...inOldButNotNew.map(x => {
-            return {
-              ...x,
-              amount: 0n,
-            }
-          }));
-        }
-
-
-        const newActivity: TransferActivityDoc<bigint> = {
-          _legacyId: new mongoose.Types.ObjectId().toString(),
-          method: 'Transfer',
-          from: 'Mint',
-          to: [val.cosmosAddress],
-          collectionId: BigInt(val.collectionId),
-          balances: balances,
-          timestamp: BigInt(Date.now()),
-          memo: '',
-          initiatedBy: '',
-          prioritizedApprovals: [],
-          onlyCheckPrioritizedApprovals: false,
-          precalculateBalancesFromApproval: {
-            approvalId: '',
-            approvalLevel: '',
-            approverAddress: '',
-          },
-          block: block,
-        }
-
-        docs.activityToAdd.push(newActivity);
-      }
-    }
-  }
-
-
-  if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances - flush only');
-  if (TIME_MODE && QUEUE_TIME_MODE) console.log("Flushing docs (balances, activityToAdd)", Object.keys(docs.balances).length, docs.activityToAdd.length);
-  const session = await MongoDB.startSession();
-  try {
-    session.startTransaction();
-    await flushCachedDocs(session, docs);
-    await session.commitTransaction();
-    await session.endSession();
   } catch (e) {
-    await session.abortTransaction();
-    await session.endSession();
+    console.log(serializeError(e));
+    await ErrorModel.create({
+      _legacyId: crypto.randomBytes(16).toString('hex'),
+      error: serializeError(e),
+    });
+
+    console.log("Error in handleBalances");
     throw e;
   }
-
   if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances - flush only');
   if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances');
+
+
+  return docs //For testing
 }
 
 export const fetchUrisFromQueue = async (block: bigint) => {
@@ -643,17 +646,17 @@ export const fetchUrisFromQueue = async (block: bigint) => {
   const numDocsInDB = await QueueModel.countDocuments();
   if (numDocsInDB == 0) return;
 
+
   const queueRes = await QueueModel.find({
     _legacyId: { $exists: true },
     loadBalanceId: LOAD_BALANCER_ID,
     nextFetchTime: {
-      "$lte": Date.now() - 1000 * 30 * 1 //If it is too quick, we sometimes have data race issues
+      "$lte": Date.now() - 1000 * 10 * 1 //If it is too quick, we sometimes have data race issues
     },
     deletedAt: {
       "$exists": false
     },
   }).limit(NUM_METADATA_FETCHES_PER_BLOCK).lean().exec();
-
 
   const queue = queueRes.map((doc) => convertQueueDoc(doc, BigIntify));
   const queueItems: (QueueDoc<bigint> & nano.DocumentGetResponse)[] = [];
@@ -667,66 +670,53 @@ export const fetchUrisFromQueue = async (block: bigint) => {
     numFetchesLeft--;
   }
 
-  const promises = [];
-  for (const queueObj of queueItems) {
-    promises.push(fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj, block));
-  }
+  const executeFunc = async (queueObj: QueueDoc<bigint>) => {
+    try {
 
-  //If fulfilled, delete from queue (after creating balance docs if necessary).
-  //If rejected, do nothing (it will remain in queue)
-  const results = await Promise.allSettled(promises);
+      await fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj, block);
+      await insertToDB(QueueModel, {
+        ...queueObj,
+        _deleted: true,
+        deletedAt: BigInt(Date.now()),
+      });
 
-  const handlingPromises = [];
-  for (let i = 0; i < results.length; i++) {
-    let queueObj = queueItems[i];
-    let result = results[i];
-
-    if (result.status == 'fulfilled') {
-      try {
-        handlingPromises.push(insertToDB(QueueModel, {
-          ...queueObj,
-          _deleted: true,
-          deletedAt: BigInt(Date.now()),
-        }));
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
+    } catch (e) {
       let reason = '';
       try {
-        reason = result.reason.toString();
+        reason = e.toString();
       } catch (e) {
         try {
-          reason = JSON.stringify(result.reason);
+          reason = JSON.stringify(e);
         } catch (e) {
           reason = 'Could not stringify error message';
         }
       }
       const delay = BASE_DELAY * Math.pow(2, Number(queueObj.numRetries + 1n));
 
-      handlingPromises.push(insertToDB(QueueModel, {
+      await insertToDB(QueueModel, {
         ...queueObj,
         lastFetchedAt: BigInt(Date.now()),
         error: reason,
         numRetries: BigInt(queueObj.numRetries + 1n),
         nextFetchTime: BigInt(delay) + BigInt(Date.now()),
-      }));
-
-      console.error(result.reason);
+      });
     }
   }
 
-  await Promise.all(handlingPromises);
+
+  const promises = queueItems.map(async (queueObj) => {
+    await executeFunc(queueObj);
+  });
+
+  await Promise.all(promises);
+
 }
 
 export const purgeQueueDocs = async () => {
-  //Purge all deleted docs from this load balancer that are older than 1 hour
-  //We keep for 1 hour for replication purposes
-  //Any deleted from other load balancers, we can delete right away
   const res = await QueueModel.find({
     loadBalanceId: LOAD_BALANCER_ID,
     deletedAt: {
-      "$lte": Date.now() - 1000 * 60 * 60 * 1
+      "$lte": Date.now(),
     },
   }).lean().exec();
 

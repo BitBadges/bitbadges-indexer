@@ -9,13 +9,12 @@ import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
 import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import mongoose from "mongoose"
-import nano from "nano"
 import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
 import { ComplianceModel, ErrorModel, MongoDB, MsgDoc, StatusModel, insertMany, mustGetFromDB } from "./db/db"
 import { getStatus } from "./db/status"
-import { client, setClient, setTimer, setUriPollerTimer } from "./indexer"
+import { SHUTDOWN, client, setClient, setTimer, setUriPollerTimer } from "./indexer"
 import { TIME_MODE } from "./indexer-vars"
 import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
@@ -64,19 +63,16 @@ async function connectToRpc() {
 export const QUEUE_TIME_MODE = process.env.QUEUE_TIME_MODE == 'true';
 
 export const pollUris = async () => {
-
-
   if (TIME_MODE && QUEUE_TIME_MODE) {
     console.time("pollUris");
   }
   try {
-
-
     // We fetch initial status at beginning of block and do not write anything in DB until end of block
     // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
     const _status = await getStatus();
     const status = convertStatusDoc(_status, BigIntify);
     await fetchUrisFromQueue(status.block.height);
+
 
     await purgeQueueDocs();
   } catch (e) {
@@ -96,6 +92,8 @@ export const pollUris = async () => {
     console.timeEnd("pollUris");
   }
 
+  if (SHUTDOWN) return;
+
   const newTimer = setTimeout(pollUris, uriPollIntervalMs);
   setUriPollerTimer(newTimer);
 }
@@ -113,15 +111,20 @@ export const poll = async () => {
     // Connect to the chain client (this is first-time only)
     // This could be in init() but it is here in case indexer is started w/o the chain running
     if (!client) {
-      connectToRpc();
+      await connectToRpc();
     }
+
     // const _status = await getStatus();
     // let status = convertStatusDoc(_status, BigIntify);
     const clientHeight = await client.getHeight();
     let caughtUp = false;
     // let fastCatchUp = false;
 
+    // We fetch initial status at beginning of block and do not write anything in DB until flush at end of block
+    // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
     // If we are behind, go until we catch up
+
+
     const _status = await getStatus();
 
     let status = convertStatusDoc(_status, BigIntify);
@@ -161,7 +164,7 @@ export const poll = async () => {
       session.startTransaction();
       try {
 
-        const msgDocs: (MsgDoc & nano.MaybeIdentifiedDocument)[] = [];
+        const msgDocs: (MsgDoc)[] = [];
 
 
         //Handle printing of status if there was an outage
@@ -170,7 +173,6 @@ export const poll = async () => {
           console.log(`Reconnected to chain at block ${status.block.height} after outage of ${new Date().getTime() - outageTime.getTime()} ms`)
         }
         outageTime = undefined;
-
 
         const processing = status.block.height + 1n;
         if (!TIME_MODE) process.stdout.cursorTo(0);
@@ -188,7 +190,7 @@ export const poll = async () => {
 
         //Right now, we are banking on all these DB updates succeeding together every time. 
         //If there is a failure in the middle, it could be bad.
-        const flushed = await flushCachedDocs(session, docs, msgDocs, status, status.block.height < clientHeight);
+        const flushed = await flushCachedDocs(docs, session, msgDocs, status, status.block.height < clientHeight);
         if (flushed) {
           const status2 = await StatusModel.findOne({}).lean().session(session).exec();
           status = convertStatusDoc(status2 as StatusDoc<JSPrimitiveNumberType>, BigIntify);
@@ -235,6 +237,7 @@ export const poll = async () => {
   if (TIME_MODE && QUEUE_TIME_MODE) {
     console.timeEnd("poll");
   }
+  if (SHUTDOWN) return;
 
   const newTimer = setTimeout(poll, pollIntervalMs)
   setTimer(newTimer);
@@ -253,7 +256,7 @@ const handleEvents = async (events: StringEvent[], status: StatusDoc<bigint>, do
 }
 
 
-//TODO: Do this natively via Msgs instead of events
+//TODO: Do this natively via Msgs instead of events?
 const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
 
   if (getAttributeValueByKey(event.attributes, "amountTrackerId")) {

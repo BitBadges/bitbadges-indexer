@@ -60,6 +60,9 @@ const limiter = rateLimit({
 
 })
 
+export let SHUTDOWN = false;
+
+
 export const getAttributeValueByKey = (attributes: Attribute[], key: string): string | undefined => {
   return attributes.find((attribute: Attribute) => attribute.key === key)?.value
 }
@@ -345,6 +348,7 @@ const initHeartbeat = async () => {
     console.log('Parent process is alive. Still on standby....');
     numConsecutiveFailedHeartbeats = 0;
   }
+  if (SHUTDOWN) return;
 
   const newTimer = setTimeout(initHeartbeat, 5000);
   setHeartbeatTimer(newTimer);
@@ -367,16 +371,9 @@ const init = async () => {
   }
 }
 
-process.on("SIGINT", () => {
-  if (timer) clearTimeout(timer)
-  if (uriPollerTimer) clearTimeout(uriPollerTimer)
-  if (heartbeatTimer) clearTimeout(heartbeatTimer)
-  server?.close(() => {
-    console.log("server closed")
-    process.exit(0)
-  })
-})
-
+// process.on("SIGINT", () => {
+//   
+// })
 
 
 const server = process.env.DISABLE_API === 'true' ? undefined :
@@ -392,6 +389,18 @@ const server = process.env.DISABLE_API === 'true' ? undefined :
     })
   })
 
-app.listen(3005, () => {
-  console.log(`\nserver started at http://localhost:${3005}`, Date.now().toLocaleString());
-})
+const gracefullyShutdown = async () => {
+  SHUTDOWN = true;
+  server?.close(() => {
+    console.log("server closed")
+  })
+
+  await mongoose.connection.close();
+  console.log("mongoose connection closed")
+
+  process.exit(0);
+}
+
+
+process.on('SIGINT', gracefullyShutdown);
+process.on('SIGTERM', gracefullyShutdown);

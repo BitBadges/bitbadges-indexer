@@ -10,7 +10,7 @@ import { setStatus } from "./status";
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[], passwordDocIds: string[]) {
+export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[], passwordDocIds: string[], session?: mongoose.mongo.ClientSession) {
   try {
     const newCollectionIds = collectionIds.map(x => x.toString()).filter((id) => !currDocs.collections[id]); //collectionId as keys (string: `${collectionId}`)
     const newCosmosAddresses = cosmosAddresses.map(x => x.toString()).filter((id) => !currDocs.collections[id]);
@@ -23,7 +23,7 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
     const newMerkleChallengeIds = merkleChallengeIds.filter((id) => !currDocs.merkleChallenges[id]);
 
     if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length || newPasswordDocIds.length) {
-      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds, newPasswordDocIds);
+      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds, newPasswordDocIds, session);
       currDocs.accounts = {
         ...currDocs.accounts,
         ...newDocs.accounts
@@ -71,7 +71,7 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[], _passwordDocIds: string[]) {
+export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[], _passwordDocIds: string[], session?: mongoose.mongo.ClientSession) {
   try {
     const cosmosAddresses = [...new Set(_cosmosAddresses)].filter((id) => id.length > 0);
     const collectionDocIds = [...new Set(_collectionDocIds)].filter((id) => id.length > 0);
@@ -91,13 +91,13 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 
 
     const promises = [];
-    if (cosmosAddresses.length) promises.push(getManyFromDB(AccountModel, cosmosAddresses));
-    if (collectionDocIds.length) promises.push(getManyFromDB(CollectionModel, collectionDocIds));
-    if (balanceDocIds.length) promises.push(getManyFromDB(BalanceModel, balanceDocIds));
-    if (claimDocIds.length) promises.push(getManyFromDB(MerkleChallengeModel, claimDocIds));
-    if (approvalsTrackerIds.length) promises.push(getManyFromDB(ApprovalsTrackerModel, approvalsTrackerIds));
-    if (addressMappingIds.length) promises.push(getManyFromDB(AddressMappingModel, addressMappingIds));
-    if (passwordDocIds.length) promises.push(getManyFromDB(PasswordModel, passwordDocIds));
+    if (cosmosAddresses.length) promises.push(getManyFromDB(AccountModel, cosmosAddresses, session));
+    if (collectionDocIds.length) promises.push(getManyFromDB(CollectionModel, collectionDocIds, session));
+    if (balanceDocIds.length) promises.push(getManyFromDB(BalanceModel, balanceDocIds, session));
+    if (claimDocIds.length) promises.push(getManyFromDB(MerkleChallengeModel, claimDocIds, session));
+    if (approvalsTrackerIds.length) promises.push(getManyFromDB(ApprovalsTrackerModel, approvalsTrackerIds, session));
+    if (addressMappingIds.length) promises.push(getManyFromDB(AddressMappingModel, addressMappingIds, session));
+    if (passwordDocIds.length) promises.push(getManyFromDB(PasswordModel, passwordDocIds, session));
 
     if (promises.length) {
       const results = await Promise.allSettled(promises);
@@ -183,7 +183,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 }
 
 //Finalize docs at end of handling block(s)
-export async function flushCachedDocs(session: mongoose.mongo.ClientSession, docs: DocsCache, msgDocs?: MsgDoc[], status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
+export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.ClientSession, msgDocs?: MsgDoc[], status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
   try {
     //If we reach here, we assume that all docs are valid and ready to be inserted into the DB (i.e. not undefined) so we can cast safely
     const promises = [];
@@ -199,64 +199,78 @@ export async function flushCachedDocs(session: mongoose.mongo.ClientSession, doc
     const queueDocs = docs.queueDocsToAdd;
     const claimAlertDocs = docs.claimAlertsToAdd;
 
+    const parallelExecution = !session;
+
     if (activityDocs.length) {
-      await insertMany(TransferActivityModel, activityDocs, session);
+      if (parallelExecution) promises.push(insertMany(TransferActivityModel, activityDocs, session));
+      else await insertMany(TransferActivityModel, activityDocs, session);
     }
 
     if (queueDocs.length) {
-      await insertMany(QueueModel, queueDocs, session);
+      if (parallelExecution) promises.push(insertMany(QueueModel, queueDocs, session));
+      else await insertMany(QueueModel, queueDocs, session);
     }
 
     if (accountDocs.length) {
-      await insertMany(AccountModel, accountDocs, session);
+      if (parallelExecution) promises.push(insertMany(AccountModel, accountDocs, session));
+      else await insertMany(AccountModel, accountDocs, session);
     }
 
     if (collectionDocs.length) {
-      await insertMany(CollectionModel, collectionDocs, session);
+      if (parallelExecution) promises.push(insertMany(CollectionModel, collectionDocs, session));
+      else await insertMany(CollectionModel, collectionDocs, session);
     }
 
     if (balanceDocs.length) {
-      await insertMany(BalanceModel, balanceDocs, session);
+      if (parallelExecution) promises.push(insertMany(BalanceModel, balanceDocs, session));
+      else await insertMany(BalanceModel, balanceDocs, session);
     }
 
+
     if (claimDocs.length) {
-      await insertMany(MerkleChallengeModel, claimDocs, session);
+      if (parallelExecution) promises.push(insertMany(MerkleChallengeModel, claimDocs, session));
+      else await insertMany(MerkleChallengeModel, claimDocs, session);
     }
 
     if (refreshDocs.length) {
-      await insertMany(RefreshModel, refreshDocs, session);
+      if (parallelExecution) promises.push(insertMany(RefreshModel, refreshDocs, session));
+      else await insertMany(RefreshModel, refreshDocs, session);
     }
 
     if (approvalsTrackerDocs.length) {
-      await insertMany(ApprovalsTrackerModel, approvalsTrackerDocs, session);
+      if (parallelExecution) promises.push(insertMany(ApprovalsTrackerModel, approvalsTrackerDocs, session));
+      else await insertMany(ApprovalsTrackerModel, approvalsTrackerDocs, session);
     }
 
     if (addressMappingDocs.length) {
-      await insertMany(AddressMappingModel, addressMappingDocs, session);
+      if (parallelExecution) promises.push(insertMany(AddressMappingModel, addressMappingDocs, session));
+      else await insertMany(AddressMappingModel, addressMappingDocs, session);
     }
 
     if (passwordDocs.length) {
-      await insertMany(PasswordModel, passwordDocs, session);
+      if (parallelExecution) promises.push(insertMany(PasswordModel, passwordDocs, session));
+      else await insertMany(PasswordModel, passwordDocs, session);
     }
 
     if (claimAlertDocs.length) {
-      await insertMany(ClaimAlertModel, claimAlertDocs, session);
+      if (parallelExecution) promises.push(insertMany(ClaimAlertModel, claimAlertDocs, session));
+      else await insertMany(ClaimAlertModel, claimAlertDocs, session);
     }
 
     if (msgDocs && msgDocs.length) {
-      await insertMany(MsgModel, msgDocs, session);
+      if (parallelExecution) promises.push(insertMany(MsgModel, msgDocs, session));
+      else await insertMany(MsgModel, msgDocs, session);
     }
 
     if (promises.length === 0 && status && skipStatusFlushIfEmptyBlock) {
-
       return false;
     } else if (promises.length || status) {
       if (status) {
-        await setStatus(status, session);
+        if (parallelExecution) promises.push(setStatus(status, session));
+        else await setStatus(status, session);
       }
 
-      //TODO: Apparently, there are issues with using Promise.all() with transactions. We can look into this, but it is still very fast without it.
-      // await Promise.all(promises);
+      if (parallelExecution) await Promise.all(promises);
     }
 
     return true;

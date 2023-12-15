@@ -3,23 +3,33 @@ import { config } from "dotenv";
 import mongoose from 'mongoose';
 
 import { AccountDoc, AccountSchema, ActivityDoc, AddressMappingDoc, AddressMappingSchema, AirdropDoc, AirdropSchema, AnnouncementDoc, AnnouncementSchema, ApprovalsTrackerDoc, ApprovalsTrackerSchema, BalanceDoc, BalanceSchema, BlockinAuthSignatureDoc, BlockinAuthSignatureSchema, ChallengeSchema, ClaimAlertDoc, ClaimAlertSchema, CollectionDoc, CollectionSchema, ComplianceDoc, ComplianceSchema, ErrorDoc, FetchDoc, FetchSchema, FollowDetailsDoc, FollowDetailsSchema, IPFSTotalsDoc, IPFSTotalsSchema, MerkleChallengeDoc, PasswordDoc, PasswordSchema, ProfileDoc, ProfileSchema, QueueDoc, QueueSchema, RefreshDoc, RefreshSchema, ReviewDoc, ReviewSchema, StatusDoc, StatusSchema, TransferActivityDoc, TransferActivitySchema, convertAccountDoc, convertAddressMappingDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertCollectionDoc, convertComplianceDoc, convertFetchDoc, convertFollowDetailsDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc } from 'bitbadgesjs-utils';
+import crypto from 'crypto-js';
+
+const { SHA256 } = crypto;
+
 
 config();
+
+export let MONGO_CONNECTED = false;
+
 mongoose.connect(`${process.env.DB_URL}`);
 export const MongoDB = mongoose.connection;
 MongoDB.on('error', console.error.bind(console, 'MongoDB connection error:'));
 MongoDB.once('open', () => {
+  MONGO_CONNECTED = true;
   console.log('Connected to MongoDB');
 });
 
 export interface ApiKeyDoc {
   _legacyId: string;
+  _id?: string
   numRequests: number;
   lastRequest: number;
 }
 
 export interface ReportDoc {
   _legacyId: string;
+  _id?: string
   collectionId?: number;
   mappingId?: string;
   addressOrUsername?: string;
@@ -28,12 +38,14 @@ export interface ReportDoc {
 
 export interface EthTxCountDoc {
   _legacyId: string;
+  _id?: string
   count: number;
   lastFetched: number;
 }
 
 export interface MsgDoc {
   _legacyId: string;
+  _id?: string
   msg?: any;
   type: string;
   txHash: string;
@@ -47,6 +59,7 @@ export interface MsgDoc {
 
 export interface OffChainUrlDoc {
   _legacyId: string;
+  _id?: string
   collectionId: number;
 }
 
@@ -102,6 +115,7 @@ export const EthTxCountSchema = new Schema({
 
 export interface UsernameDoc {
   _legacyId: string;
+  _id: string;
 }
 export const UsernameSchema = new Schema({
   _legacyId: String,
@@ -141,17 +155,30 @@ export const UsernameModel = mongoose.model<UsernameDoc>('usernames', UsernameSc
 
 export async function getManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
   model: mongoose.Model<T>,
-  ids: string[]
+  ids: string[],
+  session?: mongoose.mongo.ClientSession
 ) {
-  const res = await model.find({ _legacyId: { $in: ids } }).limit(ids.length).lean().exec();
-  return ids.map(id => res.find(x => x._legacyId === id)) as (T | undefined)[];
+  const query = model.find({ _legacyId: { $in: ids } }).limit(ids.length).lean();
+  if (session) {
+    query.session(session);
+  }
+  const res = await query.exec();
+
+
+  return ids.map(id => res.find(x => x._legacyId === id)).map(x => {
+    if (!x) return undefined;
+    return {
+      ...x, _id: x._id ? x._id.toString() : undefined
+    } as T;
+  });
 }
 
 export async function mustGetManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
   model: mongoose.Model<T>,
-  ids: string[]
+  ids: string[],
+  session?: mongoose.mongo.ClientSession
 ) {
-  const res = await getManyFromDB(model, ids);
+  const res = await getManyFromDB(model, ids, session);
   for (const id of ids) {
     if (!res.find(x => x?._legacyId === id)) {
       throw `Error in mustGetManyFromDB(): Could not find doc w/ id ${id}`;
@@ -164,23 +191,40 @@ export async function mustGetManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumbe
 
 export async function getFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
   model: mongoose.Model<T>,
-  id: string
+  id: string,
+  session?: mongoose.mongo.ClientSession
 ) {
-  const res = await model.find({ _legacyId: id }).limit(1).lean().exec();
+  const query = model.find({ _legacyId: id }).limit(1).lean();
+  if (session) {
+    query.session(session);
+  }
+  const res = await query.exec();
 
-  return res.length > 0 ? res[0] as T : undefined;
+  //if ID is not found, return undefined
+
+  return res.length > 0 ? {
+    ...res[0], _id: res[0]._id ? res[0]._id.toString() : undefined
+  } as T : undefined;
 }
 
 export async function mustGetFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
   model: mongoose.Model<T>,
-  id: string
+  id: string,
+  session?: mongoose.mongo.ClientSession
 ) {
-  const res = await model.find({ _legacyId: id }).limit(1).lean().exec();
+  const query = model.find({ _legacyId: id }).limit(1).lean();
+  if (session) {
+    query.session(session);
+  }
+
+  const res = await query.exec();
   if (res.length === 0) {
     throw `Error in mustGetFromDB(): Could not find doc w/ id ${id}`;
   }
 
-  return res[0] as T
+  return {
+    ...res[0], _id: res[0]._id ? res[0]._id.toString() : undefined
+  } as T;
 }
 
 export async function insertToDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>), U extends (BitBadgesDoc<NumberType>)>(
@@ -188,14 +232,7 @@ export async function insertToDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
   doc: U,
   session?: mongoose.mongo.ClientSession
 ) {
-  const convertedDocs = await convertDocsToStoreInDb(model, [doc]);
-
-  const currDoc = await model.exists({ _legacyId: convertedDocs[0]._legacyId });
-  if (!currDoc) {
-    await model.create(convertedDocs[0]);
-  } else {
-    await model.findOneAndUpdate({ _legacyId: convertedDocs[0]._legacyId }, { ...convertedDocs[0], _id: currDoc._id }, { upsert: true, new: true, session });
-  }
+  await insertMany(model, [doc], session);
 }
 
 export async function insertMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>), U extends (BitBadgesDoc<NumberType>)>(
@@ -203,34 +240,34 @@ export async function insertMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
   docs: U[],
   session?: mongoose.mongo.ClientSession
 ) {
-  const passedInSession = !!session;
-  if (!passedInSession) {
-    session = await MongoDB.startSession();
-    session.startTransaction();
-  }
   try {
-
     const convertedDocs = await convertDocsToStoreInDb(model, docs);
 
-    //TODO: Apparently, there are issues with using Promise.all() with transactions / sessions. Can look into this, but this is fast for now.
-    for (const doc of convertedDocs) {
-      await insertToDB(model, doc, session);
-    }
+    const docsToInsert = convertedDocs.map(x => {
+      const hexHashString = SHA256(x._legacyId).toString();
+      //24 character limit
+      const shortenedHexHashString = hexHashString.slice(0, 24);
+      return {
+        ...x,
+        _id: x._id ?? new mongoose.Types.ObjectId(shortenedHexHashString).toString() //We use a deterministic _id based on _legacyId which is going to be unique
+      }
+    });
 
-    if (!passedInSession && session) {
-      await session.commitTransaction();
-      await session.endSession();
-    } else {
-      //It is handled by the caller
-    }
+    // if (docsToInsert.length > 1000) console.time('insertMany');
+    const bulkOps = docsToInsert.map(doc => ({
+      updateOne: {
+        filter: { _id: doc._id },
+        update: doc,
+        upsert: true,
+      },
+    }));
+    await model.bulkWrite(bulkOps as any, { session });
+
+    // if (docsToInsert.length > 1000) console.timeEnd('insertMany');
+
+    
   } catch (e) {
-    if (!passedInSession && session) {
-      await session.abortTransaction();
-      await session.endSession();
-    } else {
-      //It is handled by the caller
-    }
-
+    console.log(e);
     throw e;
   }
 }
@@ -240,30 +277,9 @@ export async function deleteMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
   ids: string[],
   session: mongoose.mongo.ClientSession | undefined = undefined
 ) {
-  const passedInSession = !!session;
-  if (!passedInSession) {
-    session = await MongoDB.startSession();
-    session.startTransaction();
-  }
-
   try {
     await model.deleteMany({ _legacyId: { $in: ids } }, { session });
-
-    if (!passedInSession && session) {
-      await session.commitTransaction();
-      await session.endSession();
-    } else {
-      //It is handled by the caller
-    }
   } catch (e) {
-
-    if (!passedInSession && session) {
-      await session.abortTransaction();
-      await session.endSession();
-    } else {
-      //It is handled by the caller
-    }
-
     throw e;
   }
 }
@@ -332,7 +348,10 @@ export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitive
       convertedDoc = convertFollowDetailsDoc(doc as FollowDetailsDoc<NumberType>, NumberifyIfPossible);
     }
 
-    const docToAdd = convertedDoc as BitBadgesDoc<JSPrimitiveNumberType>;
+    const docToAdd = {
+      ...convertedDoc as BitBadgesDoc<JSPrimitiveNumberType>,
+      _id: convertedDoc?._id && typeof convertedDoc?._id === 'string' ? convertedDoc?._id : undefined //HACK: _id is "{}" when using .lean() so this just filters those ones out and makes them undefined.
+    }
     convertedDocs.push(docToAdd);
   }
 

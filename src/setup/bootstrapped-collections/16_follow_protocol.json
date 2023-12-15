@@ -1,0 +1,118 @@
+{
+  "creator": "cosmos199ux82zvgqwn0uc0nrgff3k8jmd49r83l60nq9",
+  "collectionId": "0",
+  "balancesType": "Off-Chain - Indexed",
+  "defaultOutgoingApprovals": [],
+  "defaultIncomingApprovals": [],
+  "badgesToCreate": [
+    {
+      "amount": "1000000000000000000",
+      "ownershipTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "badgeIds": [
+        {
+          "start": "1",
+          "end": "1"
+        }
+      ]
+    }
+  ],
+  "updateCollectionPermissions": true,
+  "collectionPermissions": {
+    "canDeleteCollection": [],
+    "canArchiveCollection": [],
+    "canUpdateOffChainBalancesMetadata": [],
+    "canUpdateStandards": [],
+    "canUpdateCustomData": [],
+    "canUpdateManager": [],
+    "canUpdateCollectionMetadata": [],
+    "canCreateMoreBadges": [],
+    "canUpdateBadgeMetadata": [],
+    "canUpdateCollectionApprovals": []
+  },
+  "updateManagerTimeline": false,
+  "managerTimeline": [],
+  "updateCollectionMetadataTimeline": true,
+  "collectionMetadataTimeline": [
+    {
+      "collectionMetadata": {
+        "uri": "ipfs://QmSiftzGpybguNtu3j2gFAQesUc48atjMSCAfDxcbEFVMQ",
+        "customData": ""
+      },
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateBadgeMetadataTimeline": true,
+  "badgeMetadataTimeline": [
+    {
+      "badgeMetadata": [
+        {
+          "uri": "ipfs://QmSiftzGpybguNtu3j2gFAQesUc48atjMSCAfDxcbEFVMQ",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": "1",
+              "end": "1"
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmQKn1G41gcVEZPenXjtTTQfQJnx5Q6fDtZrcSNJvBqxUs",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": "2",
+              "end": "18446744073709551615"
+            }
+          ]
+        }
+      ],
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateOffChainBalancesMetadataTimeline": true,
+  "offChainBalancesMetadataTimeline": [
+    {
+      "offChainBalancesMetadata": {
+        "uri": "https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/0fd78b9639585da0907af1457b152bc9f635e81cfdd0483a1b474882d76a875e",
+        "customData": "0fd78b9639585da0907af1457b152bc9f635e81cfdd0483a1b474882d76a875e"
+      },
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateCustomDataTimeline": true,
+  "customDataTimeline": [],
+  "updateCollectionApprovals": true,
+  "collectionApprovals": [],
+  "updateStandardsTimeline": true,
+  "standardsTimeline": [],
+  "updateIsArchivedTimeline": true,
+  "isArchivedTimeline": [],
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultUserPermissions": {
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateIncomingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": []
+  }
+}

@@ -1,5 +1,5 @@
-import { BigIntify, JSPrimitiveNumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileInfoBase, SupportedChain, cosmosToEth, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
+import { BigIntify, NumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
+import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, ProfileInfoBase, SupportedChain, cosmosToEth, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
 import { AddressMappingModel, AirdropModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, EthTxCountModel, ReviewModel, TransferActivityModel, getFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { OFFLINE_MODE } from "../indexer-vars";
@@ -8,7 +8,7 @@ import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../u
 
 const QUERY_TIME_MODE = false;
 
-export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<JSPrimitiveNumberType>[], accountInfos: AccountInfoBase<JSPrimitiveNumberType>[], fetchName = true): Promise<BitBadgesUserInfo<JSPrimitiveNumberType>[]> => {
+export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<NumberType>[], accountInfos: AccountInfoBase<NumberType>[], fetchName = true): Promise<BitBadgesUserInfo<NumberType>[]> => {
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
   }
@@ -73,6 +73,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
         ethTxCount = await provider.getTransactionCount(ethAddress);
 
+
         await insertToDB(EthTxCountModel, {
           ...cachedEthTxCount,
           _legacyId: ethAddress,
@@ -108,14 +109,14 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
     }
   }));
 
-  const resultsToReturn: BitBadgesUserInfo<JSPrimitiveNumberType>[] = [];
+  const resultsToReturn: BitBadgesUserInfo<NumberType>[] = [];
 
   for (let i = 0; i < results.length; i += 4) {
     const profileInfo = profileInfos[i / 4];
     const accountInfo = accountInfos[i / 4];
 
     const nameAndAvatarRes = results[i] as { resolvedName: string, avatar: string };
-    const balanceInfo = results[i + 1] as CosmosCoin<JSPrimitiveNumberType>;
+    const balanceInfo = results[i + 1] as CosmosCoin<NumberType>;
     const airdropInfo = results[i + 2] as { _legacyId: string, airdropped: boolean } | undefined;
     const chainResolve = results[i + 3] as { address: string, chain: SupportedChain }
 
@@ -149,7 +150,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileInfoBase<J
       //We don't want to return these to the user
       _legacyId: accountInfo.cosmosAddress,
       _rev: undefined,
-    } as BitBadgesUserInfo<JSPrimitiveNumberType>);
+    } as BitBadgesUserInfo<NumberType>);
   }
 
   return resultsToReturn;
@@ -196,7 +197,7 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
           },
         },
       ],
-    }).sort({ timestamp: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).sort({ timestamp: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
 
 
@@ -237,7 +238,7 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
     docs.push(...viewDocs);
     docsLeft -= viewDocs.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (viewDocs.length === 0) {
       break;
@@ -302,7 +303,7 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
           }
         }
       }
-    }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
     if (!fetchHidden) {
       const nonHiddenDocs = viewDocs.map((doc) => {
@@ -333,7 +334,7 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
     docs.push(...viewDocs);
     docsLeft -= viewDocs.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (viewDocs.length === 0) {
       break;
@@ -367,13 +368,13 @@ export async function executeListsQuery(cosmosAddress: string, bookmark?: string
       private: {
         "$ne": true,
       }
-    }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
 
     docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (collectedRes.length === 0) {
       break;
@@ -415,12 +416,12 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, b
       private: {
         "$ne": true,
       }
-    }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
     docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (collectedRes.length === 0) {
       break;
@@ -466,12 +467,12 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, b
       private: {
         "$ne": true,
       }
-    }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
     docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (collectedRes.length === 0) {
       break;
@@ -511,12 +512,12 @@ export async function executeLatestAddressMappingsQuery(cosmosAddress: string, b
       }
 
 
-    }).sort({ lastUpdated: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).sort({ lastUpdated: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
     docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (collectedRes.length === 0) {
       break;
@@ -575,7 +576,7 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
           },
         },
       },
-    }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
 
     let viewDocs = view.map((row) => row._legacyId);
@@ -597,7 +598,7 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
     docs.push(...viewDocs);
     docsLeft -= viewDocs.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (viewDocs.length === 0) {
       break;
@@ -623,7 +624,7 @@ export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: 
   while (docsLeft > 0) {
     const view = await CollectionModel.find({
       createdBy: cosmosAddress
-    }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+    }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
     let viewDocs = view.map((row) => row._legacyId);
 
@@ -643,7 +644,7 @@ export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: 
     docs.push(...viewDocs);
     docsLeft -= viewDocs.length;
 
-    currBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
 
     if (viewDocs.length === 0) {
       break;

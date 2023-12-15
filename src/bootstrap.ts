@@ -270,6 +270,7 @@ export function bootstrapCollections() {
   for (let i = 0; i < jsonObjects.length; i++) {
     console.log(jsonFileNames[i]);
     if (jsonFileNames[i].startsWith('1_')) continue
+    else if (jsonFileNames[i].startsWith('15_')) continue
 
 
     const obj = {
