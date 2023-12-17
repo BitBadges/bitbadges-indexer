@@ -37,9 +37,12 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       FetchModel.find({
         "content.category": "Attendance",
         "db": "Metadata"
-      }).lean().exec(),
+      }).limit(24).lean().exec(),
+
       TransferActivityModel.find({}).sort({ "timestamp": -1 }).limit(100).lean().exec(),
-      ProfileModel.find({}).limit(25).lean().exec(),
+      ProfileModel.find({
+        profilePicUrl: { "$exists": true },
+      }).limit(25).lean().exec(),
       AddressMappingModel.find({
 
         private: { "$ne": true }

@@ -2,9 +2,13 @@ import { createProtobufRpcClient, QueryClient } from "@cosmjs/stargate";
 import { cosmosToEth } from "bitbadgesjs-utils";
 import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth_pb";
 import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query_pb";
+import * as bitbadgesQuery from "bitbadgesjs-proto/dist/proto/badges/query_pb";
 import * as crypto from 'bitbadgesjs-proto/dist/proto/cosmos/crypto/ed25519/keys_pb';
 import * as ethereum from 'bitbadgesjs-proto/dist/proto/ethereum/keys_pb';
 import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-utils";
+import { BadgeCollection } from "bitbadgesjs-proto/dist/proto/badges/collections_pb";
+import { ApprovalsTracker, UserBalanceStore } from "bitbadgesjs-proto/dist/proto/badges/transfers_pb";
+import { AddressMapping } from "bitbadgesjs-proto/dist/proto/badges/address_mappings_pb";
 
 /**
  * The chain will return a similar structure but with a pub_key object and account_number field (see CosmosAccountResponse from bitbadgesjs-utils)
@@ -19,12 +23,6 @@ export interface CleanedCosmosAccountInformation {
   ethAddress: string
   // solAddress: string -  can't do it directly here because we don't have the solana address yet (can't revert a hash)
   accountNumber: string
-}
-
-export interface BadgesExtension {
-  readonly badges: {
-    readonly getAccountInfo: (address: string) => Promise<CleanedCosmosAccountInformation>
-  }
 }
 
 const getAccountInfoToReturn = (accountPromise: Uint8Array, defaultAddress: string): CleanedCosmosAccountInformation => {
@@ -65,6 +63,17 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array, defaultAddress: stri
   }
 }
 
+export interface BadgesExtension {
+  readonly badges: {
+    readonly getAccountInfo: (address: string) => Promise<CleanedCosmosAccountInformation>
+    readonly getCollection: (collectionId: string) => Promise<BadgeCollection | undefined>
+    readonly getBalance: (collectionId: string, address: string) => Promise<UserBalanceStore | undefined>
+    readonly getAddressMapping: (mappingId: string) => Promise<AddressMapping | undefined>
+    readonly getApprovalsTracker: (collectionId: string, approvalLevel: string, approverAddress: string, amountTrackerId: string, trackerType: string, approvedAddress: string) => Promise<ApprovalsTracker | undefined>
+    readonly getNumUsedForMerkleChallenge: (collectionId: string, approvalLevel: string, approverAddress: string, challengeTrackerId: string, leafIndex: string) => Promise<string | undefined>
+  }
+}
+
 export function setupBadgesExtension(base: QueryClient): BadgesExtension {
   const rpc = createProtobufRpcClient(base)
 
@@ -95,6 +104,70 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
           }
         }
       },
+      getCollection: async (collectionId: string) => {
+        const collectionData = new bitbadgesQuery.QueryGetCollectionRequest({ collectionId: collectionId }).toBinary();
+        const collectionPromise = await rpc.request(
+          'badges.Query',
+          'GetCollection',
+          collectionData
+        )
+
+        return bitbadgesQuery.QueryGetCollectionResponse.fromBinary(collectionPromise).collection;
+      },
+      getBalance: async (collectionId: string, address: string) => {
+        const balanceData = new bitbadgesQuery.QueryGetBalanceRequest({ collectionId: collectionId, address: address }).toBinary();
+        const balancePromise = await rpc.request(
+          'badges.Query',
+          'GetBalance',
+          balanceData
+        )
+
+        return bitbadgesQuery.QueryGetBalanceResponse.fromBinary(balancePromise).balance;
+      },
+      getAddressMapping: async (mappingId: string) => {
+        const addressMappingData = new bitbadgesQuery.QueryGetAddressMappingRequest({ mappingId: mappingId }).toBinary();
+        const addressMappingPromise = await rpc.request(
+          'badges.Query',
+          'GetAddressMapping',
+          addressMappingData
+        )
+
+        return bitbadgesQuery.QueryGetAddressMappingResponse.fromBinary(addressMappingPromise).mapping;
+      },
+      // "/bitbadges/bitbadgeschain/badges/get_approvals_tracker/{collectionId}/{approvalLevel}/{approverAddress}/{amountTrackerId}/{trackerType}/{approvedAddress}";
+      getApprovalsTracker: async (collectionId: string, approvalLevel: string, approverAddress: string, amountTrackerId: string, trackerType: string, approvedAddress: string) => {
+        const approvalsTrackerData = new bitbadgesQuery.QueryGetApprovalsTrackerRequest({
+          collectionId: collectionId,
+          approvalLevel: approvalLevel,
+          approverAddress: approverAddress,
+          amountTrackerId: amountTrackerId,
+          trackerType: trackerType,
+          approvedAddress: approvedAddress
+        }).toBinary();
+        const approvalsTrackerPromise = await rpc.request(
+          'badges.Query',
+          'GetApprovalsTracker',
+          approvalsTrackerData
+        )
+
+        return bitbadgesQuery.QueryGetApprovalsTrackerResponse.fromBinary(approvalsTrackerPromise).tracker;
+      },
+      getNumUsedForMerkleChallenge: async (collectionId: string, approvalLevel: string, approverAddress: string, challengeTrackerId: string, leafIndex: string) => {
+        const numUsedForMerkleChallengeData = new bitbadgesQuery.QueryGetNumUsedForMerkleChallengeRequest({
+          collectionId: collectionId,
+          approvalLevel: approvalLevel,
+          approverAddress: approverAddress,
+          challengeTrackerId: challengeTrackerId,
+          leafIndex: leafIndex
+        }).toBinary();
+        const numUsedForMerkleChallengePromise = await rpc.request(
+          'badges.Query',
+          'GetNumUsedForMerkleChallenge',
+          numUsedForMerkleChallengeData
+        )
+
+        return bitbadgesQuery.QueryGetNumUsedForMerkleChallengeResponse.fromBinary(numUsedForMerkleChallengePromise).numUsed;
+      }
     },
   }
 }

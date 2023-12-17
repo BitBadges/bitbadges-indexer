@@ -34,10 +34,9 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     // Search metadata of collections for matching names
     const collectionMetadataQuery = {
-      content: {
-        name: {
-          "$regex": `(?i)${searchValue}`
-        }
+      ["content.name"]: {
+        "$regex": `${searchValue}`,
+        "$options": "i"
       },
       db: "Metadata"
     }
@@ -153,11 +152,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         {
           collectionMetadataTimeline: {
             "$elemMatch": {
-              collectionMetadata: {
-                //This is fine bc collection metadata never has {id} placeholder
-                uri: {
-                  "$in": uris
-                }
+              ["collectionMetadata.uri"]: {
+                "$in": uris
               }
             }
           }

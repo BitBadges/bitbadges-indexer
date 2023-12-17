@@ -30,6 +30,8 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       let currBalance: BalanceDoc<bigint> = balanceDoc ? balanceDoc :
         {
           ...getBlankBalance(true, collection),
+          autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
+          autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
           outgoingApprovals: collection.defaultUserOutgoingApprovals,
           incomingApprovals: collection.defaultUserIncomingApprovals,
           cosmosAddress: address,
@@ -52,6 +54,8 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     let fromAddressBalanceDoc: BalanceDoc<bigint> = fromBalanceDoc ? fromBalanceDoc :
       {
         ...getBlankBalance(true, collection),
+        autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
+        autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
         outgoingApprovals: collection.defaultUserOutgoingApprovals,
         incomingApprovals: collection.defaultUserIncomingApprovals,
         cosmosAddress: transfer.from,

@@ -35,7 +35,7 @@ let outageTime: Date | undefined
 const rpcs = JSON.parse(process.env.RPC_URLS || '["http://localhost:26657"]') as string[]
 let currRpcIdx = -1;
 
-async function connectToRpc() {
+export async function connectToRpc() {
   //If we have a currClient,, move that to the end of the rpcs array. It failed so we try it last
   if (currRpcIdx > -1) {
     const currRpc = rpcs.splice(currRpcIdx, 1)[0];

@@ -75,15 +75,15 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
       req.session.save();
     }
 
-    const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 24;
+    const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 168 * 2;
     if (isNaN(hours)) {
       return res.status(400).json({ message: 'Invalid hours' });
     }
 
     // Get the current time
     const now = new Date();
-    const tomorrow = new Date(now.getTime() + hours * 60 * 60 * 1000);
-    const iso8601 = tomorrow.toISOString();
+    const twoWeeks = new Date(now.getTime() + hours * 60 * 60 * 1000);
+    const iso8601 = twoWeeks.toISOString();
 
     const challengeParams = {
       domain: 'https://bitbadges.io',

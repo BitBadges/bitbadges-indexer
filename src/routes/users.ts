@@ -681,6 +681,10 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       readme: reqBody.readme ?? profileInfo.readme,
       hiddenBadges: reqBody.hiddenBadges ?? profileInfo.hiddenBadges,
       customPages: reqBody.customPages ?? profileInfo.customPages,
+      hiddenLists: reqBody.hiddenLists ?? profileInfo.hiddenLists,
+      customListPages: reqBody.customListPages ?? profileInfo.customListPages,
+      watchedBadgePages: reqBody.watchedBadgePages ?? profileInfo.watchedBadgePages,
+      watchedListPages: reqBody.watchedListPages ?? profileInfo.watchedListPages,
       profilePicUrl: profilePicUrl ?? profileInfo.profilePicUrl,
       username: reqBody.username ?? profileInfo.username,
     };

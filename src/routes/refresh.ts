@@ -2,7 +2,7 @@ import { BigIntify, DocsCache, NumberType, RefreshMetadataRouteResponse, Refresh
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { flushCachedDocs } from "../db/cache";
-import { CollectionModel, QueueModel, mustGetFromDB } from "../db/db";
+import { CollectionModel, QueueModel, RefreshModel, mustGetFromDB } from "../db/db";
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from "../queue";
 
 export const getRefreshStatus = async (req: Request, res: Response<RefreshStatusRouteResponse<NumberType>>) => {
@@ -12,7 +12,8 @@ export const getRefreshStatus = async (req: Request, res: Response<RefreshStatus
     const errorDocs = await QueueModel.find({
       collectionId: Number(collectionId),
       error: { $exists: true },
-    }).limit(100).lean().exec();
+      deletedAt: { $exists: false },
+    }).limit(20).lean().exec();
 
     let inQueue = errorDocs.length > 0;
 
@@ -27,6 +28,7 @@ export const getRefreshStatus = async (req: Request, res: Response<RefreshStatus
     return res.status(200).send({
       inQueue,
       errorDocs: errorDocs,
+      refreshDoc: await mustGetFromDB(RefreshModel, collectionId),
     });
 
 

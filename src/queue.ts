@@ -455,7 +455,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     } else {
       //TODO: we pretty much just fetch this twice. Just set docs from this fetch
       //mongo query is much faster than fetchDocsForCacheIfEmpty for large queries (49ms -> 381ms)
-      
+
       const allPreviousDocIds = await BalanceModel.find({
         collectionId: Number(queueObj.collectionId),
       }).lean().exec();
