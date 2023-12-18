@@ -19,7 +19,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
     const profileDoc = profileInfos[i];
     let isMint = accountInfos[i].cosmosAddress === 'Mint';
 
-    promises.push(isMint || OFFLINE_MODE || !fetchName || cosmosAccountInfo.chain !== SupportedChain.ETH
+    promises.push(isMint || OFFLINE_MODE || !fetchName || (cosmosAccountInfo.chain !== SupportedChain.ETH && cosmosAccountInfo.publicKey)
 
       ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress, !!profileDoc.profilePicUrl));
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
@@ -72,7 +72,6 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
         return { address: ethAddress, chain: SupportedChain.ETH }
       } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
         ethTxCount = await provider.getTransactionCount(ethAddress);
-
 
         await insertToDB(EthTxCountModel, {
           ...cachedEthTxCount,

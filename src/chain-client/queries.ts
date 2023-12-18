@@ -134,15 +134,14 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
         return bitbadgesQuery.QueryGetAddressMappingResponse.fromBinary(addressMappingPromise).mapping;
       },
-      // "/bitbadges/bitbadgeschain/badges/get_approvals_tracker/{collectionId}/{approvalLevel}/{approverAddress}/{amountTrackerId}/{trackerType}/{approvedAddress}";
       getApprovalsTracker: async (collectionId: string, approvalLevel: string, approverAddress: string, amountTrackerId: string, trackerType: string, approvedAddress: string) => {
         const approvalsTrackerData = new bitbadgesQuery.QueryGetApprovalsTrackerRequest({
-          collectionId: collectionId,
-          approvalLevel: approvalLevel,
-          approverAddress: approverAddress,
-          amountTrackerId: amountTrackerId,
-          trackerType: trackerType,
-          approvedAddress: approvedAddress
+          collectionId: collectionId ?? "",
+          approvalLevel: approvalLevel ?? "",
+          approverAddress: approverAddress ?? "",
+          amountTrackerId: amountTrackerId ?? "",
+          trackerType: trackerType ?? "",
+          approvedAddress: approvedAddress ?? ""
         }).toBinary();
         const approvalsTrackerPromise = await rpc.request(
           'badges.Query',

@@ -640,9 +640,27 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       };
     }
 
-    if (reqBody.customPages?.find(x => x.title === 'Hidden')) {
+    if (reqBody.customPages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
       return res.status(400).send({
-        message: 'You cannot create a custom page with the title "Hidden".'
+        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
+      })
+    }
+
+    if (reqBody.customListPages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
+      return res.status(400).send({
+        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
+      })
+    }
+
+    if (reqBody.watchedBadgePages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
+      return res.status(400).send({
+        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
+      })
+    }
+
+    if (reqBody.watchedListPages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
+      return res.status(400).send({
+        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
       })
     }
 
