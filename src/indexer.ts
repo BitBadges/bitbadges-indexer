@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ErrorResponse } from 'bitbadgesjs-utils'
+import { ErrorResponse, cosmosToEth } from 'bitbadgesjs-utils'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import { Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
@@ -43,6 +43,11 @@ import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config()
+
+Moralis.start({
+  apiKey: process.env.MORALIS_API_KEY
+});
+
 
 // Basic rate limiting middleware for Express. Limits requests to 30 per minute.
 // Initially put in place to protect against infinite loops.
@@ -99,9 +104,8 @@ app.use(cors({
 
 app.use(async (req, res, next) => {
   //Check if trusted origin
-  const origin = req.headers.origin;
 
-  // console.log("ORIGIN", origin);
+  const origin = req.headers.origin;
 
   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io')) {
     return next();
@@ -306,6 +310,52 @@ app.post('/api/v0/follow-protocol/update', authorizeBlockinRequest, updateFollow
 app.post('/api/v0/follow-protocol', getFollowDetails);
 
 app.post('/api/v0/claimAlerts', authorizeBlockinRequest, getClaimAlertsForCollection);
+//Set up Moralis
+
+import { Balance } from 'bitbadgesjs-proto'
+import Moralis from 'moralis'
+import { serializeError } from 'serialize-error'
+
+
+app.get('/api/v0/ethFirstTx/:cosmosAddress', async (req, res) => {
+
+  try {
+    const ethAddress = cosmosToEth(req.params.cosmosAddress);
+    const response = await Moralis.EvmApi.wallets.getWalletActiveChains({
+      "address": ethAddress,
+    });
+
+    const firstTxTimestamp = response.raw.active_chains.find(x => x.chain === 'eth')?.first_transaction?.block_timestamp;
+    const timestamp = firstTxTimestamp ? new Date(firstTxTimestamp).getFullYear() : undefined;
+
+    //Badge ID 1 = 2015, 2 = 2016, and so on
+    const badgeId = timestamp ? timestamp - 2014 : undefined;
+    if (!badgeId) {
+      return res.status(200).send({
+        balances: [],
+      });
+    }
+
+    const balances: Balance<bigint>[] = [{
+      amount: 1n,
+      badgeIds: [{ start: BigInt(badgeId), end: BigInt(badgeId) }],
+      ownershipTimes: [{
+        start: 1n, end: BigInt("18446744073709551615")
+      }]
+    }]
+
+    return res.status(200).send({
+      balances
+    });
+
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error fetching balances. Please try again later."
+    })
+  }
+})
 
 //TODO: Simple implementation of a one-way heartbeat mode.
 //If the parent process dies, the child process will take over.

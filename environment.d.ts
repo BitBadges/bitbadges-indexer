@@ -10,7 +10,7 @@ declare global {
 
       DB_URL: string // CouchDB URL w/ proper authentication: ex: "http://username:password@localhost:5984"
       CLUSTERED_DB_URL: string // CouchDB URL w/ proper authentication: ex: "http://username:password@localhost:5984"
-      
+
       SESSION_SECRET: string, //Secret entropy for session cookies ex: "mysecret"
       INFURA_API_KEY: string  //API key for infura
 
@@ -48,6 +48,8 @@ declare global {
       //Heartbeat mode
       HEARTBEAT_MODE: string //boolean string ex: "false"
       PARENT_PROCESS_URL: string //string ex: "https://api.bitbadges.io"
+
+      MORALIS_API_KEY: string //string ex: "1"
     }
   }
 }

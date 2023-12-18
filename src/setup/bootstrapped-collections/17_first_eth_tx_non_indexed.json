@@ -1,0 +1,218 @@
+{
+  "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+  "collectionId": "0",
+  "defaultIncomingApprovals": [],
+  "defaultOutgoingApprovals": [],
+  "defaultUserPermissions": {
+    "canUpdateIncomingApprovals": [],
+    "canUpdateOutgoingApprovals": [],
+    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
+    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
+  },
+  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
+  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
+  "badgesToCreate": [
+    {
+      "amount": "1",
+      "badgeIds": [
+        {
+          "start": "1",
+          "end": "10"
+        }
+      ],
+      "ownershipTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateCollectionPermissions": true,
+  "balancesType": "Off-Chain - Non-Indexed",
+  "collectionPermissions": {
+    "canArchiveCollection": [],
+    "canCreateMoreBadges": [],
+    "canDeleteCollection": [],
+    "canUpdateBadgeMetadata": [],
+    "canUpdateCollectionApprovals": [],
+    "canUpdateCollectionMetadata": [],
+    "canUpdateCustomData": [],
+    "canUpdateManager": [],
+    "canUpdateOffChainBalancesMetadata": [],
+    "canUpdateStandards": []
+  },
+  "updateManagerTimeline": true,
+  "managerTimeline": [
+    {
+      "manager": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateCollectionMetadataTimeline": true,
+  "collectionMetadataTimeline": [
+    {
+      "collectionMetadata": {
+        "uri": "ipfs://QmcVfYgoZE4xPMxhkof4RxMwaV7mixWmCLwDaQhBHm6v9m",
+        "customData": ""
+      },
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateBadgeMetadataTimeline": true,
+  "badgeMetadataTimeline": [
+    {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "badgeMetadata": [
+        {
+          "uri": "ipfs://QmfKY8STAtNtN6bMuHi4kMko798L2gWMFPB6nL9nnjE8dR",
+          "badgeIds": [
+            {
+              "start": "1",
+              "end": "1"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://Qmer5ZMjq6qFSXnFCSbU9ic9Jbw4ZwaMyPg7XdPLs1ALxz",
+          "badgeIds": [
+            {
+              "start": "2",
+              "end": "2"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmRdpRu9r9T1AEBd5kHbmkHHmGPd7ojvXn4ibHEmg6hG6a",
+          "badgeIds": [
+            {
+              "start": "3",
+              "end": "3"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmezdDW9M4QBEAsZoRwu9NRZcgQiLSQGo8RtcNMGW5UimX",
+          "badgeIds": [
+            {
+              "start": "4",
+              "end": "4"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmbKvz79AN7xbAcQ9VRHyYqSLyTGZi8cUHdrQHBg3ktUQX",
+          "badgeIds": [
+            {
+              "start": "5",
+              "end": "5"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmT4R2xb4ggdq5CMGnefPf4KnxK5DpyAVVrKFUQCLX8BPU",
+          "badgeIds": [
+            {
+              "start": "6",
+              "end": "6"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://Qmd8wpb9oBtWDHc3aFhpBvipDUaVxFfxiTLwiiTZCjGmss",
+          "badgeIds": [
+            {
+              "start": "7",
+              "end": "7"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmWULt56SZu9ZL2RmGRcaJ18HkSomUpv7fMJv2SyNCfek9",
+          "badgeIds": [
+            {
+              "start": "8",
+              "end": "8"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmdfBvoYnJB6xjzFjuLaMp9qeDrHJkhEkf4Nk9RGbyyEyN",
+          "badgeIds": [
+            {
+              "start": "9",
+              "end": "9"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmRPbTsHMBQXYU1zR44r73SinReuYcmQTuW49gwuzsnhPU",
+          "badgeIds": [
+            {
+              "start": "10",
+              "end": "10"
+            }
+          ],
+          "customData": ""
+        },
+        {
+          "uri": "ipfs://QmQKn1G41gcVEZPenXjtTTQfQJnx5Q6fDtZrcSNJvBqxUs",
+          "badgeIds": [
+            {
+              "start": "11",
+              "end": "18446744073709551615"
+            }
+          ],
+          "customData": ""
+        }
+      ]
+    }
+  ],
+  "updateOffChainBalancesMetadataTimeline": true,
+  "offChainBalancesMetadataTimeline": [
+    {
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ],
+      "offChainBalancesMetadata": {
+        "uri": "https://api.bitbadges.io/api/v0/ethFirstTx/{address}",
+        "customData": ""
+      }
+    }
+  ],
+  "updateCustomDataTimeline": true,
+  "customDataTimeline": [],
+  "updateCollectionApprovals": false,
+  "collectionApprovals": [],
+  "updateStandardsTimeline": true,
+  "standardsTimeline": [],
+  "updateIsArchivedTimeline": true,
+  "isArchivedTimeline": []
+}
