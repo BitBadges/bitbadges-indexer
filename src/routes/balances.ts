@@ -6,6 +6,7 @@ import { serializeError } from "serialize-error";
 import { getFromIpfs } from "../ipfs/ipfs";
 import { BalanceModel, CollectionModel, getFromDB, mustGetFromDB } from "../db/db";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+import { getBalancesForEthFirstTx } from "../indexer";
 
 export const applyAddressMappingsToUserPermissions = (userPermissions: UserPermissions<JSPrimitiveNumberType>, addressMappings: AddressMapping[]): UserPermissionsWithDetails<JSPrimitiveNumberType> => {
   return {
@@ -46,8 +47,14 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
         const _res: any = await getFromIpfs(uriToFetch.replace('ipfs://', ''));
         balancesRes = JSON.parse(_res.file).balances;
       } else if (uriToFetch) {
-        const _res = await axios.get(uriToFetch).then((res) => res.data);
-        balancesRes = _res.balances
+        console.log(uriToFetch);
+        if (uriToFetch === "https://api.bitbadges.io/api/v0/ethFirstTx/" + cosmosAddress) {
+          //Hardcoded to fetch locally instead of from source GET
+          balancesRes = await getBalancesForEthFirstTx(cosmosAddress);
+        } else {
+          const _res = await axios.get(uriToFetch).then((res) => res.data);
+          balancesRes = _res.balances
+        }
       }
 
       //Check if valid array
