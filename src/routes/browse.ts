@@ -21,6 +21,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     //TODO: populate with better data
 
     const [
+      featuredCollections,
       certificationsCollections,
       latestCollections,
       attendanceCollections,
@@ -28,6 +29,8 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       profiles,
       addressMappings
     ] = await Promise.all([
+
+      CollectionModel.find({ "collectionId": { "$in": [1, 2, 16] } }).lean().exec(),
       FetchModel.find({
         "content.category": "Certification",
         "db": "Metadata"
@@ -66,6 +69,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
 
     const collections = await executeCollectionsQuery(req, [
+      ...featuredCollections,
       ...latestCollections,
       ...urisForCollectionQuery,
     ].map(doc => {
@@ -110,6 +114,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     let result = {
       collections: {
         // 'featured': collections,
+        'featured': featuredCollections.map(x => collections.find(y => y.collectionId.toString() === x._legacyId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
         'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._legacyId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
         'attendance': attendanceCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
           attendanceCollections.map(x => x._legacyId).includes(x.collectionMetadata.uri)
@@ -131,6 +136,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     //Make sure no reported stuff gets populated
     result.collections = {
+      featured: result.collections.featured.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
       latest: result.collections.latest.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
       attendance: result.collections.attendance.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
       certifications: result.collections.certifications.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),

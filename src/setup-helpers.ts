@@ -36,6 +36,11 @@ export async function deleteDatabases() {
 }
 //new ObjectId
 export async function initStatus() {
+
+  if (process.env.BITBADGES_API_KEY === undefined) throw new Error("BITBADGES_API_KEY env var not set");
+  await insertToDB(ApiKeyModel, {
+    "_legacyId": process.env.BITBADGES_API_KEY,
+  })
   await insertToDB(StatusModel, {
     "_legacyId": "status",
     "block": {
