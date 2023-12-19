@@ -12,11 +12,11 @@ import mongoose from "mongoose"
 import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
-import { ComplianceModel, ErrorModel, MongoDB, MsgDoc, StatusModel, insertMany, mustGetFromDB } from "./db/db"
+import { ComplianceModel, ErrorModel, MongoDB, StatusModel, insertMany, mustGetFromDB } from "./db/db"
 import { getStatus } from "./db/status"
 import { SHUTDOWN, client, setClient, setTimer, setUriPollerTimer } from "./indexer"
 import { TIME_MODE } from "./indexer-vars"
-import { fetchUrisFromQueue, purgeQueueDocs } from "./queue"
+import { handleQueueItems } from "./queue"
 import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
 import { handleMsgCreateCollection } from "./tx-handlers/handleMsgCreateCollection"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
@@ -41,8 +41,6 @@ export async function connectToRpc() {
     const currRpc = rpcs.splice(currRpcIdx, 1)[0];
     rpcs.push(currRpc);
   }
-
-
 
   for (let i = 0; i < rpcs.length; i++) {
     try {
@@ -71,10 +69,7 @@ export const pollUris = async () => {
     // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
     const _status = await getStatus();
     const status = convertStatusDoc(_status, BigIntify);
-    await fetchUrisFromQueue(status.block.height);
-
-
-    await purgeQueueDocs();
+    await handleQueueItems(status.block.height);
   } catch (e) {
     //Log error to DB, unless it is a connection refused error
     if (e && e.code !== 'ECONNREFUSED') {
@@ -104,7 +99,6 @@ export const poll = async () => {
   if (TIME_MODE && QUEUE_TIME_MODE) {
     console.time("poll");
   }
-
 
   try {
 
@@ -164,8 +158,6 @@ export const poll = async () => {
       session.startTransaction();
       try {
 
-        const msgDocs: (MsgDoc)[] = [];
-
 
         //Handle printing of status if there was an outage
         if (outageTime) {
@@ -190,7 +182,7 @@ export const poll = async () => {
 
         //Right now, we are banking on all these DB updates succeeding together every time. 
         //If there is a failure in the middle, it could be bad.
-        const flushed = await flushCachedDocs(docs, session, msgDocs, status, status.block.height < clientHeight);
+        const flushed = await flushCachedDocs(docs, session, status, status.block.height < clientHeight);
         if (flushed) {
           const status2 = await StatusModel.findOne({}).lean().session(session).exec();
           status = convertStatusDoc(status2 as StatusDoc<JSPrimitiveNumberType>, BigIntify);
@@ -406,18 +398,15 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     const typeUrl = message.typeUrl;
     const value = message.value;
 
-    let msg: any = null;
+
     switch (typeUrl) {
       case "/badges.MsgTransferBadges":
         const transferMsg = convertFromProtoToMsgTransferBadges(tx.MsgTransferBadges.fromBinary(value))
         await handleMsgTransferBadges(transferMsg, status, docs, indexed.hash)
-        // Don't need to track transfers (we do it in TRANSFER_ACTIVITY)
-        // msg = transferMsg;
         break;
       case "/badges.MsgDeleteCollection":
         const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.MsgDeleteCollection.fromBinary(value))
         await handleMsgDeleteCollection(newDeleteMsg, status, docs, session);
-        msg = newDeleteMsg;
         break;
       case "/badges.MsgCreateAddressMappings":
         const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.MsgCreateAddressMappings.fromBinary(value))
@@ -428,22 +417,18 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       case "/badges.MsgUniversalUpdateCollection":
         const newUpdateCollectionMsg = convertFromProtoToMsgUniversalUpdateCollection(tx.MsgUniversalUpdateCollection.fromBinary(value))
         await handleMsgUniversalUpdateCollection(newUpdateCollectionMsg, status, docs, indexed.hash)
-        msg = newUpdateCollectionMsg;
         break;
       case "/badges.MsgCreateCollection":
         const newCreateMsg = convertFromProtoToMsgCreateCollection(tx.MsgCreateCollection.fromBinary(value))
         await handleMsgCreateCollection(newCreateMsg, status, docs, indexed.hash)
-        msg = newCreateMsg;
         break;
       case "/badges.MsgUpdateCollection":
         const newUpdateMsg = convertFromProtoToMsgUpdateCollection(tx.MsgUpdateCollection.fromBinary(value))
         await handleMsgUpdateCollection(newUpdateMsg, status, docs, indexed.hash)
-        msg = newUpdateMsg;
         break;
       case "/badges.MsgUpdateUserApprovals":
         const newUpdateUserApprovalsMsg = convertFromProtoToMsgUpdateUserApprovals(tx.MsgUpdateUserApprovals.fromBinary(value))
         await handleMsgUpdateUserApprovals(newUpdateUserApprovalsMsg, status, docs, indexed.hash)
-        msg = newUpdateUserApprovalsMsg;
         break;
       case "/cosmos.bank.v1beta1.MsgSend":
         const newMsgSend = bank.MsgSend.fromBinary(value);
@@ -456,27 +441,6 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       default:
         break;
     }
-    if (msg) {
-      if (msg.collectionId !== undefined && BigIntify(msg.collectionId) == 0n) {
-        //Don't track, we have created at
-      } else {
-        //Deprecated: We switched to track everything in updateHistory
-        // msgDocs.push({
-        //   _legacyId: `${indexed.height}-${indexed.txIndex}-${messageIdx}`,
-        //   // msg: msg,
-        //   txHash: indexed.hash,
-        //   txIndex: indexed.txIndex,
-        //   msgIndex: messageIdx,
-        //   type: typeUrl,
-        //   block: indexed.height,
-        //   blockTimestamp: Number(status.block.timestamp),
-        //   collectionId: msg.collectionId ?? undefined,
-        //   creator: msg.creator ?? undefined,
-        // })
-      }
-    }
-
-    // messageIdx++;
   }
 
   let rawLog;

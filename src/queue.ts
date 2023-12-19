@@ -1,6 +1,6 @@
 import axios from "axios";
 import { AddressMapping, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
-import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, Numberify, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import crypto from 'crypto';
 import CryptoJS from "crypto-js";
 import Joi from "joi";
@@ -14,7 +14,7 @@ import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE } from "./poll";
 import { getAddressMappingsFromDB } from "./routes/utils";
 import { compareObjects } from "./utils/compare";
-import { cleanApprovalInfo, cleanBalances, cleanMetadata } from "./utils/dataCleaners";
+import { cleanApprovalInfo, cleanBalanceMap, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
 
 const { SHA256 } = CryptoJS
@@ -39,14 +39,12 @@ const { SHA256 } = CryptoJS
 // 	3. BASE_DELAY = 12 hours
 
 //Upon fetch request, check in RefreshModel if it is to be refreshed
-export const fetchUriFromDb = async (uri: string, collectionId: string) => {
+export const fetchUriFromDbAndAddToQueueIfEmpty = async (uri: string, collectionId: string) => {
   let fetchDoc: (FetchDoc<JSPrimitiveNumberType>) | undefined;
   let refreshDoc: (RefreshDoc<JSPrimitiveNumberType>) | undefined;
   let alreadyInQueue = false;
   let needsRefresh = false;
   let refreshRequestTime = Date.now();
-
-
 
   const isValidUri = Joi.string().uri().validate(uri);
   if (isValidUri.error) {
@@ -54,8 +52,6 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   }
 
   //Check if we need to refresh
-
-  //TODO: Get all refresh _conflicts and only take the one with latest time
   const fetchDocPromise = getFromDB(FetchModel, uri);
   const refreshDocPromise = mustGetFromDB(RefreshModel, collectionId);
 
@@ -107,11 +103,39 @@ export const fetchUriFromDb = async (uri: string, collectionId: string) => {
   };
 }
 
+export const fetchUriFromSource = async (uri: string) => {
+  let res: any;
+  //If we are here, we need to fetch from the source
+  if (uri.startsWith('ipfs://')) {
+
+    const _res: any = await getFromIpfs(uri.replace('ipfs://', ''));
+
+    res = JSON.parse(_res.file);
+  } else {
+
+    const ownDigitalOceanSpaces = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com');
+    const options = ownDigitalOceanSpaces ? {
+      headers: {
+        'Cache-Control': 'no-cache',
+      }
+    } : undefined;
+
+    const _res = await axios.get(uri, options).then((res) => res.data);
+    res = _res;
+  }
+
+  return res;
+}
+
 export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: QueueDoc<bigint>, block: bigint) => {
   let fetchDoc: (FetchDoc<bigint>) | undefined;
   let needsRefresh = false;
   let dbType: 'ApprovalInfo' | 'Metadata' | 'Balances' = 'Metadata';
 
+  if (uri == "https://api.bitbadges.io/api/v0/ethFirstTx/{address}") {
+    //Hardcoded to be handled by the fetch balances API function
+    return;
+  }
 
   //Get document from cache if it exists
   const _fetchDoc = await getFromDB(FetchModel, uri);
@@ -143,29 +167,9 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
 
   //Fetch from URI and update cache
   if (needsRefresh) {
-    let res: any;
-    let isPermanent = false;
-    //If we are here, we need to fetch from the source
-    if (uri.startsWith('ipfs://')) {
+    const isPermanent = uri.startsWith('ipfs://');
 
-      const _res: any = await getFromIpfs(uri.replace('ipfs://', ''));
-
-      res = JSON.parse(_res.file);
-      isPermanent = true;
-    } else {
-
-      const ownDigitalOceanSpaces = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com');
-      const options = ownDigitalOceanSpaces ? {
-        headers: {
-          'Cache-Control': 'no-cache',
-        }
-      } : undefined;
-
-
-      const _res = await axios.get(uri, options).then((res) => res.data);
-      res = _res;
-    }
-
+    let res = await fetchUriFromSource(uri);
 
 
     //Handle different types of docs
@@ -174,7 +178,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       res = cleanMetadata(res);
     } else if (Object.values(res).some(x => Array.isArray(x)) || Object.keys(res).length == 0) {
       dbType = 'Balances';
-      res = cleanBalances(res);
+      res = cleanBalanceMap(res);
       res = convertOffChainBalancesMap(res, BigIntify);
 
       //Compare res and fetchDoc.content and only update trigger balances writes if they are different. Else, just update fetchedAt
@@ -636,7 +640,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
   return docs //For testing
 }
 
-export const fetchUrisFromQueue = async (block: bigint) => {
+export const handleQueueItems = async (block: bigint) => {
   //To prevent spam and bloated metadata, we set the following parameters.
   //If we cannot fetch within the parameters, it will remain in the queue and will be fetched again.
   const NUM_METADATA_FETCHES_PER_BLOCK = process.env.NUM_METADATA_FETCHES_PER_BLOCK ? Number(process.env.NUM_METADATA_FETCHES_PER_BLOCK) : 25;
@@ -664,7 +668,10 @@ export const fetchUrisFromQueue = async (block: bigint) => {
   while (numFetchesLeft > 0 && queue.length > 0) {
     const currQueueDoc = queue[0];
     if (currQueueDoc) {
-      queueItems.push(convertQueueDoc(currQueueDoc, BigIntify) as any); //Used for a deep copy
+      //We don't add two of the same URI bc that can cause race conditions with the deletes, plus it is redundant (i.e. we only need to fetch once)
+      if (!queueItems.find(x => x.uri === currQueueDoc.uri)) {
+        queueItems.push(convertQueueDoc(currQueueDoc, BigIntify) as any); //Used for a deep copy
+      }
     }
     queue.shift()
     numFetchesLeft--;
@@ -674,12 +681,12 @@ export const fetchUrisFromQueue = async (block: bigint) => {
     try {
 
       await fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj, block);
-      await insertToDB(QueueModel, {
-        ...queueObj,
-        _deleted: true,
-        deletedAt: BigInt(Date.now()),
-      });
+      const queueDocs = await QueueModel.find({
+        uri: queueObj.uri,
+      }).lean().exec();
 
+      const queueDocsIds = queueDocs.map(x => x._legacyId);
+      await deleteMany(QueueModel, queueDocsIds);
     } catch (e) {
       let reason = '';
       try {
@@ -709,20 +716,4 @@ export const fetchUrisFromQueue = async (block: bigint) => {
   });
 
   await Promise.all(promises);
-
-}
-
-export const purgeQueueDocs = async () => {
-  const res = await QueueModel.find({
-    loadBalanceId: LOAD_BALANCER_ID,
-    deletedAt: {
-      "$lte": Date.now(),
-    },
-  }).lean().exec();
-
-  const docs = res.map((doc) => convertQueueDoc(doc, Numberify));
-
-  if (docs.length == 0) return;
-
-  await deleteMany(QueueModel, docs.map(x => x._legacyId));
 }

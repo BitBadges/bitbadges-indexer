@@ -15,6 +15,7 @@ export const getRefreshStatus = async (req: Request, res: Response<RefreshStatus
       deletedAt: { $exists: false },
     }).limit(20).lean().exec();
 
+
     let inQueue = errorDocs.length > 0;
 
     if (!inQueue) {
@@ -78,6 +79,8 @@ export const refreshCollection = async (collectionId: string, forceful?: boolean
 export const refreshMetadata = async (req: Request, res: Response<RefreshMetadataRouteResponse<NumberType>>) => {
   /**
    * Refreshes metadata for a collection or a specific badge.
+   * 
+   * Not forceful: If a refresh is already in progress or has been recently executed, this will return an error.
    */
   try {
     const cooldownSeconds = await refreshCollection(req.params.collectionId);

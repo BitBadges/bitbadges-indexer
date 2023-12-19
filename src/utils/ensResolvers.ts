@@ -1,23 +1,5 @@
 import { ethers } from "ethers";
 
-export async function getNamesForAddresses(addresses: string[]) {
-  const promises = [];
-  for (const address of addresses) {
-    promises.push(getNameForAddress(address));
-  }
-  const names = await Promise.all(promises);
-  return names;
-}
-
-export async function getAddressesForNames(names: string[]) {
-  const promises = [];
-  for (const name of names) {
-    promises.push(getAddressForName(name));
-  }
-  const addresses = await Promise.all(promises);
-  return addresses;
-}
-
 export const provider = new ethers.providers.InfuraProvider(
   'homestead',
   process.env.INFURA_API_KEY
@@ -94,17 +76,4 @@ export async function getEnsDetails(resolver: ethers.providers.Resolver) {
       // telegram: '',
     };
   }
-}
-
-export async function getDetailsForNames(resolvers: ethers.providers.Resolver[]) {
-  const promises = [];
-  for (const resolver of resolvers) {
-    if (resolver) {
-      promises.push(getEnsDetails(resolver));
-    } else {
-      promises.push(Promise.resolve({}));
-    }
-  }
-  const details = await Promise.all(promises);
-  return details;
 }

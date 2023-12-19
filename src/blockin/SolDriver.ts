@@ -4,6 +4,7 @@ import bs58 from "bs58"
 import nacl from "tweetnacl"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
 import { Stringify } from "bitbadgesjs-proto"
+import { OffChainBalancesMap } from "bitbadgesjs-utils"
 
 /**
  * Ethereum implementation of the IChainDriver interface. This implementation is based off the Moralis API
@@ -51,7 +52,7 @@ export default class SolDriver implements IChainDriver<bigint> {
   }
 
 
-  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: object): Promise<any> {
+  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
 
     let solAssets: Asset<bigint>[] = []
     let bitbadgesAssets: Asset<bigint>[] = []

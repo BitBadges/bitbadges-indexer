@@ -2,6 +2,7 @@ import { AmountTrackerIdDetails } from "bitbadgesjs-proto";
 import { ChallengeTrackerIdDetails, GetBadgeActivityRouteResponse, NumberType, Stringify, convertToCosmosAddress, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { ApprovalsTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel, getFromDB, mustGetFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
+const pageSize = 25;
 
 export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse<NumberType>> {
   //Check if badgeId > Number.MAX_SAFE_INTEGER
@@ -39,7 +40,8 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
       }
     }
   };
-  const pageSize = 25;
+
+  
   let mongoQuery = TransferActivityModel.find(query).sort({ timestamp: -1 }).limit(pageSize).lean();
   if (bookmark) {
     mongoQuery = mongoQuery.skip(bookmark ? pageSize * Number(bookmark) : 0);
@@ -47,7 +49,6 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
   const docs = await mongoQuery.exec();
 
   const activity = docs.map(x => convertTransferActivityDoc(x, Stringify));
-
   const newBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
 
   return {
@@ -62,18 +63,19 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
 export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string) {
   const activityRes = await TransferActivityModel.find({
     collectionId: Number(collectionId),
-  }).sort({ timestamp: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+  }).sort({ timestamp: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
   return {
     docs: activityRes.map(x => convertTransferActivityDoc(x, Stringify)),
     pagination: {
       bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: activityRes.length === 25,
+      hasMore: activityRes.length === pageSize,
     }
   }
 }
 
 export async function executeCollectionAnnouncementsQuery(collectionId: string, bookmark?: string) {
+  //Keeping this here for now but we do not use this anymore
   return {
     docs: [],
     pagination: {
@@ -86,15 +88,13 @@ export async function executeCollectionAnnouncementsQuery(collectionId: string, 
 export async function executeCollectionReviewsQuery(collectionId: string, bookmark?: string) {
   const reviewsRes = await ReviewModel.find({
     collectionId: Number(collectionId),
-  }).sort({ timestamp: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
-
-
+  }).sort({ timestamp: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
   return {
     docs: reviewsRes.filter(x => complianceDoc?.accounts.reported.find(y => y.cosmosAddress === convertToCosmosAddress(x.from)) === undefined),
     pagination: {
       bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: reviewsRes.length === 25,
+      hasMore: reviewsRes.length === pageSize,
     }
   }
 }
@@ -117,13 +117,13 @@ export async function fetchTotalAndUnmintedBalancesQuery(collectionId: string) {
 export async function executeCollectionBalancesQuery(collectionId: string, bookmark?: string) {
   const balancesRes = await BalanceModel.find({
     collectionId: Number(collectionId),
-  }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+  }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
   return {
     docs: balancesRes,
     pagination: {
       bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: balancesRes.length === 25,
+      hasMore: balancesRes.length === pageSize,
     }
   }
 }
@@ -131,13 +131,13 @@ export async function executeCollectionBalancesQuery(collectionId: string, bookm
 export async function executeCollectionMerkleChallengesQuery(collectionId: string, bookmark?: string) {
   const merkleChallengesRes = await MerkleChallengeModel.find({
     collectionId: Number(collectionId),
-  }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+  }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
   return {
     docs: merkleChallengesRes,
     pagination: {
       bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: merkleChallengesRes.length === 25,
+      hasMore: merkleChallengesRes.length === pageSize,
     }
   }
 }
@@ -194,14 +194,14 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
 export async function executeCollectionApprovalsTrackersQuery(collectionId: string, bookmark?: string) {
   const approvalsTrackersRes = await ApprovalsTrackerModel.find({
     collectionId: Number(collectionId),
-  }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+  }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
 
   return {
     docs: approvalsTrackersRes,
     pagination: {
       bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: approvalsTrackersRes.length === 25,
+      hasMore: approvalsTrackersRes.length === pageSize,
     }
   }
 }

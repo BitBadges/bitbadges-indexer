@@ -46,32 +46,36 @@ export function cleanApprovalInfo(res: any): ApprovalInfo {
   };
 }
 
-export function cleanBalances(
+export function cleanBalanceArray(
+  balances: any
+): any {
+  return balances && Array.isArray(balances) && balances.every((balance: any) => typeof balance === "object")
+    ? balances.map((balance: any) => ({
+      amount: balance.amount ? BigInt(balance.amount).toString() : "0",
+      badgeIds: Array.isArray(balance.badgeIds) && balance.badgeIds.every((badgeId: any) => typeof badgeId === "object")
+        ? balance.badgeIds.map((badgeId: any) => ({
+          start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
+          end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
+        }))
+        : [],
+      ownershipTimes: Array.isArray(balance.ownershipTimes) && balance.ownershipTimes.every((badgeId: any) => typeof badgeId === "object")
+        ? balance.ownershipTimes.map((badgeId: any) => ({
+          start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
+          end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
+        }))
+        : [],
+    }))
+    : [];
+}
+
+export function cleanBalanceMap(
   res: OffChainBalancesMap<NumberType>
 ): OffChainBalancesMap<JSPrimitiveNumberType> {
   const newMap: OffChainBalancesMap<string> = {};
   const entries: [string, any][] = Object.entries(res);
 
   for (const [key, val] of entries) {
-
-    newMap[key] = val && Array.isArray(val) && val.every((balance: any) => typeof balance === "object")
-      ? val.map((balance: any) => ({
-        amount: balance.amount ? BigInt(balance.amount).toString() : "0",
-        badgeIds: Array.isArray(balance.badgeIds) && balance.badgeIds.every((badgeId: any) => typeof badgeId === "object")
-          ? balance.badgeIds.map((badgeId: any) => ({
-            start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
-            end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
-          }))
-          : [],
-        ownershipTimes: Array.isArray(balance.ownershipTimes) && balance.ownershipTimes.every((badgeId: any) => typeof badgeId === "object")
-          ? balance.ownershipTimes.map((badgeId: any) => ({
-            start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
-            end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
-          }))
-          : [],
-      }))
-      : [];
-
+    newMap[key] = cleanBalanceArray(val);
   }
 
   return convertOffChainBalancesMap(newMap, NumberifyIfPossible);

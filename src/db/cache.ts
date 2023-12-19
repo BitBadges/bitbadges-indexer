@@ -2,7 +2,7 @@ import { NumberType } from "bitbadgesjs-proto";
 import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc } from "bitbadgesjs-utils";
 import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
-import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, MerkleChallengeModel, MsgDoc, MsgModel, PasswordModel, QueueModel, RefreshModel, TransferActivityModel, getManyFromDB, insertMany, insertToDB } from "./db";
+import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, MerkleChallengeModel, PasswordModel, QueueModel, RefreshModel, TransferActivityModel, getManyFromDB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
 /**
@@ -101,7 +101,10 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 
     if (promises.length) {
       const results = await Promise.allSettled(promises);
-
+      //I did it this way just to avoid having to edit the below working code
+      if (results.some(x => x.status === 'rejected')) {
+        throw `Error in fetchDocsForCache(): Promise.allSettled returned rejected promise(s)`;
+      }
 
 
       let idx = 0;
@@ -183,7 +186,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 }
 
 //Finalize docs at end of handling block(s)
-export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.ClientSession, msgDocs?: MsgDoc[], status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
+export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.ClientSession, status?: StatusDoc<bigint>, skipStatusFlushIfEmptyBlock?: boolean) {
   try {
     //If we reach here, we assume that all docs are valid and ready to be inserted into the DB (i.e. not undefined) so we can cast safely
     const promises = [];
@@ -199,6 +202,8 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
     const queueDocs = docs.queueDocsToAdd;
     const claimAlertDocs = docs.claimAlertsToAdd;
 
+    //If we have a session, we should not execute all inserts in parallel bc it messes up transactions
+    //If not, we can execute all inserts in parallel
     const parallelExecution = !session;
 
     if (activityDocs.length) {
@@ -255,11 +260,6 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
     if (claimAlertDocs.length) {
       if (parallelExecution) promises.push(insertMany(ClaimAlertModel, claimAlertDocs, session));
       else await insertMany(ClaimAlertModel, claimAlertDocs, session);
-    }
-
-    if (msgDocs && msgDocs.length) {
-      if (parallelExecution) promises.push(insertMany(MsgModel, msgDocs, session));
-      else await insertMany(MsgModel, msgDocs, session);
     }
 
     if (promises.length === 0 && status && skipStatusFlushIfEmptyBlock) {

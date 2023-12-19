@@ -26,8 +26,6 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
     }
 
-    const numOwners = await BalanceModel.countDocuments({ collectionId: Number(req.params.collectionId) });
-
     const ownersRes = await BalanceModel.find({
       cosmosAddress: {
         //does not equal mint OR total
@@ -57,10 +55,6 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
 
     const newBookmark = (reqBody.bookmark ? Number(reqBody.bookmark) + 1 : 1).toString();
 
-
-
-
-
     let addressMappingIdsToFetch = [];
     for (const balanceDoc of ownersRes) {
       for (const incomingTransfer of balanceDoc.incomingApprovals) {
@@ -72,7 +66,6 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       for (const outgoingTransfer of balanceDoc.outgoingApprovals) {
         addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
         addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
-
       }
 
       for (const incomingTransfer of balanceDoc.userPermissions.canUpdateIncomingApprovals) {
@@ -113,8 +106,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
       }),
       pagination: {
         bookmark: newBookmark.toString(),
-        hasMore: ownersRes.length === 25,
-        total: numOwners
+        hasMore: ownersRes.length === 25
       },
     });
   } catch (e) {

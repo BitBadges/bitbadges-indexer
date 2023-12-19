@@ -50,37 +50,29 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const cosmosAddresses = usernameRes.map((doc) => doc._legacyId);
 
     const selectorCriteria: any[] = [
+      { "cosmosAddress": { "$in": cosmosAddresses } },
       { "ethAddress": { "$regex": `(?i)${searchValue}` } },
       { "solAddress": { "$regex": `(?i)${searchValue}` } },
       { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
-      { "cosmosAddress": { "$in": cosmosAddresses } },
     ];
 
-
-
     if (resolvedEnsAddress) {
-      selectorCriteria.push({ "ethAddress": { "$regex": `(?i)${resolvedEnsAddress}` } });
+      selectorCriteria.push({ "ethAddress": resolvedEnsAddress });
     }
 
     const accountQuery = {
       "$or": selectorCriteria,
     }
 
-
-
     const addressMappingsQuery = {
-
       mappingId: { "$regex": `(?i)${searchValue}` },
-      private: {
-        "$ne": true
-      }
-
+      private: { "$ne": true }
     }
 
     const results = await Promise.all([
-      FetchModel.find(collectionMetadataQuery).lean().exec(),
-      AccountModel.find(accountQuery).lean().exec(),
-      AddressMappingModel.find(addressMappingsQuery).lean().exec(),
+      FetchModel.find(collectionMetadataQuery).limit(10).lean().exec(),
+      AccountModel.find(accountQuery).limit(10).lean().exec(),
+      AddressMappingModel.find(addressMappingsQuery).limit(10).lean().exec(),
     ]);
 
     const metadataResponseDocs = results[0];
@@ -142,7 +134,6 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
 
     const collectionsPromise = CollectionModel.find({
-
       "$or": [
         {
           collectionId: {

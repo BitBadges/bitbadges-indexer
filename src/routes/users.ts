@@ -725,7 +725,6 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       //fail if already taken (upsert = false)
       try {
         await UsernameModel.create([{ _legacyId: reqBody.username }]);
-
         const previouslyHadUsername = !!profileInfo.username
         if (previouslyHadUsername && profileInfo.username) await deleteMany(UsernameModel, [profileInfo.username]);
       } catch (e) {

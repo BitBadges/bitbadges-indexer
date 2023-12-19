@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ErrorResponse, cosmosToEth } from 'bitbadgesjs-utils'
+import { ErrorResponse } from 'bitbadgesjs-utils'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import { Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
@@ -10,11 +10,12 @@ import expressSession from 'express-session'
 import fs from 'fs'
 import https from 'https'
 import mongoose from 'mongoose'
+import Moralis from 'moralis'
 import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, genericBlockinVerifyHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { ApiKeyModel, ReportDoc, ReportModel, insertToDB, mustGetFromDB } from './db/db'
+import { ApiKeyModel, insertToDB, mustGetFromDB } from './db/db'
 import { OFFLINE_MODE, TIME_MODE } from './indexer-vars'
 import { poll, pollUris } from "./poll"
 import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
@@ -28,18 +29,19 @@ import { getChallengeTrackers } from './routes/challengeTrackers'
 import { getClaimAlertsForCollection, sendClaimAlert } from './routes/claimAlerts'
 import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
+import { getBalancesForEthFirstTx } from './routes/ethFirstTx'
 import { getTokensFromFaucet } from './routes/faucet'
 import { getFollowDetails, updateFollowDetails } from './routes/follows'
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
 import { getRefreshStatus, refreshMetadata } from './routes/refresh'
+import { addReport } from './routes/reports'
 import { addReviewForCollection, addReviewForUser, deleteReview } from './routes/reviews'
 import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config()
@@ -62,7 +64,6 @@ const limiter = rateLimit({
     }
     res.status(429).json(errorResponse);
   },
-
 })
 
 export let SHUTDOWN = false;
@@ -115,7 +116,7 @@ app.use(async (req, res, next) => {
     try {
 
       if (!apiKey) {
-        throw new Error('Unauthorized request. API key is required.');
+        throw new Error('Unauthorized request. API key is required but none was provided.');
       }
 
       const doc = await mustGetFromDB(ApiKeyModel, apiKey as string);
@@ -172,6 +173,7 @@ app.use(responseTime((req: Request, response: Response, time: number) => {
   }
 }));
 
+app.use(express.json());
 
 
 app.use(expressSession({
@@ -184,11 +186,11 @@ app.use(expressSession({
 
 app.use(cookieParser());
 
-// parse application/x-www-form-urlencoded
-app.use(express.urlencoded({ limit: '50mb', extended: true }))
+// // parse application/x-www-form-urlencoded
+// app.use(express.urlencoded({ limit: '50mb', extended: true }))
 
-// parse application/json
-app.use(express.json({ limit: '50mb' }))
+// // parse application/json
+// app.use(express.json({ limit: '50mb' }))
 
 // app.use((req, res, next) => {
 //   // if (!TIME_MODE) {
@@ -209,24 +211,7 @@ app.get("/", (req: Request, res: Response) => {
 app.post("/api/v0/status", getStatusHandler);
 
 //Reports
-app.post("/api/v0/report", cors(websiteOnlyCorsOptions), authorizeBlockinRequest, async (req, res) => {
-  try {
-    const report = req.body;
-
-    const reportDoc: ReportDoc = {
-      _legacyId: new mongoose.Types.ObjectId().toString(),
-      collectionId: report.collectionId,
-      mappingId: report.mappingId,
-      addressOrUsername: report.addressOrUsername,
-      reason: report.reason,
-    }
-    await insertToDB(ReportModel, reportDoc);
-    return res.status(200).send({ message: 'Report successfully submitted.' });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({ message: e.message });
-  }
-});
+app.post("/api/v0/report", cors(websiteOnlyCorsOptions), authorizeBlockinRequest, addReport);
 
 //Search
 app.post("/api/v0/search/:searchValue", searchHandler);
@@ -258,9 +243,9 @@ app.post('/api/v0/user/:addressOrUsername', getAccount);
 app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); //Write route
 
 //IPFS
-app.post('/api/v0/addMetadataToIpfs', websiteOnlyCors, authorizeBlockinRequest, addMetadataToIpfsHandler); //
-app.post('/api/v0/addApprovalDetailsToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, addApprovalDetailsToOffChainStorageHandler); //
-app.post('/api/v0/addBalancesToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, addBalancesToOffChainStorageHandler); //
+app.post('/api/v0/addMetadataToIpfs', websiteOnlyCors, authorizeBlockinRequest, express.json({ limit: '100mb' }), addMetadataToIpfsHandler); //
+app.post('/api/v0/addApprovalDetailsToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, express.json({ limit: '100mb' }), addApprovalDetailsToOffChainStorageHandler); //
+app.post('/api/v0/addBalancesToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, express.json({ limit: '100mb' }), addBalancesToOffChainStorageHandler); //
 
 //Blockin Auth
 app.post('/api/v0/auth/getChallenge', getChallenge);
@@ -312,52 +297,9 @@ app.post('/api/v0/follow-protocol', getFollowDetails);
 app.post('/api/v0/claimAlerts', authorizeBlockinRequest, getClaimAlertsForCollection);
 //Set up Moralis
 
-import { Balance } from 'bitbadgesjs-proto'
-import Moralis from 'moralis'
-import { serializeError } from 'serialize-error'
+app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx)
 
 
-export const getBalancesForEthFirstTx = async (cosmosAddress: string): Promise<Balance<bigint>[]> => {
-  const ethAddress = cosmosToEth(cosmosAddress);
-  const response = await Moralis.EvmApi.wallets.getWalletActiveChains({
-    "address": ethAddress,
-  });
-
-  const firstTxTimestamp = response.raw.active_chains.find(x => x.chain === 'eth')?.first_transaction?.block_timestamp;
-  const timestamp = firstTxTimestamp ? new Date(firstTxTimestamp).getFullYear() : undefined;
-
-  //Badge ID 1 = 2015, 2 = 2016, and so on
-  const badgeId = timestamp ? timestamp - 2014 : undefined;
-  if (!badgeId) {
-    return [];
-  }
-
-  const balances: Balance<bigint>[] = [{
-    amount: 1n,
-    badgeIds: [{ start: BigInt(badgeId), end: BigInt(badgeId) }],
-    ownershipTimes: [{
-      start: 1n, end: BigInt("18446744073709551615")
-    }]
-  }]
-
-  return balances;
-}
-
-app.get('/api/v0/ethFirstTx/:cosmosAddress', async (req, res) => {
-
-  try {
-    const cosmosAddress = req.params.cosmosAddress;
-    const balances = await getBalancesForEthFirstTx(cosmosAddress);
-    return res.status(200).send({ balances });
-
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      message: "Error fetching balances. Please try again later."
-    })
-  }
-})
 
 //TODO: Simple implementation of a one-way heartbeat mode.
 //If the parent process dies, the child process will take over.
@@ -422,10 +364,6 @@ const init = async () => {
     }
   }
 }
-
-// process.on("SIGINT", () => {
-//   
-// })
 
 
 const server = process.env.DISABLE_API === 'true' ? undefined :

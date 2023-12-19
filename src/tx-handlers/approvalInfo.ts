@@ -53,8 +53,6 @@ export const handleApprovals = async (docs: DocsCache, collectionDoc: Collection
                 } : undefined,
               }
 
-              console.log("TEST2");
-
               if (merkleChallenge?.useCreatorAddressAsLeaf) {
                 if (doc.challengeDetails?.leavesDetails.isHashed == false) {
                   const addresses = doc.challengeDetails?.leavesDetails.leaves.map(leaf => convertToCosmosAddress(leaf));

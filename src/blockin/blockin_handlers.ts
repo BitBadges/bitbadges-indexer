@@ -1,11 +1,11 @@
 import { BigIntify } from 'bitbadgesjs-proto';
-import { CheckSignInStatusResponse, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, NumberType, Numberify, SignOutResponse, SupportedChain, VerifySignInRouteRequestBody, VerifySignInRouteResponse, convertCollectionDoc, convertIPFSTotalsDoc, convertToCosmosAddress, getChainForAddress, getCurrentValueForTimeline } from 'bitbadgesjs-utils';
+import { CheckSignInStatusResponse, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, NumberType, SignOutResponse, SupportedChain, VerifySignInRouteRequestBody, VerifySignInRouteResponse, convertCollectionDoc, convertToCosmosAddress, getChainForAddress, getCurrentValueForTimeline } from 'bitbadgesjs-utils';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
-import { CollectionModel, IPFSTotalsModel, ProfileModel, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { CollectionModel, ProfileModel, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { getChainDriver } from './blockin';
 
 export interface BlockinSession<T extends NumberType> extends Session {
@@ -14,7 +14,6 @@ export interface BlockinSession<T extends NumberType> extends Session {
   blockinParams: ChallengeParams<T> | null;
   cosmosAddress: string | null;
   address: string | null;
-  ipfsTotal: number | null;
 }
 
 export interface BlockinSessionAuthenticated<T extends NumberType> extends BlockinSession<T> {
@@ -23,7 +22,6 @@ export interface BlockinSessionAuthenticated<T extends NumberType> extends Block
   blockinParams: ChallengeParams<T>;
   cosmosAddress: string;
   address: string;
-  ipfsTotal: number;
 }
 
 export interface AuthenticatedRequest<T extends NumberType> extends Request {
@@ -31,19 +29,17 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
 }
 
 export function checkIfAuthenticated(req: AuthenticatedRequest<NumberType>) {
-  // console.log(req.session);
   return req.session.blockin && req.session.nonce && req.session.blockinParams && req.session.cosmosAddress && req.session.address && req.session.blockinParams.address === req.session.address;
 }
 
 
 export async function checkIfManager(req: AuthenticatedRequest<NumberType>, collectionId: NumberType) {
   if (!checkIfAuthenticated(req)) return false;
-  //Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
 
-  const collectionIdStr = BigInt(collectionId).toString();
-  const _collection = await mustGetFromDB(CollectionModel, collectionIdStr);
-  const collection = convertCollectionDoc(_collection, BigIntify);
+  //Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now? 
+  //I don't think it is that big of a deal. 1) Important stuff is already on the blockchain and 2) they have to be a prev managewr
 
+  const collection = convertCollectionDoc(await mustGetFromDB(CollectionModel, BigInt(collectionId).toString()), BigIntify);
   const manager = getCurrentValueForTimeline(collection.managerTimeline)?.manager;
   if (manager && req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
     return false;
@@ -121,6 +117,17 @@ export async function checkifSignedInHandler(expressReq: Request, res: Response<
   if (!checkIfAuthenticated(req)) {
     return res.status(200).send({ signedIn: false });
   }
+
+  //TODO: Extend the cookie without inactivity?
+  // if (req.session.blockinParams?.expirationDate) {
+  //   //Extend cookie by 2 weeks from now
+  //   const now = new Date();
+  //   const twoWeeks = new Date(now.getTime() + 168 * 60 * 60 * 1000);
+  //   req.session.cookie.expires = twoWeeks;
+  //   req.session.save();
+  // }
+
+
   return res.status(200).send({ signedIn: true });
 }
 
@@ -146,7 +153,6 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
 
 export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest<NumberType>;
-
   const body = req.body as VerifySignInRouteRequestBody;
 
   const chainDriver = getChainDriver(body.chain);
@@ -185,15 +191,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
       req.session.cookie.expires = new Date(challenge.expirationDate);
     }
 
-    const [ipfsDoc, profileDoc] = await Promise.all([
-      getFromDB(IPFSTotalsModel, req.session.cosmosAddress),
-      getFromDB(ProfileModel, req.session.cosmosAddress),
-    ]);
-
-    const ipfsTotals = ipfsDoc ? convertIPFSTotalsDoc(ipfsDoc, Numberify) : null;
-    req.session.ipfsTotal = ipfsTotals ? ipfsTotals.bytesUploaded : 0;
-
-
+    const profileDoc = await getFromDB(ProfileModel, req.session.cosmosAddress);
     if (!profileDoc || (profileDoc && profileDoc.latestSignedInChain !== body.chain)) {
       await insertToDB(ProfileModel, {
         ...profileDoc,
@@ -256,8 +254,7 @@ export async function genericBlockinVerifyHandler(expressReq: Request, res: Resp
 
     return res.status(200).json({ success: true, successMessage: verificationResponse.message });
   } catch (err) {
-    console.log(err);
-
+    console.error(err);
     return res.status(401).json({ success: false, message: `${err.message} ` });
   }
 }

@@ -11,7 +11,6 @@ const { SHA256 } = crypto;
 config();
 
 export let MONGO_CONNECTED = false;
-
 mongoose.connect(`${process.env.DB_URL}`);
 export const MongoDB = mongoose.connection;
 MongoDB.on('error', console.error.bind(console, 'MongoDB connection error:'));
@@ -43,27 +42,13 @@ export interface EthTxCountDoc {
   lastFetched: number;
 }
 
-export interface MsgDoc {
-  _legacyId: string;
-  _id?: string
-  msg?: any;
-  type: string;
-  txHash: string;
-  txIndex: number;
-  msgIndex: number;
-  block: number;
-  blockTimestamp: number;
-  collectionId?: bigint;
-  creator?: string;
-}
-
 export interface OffChainUrlDoc {
   _legacyId: string;
   _id?: string
   collectionId: number;
 }
 
-export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | MsgDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T>
+export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc  | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T>
 
 //TODO: Better schemas?
 const Schema = mongoose.Schema;
@@ -78,19 +63,6 @@ export const ErrorSchema = new Schema({
   error: Schema.Types.Mixed,
   _legacyId: String,
 
-});
-
-export const MsgSchema = new Schema({
-  _legacyId: String,
-  msg: Schema.Types.Mixed,
-  type: String,
-  txHash: String,
-  txIndex: Number,
-  msgIndex: Number,
-  block: Number,
-  blockTimestamp: Number,
-  collectionId: Number,
-  creator: String,
 });
 
 export const OffChainUrlSchema = new Schema({
@@ -145,7 +117,6 @@ export const AddressMappingModel = mongoose.model<AddressMappingDoc<JSPrimitiveN
 export const ApprovalsTrackerModel = mongoose.model<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers', ApprovalsTrackerSchema);
 export const ClaimAlertModel = mongoose.model<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts', ClaimAlertSchema);
 export const EthTxCountModel = mongoose.model<EthTxCountDoc>('eth-tx-count', EthTxCountSchema);
-export const MsgModel = mongoose.model<MsgDoc>('msgs', MsgSchema);
 export const OffChainUrlModel = mongoose.model<OffChainUrlDoc>('off-chain-urls', OffChainUrlSchema);
 export const ReportModel = mongoose.model<ReportDoc>('reports', ReportSchema);
 export const ComplianceModel = mongoose.model<ComplianceDoc<JSPrimitiveNumberType>>('compliance', ComplianceSchema);
@@ -265,7 +236,7 @@ export async function insertMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
 
     // if (docsToInsert.length > 1000) console.timeEnd('insertMany');
 
-    
+
   } catch (e) {
     console.log(e);
     throw e;
@@ -283,7 +254,6 @@ export async function deleteMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
     throw e;
   }
 }
-
 
 export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitiveNumberType>), U extends (BitBadgesDoc<NumberType>)>(
   model: mongoose.Model<T>,
@@ -334,8 +304,6 @@ export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitive
       convertedDoc = convertClaimAlertDoc(doc as ClaimAlertDoc<NumberType>, NumberifyIfPossible);
     } else if (model.modelName === EthTxCountModel.modelName) {
       convertedDoc = doc as EthTxCountDoc;
-    } else if (model.modelName === MsgModel.modelName) {
-      convertedDoc = doc as MsgDoc;
     } else if (model.modelName === OffChainUrlModel.modelName) {
       convertedDoc = doc as OffChainUrlDoc;
     } else if (model.modelName === ReportModel.modelName) {

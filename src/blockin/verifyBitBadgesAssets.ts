@@ -3,7 +3,7 @@ import { OffChainBalancesMap, convertToCosmosAddress, getBalancesForIds } from "
 import { Asset } from "blockin"
 import { BalanceModel, getFromDB } from "../db/db"
 
-export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], address: string, balancesSnapshot?: object): Promise<any> {
+export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], address: string, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
   for (const asset of bitbadgesAssets) {
     let docBalances: Balance<bigint>[] = []
     if (!balancesSnapshot) {
@@ -16,7 +16,7 @@ export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], ad
       }
     } else {
       const cosmosAddress = convertToCosmosAddress(address)
-      const balancesSnapshotObj = balancesSnapshot as OffChainBalancesMap<bigint>
+      const balancesSnapshotObj = balancesSnapshot
       docBalances = balancesSnapshotObj[cosmosAddress] ? balancesSnapshotObj[cosmosAddress].map(x => convertBalance(x, BigIntify)) : []
     }
 

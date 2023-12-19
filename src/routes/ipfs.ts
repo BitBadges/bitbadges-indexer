@@ -5,7 +5,7 @@ import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager } from "../blockin/blockin_handlers";
 import { CollectionModel, IPFSTotalsModel, PasswordModel, getFromDB, insertToDB, mustGetFromDB } from "../db/db";
 import { addApprovalDetailsToOffChainStorage, addBalancesToOffChainStorage, addMetadataToIpfs } from "../ipfs/ipfs";
-import { cleanBalances } from "../utils/dataCleaners";
+import { cleanBalanceMap } from "../utils/dataCleaners";
 import { refreshCollection } from "./refresh";
 import mongoose from "mongoose";
 
@@ -13,7 +13,12 @@ const { AES } = CryptoJS;
 
 const IPFS_UPLOAD_BYTES_LIMIT = 1000000000; //1GB
 
-export const updateIpfsTotals = async (address: string, size: number, req: AuthenticatedRequest<NumberType>) => {
+//will throw error if limit exceeded
+export const checkIpfsTotals = async (address: string, size: number) => {
+  await updateIpfsTotals(address, size, true);
+}
+
+export const updateIpfsTotals = async (address: string, size: number, doNotInsert?: boolean) => {
   const _ipfsTotalsDoc = await getFromDB(IPFSTotalsModel, address);
   let ipfsTotalsDoc = _ipfsTotalsDoc ? {
     ...convertIPFSTotalsDoc(_ipfsTotalsDoc, Number),
@@ -24,10 +29,11 @@ export const updateIpfsTotals = async (address: string, size: number, req: Authe
     bytesUploaded: size,
   };
 
-  await insertToDB(IPFSTotalsModel, ipfsTotalsDoc);
+  if (ipfsTotalsDoc.bytesUploaded > IPFS_UPLOAD_BYTES_LIMIT) {
+    throw new Error('You have exceeded your IPFS storage limit.');
+  }
 
-  req.session.ipfsTotal = ipfsTotalsDoc.bytesUploaded;
-  req.session.save();
+  if (!doNotInsert) await insertToDB(IPFSTotalsModel, ipfsTotalsDoc);
 }
 
 export const addBalancesToOffChainStorageHandler = async (expressReq: Request, res: Response<AddBalancesToOffChainStorageRouteResponse<NumberType>>) => {
@@ -40,15 +46,12 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
       const managerCheck = checkIfManager(req, reqBody.collectionId);
       if (!managerCheck) throw new Error('You are not the manager of this collection');
     }
+
     let result = undefined;
     let size = 0;
     if (reqBody.balances) {
       //get size of req.body in KB
       size = Buffer.byteLength(JSON.stringify(req.body));
-
-      if (req.session.ipfsTotal + size > IPFS_UPLOAD_BYTES_LIMIT) {
-        return res.status(400).send({ message: `This upload will cause you to exceed your storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
-      }
 
       let urlPath = undefined;
 
@@ -60,19 +63,21 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
           urlPath = collectionDoc.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.split('/').pop();
         }
       }
-      const balances = cleanBalances(reqBody.balances);
-      result = await addBalancesToOffChainStorage(balances, reqBody.method, reqBody.collectionId, req, urlPath);
+      const balances = cleanBalanceMap(reqBody.balances);
+      result = await addBalancesToOffChainStorage(balances, reqBody.method, reqBody.collectionId, urlPath);
+      if (!result) {
+        throw new Error('No add result received');
+      }
+
+      await updateIpfsTotals(req.session.cosmosAddress, size);
+      if (BigInt(reqBody.collectionId) > 0) await refreshCollection(reqBody.collectionId.toString(), true);
+
+
+      return res.status(200).send({ uri: result.uri, result: result });
+    } else {
+      throw new Error('No balances provided');
     }
 
-    if (!result) {
-      throw new Error('No addAll result received');
-    }
-
-    await updateIpfsTotals(req.session.cosmosAddress, size, req);
-    if (BigInt(reqBody.collectionId) > 0) await refreshCollection(reqBody.collectionId.toString(), true);
-
-
-    return res.status(200).send({ uri: result.uri, result: result });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -89,9 +94,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
   try {
     let size = Buffer.byteLength(JSON.stringify(req.body));
 
-    if (req.session.ipfsTotal + size > IPFS_UPLOAD_BYTES_LIMIT) {
-      return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
-    }
+    await checkIpfsTotals(req.session.cosmosAddress, size);
 
     const { allResults, collectionMetadataResult, badgeMetadataResults } = await addMetadataToIpfs(reqBody.collectionMetadata, reqBody.badgeMetadata);
 
@@ -99,7 +102,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
       throw new Error('No result received');
     }
 
-    await updateIpfsTotals(req.session.cosmosAddress, size, req);
+    await updateIpfsTotals(req.session.cosmosAddress, size);
 
     return res.status(200).send({ allResults, collectionMetadataResult, badgeMetadataResults });
   } catch (e) {
@@ -119,11 +122,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
     const challengeDetails = reqBody.challengeDetails ? convertChallengeDetails(reqBody.challengeDetails, BigIntify) : undefined;
     const size = Buffer.byteLength(JSON.stringify(req.body));
 
-    if (req.session.ipfsTotal + size > IPFS_UPLOAD_BYTES_LIMIT) {
-      return res.status(400).send({ message: `This upload will cause you to exceed your IPFS storage limit. You have ${IPFS_UPLOAD_BYTES_LIMIT - req.session.ipfsTotal} bytes remaining.` });
-    }
-
-
+    await checkIpfsTotals(req.session.cosmosAddress, size);
 
     const result = await addApprovalDetailsToOffChainStorage(reqBody.name, reqBody.description, challengeDetails);
     if (!result) {
@@ -164,7 +163,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
     });
 
 
-    await updateIpfsTotals(req.session.cosmosAddress, size, req);
+    await updateIpfsTotals(req.session.cosmosAddress, size);
 
     return res.status(200).send({ result: { cid: cid.toString() } });
   } catch (e) {

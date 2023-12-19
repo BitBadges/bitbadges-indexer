@@ -1,18 +1,13 @@
-import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange, deepCopy } from "bitbadgesjs-proto";
-import { AnnouncementDoc, ApprovalInfoDetails, ApprovalsTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, convertApprovalInfoDetails, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertComplianceDoc, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
-
-import CryptoJS from "crypto-js";
+import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
+import { AnnouncementDoc, ApprovalInfoDetails, ApprovalsTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, batchUpdateBadgeMetadata, convertApprovalInfoDetails, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertComplianceDoc, convertMetadata, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { CollectionModel, mustGetFromDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
-import { fetchUriFromDb } from "../queue";
-import { compareObjects } from "../utils/compare";
+import { fetchUriFromDbAndAddToQueueIfEmpty } from "../queue";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { applyAddressMappingsToUserPermissions } from "./balances";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
-
-const { SHA256 } = CryptoJS;
 
 /**
  * The executeCollectionsQuery function is the main query function used to fetch all data for a collection in bulk.
@@ -221,7 +216,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   const addressMappingsPromise = getAddressMappingsFromDB(addressMappingIdsToFetch, false);
   const uniqueUris = [...new Set(uris.flat())].filter(x => !!x);
 
-  const claimFetchesPromises = uniqueUris.map(uri => fetchUriFromDb(uri.uri, BigInt(uri.collectionId).toString()));
+  const claimFetchesPromises = uniqueUris.map(uri => fetchUriFromDbAndAddToQueueIfEmpty(uri.uri, BigInt(uri.collectionId).toString()));
   const [addressMappings, claimFetches] = await Promise.all([
     addressMappingsPromise,
     Promise.all(claimFetchesPromises)
@@ -416,6 +411,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
   }
 
+  //Append approval details
   for (let i = 0; i < collectionResponses.length; i++) {
     const collectionRes = collectionResponses[i];
     for (let i = 0; i < collectionRes.collectionApprovals.length; i++) {
@@ -433,6 +429,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
     collectionResponses[i] = collectionRes;
   }
+
   return collectionResponses;
 }
 
@@ -501,6 +498,8 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
   }
 }
 
+
+
 const getMetadata = async (collectionId: NumberType, collectionUri: string, _badgeUris: BadgeMetadata<NumberType>[], fetchOptions?: MetadataFetchOptions) => {
   const badgeUris = _badgeUris.map((uri) => convertBadgeMetadata(uri, BigIntify));
 
@@ -567,13 +566,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     }
   }
 
-  let badgeMetadataUris: string[] = [];
-  if (!doNotFetchCollectionMetadata && collectionUri) {
-    badgeMetadataUris = uris.slice(1);
-  }
-
   uris = [...new Set(uris)];
-  badgeMetadataUris = [...new Set(badgeMetadataUris)];
   metadataIdsToFetch = metadataIdsToFetch.map((id) => BigInt(id));
   metadataIdsToFetch = [...new Set(metadataIdsToFetch)];
 
@@ -583,7 +576,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
 
   const promises = [];
   for (const uri of uris) {
-    promises.push(fetchUriFromDb(uri, collectionId.toString()));
+    promises.push(fetchUriFromDbAndAddToQueueIfEmpty(uri, collectionId.toString()));
   }
 
 
@@ -631,81 +624,6 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     collectionMetadata: collectionMetadata ? convertMetadata(collectionMetadata, Stringify) : undefined,
     badgeMetadata: badgeMetadata ? badgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, Stringify)) : undefined
   }
-}
-
-const batchUpdateBadgeMetadata = (currBadgeMetadata: BadgeMetadataDetails<bigint>[], newBadgeMetadataDetailsArr: BadgeMetadataDetails<bigint>[]) => {
-
-
-  const allBadgeIds = sortUintRangesAndMergeIfNecessary(
-    deepCopy(newBadgeMetadataDetailsArr.map(x => x.badgeIds).flat()), true
-  )
-  for (let i = 0; i < currBadgeMetadata.length; i++) {
-    const val = currBadgeMetadata[i];
-    if (!val) continue; //For TS
-
-    const [remaining, _] = removeUintRangeFromUintRange(allBadgeIds, val.badgeIds);
-    val.badgeIds = remaining;
-  }
-
-  currBadgeMetadata = currBadgeMetadata.filter((val) => val && val.badgeIds.length > 0);
-
-
-  const hashTable = new Map<string, number>();
-  for (let i = 0; i < currBadgeMetadata.length; i++) {
-    const metadataDetails = currBadgeMetadata[i];
-    const hashedMetadata = SHA256(JSON.stringify(metadataDetails.metadata)).toString();
-    hashTable.set(hashedMetadata, i);
-  }
-
-  for (const newBadgeMetadataDetails of newBadgeMetadataDetailsArr) {
-    let currentMetadata = newBadgeMetadataDetails.metadata;
-    for (const badgeUintRange of newBadgeMetadataDetails.badgeIds) {
-      const startBadgeId = badgeUintRange.start;
-      const endBadgeId = badgeUintRange.end;
-
-      //If the metadata we are updating is already in the array (with matching uri and id), we can just insert the badge IDs
-      let currBadgeMetadataExists = false;
-      const idx = hashTable.get(SHA256(JSON.stringify(currentMetadata)).toString());
-      if (idx) {
-        const val = currBadgeMetadata[idx];
-        if (!val) continue; //For TS
-
-        if (val.uri === newBadgeMetadataDetails.uri && val.metadataId === newBadgeMetadataDetails.metadataId && val.customData === newBadgeMetadataDetails.customData && val.toUpdate === newBadgeMetadataDetails.toUpdate && compareObjects(val.metadata, currentMetadata)) {
-          currBadgeMetadataExists = true;
-          if (val.badgeIds.length > 0) {
-            val.badgeIds = [...val.badgeIds, { start: startBadgeId, end: endBadgeId }];
-            val.badgeIds = sortUintRangesAndMergeIfNecessary(val.badgeIds, true);
-          } else {
-            val.badgeIds = [{ start: startBadgeId, end: endBadgeId }];
-          }
-        }
-      }
-
-      //Recreate the array with the updated badge IDs
-      //If some metadata object no longer has any corresponding badge IDs, we can remove it from the array
-
-      //If we did not find the metadata in the array and metadata !== undefined, we need to add it
-      if (!currBadgeMetadataExists) {
-        currBadgeMetadata.push({
-          metadata: { ...currentMetadata },
-          badgeIds: [{
-            start: startBadgeId,
-            end: endBadgeId,
-          }],
-          uri: newBadgeMetadataDetails.uri,
-          metadataId: newBadgeMetadataDetails.metadataId,
-          customData: newBadgeMetadataDetails.customData,
-          toUpdate: newBadgeMetadataDetails.toUpdate,
-        })
-
-        const hashedMetadata = SHA256(JSON.stringify(newBadgeMetadataDetails.metadata)).toString();
-        hashTable.set(hashedMetadata, currBadgeMetadata.length - 1);
-      }
-    }
-  }
-
-  currBadgeMetadata = currBadgeMetadata.filter((val) => val && val.badgeIds.length > 0);
-  return currBadgeMetadata;
 }
 
 const appendMetadataResToCollection = (metadataRes: { collectionMetadata?: Metadata<JSPrimitiveNumberType>, badgeMetadata?: BadgeMetadataDetails<JSPrimitiveNumberType>[] }, collection: BitBadgesCollection<JSPrimitiveNumberType> | BitBadgesCollection<JSPrimitiveNumberType>) => {

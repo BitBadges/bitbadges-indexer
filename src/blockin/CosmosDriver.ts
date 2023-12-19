@@ -1,11 +1,11 @@
 import { verifyADR36Amino } from '@keplr-wallet/cosmos';
 import axiosApi from 'axios';
-import { Balance, Stringify, UintRange, convertBalance, convertUintRange } from 'bitbadgesjs-proto';
-import { BigIntify, GetBadgeBalanceByAddressRoute, GetBadgeBalanceByAddressRouteSuccessResponse, NumberType, OffChainBalancesMap, SupportedChain, convertToCosmosAddress, getBalancesForIds, getChainForAddress } from 'bitbadgesjs-utils';
-import { CreateAssetParams, IChainDriver, UniversalTxn, constructChallengeObjectFromString } from 'blockin';
-import { Asset } from 'blockin';
+import { Stringify } from 'bitbadgesjs-proto';
+import { NumberType, OffChainBalancesMap, SupportedChain, getChainForAddress } from 'bitbadgesjs-utils';
+import { Asset, CreateAssetParams, IChainDriver, UniversalTxn, constructChallengeObjectFromString } from 'blockin';
 import { Buffer } from 'buffer';
 import { concat } from 'ethers/lib/utils';
+import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
 
 export const axios = axiosApi.create({
   withCredentials: true,
@@ -105,103 +105,27 @@ export default class CosmosDriver implements IChainDriver<NumberType> {
     }
   }
 
-  async verifyAssets(address: string, resources: string[], _assets: Asset<NumberType>[], balancesSnapshot?: object): Promise<any> {
-
-    let ethAssets: Asset<NumberType>[] = []
-    let bitbadgesAssets: Asset<NumberType>[] = []
+  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+    let cosmosAssets: Asset<bigint>[] = []
+    let bitbadgesAssets: Asset<bigint>[] = []
     if (resources) {
 
     }
 
     if (_assets) {
+      cosmosAssets = _assets.filter((elem) => elem.chain === "Cosmos")
       bitbadgesAssets = _assets.filter((elem) => elem.chain === "BitBadges")
     }
 
-    if (ethAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
+    if (cosmosAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
 
     if (bitbadgesAssets.length > 0) {
-      for (const asset of bitbadgesAssets) {
-        let docBalances: Balance<bigint>[] = []
-        if (!balancesSnapshot) {
-          const balancesRes: GetBadgeBalanceByAddressRouteSuccessResponse<string> = await axios.post(
-            "https://api.bitbadges.io" +
-            GetBadgeBalanceByAddressRoute(asset.collectionId, convertToCosmosAddress(address),),
-            {},
-            {
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": process.env.BITBADGES_API_KEY,
-              },
-            },
-          ).then((res) => {
-            return res.data
-          })
-
-          docBalances = balancesRes.balance.balances.map((x) => convertBalance(x, BigIntify))
-        } else {
-          const cosmosAddress = convertToCosmosAddress(address)
-          const balancesSnapshotObj = balancesSnapshot as OffChainBalancesMap<bigint>
-          docBalances = balancesSnapshotObj[cosmosAddress] ? balancesSnapshotObj[cosmosAddress].map(x => convertBalance(x, BigIntify)) : []
-        }
-
-        if (
-          !asset.assetIds.every(
-            (x) => typeof x === "object" && BigInt(x.start) >= 0 && BigInt(x.end) >= 0,
-          )
-        ) {
-          throw new Error(`All assetIds must be UintRanges for BitBadges compatibility`)
-        }
-
-        if (
-          asset.ownershipTimes &&
-          !asset.ownershipTimes.every(
-            (x) => typeof x === "object" && BigInt(x.start) >= 0 && BigInt(x.end) >= 0,
-          )
-        ) {
-          throw new Error(`All ownershipTimes must be UintRanges for BitBadges compatibility`)
-        }
-
-        if (
-          asset.mustOwnAmounts && !(typeof asset.mustOwnAmounts === "object" && BigInt(asset.mustOwnAmounts.start) >= 0 && BigInt(asset.mustOwnAmounts.end) >= 0)
-        ) {
-          throw new Error(`mustOwnAmount must be UintRange for BitBadges compatibility`)
-        }
-
-        if (!asset.ownershipTimes) {
-          asset.ownershipTimes = [{ start: BigInt(Date.now()), end: BigInt(Date.now()) }]
-        }
-
-        const balances = getBalancesForIds(
-          asset.assetIds.map((x) => convertUintRange(x as UintRange<bigint>, BigIntify)),
-          asset.ownershipTimes.map((x) => convertUintRange(x, BigIntify)),
-          docBalances,
-        )
-
-        const mustOwnAmount = asset.mustOwnAmounts
-        for (const balance of balances) {
-          if (BigInt(balance.amount) < BigInt(mustOwnAmount.start)) {
-            throw new Error(
-              `Address ${address} does not own enough of IDs ${balance.badgeIds
-                .map((x) => `${x.start}-${x.end}`)
-                .join(",")} from collection ${asset.collectionId
-              } to meet minimum balance requirement of ${mustOwnAmount.start}`,
-            )
-          }
-
-          if (BigInt(balance.amount) > BigInt(mustOwnAmount.end)) {
-            throw new Error(
-              `Address ${address} owns too much of IDs ${balance.badgeIds
-                .map((x) => `${x.start}-${x.end}`)
-                .join(",")} from collection ${asset.collectionId
-              } to meet maximum balance requirement of ${mustOwnAmount.end}`,
-            )
-          }
-
-        }
-      }
+      await verifyBitBadgesAssets(bitbadgesAssets, address, balancesSnapshot)
     }
 
-
+    if (cosmosAssets.length > 0) {
+      throw new Error(`Ethereum assets are not yet supported`)
+    }
   }
   /**
    * Currently just a boilerplate

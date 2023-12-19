@@ -5,6 +5,7 @@ import { recoverPersonalSignature } from "eth-sig-util"
 import { ethers } from "ethers"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
 import { Stringify } from "bitbadgesjs-proto"
+import { OffChainBalancesMap } from "bitbadgesjs-utils"
 
 /**
  * Ethereum implementation of the IChainDriver interface. This implementation is based off the Moralis API
@@ -52,7 +53,7 @@ export default class EthDriver implements IChainDriver<bigint> {
   }
 
 
-  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: object): Promise<any> {
+  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
 
     let ethAssets: Asset<bigint>[] = []
     let bitbadgesAssets: Asset<bigint>[] = []

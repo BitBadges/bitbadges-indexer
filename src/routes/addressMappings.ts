@@ -22,6 +22,10 @@ export const deleteAddressMappings = async (expressReq: Request, res: Response<D
       if (doc.createdBy !== req.session.cosmosAddress) {
         throw new Error("You are not the owner of mapping with ID " + doc._legacyId);
       }
+
+      if (!doc.mappingId.includes("_")) {
+        throw new Error("You cannot delete a mapping that was created on-chain.");
+      }
     }
 
     await deleteMany(AddressMappingModel, docsToDelete.map(x => x._legacyId));
@@ -42,7 +46,7 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
     const req = expressReq as AuthenticatedRequest<JSPrimitiveNumberType>;
     const reqBody = req.body as UpdateAddressMappingsRouteRequestBody<JSPrimitiveNumberType>;
     const mappings = reqBody.addressMappings;
-    const cosmosAddress = req.session.cosmosAddress
+    const cosmosAddress = req.session.cosmosAddress;
 
     if (mappings.length > 100) {
       throw new Error("You can only update up to 100 address mappings at a time.");
@@ -108,8 +112,6 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
     })
   }
 }
-
-
 
 export const getAddressMappings = async (req: Request, res: Response<GetAddressMappingsRouteResponse<NumberType>>) => {
   try {

@@ -1,8 +1,7 @@
-import axios from "axios";
 import { FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
+import { fetchUriFromSource } from "../queue";
 import { FetchModel, getFromDB } from "../db/db";
-import { getFromIpfs } from "../ipfs/ipfs";
 
 
 export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMetadataDirectlyRouteResponse<NumberType>>) => {
@@ -21,14 +20,7 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMet
         const fetchDoc = await getFromDB(FetchModel, uri);
 
         if (!fetchDoc) {
-          //If we are here, we need to fetch from the source
-          if (uri.startsWith('ipfs://')) {
-            const _res: any = await getFromIpfs(uri.replace('ipfs://', ''));
-            metadataRes = JSON.parse(_res.file);
-          } else {
-            const _res = await axios.get(uri).then((res) => res.data);
-            metadataRes = _res
-          }
+          metadataRes = await fetchUriFromSource(uri);
         } else {
           metadataRes = fetchDoc.content;
         }

@@ -1,11 +1,10 @@
 import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import axios from 'axios';
 import { NumberType, deepCopy } from 'bitbadgesjs-proto';
-import { ApprovalInfoDetails, BadgeMetadataDetails, BigIntify, ChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata, convertOffChainBalancesMap } from 'bitbadgesjs-utils';
+import { ApprovalInfoDetails, BadgeMetadataDetails, BigIntify, ChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata } from 'bitbadgesjs-utils';
 import crypto from 'crypto';
 import last from 'it-last';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
-import { AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { FetchModel, OffChainUrlModel, getFromDB, insertToDB } from '../db/db';
 import { getStatus } from '../db/status';
 import { ipfsClient, s3 } from "../indexer-vars";
@@ -58,8 +57,7 @@ export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
   return blob
 }
 
-export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMap<NumberType>, method: 'ipfs' | 'centralized', collectionId: NumberType, req: AuthenticatedRequest<NumberType>, urlPath?: string) => {
-  const balances = convertOffChainBalancesMap(_balances, BigIntify);
+export const addBalancesToOffChainStorage = async (balances: OffChainBalancesMap<NumberType>, method: 'ipfs' | 'centralized', collectionId: NumberType, urlPath?: string) => {
 
   if (method === 'ipfs') {
     const files = [];
@@ -87,9 +85,7 @@ export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMa
   } else {
 
 
-    const balances = convertOffChainBalancesMap(_balances, BigIntify);
     const binaryData = JSON.stringify(balances);
-
     const randomBytes = crypto.randomBytes(32);
     const path = BigInt(collectionId) > 0 ? urlPath : randomBytes.toString('hex');
     if (BigInt(collectionId) > 0 && !urlPath) {
@@ -97,7 +93,7 @@ export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMa
     } else if (BigInt(collectionId) > 0 && urlPath) {
       const urlDoc = await getFromDB(OffChainUrlModel, urlPath);
       if (!urlDoc || BigInt(urlDoc.collectionId) != BigInt(collectionId)) {
-        throw new Error('The existing off-chain URL does not belong to this collection.');
+        throw new Error('The existing off-chain URL does not belong to this collection. We only allow the first collection defined on-chain with this URL to update it.');
       }
     }
 
@@ -116,7 +112,6 @@ export const addBalancesToOffChainStorage = async (_balances: OffChainBalancesMa
   }
 }
 
-//TODO: parallelize this?
 export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberType>, _individualBadgeMetadata?: BadgeMetadataDetails<NumberType>[] | Metadata<NumberType>[]) => {
   const collectionMetadata = _collectionMetadata ? convertMetadata(_collectionMetadata, BigIntify) : undefined;
   const badgeMetadata: Metadata<NumberType>[] = [];
@@ -154,7 +149,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     }
   }
 
-  //We currently don't store the images in CouchDB, so we don't need to add them to FetchModel
+
   if (imageFiles.length > 0) {
     const promises = [];
     for (const imageFile of imageFiles) {
@@ -174,7 +169,6 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
     for (const metadata of badgeMetadata) {
       if (metadata.image && metadata.image.startsWith('data:')) {
         const result = cids.shift();
-        console.log(result);
         if (result) metadata.image = 'ipfs://' + result;
       }
     }

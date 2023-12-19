@@ -18,11 +18,8 @@ export const getApprovals = async (req: Request, res: Response<GetApprovalsRoute
       docIds.push(docId);
     }
 
-
     const docs = await mustGetManyFromDB(ApprovalsTrackerModel, docIds);
-
-
-    return res.status(200).send({ approvalTrackers: [...docs] });
+    return res.status(200).send({ approvalTrackers: docs });
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),

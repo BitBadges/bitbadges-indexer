@@ -1,11 +1,13 @@
+import { UintRange } from "bitbadgesjs-proto";
 import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
+import { DEV_MODE } from "../constants";
 import { AddressMappingModel, CollectionModel, FetchModel, ProfileModel, TransferActivityModel } from "../db/db";
+import { complianceDoc } from "../poll";
 import { executeCollectionsQuery } from "./collections";
 import { getAccountByAddress } from "./users";
 import { getAddressMappingsFromDB } from "./utils";
-import { complianceDoc } from "../poll";
 
 let cachedResult: GetBrowseCollectionsRouteResponse<NumberType> | undefined = undefined;
 let lastFetchTime = 0;
@@ -13,12 +15,9 @@ let lastFetchTime = 0;
 
 export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
-    if (cachedResult && Date.now() - lastFetchTime < 1000 * 60 * 5) { //5 minutes
+    if (cachedResult && Date.now() - lastFetchTime < 1000 * 60 * 5 && !DEV_MODE) {
       return res.status(200).send(cachedResult);
     }
-
-
-    //TODO: populate with better data
 
     const [
       featuredCollections,
@@ -43,13 +42,8 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }).limit(24).lean().exec(),
 
       TransferActivityModel.find({}).sort({ "timestamp": -1 }).limit(100).lean().exec(),
-      ProfileModel.find({
-        profilePicUrl: { "$exists": true },
-      }).limit(25).lean().exec(),
-      AddressMappingModel.find({
-
-        private: { "$ne": true }
-      }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
+      ProfileModel.find({ username: { "$exists": true } }).limit(25).lean().exec(),
+      AddressMappingModel.find({ private: { "$ne": true } }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
     ]);
 
 
@@ -98,7 +92,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     for (const profile of profiles) {
       promises.push(getAccountByAddress(req, profile._legacyId, {
         viewsToFetch: [{
-
           viewKey: 'badgesCollected',
           bookmark: '',
         }],
@@ -106,10 +99,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     }
 
     const allAccounts = await Promise.all(promises);
-
-
-
-
 
     let result = {
       collections: {
@@ -132,7 +121,31 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
           ...allAccounts,
         ]
       },
+      badges: {
+        'featured': featuredCollections.map(x => {
+          let badgeIds: UintRange<bigint>[] = [];
+          if (x._legacyId === '1') {
+            badgeIds = [{ start: 1n, end: 15n }];
+          } else if (x._legacyId === '2') {
+            badgeIds = [{ start: 1n, end: 1n }];
+          } else if (x._legacyId === '16') {
+            badgeIds = [{ start: 1n, end: 10n }];
+          }
+
+          return {
+            collection: collections.find(y => y.collectionId.toString() === x._legacyId.toString()) as BitBadgesCollection<NumberType>,
+            badgeIds,
+          }
+        })
+
+      }
     }
+    //go 16, 1, 2 order
+    result.badges.featured = [
+      result.badges.featured[2],
+      result.badges.featured[0],
+      result.badges.featured[1],
+    ]
 
     //Make sure no reported stuff gets populated
     result.collections = {
@@ -147,6 +160,9 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     }
     result.profiles = {
       featured: result.profiles.featured.filter(x => complianceDoc?.accounts.reported?.some(y => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true),
+    }
+    result.badges = {
+      featured: result.badges.featured.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collection.collectionId)) !== true),
     }
 
     cachedResult = result;

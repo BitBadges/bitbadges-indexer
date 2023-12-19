@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, MerkleChallengeModel, MongoDB, MsgModel, MsgSchema, OffChainUrlModel, OffChainUrlSchema, PasswordModel, ProfileModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
+import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PasswordModel, ProfileModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
 import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressMappingSchema, ApprovalsTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema } from "bitbadgesjs-utils";
 
 config()
@@ -27,7 +27,6 @@ export async function deleteDatabases() {
   await MongoDB.dropCollection(ApprovalsTrackerModel.collection.name);
   await MongoDB.dropCollection(ClaimAlertModel.collection.name);
   await MongoDB.dropCollection(EthTxCountModel.collection.name);
-  await MongoDB.dropCollection(MsgModel.collection.name);
   await MongoDB.dropCollection(OffChainUrlModel.collection.name);
   await MongoDB.dropCollection(ReportModel.collection.name);
   await MongoDB.dropCollection(ComplianceModel.collection.name);
@@ -97,7 +96,6 @@ export async function createIndexesAndViews() {
   ApprovalsTrackerSchema.index({ _legacyId: 1 }, { unique: true });
   ClaimAlertSchema.index({ _legacyId: 1 }, { unique: true });
   EthTxCountSchema.index({ _legacyId: 1 }, { unique: true });
-  MsgSchema.index({ _legacyId: 1 }, { unique: true });
   OffChainUrlSchema.index({ _legacyId: 1 }, { unique: true });
   ReportSchema.index({ _legacyId: 1 }, { unique: true });
   ComplianceSchema.index({ _legacyId: 1 }, { unique: true });
@@ -126,7 +124,6 @@ export async function createIndexesAndViews() {
   await ApprovalsTrackerModel.createIndexes();
   await ClaimAlertModel.createIndexes();
   await EthTxCountModel.createIndexes();
-  await MsgModel.createIndexes();
   await OffChainUrlModel.createIndexes();
   await ReportModel.createIndexes();
   await ComplianceModel.createIndexes();

@@ -22,7 +22,7 @@ export const createAuthCode = async (expressReq: Request, res: Response<CreateBl
     }
 
     //Really all we want here is to verify signature is valid
-    //Other stuff just needs to be valid at actual auth time
+    //Other stuff just needs to be valid at actual authentication time
     const response = await genericBlockinVerify(
       {
         message: reqBody.message,
@@ -62,6 +62,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
     const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetBlockinAuthCodeRouteRequestBody;
 
+    //For now, we use the approach that if someone has the signature, they can see the message.
     const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
     const params = doc.params;
     try {
@@ -109,6 +110,10 @@ export const deleteAuthCode = async (expressReq: Request, res: Response<DeleteBl
     const reqBody = req.body as DeleteBlockinAuthCodeRouteRequestBody;
 
     const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
+    if (doc.cosmosAddress !== req.session.cosmosAddress) {
+      throw new Error("You are not the owner of this auth code.");
+    }
+
     await deleteMany(BlockinAuthSignatureModel, [doc._legacyId]);
 
     return res.status(200).send({ success: true });

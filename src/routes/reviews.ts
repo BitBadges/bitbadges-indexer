@@ -14,7 +14,7 @@ export const deleteReview = async (expressReq: Request, res: Response<DeleteRevi
     const reviewId = req.params.reviewId;
     const reviewDoc = await mustGetFromDB(ReviewModel, reviewId);
 
-    if (reviewDoc.from !== req.session.cosmosAddress) {
+    if (req.session.cosmosAddress && reviewDoc.from !== req.session.cosmosAddress) {
       return res.status(403).send({ message: 'You can only delete your own reviews.' });
     }
 
@@ -100,7 +100,7 @@ export const addReviewForUser = async (expressReq: Request, res: Response<AddRev
       cosmosAddress = account.cosmosAddress;
     }
 
-    if (cosmosAddress === req.session.cosmosAddress) {
+    if (cosmosAddress && cosmosAddress === req.session.cosmosAddress) {
       return res.status(400).send({ message: 'You cannot review yourself.' });
     }
 
