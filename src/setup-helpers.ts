@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PasswordModel, ProfileModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
+import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PasswordModel, ProfileModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
 import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressMappingSchema, ApprovalsTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema } from "bitbadgesjs-utils";
 
 config()
@@ -72,8 +72,33 @@ export async function initStatus() {
       reported: [],
     },
   })
+
+  await insertToDB(BrowseModel, {
+    _legacyId: "browse",
+    collections: {
+      'featured': [1, 2, 16]
+    },
+    profiles: [],
+    addressMappings: [],
+    badges: {
+      'featured': [
+
+        {
+          collectionId: 1,
+          badgeIds: [{ start: 1n, end: 15n }]
+        }, {
+          collectionId: 2,
+          badgeIds: [{ start: 1n, end: 1n }]
+        }, {
+          collectionId: 16,
+          badgeIds: [{ start: 1n, end: 10n }]
+        }],
+    },
+  })
+
 }
 export async function createIndexesAndViews() {
+  BrowseSchema.index({ _legacyId: 1 }, { unique: true });
   UsernameSchema.index({ _legacyId: 1 }, { unique: true });
   ApiKeySchema.index({ _legacyId: 1 }, { unique: true });
   FetchSchema.index({ _legacyId: 1 }, { unique: true });
@@ -102,6 +127,7 @@ export async function createIndexesAndViews() {
   BlockinAuthSignatureSchema.index({ _legacyId: 1 }, { unique: true });
   FollowDetailsSchema.index({ _legacyId: 1 }, { unique: true });
 
+  await BrowseModel.createIndexes();
   await UsernameModel.createIndexes();
   await ApiKeyModel.createIndexes();
   await FetchModel.createIndexes();

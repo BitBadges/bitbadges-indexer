@@ -1,4 +1,4 @@
-import { JSPrimitiveNumberType, NumberType, NumberifyIfPossible } from 'bitbadgesjs-proto';
+import { JSPrimitiveNumberType, NumberType, NumberifyIfPossible, UintRange } from 'bitbadgesjs-proto';
 import { config } from "dotenv";
 import mongoose from 'mongoose';
 
@@ -18,6 +18,27 @@ MongoDB.once('open', () => {
   MONGO_CONNECTED = true;
   console.log('Connected to MongoDB');
 });
+
+
+export interface BrowseDoc<T extends NumberType> {
+  _legacyId: string;
+  _id?: string;
+  collections: {
+    [category: string]: NumberType[];
+  };
+  addressMappings: {
+    [category: string]: string[];
+  };
+  profiles: {
+    [category: string]: string[];
+  };
+  badges: {
+    [category: string]: {
+      badgeIds: UintRange<T>[];
+      collectionId: T;
+    }[];
+  };
+}
 
 export interface ApiKeyDoc {
   _legacyId: string;
@@ -48,10 +69,18 @@ export interface OffChainUrlDoc {
   collectionId: number;
 }
 
-export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc  | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T>
+export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T> | BrowseDoc<T>;
 
 //TODO: Better schemas?
 const Schema = mongoose.Schema;
+
+export const BrowseSchema = new Schema({
+  _legacyId: String,
+  collections: Schema.Types.Mixed,
+  addressMappings: Schema.Types.Mixed,
+  profiles: Schema.Types.Mixed,
+  badges: Schema.Types.Mixed,
+});
 
 export const ApiKeySchema = new Schema({
   _legacyId: String,
@@ -96,6 +125,7 @@ export const UsernameSchema = new Schema({
 //set minimize to false to avoid issues with empty objects
 PasswordSchema.set('minimize', false); //claimedUsers is {} by default
 
+export const BrowseModel = mongoose.model<BrowseDoc<JSPrimitiveNumberType>>('browse', BrowseSchema);
 export const ApiKeyModel = mongoose.model<ApiKeyDoc>('api-keys', ApiKeySchema);
 export const FetchModel = mongoose.model<FetchDoc<JSPrimitiveNumberType>>('fetches', FetchSchema);
 export const QueueModel = mongoose.model<QueueDoc<JSPrimitiveNumberType>>('queue', QueueSchema);
@@ -314,6 +344,8 @@ export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitive
       convertedDoc = convertBlockinAuthSignatureDoc(doc as BlockinAuthSignatureDoc<NumberType>, NumberifyIfPossible);
     } else if (model.modelName === FollowDetailsModel.modelName) {
       convertedDoc = convertFollowDetailsDoc(doc as FollowDetailsDoc<NumberType>, NumberifyIfPossible);
+    } else if (model.modelName === BrowseModel.modelName) {
+      convertedDoc = doc as BrowseDoc<NumberType>;
     }
 
     const docToAdd = {

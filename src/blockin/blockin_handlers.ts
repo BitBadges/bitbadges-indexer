@@ -1,6 +1,6 @@
 import { BigIntify } from 'bitbadgesjs-proto';
 import { CheckSignInStatusResponse, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, NumberType, SignOutResponse, SupportedChain, VerifySignInRouteRequestBody, VerifySignInRouteResponse, convertCollectionDoc, convertToCosmosAddress, getChainForAddress, getCurrentValueForTimeline } from 'bitbadgesjs-utils';
-import { ChallengeParams, constructChallengeObjectFromString, createChallenge, setChainDriver, verifyChallenge } from 'blockin';
+import { ChallengeParams, constructChallengeObjectFromString, createChallenge, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
 import { serializeError } from 'serialize-error';
@@ -58,8 +58,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
     const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetSignInChallengeRouteRequestBody;
 
-    const chainDriver = getChainDriver(reqBody.chain);
-    setChainDriver(chainDriver);
+    // const chainDriver = getChainDriver(reqBody.chain);
 
     const cosmosAddress = convertToCosmosAddress(reqBody.address);
     if (!cosmosAddress) {
@@ -95,7 +94,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
       assets: [],
     }
 
-    const blockinMessage = await createChallenge(challengeParams, reqBody.chain);
+    const blockinMessage = createChallenge(challengeParams, reqBody.chain);
 
     return res.status(200).json({
       nonce: req.session.nonce,
@@ -156,15 +155,16 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
   const body = req.body as VerifySignInRouteRequestBody;
 
   const chainDriver = getChainDriver(body.chain);
-  setChainDriver(chainDriver);
 
   try {
     const generatedEIP4361ChallengeStr: string = body.message;
 
     const challenge: ChallengeParams<NumberType> = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const verificationResponse = await verifyChallenge(
+      chainDriver,
       body.message,
       body.signature,
+      BigIntify,
       body.options ?? {
         expectedChallengeParams: {
           domain: 'https://bitbadges.io',
@@ -227,11 +227,12 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
     }
 
     const chainDriver = getChainDriver(body.chain);
-    setChainDriver(chainDriver);
 
     const verificationResponse = await verifyChallenge(
+      chainDriver,
       body.message,
       body.signature,
+      BigIntify,
       {
         ...body.options,
         beforeVerification: undefined,
@@ -246,7 +247,6 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
 
 export async function genericBlockinVerifyHandler(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest<NumberType>;
-
   const body = req.body as VerifySignInRouteRequestBody;
 
   try {
