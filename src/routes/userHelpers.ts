@@ -157,8 +157,6 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
 
 export async function getNameAndAvatar(address: string, skipAvatarFetch?: boolean) {
   try {
-    skipAvatarFetch = true;
-
     const ensName = await getNameForAddress(address);
     let details: { avatar?: string } = {};
     if (ensName && !skipAvatarFetch) {
