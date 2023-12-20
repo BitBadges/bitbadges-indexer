@@ -33,6 +33,10 @@ export function cleanMetadata(res: any): Metadata<NumberType> {
       ? res.tags
       : undefined,
     socials: typeof res.socials === "object" ? res.socials : undefined,
+    offChainTransferabilityInfo: typeof res.socials === "object" ? {
+      host: res.offChainTransferabilityInfo.host,
+      assignMethod: res.offChainTransferabilityInfo.assignMethod,
+    } : undefined,
   };
 }
 

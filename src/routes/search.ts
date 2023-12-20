@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType, UintRange } from "bitbadgesjs-proto";
-import { AccountDoc, BigIntify, BitBadgesCollection, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AccountDoc, BigIntify, BitBadgesCollection, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AccountModel, AddressMappingModel, CollectionModel, FetchModel, ProfileModel, getManyFromDB } from "../db/db";
@@ -13,6 +13,8 @@ import { complianceDoc } from "../poll";
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
     const searchValue = req.params.searchValue;
+    const { noCollections, noAddressMappings, noAccounts } = req.body as GetSearchRouteRequestBody;
+
     if (!searchValue || searchValue.length == 0) {
       return res.json({
         collections: [],
@@ -27,7 +29,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     //We try even if it is a valid address, because an ENS name could be a valid address (e.g. 0x123...789.eth)
     try {
-      resolvedEnsAddress = await getAddressForName(ensToAttempt);
+      if (!noAccounts) resolvedEnsAddress = await getAddressForName(ensToAttempt);
     } catch (e) {
 
     }
@@ -41,7 +43,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       db: "Metadata"
     }
 
-    const usernameRes = await ProfileModel.find({
+    const usernameRes = noAccounts ? [] : await ProfileModel.find({
       username: {
         "$regex": `(?i)${searchValue}`
       }
@@ -70,9 +72,9 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     const results = await Promise.all([
-      FetchModel.find(collectionMetadataQuery).limit(10).lean().exec(),
-      AccountModel.find(accountQuery).limit(10).lean().exec(),
-      AddressMappingModel.find(addressMappingsQuery).limit(10).lean().exec(),
+      noCollections ? Promise.resolve([]) : FetchModel.find(collectionMetadataQuery).limit(10).lean().exec(),
+      noAccounts ? Promise.resolve([]) : AccountModel.find(accountQuery).limit(10).lean().exec(),
+      noAddressMappings ? Promise.resolve([]) : AddressMappingModel.find(addressMappingsQuery).limit(10).lean().exec(),
     ]);
 
     const metadataResponseDocs = results[0];
@@ -133,46 +135,46 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }).flat();
 
 
-    const collectionsPromise = CollectionModel.find({
-      "$or": [
-        {
-          collectionId: {
-            "$eq": Number(searchValue)
+    const collectionsPromise = noCollections ? Promise.resolve([]) :
+      CollectionModel.find({
+        "$or": [
+          {
+            collectionId: {
+              "$eq": Number(searchValue)
+            },
           },
-        },
-        {
-          collectionMetadataTimeline: {
-            "$elemMatch": {
-              ["collectionMetadata.uri"]: {
-                "$in": uris
+          {
+            collectionMetadataTimeline: {
+              "$elemMatch": {
+                ["collectionMetadata.uri"]: {
+                  "$in": uris
+                }
               }
             }
-          }
-        },
-        {
-          badgeMetadataTimeline: {
-            "$elemMatch": {
-              badgeMetadata: {
-                "$elemMatch": {
-                  //Need to handle regex for {id} placeholder
-                  //The uris in uris do not have {id} placeholder. They are already replaced with the actual ID
-                  uri: {
-                    "$in": uris
+          },
+          {
+            badgeMetadataTimeline: {
+              "$elemMatch": {
+                badgeMetadata: {
+                  "$elemMatch": {
+                    //Need to handle regex for {id} placeholder
+                    //The uris in uris do not have {id} placeholder. They are already replaced with the actual ID
+                    uri: {
+                      "$in": uris
+                    }
                   }
                 }
               }
             }
           }
-        }
-      ]
-
-    }).lean().exec();
+        ]
+      }).lean().exec();
 
     const fetchKeys = allAccounts.map(account => account.cosmosAddress);
     const fetchPromise = fetchKeys.length ? getManyFromDB(ProfileModel, fetchKeys) : Promise.resolve([]);
 
-    const [collectionsRes, fetchRes] = await Promise.all([collectionsPromise, fetchPromise]);
 
+    const [collectionsRes, fetchRes] = await Promise.all([collectionsPromise, fetchPromise]);
 
     const profileDocs = [];
 
@@ -189,24 +191,28 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
 
-    const collectionsResponsesPromise = executeAdditionalCollectionQueries(
-      req,
-      collectionsRes,
-      collectionsRes.map((doc) => {
-        return { collectionId: doc.collectionId, metadataToFetch: { uris: uris } };
-      })
-    );
+    const collectionsResponsesPromise =
+      collectionsRes.length === 0 ? Promise.resolve([]) : executeAdditionalCollectionQueries(
+        req,
+        collectionsRes,
+        collectionsRes.map((doc) => {
+          return { collectionId: doc.collectionId, metadataToFetch: { uris: uris } };
+        })
+      );
 
-    const convertToBitBadgesUserInfoPromise = convertToBitBadgesUserInfo(profileDocs, allAccounts);
+    const convertToBitBadgesUserInfoPromise =
+      noAccounts ? Promise.resolve([]) :
+        convertToBitBadgesUserInfo(profileDocs, allAccounts);
 
-    const addressMappingsToReturnPromise = getAddressMappingsFromDB(
-      addressMappingsResponseDocs.map(x => {
-        return {
-          mappingId: x._legacyId,
-        };
-      }),
-      true
-    );
+    const addressMappingsToReturnPromise =
+      addressMappingsResponseDocs.length === 0 ? Promise.resolve([]) : getAddressMappingsFromDB(
+        addressMappingsResponseDocs.map(x => {
+          return {
+            mappingId: x._legacyId,
+          };
+        }),
+        true
+      );
 
     const [collectionsResponses, accounts, addressMappingsToReturn] = await Promise.all([
       collectionsResponsesPromise,

@@ -33,7 +33,9 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     const mappingsToFetch = [];
     for (const [_, value] of Object.entries(browseDoc.addressMappings)) {
-      mappingsToFetch.push(...value);
+      for (const mappingId of value) {
+        mappingsToFetch.push(mappingId);
+      }
     }
 
     const profilesToFetch = [];
@@ -49,7 +51,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       latestCollections,
       attendanceCollections,
       activity,
-      profiles,
       addressMappings,
       browseDocAddressMappings,
       browseDocProfiles,
@@ -59,12 +60,21 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       CollectionModel.find({}).sort({ "createdBlock": -1 }).limit(24).lean().exec(),
       FetchModel.find({ "content.category": "Attendance", "db": "Metadata" }).limit(24).lean().exec(),
       TransferActivityModel.find({}).sort({ "timestamp": -1 }).limit(100).lean().exec(),
-      ProfileModel.find({ username: { "$exists": true } }).limit(25).lean().exec(),
       AddressMappingModel.find({ private: { "$ne": true } }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
       AddressMappingModel.find({ "mappingId": { "$in": mappingsToFetch } }).lean().exec(),
-      ProfileModel.find({ "address": { "$in": profilesToFetch } }).lean().exec(),
+      ProfileModel.find({ "_legacyId": { "$in": profilesToFetch } }).lean().exec(),
     ]);
 
+    const allProfiles = profilesToFetch.map(x => {
+      const profile = browseDocProfiles.find(y => y._legacyId === x);
+      if (profile) {
+        return profile;
+      } else {
+        return {
+          _legacyId: convertToCosmosAddress(x),
+        }
+      }
+    })
 
 
     const uris = [...new Set([...attendanceCollections.map(x => x._legacyId), ...certificationsCollections.map(x => x._legacyId)])];
@@ -127,7 +137,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
 
     const promises = [];
-    for (const profile of [...profiles, ...browseDocProfiles]) {
+    for (const profile of [...allProfiles]) {
       promises.push(getAccountByAddress(req, profile._legacyId, {
         viewsToFetch: [{
           viewKey: 'badgesCollected',
@@ -154,9 +164,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
         'latest': addressMappingsToReturn,
       },
       profiles: {
-        'featured': [
-          ...allAccounts,
-        ]
+
       },
       badges: {
 
@@ -210,23 +218,24 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     }
 
     //Make sure no reported stuff gets populated
-    result.collections = {
-      featured: result.collections.featured.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
-      latest: result.collections.latest.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
-      attendance: result.collections.attendance.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
-      certifications: result.collections.certifications.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true),
-    }
-    result.activity = result.activity.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
-    result.addressMappings = {
-      latest: result.addressMappings.latest.filter(x => complianceDoc?.addressMappings.reported?.some(y => y.mappingId === x.mappingId) !== true),
-    }
-    result.profiles = {
-      featured: result.profiles.featured.filter(x => complianceDoc?.accounts.reported?.some(y => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true),
-    }
-    result.badges = {
-      featured: result.badges.featured.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collection.collectionId)) !== true),
+    for (const [key, value] of Object.entries(result.collections)) {
+      result.collections[`${key}` as keyof typeof result.collections] = value.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
     }
 
+    for (const [key, value] of Object.entries(result.addressMappings)) {
+      result.addressMappings[`${key}` as keyof typeof result.addressMappings] = value.filter(x => complianceDoc?.addressMappings.reported?.some(y => y.mappingId === x.mappingId) !== true);
+    }
+
+    for (const [key, value] of Object.entries(result.profiles)) {
+      result.profiles[`${key}` as keyof typeof result.profiles] = value.filter(x => complianceDoc?.accounts.reported?.some(y => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true);
+    }
+
+    for (const [key, value] of Object.entries(result.badges)) {
+      result.badges[`${key}` as keyof typeof result.badges] = value.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collection.collectionId)) !== true);
+    }
+
+    result.activity = result.activity.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
+    
     cachedResult = result;
     lastFetchTime = Date.now();
 
