@@ -150,6 +150,12 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     let result: GetBrowseCollectionsRouteResponse<NumberType> = {
       collections: {
+        //intitialize all keys w/ empty array to maintain order
+        ...Object.fromEntries(Object.entries(browseDoc.collections).map(([key, value]) => {
+          return [key, []];
+        })),
+
+
         // 'featured': collections,
         'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._legacyId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
         'attendance': attendanceCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
@@ -161,21 +167,32 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       },
       activity: activity,
       addressMappings: {
+        ...Object.fromEntries(Object.entries(browseDoc.addressMappings).map(([key, value]) => {
+          return [key, []];
+        })),
+
         'latest': addressMappingsToReturn,
       },
       profiles: {
-
+        ...Object.fromEntries(Object.entries(browseDoc.profiles).map(([key, value]) => {
+          return [key, []];
+        })),
       },
       badges: {
-
+        ...Object.fromEntries(Object.entries(browseDoc.badges).map(([key, value]) => {
+          return [key, []];
+        })),
       }
     }
+
     for (const [key, value] of Object.entries(browseDoc.badges)) {
       for (const badge of value) {
         const collection = collections.find(x => x.collectionId.toString() === badge.collectionId.toString());
         if (!collection) {
           continue;
         }
+
+
         result.badges[`${key}` as keyof typeof result.badges] = result.badges[`${key}` as keyof typeof result.badges] || [];
         result.badges[`${key}` as keyof typeof result.badges].push({
           collection: convertBitBadgesCollection(collection, BigIntify),
@@ -235,7 +252,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     }
 
     result.activity = result.activity.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
-    
+
     cachedResult = result;
     lastFetchTime = Date.now();
 
