@@ -1,16 +1,19 @@
 {
   "creator": "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp",
   "collectionId": "0",
-  "defaultIncomingApprovals": [],
-  "defaultOutgoingApprovals": [],
-  "defaultUserPermissions": {
-    "canUpdateIncomingApprovals": [],
-    "canUpdateOutgoingApprovals": [],
-    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
-    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
+  "defaultBalances": {
+    "balances": [],
+    "incomingApprovals":  [],
+    "outgoingApprovals": [],
+    "userPermissions": {
+      "canUpdateOutgoingApprovals": [],
+      "canUpdateIncomingApprovals": [],
+      "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": [],
+      "canUpdateAutoApproveSelfInitiatedIncomingTransfers": []
+    },
+    "autoApproveSelfInitiatedIncomingTransfers": true,
+    "autoApproveSelfInitiatedOutgoingTransfers": true
   },
-  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
-  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
   "badgesToCreate": [
     {
       "amount": "1",

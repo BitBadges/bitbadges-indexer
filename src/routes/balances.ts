@@ -65,8 +65,8 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
           balances: balances.map(x => convertBalance(x, BigIntify)),
           incomingApprovals: [],
           outgoingApprovals: [],
-          autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
-          autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
+          autoApproveSelfInitiatedOutgoingTransfers: false,
+          autoApproveSelfInitiatedIncomingTransfers: false,
           userPermissions: {
             canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
             canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
@@ -83,11 +83,11 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
       const response = await getFromDB(BalanceModel, docId);
 
       let addressMappingIdsToFetch = [];
-      for (const incoming of collection.defaultUserIncomingApprovals) {
+      for (const incoming of collection.defaultBalances.incomingApprovals) {
         addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
       }
 
-      for (const outgoing of collection.defaultUserOutgoingApprovals) {
+      for (const outgoing of collection.defaultBalances.outgoingApprovals) {
         addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
       }
 
@@ -107,11 +107,11 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
         addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
       }
 
-      for (const incoming of collection?.defaultUserPermissions?.canUpdateIncomingApprovals ?? []) {
+      for (const incoming of collection?.defaultBalances.userPermissions?.canUpdateIncomingApprovals ?? []) {
         addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
       }
 
-      for (const outgoing of collection?.defaultUserPermissions?.canUpdateOutgoingApprovals ?? []) {
+      for (const outgoing of collection?.defaultBalances.userPermissions?.canUpdateOutgoingApprovals ?? []) {
         addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
       }
 
@@ -127,11 +127,11 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
           collectionId: req.params.collectionId,
           cosmosAddress: req.params.cosmosAddress,
           balances: [],
-          incomingApprovals: collection.defaultUserIncomingApprovals,
-          outgoingApprovals: collection.defaultUserOutgoingApprovals,
-          autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
-          autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
-          userPermissions: collection.defaultUserPermissions,
+          incomingApprovals: collection.defaultBalances.incomingApprovals,
+          outgoingApprovals: collection.defaultBalances.outgoingApprovals,
+          autoApproveSelfInitiatedOutgoingTransfers: collection.defaultBalances.autoApproveSelfInitiatedOutgoingTransfers,
+          autoApproveSelfInitiatedIncomingTransfers: collection.defaultBalances.autoApproveSelfInitiatedIncomingTransfers,
+          userPermissions: collection.defaultBalances.userPermissions,
           onChain: collection.balancesType === "Standard",
           updateHistory: [],
           _legacyId: req.params.collectionId + ':' + cosmosAddress

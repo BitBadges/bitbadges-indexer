@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType, UintRange } from "bitbadgesjs-proto";
-import { AccountDoc, BigIntify, BitBadgesCollection, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AccountDoc, BigIntify, BitBadgesCollection, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AccountModel, AddressMappingModel, CollectionModel, FetchModel, ProfileModel, getManyFromDB } from "../db/db";
@@ -56,6 +56,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       { "ethAddress": { "$regex": `(?i)${searchValue}` } },
       { "solAddress": { "$regex": `(?i)${searchValue}` } },
       { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
+      { "btcAddress": {  "$regex": `(?i)${searchValue}` } },
     ];
 
     if (resolvedEnsAddress) {
@@ -84,13 +85,13 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const allAccounts: AccountDoc<JSPrimitiveNumberType>[] = [...accountsResponseDocs];
     if (isAddressValid(searchValue)
-      && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue || account.solAddress === searchValue)) {
+      && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue || account.solAddress === searchValue || account.btcAddress === searchValue)) {
       const chain = getChainForAddress(searchValue);
 
       if (searchValue === 'Mint') allAccounts.push({ ...convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify), _legacyId: MINT_ACCOUNT.cosmosAddress });
       else allAccounts.push({
         _legacyId: convertToCosmosAddress(searchValue),
-
+        btcAddress: cosmosToBtc(convertToCosmosAddress(searchValue)),
         solAddress: chain === SupportedChain.SOLANA ? searchValue : '',
         ethAddress: cosmosToEth(convertToCosmosAddress(searchValue)),
         cosmosAddress: convertToCosmosAddress(searchValue),
@@ -101,10 +102,11 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     if (resolvedEnsAddress
-      && !accountsResponseDocs.find((account) => account.ethAddress === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress || account.solAddress === resolvedEnsAddress)) {
+      && !accountsResponseDocs.find((account) => account.ethAddress === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress || account.solAddress === resolvedEnsAddress || account.btcAddress === resolvedEnsAddress)) {
       allAccounts.push({
         _legacyId: convertToCosmosAddress(resolvedEnsAddress),
         ethAddress: resolvedEnsAddress,
+        btcAddress: cosmosToBtc(convertToCosmosAddress(resolvedEnsAddress)),
         solAddress: '',
         cosmosAddress: convertToCosmosAddress(resolvedEnsAddress),
         chain: getChainForAddress(resolvedEnsAddress),
@@ -170,6 +172,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         ]
       }).lean().exec();
 
+    
+
     const fetchKeys = allAccounts.map(account => account.cosmosAddress);
     const fetchPromise = fetchKeys.length ? getManyFromDB(ProfileModel, fetchKeys) : Promise.resolve([]);
 
@@ -189,7 +193,6 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         })
       }
     }
-
 
     const collectionsResponsesPromise =
       collectionsRes.length === 0 ? Promise.resolve([]) : executeAdditionalCollectionQueries(

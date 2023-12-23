@@ -1,6 +1,6 @@
 import { config } from "dotenv";
-import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PasswordModel, ProfileModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
-import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressMappingSchema, ApprovalsTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema } from "bitbadgesjs-utils";
+import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PasswordModel, ProfileModel, ProtocolModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UserProtocolCollectionsModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
+import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressMappingSchema, ApprovalsTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema, ProtocolSchema, UserProtocolCollectionsSchema } from "bitbadgesjs-utils";
 
 config()
 
@@ -32,6 +32,8 @@ export async function deleteDatabases() {
   await MongoDB.dropCollection(ComplianceModel.collection.name);
   await MongoDB.dropCollection(BlockinAuthSignatureModel.collection.name);
   await MongoDB.dropCollection(FollowDetailsModel.collection.name);
+  await MongoDB.dropCollection(ProtocolModel.collection.name);
+  await MongoDB.dropCollection(UserProtocolCollectionsModel.collection.name);
 }
 //new ObjectId
 export async function initStatus() {
@@ -126,7 +128,10 @@ export async function createIndexesAndViews() {
   ComplianceSchema.index({ _legacyId: 1 }, { unique: true });
   BlockinAuthSignatureSchema.index({ _legacyId: 1 }, { unique: true });
   FollowDetailsSchema.index({ _legacyId: 1 }, { unique: true });
+  ProtocolSchema.index({ _legacyId: 1 }, { unique: true });
+  UserProtocolCollectionsSchema.index({ _legacyId: 1 }, { unique: true });
 
+  
   await BrowseModel.createIndexes();
   await UsernameModel.createIndexes();
   await ApiKeyModel.createIndexes();
@@ -155,5 +160,7 @@ export async function createIndexesAndViews() {
   await ComplianceModel.createIndexes();
   await BlockinAuthSignatureModel.createIndexes();
   await FollowDetailsModel.createIndexes();
+  await ProtocolModel.createIndexes();
+  await UserProtocolCollectionsModel.createIndexes();
 }
 

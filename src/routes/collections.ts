@@ -128,7 +128,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       });
     }
 
-    for (const incomingPermission of collectionRes.defaultUserPermissions.canUpdateIncomingApprovals) {
+    for (const incomingPermission of collectionRes.defaultBalances.userPermissions.canUpdateIncomingApprovals) {
       addressMappingIdsToFetch.push({
         collectionId: collectionRes.collectionId, mappingId: incomingPermission.fromMappingId
       });
@@ -137,7 +137,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       });
     }
 
-    for (const outgoingPermission of collectionRes.defaultUserPermissions.canUpdateOutgoingApprovals) {
+    for (const outgoingPermission of collectionRes.defaultBalances.userPermissions.canUpdateOutgoingApprovals) {
       addressMappingIdsToFetch.push({
         collectionId: collectionRes.collectionId, mappingId: outgoingPermission.toMappingId
       });
@@ -159,7 +159,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       });
     }
 
-    for (const transfer of collectionRes.defaultUserIncomingApprovals) {
+    for (const transfer of collectionRes.defaultBalances.incomingApprovals) {
 
       addressMappingIdsToFetch.push({
         collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
@@ -170,7 +170,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     }
 
-    for (const transfer of collectionRes.defaultUserOutgoingApprovals) {
+    for (const transfer of collectionRes.defaultBalances.outgoingApprovals) {
       addressMappingIdsToFetch.push({
         collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
       });
@@ -255,7 +255,26 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
         }
       }),
-      defaultUserPermissions: applyAddressMappingsToUserPermissions(collectionRes.defaultUserPermissions, addressMappings),
+      defaultBalances: {
+        ...collectionRes.defaultBalances,
+        outgoingApprovals: collectionRes.defaultBalances.outgoingApprovals.map(x => {
+          return {
+            ...x,
+            toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
+            initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
+          }
+        }),
+        incomingApprovals: collectionRes.defaultBalances.incomingApprovals.map(x => {
+          return {
+            ...x,
+            fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
+            initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
+          }
+        }),
+        userPermissions: applyAddressMappingsToUserPermissions(collectionRes.defaultBalances.userPermissions, addressMappings),
+      },
+        
+      
       collectionPermissions: {
         ...collectionRes.collectionPermissions,
         canUpdateCollectionApprovals: collectionRes.collectionPermissions.canUpdateCollectionApprovals.map(x => {
@@ -267,20 +286,6 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           }
         })
       },
-      defaultUserIncomingApprovals: collectionRes.defaultUserIncomingApprovals.map(x => {
-        return {
-          ...x,
-          fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
-          initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
-        }
-      }),
-      defaultUserOutgoingApprovals: collectionRes.defaultUserOutgoingApprovals.map(x => {
-        return {
-          ...x,
-          toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
-          initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
-        }
-      }),
       activity: activityRes.docs as TransferActivityDoc<JSPrimitiveNumberType>[],
       announcements: announcementsRes.docs as AnnouncementDoc<JSPrimitiveNumberType>[],
       reviews: reviewsRes.docs as ReviewDoc<JSPrimitiveNumberType>[],

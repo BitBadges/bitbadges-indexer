@@ -6,13 +6,14 @@ import { Balance, JSPrimitiveNumberType, Transfer, convertBalance, convertFromPr
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
 import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
+import * as protocoltx from 'bitbadgesjs-proto/dist/proto/protocols/tx_pb'
 import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import mongoose from "mongoose"
 import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
-import { ComplianceModel, ErrorModel, MongoDB, StatusModel, insertMany, mustGetFromDB } from "./db/db"
+import { ComplianceModel, ErrorModel, MongoDB, ProtocolModel, StatusModel, deleteMany, insertMany, mustGetFromDB } from "./db/db"
 import { getStatus } from "./db/status"
 import { SHUTDOWN, client, setClient, setTimer, setUriPollerTimer } from "./indexer"
 import { TIME_MODE } from "./indexer-vars"
@@ -152,6 +153,8 @@ export const poll = async () => {
         approvalsTrackers: {},
         balances: {},
         passwordDocs: {},
+        protocols: {},
+        userProtocolCollections: {},
       };
 
       const session = await MongoDB.startSession();
@@ -308,7 +311,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const collectionId = getAttributeValueByKey(event.attributes, "collectionId");
     if (!collectionId || !transfer) throw new Error(`Missing collectionId or transfer in event: ${JSON.stringify(event)}`)
 
-    await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], [], [], []);
     await handleTransfers(docs.collections[collectionId] as CollectionDoc<bigint>, [transfer], docs, status, creator, txHash, true);
   }
 }
@@ -400,6 +403,60 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
 
 
     switch (typeUrl) {
+      case "/protocols.MsgCreateProtocol":
+
+        const newProtocolMsg = protocoltx.MsgCreateProtocol.fromBinary(value)
+
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [],  [newProtocolMsg.name], []);
+
+        docs.protocols[newProtocolMsg.name] = {
+          _legacyId: newProtocolMsg.name,
+          ...newProtocolMsg,
+          createdBy: newProtocolMsg.creator,
+        }
+        break;
+      case "/protocols.MsgUpdateProtocol":
+        const updateProtocolMsg = protocoltx.MsgUpdateProtocol.fromBinary(value)
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [updateProtocolMsg.name], []);
+        docs.protocols[updateProtocolMsg.name] = {
+          ...docs.protocols[updateProtocolMsg.name],
+          _legacyId: updateProtocolMsg.name,
+          
+          createdBy: updateProtocolMsg.creator,
+          ...updateProtocolMsg,
+        }
+        break;
+      case "/protocols.MsgDeleteProtocol":
+        const deleteProtocolMsg = protocoltx.MsgDeleteProtocol.fromBinary(value)
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [deleteProtocolMsg.name], []);
+        delete docs.protocols[deleteProtocolMsg.name];
+        await deleteMany(ProtocolModel, [deleteProtocolMsg.name], session);
+        break;
+      case "/protocols.MsgSetCollectionForProtocol":
+        const setCollectionForProtocolMsg = protocoltx.MsgSetCollectionForProtocol.fromBinary(value)
+
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [], [setCollectionForProtocolMsg.creator]);
+
+        let collectionIdToSet = setCollectionForProtocolMsg.collectionId;
+        if (BigInt(setCollectionForProtocolMsg.collectionId) == 0n) {
+          const prevCollectionId = status.nextCollectionId - 1n;
+          collectionIdToSet = prevCollectionId.toString();
+        }
+
+        docs.userProtocolCollections[setCollectionForProtocolMsg.creator] = {
+          _legacyId: setCollectionForProtocolMsg.creator,
+          protocols: {
+            ...docs.userProtocolCollections[setCollectionForProtocolMsg.creator]?.protocols,
+            [setCollectionForProtocolMsg.name]: BigInt(collectionIdToSet),
+          }
+        }
+        break;
+      case "/protocols.MsgUnsetCollectionForProtocol":
+        const unsetCollectionForProtocolMsg = protocoltx.MsgUnsetCollectionForProtocol.fromBinary(value)
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [], [unsetCollectionForProtocolMsg.creator]);
+        delete docs.userProtocolCollections[unsetCollectionForProtocolMsg.creator]?.protocols[unsetCollectionForProtocolMsg.name];
+        
+        break;
       case "/badges.MsgTransferBadges":
         const transferMsg = convertFromProtoToMsgTransferBadges(tx.MsgTransferBadges.fromBinary(value))
         await handleMsgTransferBadges(transferMsg, status, docs, indexed.hash)

@@ -31,7 +31,7 @@ import { getAllCodesAndPasswords } from "./routes/codes"
 import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx'
 import { getTokensFromFaucet } from './routes/faucet'
-import { getFollowDetails, updateFollowDetails } from './routes/follows'
+import { getFollowDetails } from './routes/follows'
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
@@ -42,6 +42,7 @@ import { searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
+import { getCollectionForProtocol, getProtocols } from './routes/protocols'
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config()
@@ -291,13 +292,15 @@ app.post('/api/v0/survey/:mappingId/add', addAddressToSurvey);
 app.post('/api/v0/claimAlerts/send', authorizeBlockinRequest, sendClaimAlert);
 
 //Follow Protocol
-app.post('/api/v0/follow-protocol/update', authorizeBlockinRequest, updateFollowDetails);
 app.post('/api/v0/follow-protocol', getFollowDetails);
 
 app.post('/api/v0/claimAlerts', authorizeBlockinRequest, getClaimAlertsForCollection);
 //Set up Moralis
 
 app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx)
+
+app.post('/api/v0/protocols', getProtocols);
+app.post('/api/v0/protocols/collection', getCollectionForProtocol);
 
 
 

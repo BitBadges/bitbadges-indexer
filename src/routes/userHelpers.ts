@@ -1,5 +1,5 @@
 import { BigIntify, NumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, ProfileInfoBase, SupportedChain, cosmosToEth, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
+import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, ProfileInfoBase, SupportedChain, cosmosToBtc, cosmosToEth, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
 import { AddressMappingModel, AirdropModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, EthTxCountModel, ReviewModel, TransferActivityModel, getFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { OFFLINE_MODE } from "../indexer-vars";
@@ -63,14 +63,22 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
           address: solAddress,
           chain: SupportedChain.SOLANA
         }
-      }
+      } else if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.BTC) {
+        
+        return {
+          address: cosmosToBtc(cosmosAddress),
+          chain: SupportedChain.BTC
+        }
+      } 
 
       //If we have neither, we can check if they have any transactions on the ETH chain
       const cachedEthTxCount = await getFromDB(EthTxCountModel, ethAddress);
       if (cachedEthTxCount && cachedEthTxCount.count) {
         return { address: ethAddress, chain: SupportedChain.ETH }
       } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
-        ethTxCount = await provider.getTransactionCount(ethAddress);
+        
+        
+        ethTxCount = isAddressValid(ethAddress) ? await provider.getTransactionCount(ethAddress) : 0; //handle module generated addresses
 
         await insertToDB(EthTxCountModel, {
           ...cachedEthTxCount,
@@ -86,14 +94,39 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
         defaultedAddr = ethAddress;
       } else if (accountInfos[i].chain === SupportedChain.SOLANA) {
         defaultedAddr = solAddress;
+      } else if (accountInfos[i].chain === SupportedChain.BTC) {
+        defaultedAddr = cosmosToBtc(cosmosAddress);
       }
-
       //Else, we check ETH txs and default to cosmos address if none
       //Should we support solana or something by default?
       return {
         address: ethTxCount > 0 ? ethAddress : defaultedAddr,
         chain: ethTxCount > 0 ? SupportedChain.ETH : accountInfos[i].chain
       }
+    });
+
+    promises.push(cosmosAccountInfo.cosmosAddress.length <= 45 ? Promise.resolve(undefined) : async () => {
+      //check for aliase
+
+      const res = await AddressMappingModel.find({
+        aliasAddress: cosmosAccountInfo.cosmosAddress,
+      }).lean().limit(1).exec();
+      if (res.length) {
+        return {
+          mappingId: res[0].mappingId
+        }
+      }
+
+      const collectionsRes = await CollectionModel.find({
+        aliasAddress: cosmosAccountInfo.cosmosAddress,
+      }).lean().limit(1).exec();
+      if (collectionsRes.length) {
+        return {
+          collectionId: collectionsRes[0].collectionId
+        }
+      }
+
+      return undefined;
     });
   }
 
@@ -109,14 +142,15 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
 
   const resultsToReturn: BitBadgesUserInfo<NumberType>[] = [];
 
-  for (let i = 0; i < results.length; i += 4) {
-    const profileInfo = profileInfos[i / 4];
-    const accountInfo = accountInfos[i / 4];
+  for (let i = 0; i < results.length; i += 5) {
+    const profileInfo = profileInfos[i / 5];
+    const accountInfo = accountInfos[i / 5];
 
     const nameAndAvatarRes = results[i] as { resolvedName: string, avatar: string };
     const balanceInfo = results[i + 1] as CosmosCoin<NumberType>;
     const airdropInfo = results[i + 2] as { _legacyId: string, airdropped: boolean } | undefined;
-    const chainResolve = results[i + 3] as { address: string, chain: SupportedChain }
+    const chainResolve = results[i + 3] as { address: string, chain: SupportedChain } | undefined;
+    const aliasResolve = results[i + 4] as { mappingId?: string, collectionId?: string } | undefined;
 
     const isNSFW = complianceDoc?.accounts.nsfw.find(x => x.cosmosAddress === accountInfo.cosmosAddress);
     const isReported = complianceDoc?.accounts.reported.find(x => x.cosmosAddress === accountInfo.cosmosAddress);
@@ -124,9 +158,13 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
     resultsToReturn.push({
       ...profileInfo,
       ...nameAndAvatarRes,
+      
+      resolvedName: aliasResolve?.mappingId ? 'Alias: List ' + aliasResolve.mappingId : 
+        aliasResolve?.collectionId ? 'Alias: Collection ' + aliasResolve.collectionId : nameAndAvatarRes.resolvedName,
       ...accountInfo,
-      address: chainResolve.address,
-      chain: chainResolve.chain,
+      address: chainResolve?.address ?? '', //for ts
+      chain: chainResolve?.chain ?? '',
+      alias: aliasResolve,
 
       balance: balanceInfo,
       airdropped: airdropInfo && airdropInfo.airdropped,
@@ -157,6 +195,10 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
 
 export async function getNameAndAvatar(address: string, skipAvatarFetch?: boolean) {
   try {
+    if (!isAddressValid(address, SupportedChain.ETH)) {
+      return { resolvedName: '', avatar: '' };
+    }
+
     const ensName = await getNameForAddress(address);
     let details: { avatar?: string } = {};
     if (ensName && !skipAvatarFetch) {

@@ -391,6 +391,8 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     claimAlertsToAdd: [],
     activityToAdd: [],
     queueDocsToAdd: [],
+    protocols: {},
+    userProtocolCollections: {},
   };
 
   try {
@@ -435,7 +437,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     await fetchDocsForCacheIfEmpty(docs, [], [], [
       `${queueObj.collectionId}:Mint`,
       `${queueObj.collectionId}:Total`,
-    ], [], [], [], []);
+    ], [], [], [], [],  [], []);
 
     const mintDoc = docs.balances[`${queueObj.collectionId}:Mint`];
     if (!mintDoc) throw new Error('Mint doc not found');
@@ -469,7 +471,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
         ...allPreviousDocIds.map(x => x._legacyId),
       ]);
 
-      await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], []);
+      await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], [],  [], []);
 
       const docBalancesCopy = deepCopy(docs.balances);
       //Set all balances to empty array

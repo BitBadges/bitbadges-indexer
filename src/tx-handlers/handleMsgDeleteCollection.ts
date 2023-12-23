@@ -7,7 +7,7 @@ import { handleNewAccountByAddress } from "./handleNewAccount"
 import mongoose from "mongoose"
 
 export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache, session: mongoose.ClientSession): Promise<void> => {
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [],  [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   //Safe to cast because MsgDeleteCollection can only be called if the collection exists

@@ -2,8 +2,6 @@
   "creator": "cosmos199ux82zvgqwn0uc0nrgff3k8jmd49r83l60nq9",
   "collectionId": "0",
   "balancesType": "Off-Chain - Indexed",
-  "defaultOutgoingApprovals": [],
-  "defaultIncomingApprovals": [],
   "badgesToCreate": [
     {
       "amount": "1000000000000000000",
@@ -107,12 +105,17 @@
   "standardsTimeline": [],
   "updateIsArchivedTimeline": true,
   "isArchivedTimeline": [],
-  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
-  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
-  "defaultUserPermissions": {
-    "canUpdateOutgoingApprovals": [],
-    "canUpdateIncomingApprovals": [],
-    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": [],
-    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": []
+  "defaultBalances": {
+    "balances": [],
+    "incomingApprovals":  [],
+    "outgoingApprovals": [],
+    "userPermissions": {
+      "canUpdateOutgoingApprovals": [],
+      "canUpdateIncomingApprovals": [],
+      "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": [],
+      "canUpdateAutoApproveSelfInitiatedIncomingTransfers": []
+    },
+    "autoApproveSelfInitiatedIncomingTransfers": true,
+    "autoApproveSelfInitiatedOutgoingTransfers": true
   }
 }

@@ -6,6 +6,7 @@ import { handleApprovals } from "./approvalInfo"
 import { OffChainUrlDoc, OffChainUrlModel, getFromDB, insertToDB } from "../db/db"
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from "../queue"
 import { handleNewAccountByAddress } from "./handleNewAccount"
+import { client } from "../indexer"
 
 export function recursivelyDeleteFalseProperties(obj: object) {
   if (Array.isArray(obj)) {
@@ -33,7 +34,7 @@ export function recursivelyDeleteFalseProperties(obj: object) {
 export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], [],  [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
 
@@ -41,11 +42,16 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
   if (msg.collectionId == 0n) {
     collectionId = status.nextCollectionId;
 
+    //TODO: Do this natively
+    const collection = await client.badgesQueryClient?.badges.getCollection(collectionId.toString());
+    if (!collection) throw new Error(`Collection ${collectionId} does not exist`);
+
+
+
     docs.collections[status.nextCollectionId.toString()] = {
       _legacyId: status.nextCollectionId.toString(),
       collectionId: status.nextCollectionId,
-      // inheritedCollectionId: msg.inheritedCollectionId,
-
+      aliasAddress: collection.aliasAddress,
       managerTimeline: [{
         manager: msg.creator,
         //Go Max Uint 64
@@ -53,16 +59,19 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       }],
       createdBlock: status.block.height,
       createdTimestamp: status.block.timestamp,
-      defaultUserIncomingApprovals: msg.defaultIncomingApprovals ?? [],
-      defaultUserOutgoingApprovals: msg.defaultOutgoingApprovals ?? [],
-      defaultUserPermissions: msg.defaultUserPermissions ?? {
-        canUpdateIncomingApprovals: [],
-        canUpdateOutgoingApprovals: [],
-        canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
-        canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+      defaultBalances: msg.defaultBalances ?? {
+        balances: [],
+        incomingApprovals: [],
+        outgoingApprovals: [],
+        autoApproveSelfInitiatedIncomingTransfers: false,
+        autoApproveSelfInitiatedOutgoingTransfers: false,
+        userPermissions: {
+          canUpdateIncomingApprovals: [],
+          canUpdateOutgoingApprovals: [],
+          canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+          canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+        },
       },
-      defaultAutoApproveSelfInitiatedIncomingTransfers: msg.defaultAutoApproveSelfInitiatedIncomingTransfers ?? false,
-      defaultAutoApproveSelfInitiatedOutgoingTransfers: msg.defaultAutoApproveSelfInitiatedOutgoingTransfers ?? false,
       createdBy: msg.creator,
       balancesType: msg.balancesType as "Standard" | "Inherited" | "Off-Chain - Indexed" | "Off-Chain - Non-Indexed",
       collectionApprovals: [],
@@ -130,7 +139,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
     await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [
       `${collectionId}:Total`,
       `${collectionId}:Mint`,
-    ], [], [], [], []);
+    ], [], [], [], [],  [], []);
   }
   const collection = docs.collections[collectionId.toString()];
   if (!collection) throw new Error(`Collection ${collectionId} does not exist`);

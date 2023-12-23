@@ -10,7 +10,7 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
 
   await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
     `${msg.collectionId}:${msg.creator}`,
-  ], [], [], [], []);
+  ], [], [], [], [],  [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const collectionDoc = docs.collections[`${msg.collectionId}`];
@@ -20,15 +20,15 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
   if (!balancesDoc) {
     balancesDoc = {
       _legacyId: `${msg.collectionId}:${msg.creator}`,
-      balances: [],
+      balances: collectionDoc.defaultBalances.balances,
       cosmosAddress: msg.creator,
       collectionId: msg.collectionId,
       onChain: true,
-      outgoingApprovals: collectionDoc.defaultUserOutgoingApprovals,
-      incomingApprovals: collectionDoc.defaultUserIncomingApprovals,
-      autoApproveSelfInitiatedIncomingTransfers: collectionDoc.defaultAutoApproveSelfInitiatedIncomingTransfers,
-      autoApproveSelfInitiatedOutgoingTransfers: collectionDoc.defaultAutoApproveSelfInitiatedOutgoingTransfers,
-      userPermissions: collectionDoc.defaultUserPermissions,
+      outgoingApprovals: collectionDoc.defaultBalances.outgoingApprovals,
+      incomingApprovals: collectionDoc.defaultBalances.incomingApprovals,
+      autoApproveSelfInitiatedIncomingTransfers: collectionDoc.defaultBalances.autoApproveSelfInitiatedIncomingTransfers,
+      autoApproveSelfInitiatedOutgoingTransfers: collectionDoc.defaultBalances.autoApproveSelfInitiatedOutgoingTransfers,
+      userPermissions: collectionDoc.defaultBalances.userPermissions,
       updateHistory: [],
     }
   }

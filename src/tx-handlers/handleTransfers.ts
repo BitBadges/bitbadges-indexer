@@ -8,7 +8,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     await fetchDocsForCacheIfEmpty(docs, [], [], [
       `${collection.collectionId}:${transfer.from}`,
       ...transfer.toAddresses.map((address) => `${collection.collectionId}:${address}`),
-    ], [], [], [], []);
+    ], [], [], [], [], [], []);
   }
 
 
@@ -27,10 +27,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
       let currBalance: BalanceDoc<bigint> = balanceDoc ? balanceDoc :
         {
           ...getBlankBalance(true, collection),
-          autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
-          autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
-          outgoingApprovals: collection.defaultUserOutgoingApprovals,
-          incomingApprovals: collection.defaultUserIncomingApprovals,
+          ...collection.defaultBalances,
           cosmosAddress: address,
           collectionId: collection.collectionId,
           onChain: collection.balancesType === 'Standard',
@@ -51,10 +48,7 @@ export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBad
     let fromAddressBalanceDoc: BalanceDoc<bigint> = fromBalanceDoc ? fromBalanceDoc :
       {
         ...getBlankBalance(true, collection),
-        autoApproveSelfInitiatedIncomingTransfers: collection.defaultAutoApproveSelfInitiatedIncomingTransfers,
-        autoApproveSelfInitiatedOutgoingTransfers: collection.defaultAutoApproveSelfInitiatedOutgoingTransfers,
-        outgoingApprovals: collection.defaultUserOutgoingApprovals,
-        incomingApprovals: collection.defaultUserIncomingApprovals,
+        ...collection.defaultBalances,
         cosmosAddress: transfer.from,
         collectionId: collection.collectionId,
         onChain: collection.balancesType === 'Standard',

@@ -56,6 +56,8 @@ export const refreshCollection = async (collectionId: string, forceful?: boolean
     passwordDocs: {},
     claimAlertsToAdd: [],
     queueDocsToAdd: [],
+    protocols: {},
+    userProtocolCollections: {},
   }
 
   let refreshTime = BigInt(Date.now());

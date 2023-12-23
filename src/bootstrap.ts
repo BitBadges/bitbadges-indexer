@@ -5,6 +5,7 @@ import axios from "axios";
 import { MessageGenerated, MsgUniversalUpdateCollection, SupportedChain, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
 
 import { MsgCreateAddressMappings as ProtoMsgCreateAddressMappings, MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
+import { MsgCreateProtocol as ProtoMsgCreateProtocol } from 'bitbadgesjs-proto/dist/proto/protocols/tx_pb';
 
 import { createProtoMsg } from 'bitbadgesjs-proto/dist/proto-types/base'
 import { BroadcastMode, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-utils";
@@ -40,6 +41,7 @@ async function main() {
 
     msgs.push(...bootstrapCollections().map(x => createProtoMsg(x)))
 
+    msgs.push(...bootstrapProtocols().map(x => createProtoMsg(x)));
 
     const txn = createTransactionPayload({ chain, sender, memo: '', fee: { denom: 'badge', amount: '1', gas: '4000000' } }, msgs);
     if (!txn.eipToSign) throw new Error("No eip to sign");
@@ -59,7 +61,8 @@ async function main() {
       txnExtension,
     )
 
-    await broadcastTx(rawTx);
+   const res = await broadcastTx(rawTx);
+    console.log(res);
   } catch (e) {
     console.log(e);
   }
@@ -198,6 +201,27 @@ function getAndParseJsonFiles(directoryPath: string, jsonObjects: any[], jsonFil
   });
 }
 
+export function bootstrapProtocols() {
+  const subdirectoryPath = './src/setup/bootstrapped-protocols';
+
+  // Initialize an array to store the parsed JSON objects
+  const jsonObjects: any[] = [];
+  const jsonFileNames: string[] = [];
+
+  // Call the function to get and parse .json files from the subdirectory
+  getAndParseJsonFiles(subdirectoryPath, jsonObjects, jsonFileNames);
+
+  const msgs = jsonObjects.map((jsonObject, idx) => {
+    return new ProtoMsgCreateProtocol({
+      ...jsonObject,
+      creator: convertToCosmosAddress(ethWallet.address),
+    });
+  });
+
+  return msgs;
+
+}
+
 export function bootstrapLists() {
   //parse ./helpers/10000_addresses.txt
   const addresses = fs.readFileSync('./src/setup/helpers/10000_addresses.txt', 'utf-8').split('\n').map(x => x.trim()).filter(x => x !== '').map(x => convertToCosmosAddress(x));
@@ -223,6 +247,7 @@ export function bootstrapLists() {
         mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
         //random bool
         includeAddresses: Math.random() < 0.5,
+
       }, {
         ...jsonObjects[i],
         mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),

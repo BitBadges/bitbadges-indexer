@@ -1,41 +1,60 @@
 {
   "creator": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
   "collectionId": "0",
-  "defaultAutoApproveSelfInitiatedOutgoingTransfers": true,
-  "defaultAutoApproveSelfInitiatedIncomingTransfers": true,
-  "defaultIncomingApprovals": [
-    {
-      "fromMappingId": "AllWithMint",
-      "initiatedByMappingId": "AllWithMint",
-      "transferTimes": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ],
-      "badgeIds": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ],
-      "ownershipTimes": [
-        {
-          "start": "1",
-          "end": "18446744073709551615"
-        }
-      ],
-      "approvalId": "test",
-      "amountTrackerId": "asdfasdf",
-      "challengeTrackerId": "unused"
-    }
-  ],
-  "defaultOutgoingApprovals": [],
-  "defaultUserPermissions": {
-    "canUpdateIncomingApprovals": [],
-    "canUpdateOutgoingApprovals": [],
-    "canUpdateAutoApproveSelfInitiatedIncomingTransfers": [],
-    "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": []
+  "defaultBalances": {
+    "balances": [],
+    "incomingApprovals":  [
+      {
+        "fromMappingId": "AllWithMint",
+        "fromMapping": {
+          "mappingId": "AllWithMint",
+          "addresses": [],
+          "includeAddresses": false,
+          "uri": "",
+          "customData": "",
+          "createdBy": ""
+        },
+        "initiatedByMapping": {
+          "mappingId": "AllWithMint",
+          "addresses": [],
+          "includeAddresses": false,
+          "uri": "",
+          "customData": "",
+          "createdBy": ""
+        },
+        "initiatedByMappingId": "AllWithMint",
+        "transferTimes": [
+          {
+            "start": "1",
+            "end": "18446744073709551615"
+          }
+        ],
+        "badgeIds": [
+          {
+            "start": "1",
+            "end": "18446744073709551615"
+          }
+        ],
+        "ownershipTimes": [
+          {
+            "start": "1",
+            "end": "18446744073709551615"
+          }
+        ],
+        "approvalId": "default-incoming-allowed",
+        "amountTrackerId": "default-incoming-allowed",
+        "challengeTrackerId": "default-incoming-allowed"
+      }
+    ],
+    "outgoingApprovals": [],
+    "userPermissions": {
+      "canUpdateOutgoingApprovals": [],
+      "canUpdateIncomingApprovals": [],
+      "canUpdateAutoApproveSelfInitiatedOutgoingTransfers": [],
+      "canUpdateAutoApproveSelfInitiatedIncomingTransfers": []
+    },
+    "autoApproveSelfInitiatedIncomingTransfers": true,
+    "autoApproveSelfInitiatedOutgoingTransfers": true
   },
   "badgesToCreate": [
     {

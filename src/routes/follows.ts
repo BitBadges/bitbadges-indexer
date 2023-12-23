@@ -1,10 +1,11 @@
 
 import { NumberType, convertBalance } from "bitbadgesjs-proto";
-import { BigIntify, GetFollowDetailsRouteRequestBody, GetFollowDetailsRouteResponse, UpdateFollowDetailsRouteRequestBody, UpdateFollowDetailsRouteResponse, convertFollowDetailsDoc, getBalanceForIdAndTime } from "bitbadgesjs-utils";
+import { BigIntify, GetFollowDetailsRouteRequestBody, GetFollowDetailsRouteResponse, convertFollowDetailsDoc, getBalanceForIdAndTime } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { CollectionModel, FollowDetailsModel, getFromDB, insertToDB, mustGetFromDB } from "../db/db";
+import { FollowDetailsModel, UserProtocolCollectionsModel, getFromDB } from "../db/db";
+import { client } from "../indexer";
 import { executeCollectionBalancesQuery } from "./activityHelpers";
 import { executeCollectedQuery } from "./userHelpers";
 
@@ -20,9 +21,6 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     const followingBookmark = reqBody.followingBookmark ?? '';
     const followersBookmark = reqBody.followersBookmark ?? '';
 
-    // const followingBookmark = '';
-    // const followersBookmark = '';
-
     let _followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
     if (!_followDoc) {
       _followDoc = {
@@ -30,10 +28,21 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
         cosmosAddress: reqBody.cosmosAddress,
         followingCount: 0,
         followersCount: 0,
-        followingCollectionId: 0,
       };
     }
     const followDoc = convertFollowDetailsDoc(_followDoc, BigIntify);
+
+    if (!client || !client.badgesQueryClient) {
+      throw new Error("Indexer not initialized");
+    }
+
+    let followingCollectionId = 0n;
+    const protocolsRes = await getFromDB(UserProtocolCollectionsModel, reqBody.cosmosAddress);
+    if (protocolsRes) {
+      if (protocolsRes.protocols["BitBadges Follow Protocol"]) {
+        followingCollectionId = BigInt(protocolsRes.protocols["BitBadges Follow Protocol"]);
+      }
+    }
 
     const followers = [];
     const following = [];
@@ -64,11 +73,11 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
       followDoc.followersCount = BigInt(followers.length);
     }
 
-    if (followDoc.followingCollectionId > 0n) {
+    if (followingCollectionId > 0n) {
       let hasMore = true;
       let currBookmark = followingBookmark ?? ''
       while (hasMore) {
-        const res = await executeCollectionBalancesQuery(followDoc.followingCollectionId.toString(), currBookmark);
+        const res = await executeCollectionBalancesQuery(followingCollectionId.toString(), currBookmark);
         hasMore = res.docs.length >= 25;
         currBookmark = res.pagination.bookmark ?? '';
         for (const doc of res.docs) {
@@ -95,7 +104,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
       cosmosAddress: followDoc.cosmosAddress,
       followersCount: followDoc.followersCount,
       followingCount: followDoc.followingCount,
-      followingCollectionId: followDoc.followingCollectionId,
+      followingCollectionId: followingCollectionId,
       followers,
       following,
       followersPagination: {
@@ -112,57 +121,6 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     return res.status(500).send({
       error: serializeError(e),
       message: "Error getting follow details"
-    });
-  }
-}
-
-export const updateFollowDetails = async (expressReq: Request, res: Response<UpdateFollowDetailsRouteResponse>) => {
-  try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
-    const reqBody = req.body as UpdateFollowDetailsRouteRequestBody<NumberType>;
-
-    const cosmosAddress = req.session.cosmosAddress;
-
-    let _followDoc = await getFromDB(FollowDetailsModel, cosmosAddress);
-    if (!_followDoc) {
-      _followDoc = {
-        _legacyId: cosmosAddress,
-        cosmosAddress: cosmosAddress,
-        followingCount: 0,
-        followersCount: 0,
-        followingCollectionId: 0,
-      };
-    }
-
-    const followDoc = convertFollowDetailsDoc(_followDoc, BigIntify);
-
-
-    if (reqBody.followingCollectionId) {
-      followDoc.followingCollectionId = BigInt(reqBody.followingCollectionId);
-
-      //Ensure the collection exists and meets the criteria for the follow standards
-      const collectionDoc = await mustGetFromDB(CollectionModel, reqBody.followingCollectionId.toString());
-
-      if (collectionDoc.createdBy !== cosmosAddress) {
-        return res.status(400).send({
-          message: "Collection was not created by this user."
-        });
-      }
-
-
-      //TODO: Add other restrictions?
-      //-Assert correct metadata
-      //-Assert at least one badge
-      //-Not "No Balances" standard
-    }
-    await insertToDB(FollowDetailsModel, followDoc);
-
-    return
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      message: "Error updating follow details."
     });
   }
 }

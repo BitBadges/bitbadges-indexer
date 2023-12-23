@@ -1,8 +1,8 @@
 import { NumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, RefreshDoc, StatusDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, ProtocolDoc, RefreshDoc, StatusDoc, UserProtocolCollectionsDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertUserProtocolCollectionsDoc } from "bitbadgesjs-utils";
 import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
-import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, MerkleChallengeModel, PasswordModel, QueueModel, RefreshModel, TransferActivityModel, getManyFromDB, insertMany, insertToDB } from "./db";
+import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, MerkleChallengeModel, PasswordModel, ProtocolModel, QueueModel, RefreshModel, TransferActivityModel, UserProtocolCollectionsModel, getManyFromDB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
 /**
@@ -10,7 +10,11 @@ import { setStatus } from "./status";
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[], passwordDocIds: string[], session?: mongoose.mongo.ClientSession) {
+export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[], passwordDocIds: string[], 
+  protocolIds: string[],
+  userProtocolCollectionsIds: string[],
+  
+  session?: mongoose.mongo.ClientSession) {
   try {
     const newCollectionIds = collectionIds.map(x => x.toString()).filter((id) => !currDocs.collections[id]); //collectionId as keys (string: `${collectionId}`)
     const newCosmosAddresses = cosmosAddresses.map(x => x.toString()).filter((id) => !currDocs.collections[id]);
@@ -18,12 +22,15 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
     const newAddressMappingIds = addressMappingIds.filter((id) => !currDocs.addressMappings[id]);
     const newPasswordDocIds = passwordDocIds.filter((id) => !currDocs.passwordDocs[id]);
 
+    const newProtocolIds = protocolIds.filter((id) => !currDocs.protocols[id]);
+    const newUserProtocolCollectionsIds = userProtocolCollectionsIds.filter((id) => !currDocs.userProtocolCollections[id]);
+
     //Partitioned IDs (collectionId:___)
     const newBalanceIds = balanceIds.filter((id) => !currDocs.balances[id]);
     const newMerkleChallengeIds = merkleChallengeIds.filter((id) => !currDocs.merkleChallenges[id]);
 
-    if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length || newPasswordDocIds.length) {
-      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds, newPasswordDocIds, session);
+    if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length || newPasswordDocIds.length || newProtocolIds.length || newUserProtocolCollectionsIds.length) {
+      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds, newPasswordDocIds, newProtocolIds, newUserProtocolCollectionsIds, session);
       currDocs.accounts = {
         ...currDocs.accounts,
         ...newDocs.accounts
@@ -60,6 +67,17 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
       //Within the poller, we never require fetching a refresh doc (only adding new ones)
       currDocs.refreshes = currDocs.refreshes
       currDocs.claimAlertsToAdd = currDocs.claimAlertsToAdd
+    
+      currDocs.protocols = {
+        ...currDocs.protocols,
+        ...newDocs.protocols
+      }
+
+      currDocs.userProtocolCollections = {
+        ...currDocs.userProtocolCollections,
+        ...newDocs.userProtocolCollections
+      }
+
     }
   } catch (error) {
     throw `Error in fetchDocsForCacheIfEmpty(): ${error}`;
@@ -71,7 +89,10 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[], _passwordDocIds: string[], session?: mongoose.mongo.ClientSession) {
+export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[], _passwordDocIds: string[],
+  _protocolIds: string[],
+  _userProtocolCollectionsIds: string[],
+  session?: mongoose.mongo.ClientSession) {
   try {
     const cosmosAddresses = [...new Set(_cosmosAddresses)].filter((id) => id.length > 0);
     const collectionDocIds = [...new Set(_collectionDocIds)].filter((id) => id.length > 0);
@@ -80,6 +101,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     const approvalsTrackerIds = [...new Set(_approvalsTrackerIds)].filter((id) => id.length > 0);
     const addressMappingIds = [...new Set(_addressMappingIds)].filter((id) => id.length > 0);
     const passwordDocIds = [...new Set(_passwordDocIds)].filter((id) => id.length > 0);
+    const protocolIds = [...new Set(_protocolIds)].filter((id) => id.length > 0);
+    const userProtocolCollectionsIds = [...new Set(_userProtocolCollectionsIds)].filter((id) => id.length > 0);
 
     const accountsData: AccountDocs = {};
     const collectionData: CollectionDocs = {};
@@ -88,6 +111,12 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     const approvalsTrackerData: ApprovalsTrackerDocs = {};
     const addressMappingsData: AddressMappingsDocs = {};
     const passwordDocs: PasswordDocs = {};
+    const protocolsData: {
+      [protocolName: string]: (ProtocolDoc<bigint> | undefined);
+    } = {};
+    const userProtocolCollectionsData: {
+      [cosmosAddress: string]: (UserProtocolCollectionsDoc<bigint>) | undefined;
+    } = {};
 
 
     const promises = [];
@@ -98,6 +127,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     if (approvalsTrackerIds.length) promises.push(getManyFromDB(ApprovalsTrackerModel, approvalsTrackerIds, session));
     if (addressMappingIds.length) promises.push(getManyFromDB(AddressMappingModel, addressMappingIds, session));
     if (passwordDocIds.length) promises.push(getManyFromDB(PasswordModel, passwordDocIds, session));
+    if (protocolIds.length) promises.push(getManyFromDB(ProtocolModel, protocolIds, session));
+    if (userProtocolCollectionsIds.length) promises.push(getManyFromDB(UserProtocolCollectionsModel, userProtocolCollectionsIds, session));
 
     if (promises.length) {
       const results = await Promise.allSettled(promises);
@@ -177,9 +208,31 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
           }
         }
       }
+
+      if (protocolIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = (result.value as any[]).filter(x => x).map((x) => x as ProtocolDoc<NumberType>);
+          for (const protocolId of protocolIds) {
+            protocolsData[protocolId] = docs.find(x => x._legacyId === protocolId);
+          }
+        }
+      }
+
+      if (userProtocolCollectionsIds.length) {
+        const result = results[idx++];
+        if (result.status === 'fulfilled') {
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertUserProtocolCollectionsDoc(x as UserProtocolCollectionsDoc<NumberType>, BigIntify));
+          for (const userProtocolCollectionsId of userProtocolCollectionsIds) {
+            userProtocolCollectionsData[userProtocolCollectionsId] = docs.find(x => x._legacyId === userProtocolCollectionsId);
+          }
+        }
+      }
     }
 
-    return { accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData, passwordDocs: passwordDocs }
+    return {
+      protocols: protocolsData, userProtocolCollections: userProtocolCollectionsData,
+      accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData, passwordDocs: passwordDocs }
   } catch (error) {
     throw `Error in fetchDocsForCache(): ${error}`;
   }
@@ -201,6 +254,8 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
     const activityDocs = docs.activityToAdd;
     const queueDocs = docs.queueDocsToAdd;
     const claimAlertDocs = docs.claimAlertsToAdd;
+    const protocolDocs = Object.values(docs.protocols) as (ProtocolDoc<bigint>)[];
+    const userProtocolCollectionsDocs = Object.values(docs.userProtocolCollections) as (UserProtocolCollectionsDoc<bigint>)[];
 
     //If we have a session, we should not execute all inserts in parallel bc it messes up transactions
     //If not, we can execute all inserts in parallel
@@ -260,6 +315,16 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
     if (claimAlertDocs.length) {
       if (parallelExecution) promises.push(insertMany(ClaimAlertModel, claimAlertDocs, session));
       else await insertMany(ClaimAlertModel, claimAlertDocs, session);
+    }
+
+    if (protocolDocs.length) {
+      if (parallelExecution) promises.push(insertMany(ProtocolModel, protocolDocs, session));
+      else await insertMany(ProtocolModel, protocolDocs, session);
+    }
+
+    if (userProtocolCollectionsDocs.length) {
+      if (parallelExecution) promises.push(insertMany(UserProtocolCollectionsModel, userProtocolCollectionsDocs, session));
+      else await insertMany(UserProtocolCollectionsModel, userProtocolCollectionsDocs, session);
     }
 
     if (promises.length === 0 && status && skipStatusFlushIfEmptyBlock) {
