@@ -20,6 +20,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
 
     const followingBookmark = reqBody.followingBookmark ?? '';
     const followersBookmark = reqBody.followersBookmark ?? '';
+    const protocolName = reqBody.protocol ?? 'BitBadges Follow Protocol';
 
     let _followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
     if (!_followDoc) {
@@ -39,8 +40,8 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     let followingCollectionId = 0n;
     const protocolsRes = await getFromDB(UserProtocolCollectionsModel, reqBody.cosmosAddress);
     if (protocolsRes) {
-      if (protocolsRes.protocols["BitBadges Follow Protocol"]) {
-        followingCollectionId = BigInt(protocolsRes.protocols["BitBadges Follow Protocol"]);
+      if (protocolsRes.protocols[protocolName]) {
+        followingCollectionId = BigInt(protocolsRes.protocols[protocolName]);
       }
     }
 
@@ -51,12 +52,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     let hasMore = true;
     let currBookmark = followersBookmark ?? ''
     while (hasMore) {
-      const res = await executeCollectedQuery(followDoc.cosmosAddress, { hiddenBadges: [] } as any, false, [
-        {
-          collectionId: followingCollectionId.toString(),
-          badgeIds: [{ start: 1n, end: "18446744073709551615" }]
-        }
-      ], currBookmark);
+      const res = await executeCollectedQuery(followDoc.cosmosAddress, { hiddenBadges: [] } as any, false, undefined, currBookmark);
       hasMore = res.docs.length >= 25;
       currBookmark = res.bookmark ?? '';
       for (const doc of res.docs) {
@@ -65,13 +61,13 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
         const currBalance = getBalanceForIdAndTime(1n, BigInt(Date.now()), doc.balances.map(x => convertBalance(x, BigIntify)));
         if (currBalance <= 0n) continue;
 
-        const res = await FollowDetailsModel.find({
-          followingCollectionId: Number(doc.collectionId),
+        const res = await UserProtocolCollectionsModel.find({
+          [`protocols.${protocolName}`]: Number(doc.collectionId),
         }).limit(1).lean().exec();
 
 
         if (res.length > 0) {
-          followers.push(res[0].cosmosAddress);
+          followers.push(res[0]._legacyId);
         }
       }
 

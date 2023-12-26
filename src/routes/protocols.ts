@@ -27,7 +27,7 @@ export const getProtocols = async (expressReq: Request, res: Response<GetProtoco
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting follow details"
+      message: "Error getting protocols"
     });
   }
 }
