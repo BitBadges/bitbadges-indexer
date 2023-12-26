@@ -13,7 +13,8 @@ import { complianceDoc } from "../poll";
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
     const searchValue = req.params.searchValue;
-    const { noCollections, noAddressMappings, noAccounts } = req.body as GetSearchRouteRequestBody;
+    const { noCollections, noAddressMappings, noAccounts, specificCollectionId } = req.body as GetSearchRouteRequestBody;
+    
 
     if (!searchValue || searchValue.length == 0) {
       return res.json({
@@ -35,7 +36,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     // Search metadata of collections for matching names
-    const collectionMetadataQuery = {
+    const metadataQuery = {
       ["content.name"]: {
         "$regex": `${searchValue}`,
         "$options": "i"
@@ -73,7 +74,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     }
 
     const results = await Promise.all([
-      noCollections ? Promise.resolve([]) : FetchModel.find(collectionMetadataQuery).limit(10).lean().exec(),
+      noCollections && noAddressMappings ? Promise.resolve([]) : FetchModel.find(metadataQuery).limit(10).lean().exec(),
       noAccounts ? Promise.resolve([]) : AccountModel.find(accountQuery).limit(10).lean().exec(),
       noAddressMappings ? Promise.resolve([]) : AddressMappingModel.find(addressMappingsQuery).limit(10).lean().exec(),
     ]);
@@ -139,6 +140,9 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const collectionsPromise = noCollections ? Promise.resolve([]) :
       CollectionModel.find({
+        collectionId: specificCollectionId ? Number(specificCollectionId) : {
+          "$exists": true
+        },
         "$or": [
           {
             collectionId: {
@@ -172,13 +176,18 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         ]
       }).lean().exec();
 
+    const listsPromise = noAddressMappings ? Promise.resolve([]) :
+      AddressMappingModel.find({
+        uri: { "$in": uris },
+      }).lean().exec();
+
     
 
     const fetchKeys = allAccounts.map(account => account.cosmosAddress);
     const fetchPromise = fetchKeys.length ? getManyFromDB(ProfileModel, fetchKeys) : Promise.resolve([]);
 
 
-    const [collectionsRes, fetchRes] = await Promise.all([collectionsPromise, fetchPromise]);
+    const [collectionsRes, fetchRes, listsRes] = await Promise.all([collectionsPromise, fetchPromise, listsPromise]);
 
     const profileDocs = [];
 
@@ -208,8 +217,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         convertToBitBadgesUserInfo(profileDocs, allAccounts);
 
     const addressMappingsToReturnPromise =
-      addressMappingsResponseDocs.length === 0 ? Promise.resolve([]) : getAddressMappingsFromDB(
-        addressMappingsResponseDocs.map(x => {
+      [...listsRes, ...addressMappingsResponseDocs].length === 0 ? Promise.resolve([]) : getAddressMappingsFromDB(
+        [...listsRes, ...addressMappingsResponseDocs].map(x => {
           return {
             mappingId: x._legacyId,
           };

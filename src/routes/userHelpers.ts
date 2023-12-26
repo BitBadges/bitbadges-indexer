@@ -1,4 +1,4 @@
-import { BigIntify, NumberType, Stringify, convertBalance } from "bitbadgesjs-proto";
+import { BigIntify, NumberType, Stringify, UintRange, convertBalance } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, ProfileInfoBase, SupportedChain, cosmosToBtc, cosmosToEth, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
 import { AddressMappingModel, AirdropModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, EthTxCountModel, ReviewModel, TransferActivityModel, getFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
@@ -322,7 +322,11 @@ export async function executeReviewsQuery(cosmosAddress: string, bookmark?: stri
   }
 }
 
-export async function executeCollectedQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string,) {
+export async function executeCollectedQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, filteredCollections?: {
+  badgeIds: UintRange<NumberType>[];
+  collectionId: NumberType;
+}[], 
+bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeCollectedQuery');
   //keep searching until we have min 25 non-hidden docs
 
@@ -332,8 +336,12 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
   let currBookmark = bookmark;
   const docs = [];
 
+  const specificCollectionIds = filteredCollections ? filteredCollections.map((collection) => Number(collection.collectionId)) : undefined;
+
+
   while (docsLeft > 0) {
     let viewDocs = await BalanceModel.find({
+      collectionId: specificCollectionIds ? { "$in": specificCollectionIds } : { "$exists": true },
       cosmosAddress: cosmosAddress,
       balances: {
         "$elemMatch": {
@@ -390,7 +398,7 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
 
 
 
-export async function executeListsQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeListsQuery');
   let docsLeft = 25;
   let currBookmark = bookmark;
@@ -398,7 +406,7 @@ export async function executeListsQuery(cosmosAddress: string, bookmark?: string
 
   while (docsLeft > 0) {
     const collectedRes = await AddressMappingModel.find({
-
+      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "addresses": {
         "$elemMatch": {
           "$eq": cosmosAddress,
@@ -427,7 +435,7 @@ export async function executeListsQuery(cosmosAddress: string, bookmark?: string
   }
 }
 
-export async function executeExplicitIncludedListsQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeExplicitIncludedListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeExplicitIncluded');
   let docsLeft = 25;
   let currBookmark = bookmark;
@@ -435,7 +443,7 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, b
 
   while (docsLeft > 0) {
     const collectedRes = await AddressMappingModel.find({
-
+      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "$or": [
         {
           "$and": [{
@@ -478,7 +486,7 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, b
   return collectedRes;
 }
 
-export async function executeExplicitExcludedListsQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeExplicitExcludedListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeExplicitExcluded');
   let docsLeft = 25;
   let currBookmark = bookmark;
@@ -486,7 +494,7 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, b
 
   while (docsLeft > 0) {
     const collectedRes = await AddressMappingModel.find({
-
+      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "$or": [
         {
           "$and": [{
@@ -530,7 +538,7 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, b
   return collectedRes;
 }
 
-export async function executeLatestAddressMappingsQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeLatestAddressMappingsQuery(cosmosAddress: string,filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeLatestAddressMappingsQuery');
   let docsLeft = 25;
   let currBookmark = bookmark;
@@ -540,7 +548,7 @@ export async function executeLatestAddressMappingsQuery(cosmosAddress: string, b
 
 
     const collectedRes = await AddressMappingModel.find({
-
+      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "addresses": {
         "$elemMatch": {
           "$eq": cosmosAddress,
@@ -599,15 +607,23 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
 }
 
 
-export async function executeManagingQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, bookmark?: string,) {
+export async function executeManagingQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>,
+  filteredCollections?: {
+    badgeIds: UintRange<NumberType>[];
+    collectionId: NumberType;
+  }[], 
+  bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeManagingQuery');
   //keep searching until we have min 25 non-hidden docs
   let docsLeft = 25;
   let currBookmark = bookmark;
   const docs = [];
+  
+  const specificCollectionIds = filteredCollections ? filteredCollections.map((collection) => Number(collection.collectionId)) : undefined;
 
   while (docsLeft > 0) {
     const view = await CollectionModel.find({
+      collectionId: specificCollectionIds ? { "$in": specificCollectionIds } : { "$exists": true },
       managerTimeline: {
         "$elemMatch": {
           manager: {
@@ -653,16 +669,24 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
   return collectedRes;
 }
 
-export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, bookmark?: string,) {
+export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, 
+  filteredCollections?: {
+    badgeIds: UintRange<NumberType>[];
+    collectionId: NumberType;
+  }[], 
+  bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeCreatedByQuery');
   //keep searching until we have min 25 non-hidden docs
   let docsLeft = 25;
   let currBookmark = bookmark;
   const docs = [];
 
+  const specificCollectionIds = filteredCollections ? filteredCollections.map((collection) => Number(collection.collectionId)) : undefined;
+
   while (docsLeft > 0) {
     const view = await CollectionModel.find({
-      createdBy: cosmosAddress
+      createdBy: cosmosAddress,
+      collectionId: specificCollectionIds ? { "$in": specificCollectionIds } : { "$exists": true },
     }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
     let viewDocs = view.map((row) => row._legacyId);
@@ -715,11 +739,12 @@ export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: st
 }
 
 
-export async function executePrivateListsQuery(cosmosAddress: string, bookmark?: string) {
+export async function executePrivateListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('privateLists');
 
 
   const res = await AddressMappingModel.find({
+    mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
     createdBy: cosmosAddress,
     private: true,
   }).lean().exec();
@@ -734,11 +759,12 @@ export async function executePrivateListsQuery(cosmosAddress: string, bookmark?:
   }
 }
 
-export async function executeCreatedListsQuery(cosmosAddress: string, bookmark?: string) {
+export async function executeCreatedListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('createdLists');
 
 
   const res = await AddressMappingModel.find({
+    mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
     createdBy: cosmosAddress,
     private: false
   }).lean().exec();

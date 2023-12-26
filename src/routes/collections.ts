@@ -33,6 +33,8 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   const promises = [];
   const collectionResponses: BitBadgesCollection<JSPrimitiveNumberType>[] = [];
 
+  //TODO: Make this support any viewId like accounts
+
   //Fetch metadata, activity, announcements, and reviews for each collection
   for (const query of collectionQueries) {
     const collection = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
@@ -43,12 +45,12 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     promises.push(getMetadata(collection.collectionId.toString(), collectionUri, badgeMetadata, query.metadataToFetch));
 
-    const activityBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestActivity')?.bookmark;
-    const announcementsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestAnnouncements')?.bookmark;
-    const reviewsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'latestReviews')?.bookmark;
-    const ownersBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'owners')?.bookmark;
-    const claimsBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'merkleChallenges')?.bookmark;
-    const approvalsTrackerBookmark = query.viewsToFetch?.find((view) => view.viewKey === 'approvalsTrackers')?.bookmark;
+    const activityBookmark = query.viewsToFetch?.find((view) => view.viewType === 'latestActivity')?.bookmark;
+    const announcementsBookmark = query.viewsToFetch?.find((view) => view.viewType === 'latestAnnouncements')?.bookmark;
+    const reviewsBookmark = query.viewsToFetch?.find((view) => view.viewType === 'latestReviews')?.bookmark;
+    const ownersBookmark = query.viewsToFetch?.find((view) => view.viewType === 'owners')?.bookmark;
+    const claimsBookmark = query.viewsToFetch?.find((view) => view.viewType === 'merkleChallenges')?.bookmark;
+    const approvalsTrackerBookmark = query.viewsToFetch?.find((view) => view.viewType === 'approvalsTrackers')?.bookmark;
 
     if (activityBookmark !== undefined) {
       promises.push(executeCollectionActivityQuery(`${query.collectionId}`, activityBookmark));
@@ -323,7 +325,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       //Placeholders to be replaced later in function
       cachedBadgeMetadata: [],
       views: {
-        'latestActivity': query.viewsToFetch?.find(x => x.viewKey === 'latestActivity') ? {
+        'latestActivity': query.viewsToFetch?.find(x => x.viewType === 'latestActivity') ? {
           ids: activityRes.docs.map((doc) => doc._legacyId),
           type: 'Activity',
           pagination: {
@@ -331,7 +333,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
             hasMore: activityRes.docs.length === 25
           }
         } : undefined,
-        'latestAnnouncements': query.viewsToFetch?.find(x => x.viewKey === 'latestAnnouncements') ? {
+        'latestAnnouncements': query.viewsToFetch?.find(x => x.viewType === 'latestAnnouncements') ? {
           ids: announcementsRes.docs.map((doc) => doc._legacyId),
           type: 'Announcement',
           pagination: {
@@ -339,7 +341,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
             hasMore: announcementsRes.docs.length === 25
           }
         } : undefined,
-        'latestReviews': query.viewsToFetch?.find(x => x.viewKey === 'latestReviews') ? {
+        'latestReviews': query.viewsToFetch?.find(x => x.viewType === 'latestReviews') ? {
           ids: reviewsRes.docs.map((doc) => doc._legacyId),
           type: 'Review',
           pagination: {
@@ -347,7 +349,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
             hasMore: reviewsRes.docs.length === 25
           }
         } : undefined,
-        'owners': query.viewsToFetch?.find(x => x.viewKey === 'owners') ? {
+        'owners': query.viewsToFetch?.find(x => x.viewType === 'owners') ? {
           ids: balancesRes.docs.map((doc) => doc._legacyId),
           type: 'Balance',
           pagination: {
@@ -355,7 +357,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
             hasMore: balancesRes.docs.length === 25
           }
         } : undefined,
-        'merkleChallenges': query.viewsToFetch?.find(x => x.viewKey === 'merkleChallenges') ? {
+        'merkleChallenges': query.viewsToFetch?.find(x => x.viewType === 'merkleChallenges') ? {
           ids: claimsRes.docs.map((doc) => doc._legacyId),
           type: 'MerkleChallenge',
           pagination: {
@@ -363,7 +365,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
             hasMore: claimsRes.docs.length === 25
           }
         } : undefined,
-        'approvalsTrackers': query.viewsToFetch?.find(x => x.viewKey === 'approvalsTrackers') ? {
+        'approvalsTrackers': query.viewsToFetch?.find(x => x.viewType === 'approvalsTrackers') ? {
           ids: approvalsTrackersRes.docs.map((doc) => doc._legacyId),
           type: 'ApprovalsTracker',
           pagination: {

@@ -1,7 +1,7 @@
 
 import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
 import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-proto";
-import { cosmosToBtc, AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -258,7 +258,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
   }
 }
 
-const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigint>, cosmosAddress: string, reqBody: AccountFetchOptions): Promise<{
+interface GetAdditionalUserInfoRes {
   collected: BalanceDocWithDetails<JSPrimitiveNumberType>[],
   activity: TransferActivityDoc<JSPrimitiveNumberType>[],
   announcements: AnnouncementDoc<JSPrimitiveNumberType>[],
@@ -273,7 +273,8 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
       pagination: PaginationInfo,
     } | undefined
   }
-}> => {
+}
+const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigint>, cosmosAddress: string, reqBody: AccountFetchOptions): Promise<GetAdditionalUserInfoRes> => {
   if (!reqBody.viewsToFetch) return {
     collected: [],
     activity: [],
@@ -285,346 +286,323 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     views: {},
   };
 
-  const activityBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestActivity')?.bookmark;
-  const collectedBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected')?.bookmark;
-  const collectedWithHiddenBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollectedWithHidden')?.bookmark;
-  const announcementsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements')?.bookmark;
-  const reviewsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews')?.bookmark;
-  const addressMappingsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings')?.bookmark;
-  const claimAlertsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'latestClaimAlerts')?.bookmark;
-  const explicitIncludedAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyIncludedAddressMappings')?.bookmark;
-  const explicitExcludedAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyExcludedAddressMappings')?.bookmark;
-  const latestAddressMappings = reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings')?.bookmark;
-  const managingBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'managing')?.bookmark;
-  const createdByBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy')?.bookmark;
-  const authCodesBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'authCodes')?.bookmark;
-  const privateListsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'privateLists')?.bookmark;
-  const createdListsBookmark = reqBody.viewsToFetch.find(x => x.viewKey === 'createdLists')?.bookmark;
-
   const asyncOperations = [];
-  if (collectedBookmark !== undefined) {
-    asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, false, collectedBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
+  for (const view of reqBody.viewsToFetch) {
+    const bookmark = view.bookmark;
+    const filteredCollections = view.filteredCollections;
+    const filteredLists = view.filteredLists;
+    
 
-  if (collectedWithHiddenBookmark !== undefined) {
-    asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, true, collectedWithHiddenBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (activityBookmark !== undefined) {
-    asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, activityBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (announcementsBookmark !== undefined) {
-    asyncOperations.push(() => executeAnnouncementsQuery(cosmosAddress, announcementsBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (reviewsBookmark !== undefined) {
-    asyncOperations.push(() => executeReviewsQuery(cosmosAddress, reviewsBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (addressMappingsBookmark !== undefined) {
-    asyncOperations.push(() => executeListsQuery(cosmosAddress, addressMappingsBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (claimAlertsBookmark !== undefined) {
-    const authReq = req as AuthenticatedRequest<NumberType>;
-    if (authReq.session && checkIfAuthenticated(authReq)) {
-      if (authReq.session.cosmosAddress !== cosmosAddress) {
-        throw new Error('You can only fetch claim alerts for your own account.');
+    if (view.viewType === 'latestActivity') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
-
-      asyncOperations.push(() => executeClaimAlertsQuery(cosmosAddress, claimAlertsBookmark));
-    } else {
-      throw new Error('You must be authenticated to fetch claim alerts.');
-    }
-
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (explicitIncludedAddressMappings !== undefined) {
-    asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, explicitIncludedAddressMappings));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (explicitExcludedAddressMappings !== undefined) {
-    asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, explicitExcludedAddressMappings));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (latestAddressMappings !== undefined) {
-    asyncOperations.push(() => executeLatestAddressMappingsQuery(cosmosAddress, latestAddressMappings));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (managingBookmark !== undefined) {
-    asyncOperations.push(() => executeManagingQuery(cosmosAddress, profileInfo, managingBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (createdByBookmark !== undefined) {
-    asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, profileInfo, createdByBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (authCodesBookmark !== undefined) {
-    const authReq = req as AuthenticatedRequest<NumberType>;
-    if (authReq.session && checkIfAuthenticated(authReq)) {
-      if (authReq.session.cosmosAddress !== cosmosAddress) {
-        throw new Error('You can only fetch auth codes for your own account.');
+    } else if (view.viewType === 'badgesCollected' || view.viewType === 'badgesCollectedWithHidden') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, view.viewType === 'badgesCollectedWithHidden', filteredCollections, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
-
-      asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, authCodesBookmark));
-    } else {
-      throw new Error('You must be authenticated to fetch auth codes.');
-    }
-
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
-
-  if (privateListsBookmark !== undefined) {
-    const authReq = req as AuthenticatedRequest<NumberType>;
-    if (authReq.session && checkIfAuthenticated(authReq)) {
-      if (authReq.session.cosmosAddress !== cosmosAddress) {
-        throw new Error('You can only fetch auth codes for your own account.');
+    } else if (view.viewType === 'managing') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeManagingQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
+    } else if (view.viewType === 'createdBy') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'latestAnnouncements') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeAnnouncementsQuery(cosmosAddress, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'latestReviews') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeReviewsQuery(cosmosAddress, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    }  else if (view.viewType === 'latestClaimAlerts') {
+      if (bookmark !== undefined) {
+        const authReq = req as AuthenticatedRequest<NumberType>;
+        if (authReq.session && checkIfAuthenticated(authReq)) {
+          if (authReq.session.cosmosAddress !== cosmosAddress) {
+            throw new Error('You can only fetch claim alerts for your own account.');
+          }
 
-      asyncOperations.push(() => executePrivateListsQuery(cosmosAddress, privateListsBookmark));
-    } else {
-      throw new Error('You must be authenticated to fetch private lists.');
-    }
+          asyncOperations.push(() => executeClaimAlertsQuery(cosmosAddress, bookmark));
+        } else {
+          throw new Error('You must be authenticated to fetch claim alerts.');
+        }
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'authCodes') {
+      if (bookmark !== undefined) {
+        const authReq = req as AuthenticatedRequest<NumberType>;
+        if (authReq.session && checkIfAuthenticated(authReq)) {
+          if (authReq.session.cosmosAddress !== cosmosAddress) {
+            throw new Error('You can only fetch auth codes for your own account.');
+          }
 
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
+          asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, bookmark));
+        } else {
+          throw new Error('You must be authenticated to fetch auth codes.');
+        }
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'addressMappings') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeListsQuery(cosmosAddress, filteredLists, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'explicitlyIncludedAddressMappings') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, filteredLists, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'explicitlyExcludedAddressMappings') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, filteredLists, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'latestAddressMappings') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeLatestAddressMappingsQuery(cosmosAddress, filteredLists, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'privateLists') {
+      if (bookmark !== undefined) {
+        const authReq = req as AuthenticatedRequest<NumberType>;
+        if (authReq.session && checkIfAuthenticated(authReq)) {
+          if (authReq.session.cosmosAddress !== cosmosAddress) {
+            throw new Error('You can only fetch private lists for your own account.');
+          }
+
+          asyncOperations.push(() => executePrivateListsQuery(cosmosAddress, filteredLists, bookmark));
+        } else {
+          throw new Error('You must be authenticated to fetch private lists.');
+        }
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'createdLists') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeCreatedListsQuery(cosmosAddress, filteredLists, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    }    
   }
 
-  if (createdListsBookmark !== undefined) {
-    asyncOperations.push(() => executeCreatedListsQuery(cosmosAddress, createdListsBookmark));
-  } else {
-    asyncOperations.push(() => Promise.resolve({ docs: [] }));
-  }
 
 
   const results = await Promise.all(asyncOperations.map(operation => operation()));
-  const response = results[0] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
-  const responseWithHidden = results[1] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
-  const activityRes = results[2] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
-  const announcementsRes = results[3] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
-  const reviewsRes = results[4] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
-  const addressMappingsRes = results[5] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
-  const claimAlertsRes = results[6] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
-  const explicitIncludedAddressMappingsRes = results[7] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
-  const explicitExcludedAddressMappingsRes = results[8] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
-  const latestAddressMappingsRes = results[9] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+  const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const viewKey = reqBody.viewsToFetch[i].viewType;
 
-  const managingRes = results[10] as any
-  const createdByRes = results[11] as any
-  const authCodesRes = results[12] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
-  const privateListsRes = results[13] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
-  const createdListsRes = results[14] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+    if (viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+      const result = results[i] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+      for (const doc of result.docs) {
+        addressMappingIdsToFetch.push({ mappingId: doc.mappingId });
+      }
+    } else if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
+      const result = results[i] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+      for (const balance of result.docs) {
+        for (const incoming of balance.incomingApprovals) {
+          addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
+          addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
+        }
 
-  const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [
-    ...addressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
-    ...explicitIncludedAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
-    ...explicitExcludedAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
-    ...latestAddressMappingsRes.docs.map(x => ({ mappingId: x.mappingId })),
-    ...privateListsRes.docs.map(x => ({ mappingId: x.mappingId })),
-    ...createdListsRes.docs.map(x => ({ mappingId: x.mappingId })),
-  ];
+        for (const outgoing of balance.outgoingApprovals) {
+          addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
+          addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
+        }
 
-  for (const balance of [...response.docs, ...responseWithHidden.docs]) {
-    for (const incoming of balance.incomingApprovals) {
-      addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
-      addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
-    }
+        for (const incoming of balance.userPermissions.canUpdateIncomingApprovals) {
+          addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
+          addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
+        }
 
-    for (const outgoing of balance.outgoingApprovals) {
-      addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
-      addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
-    }
-
-    for (const incoming of balance.userPermissions.canUpdateIncomingApprovals) {
-      addressMappingIdsToFetch.push({ mappingId: incoming.fromMappingId, collectionId: balance.collectionId });
-      addressMappingIdsToFetch.push({ mappingId: incoming.initiatedByMappingId, collectionId: balance.collectionId });
-    }
-
-    for (const outgoing of balance.userPermissions.canUpdateOutgoingApprovals) {
-      addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
-      addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
+        for (const outgoing of balance.userPermissions.canUpdateOutgoingApprovals) {
+          addressMappingIdsToFetch.push({ mappingId: outgoing.toMappingId, collectionId: balance.collectionId });
+          addressMappingIdsToFetch.push({ mappingId: outgoing.initiatedByMappingId, collectionId: balance.collectionId });
+        }
+      }
     }
   }
 
   const addressMappingsToPopulate = await getAddressMappingsFromDB(addressMappingIdsToFetch, true);
+  const views: { [viewId: string]: { ids: string[], type: string, pagination: PaginationInfo } | undefined } = {};
+  for (let i = 0; i < results.length; i++) {
+    const viewKey = reqBody.viewsToFetch[i].viewType;
+    const viewId = reqBody.viewsToFetch[i].viewId;
 
-  return {
-    collected: [
-      ...response.docs,
-      ...responseWithHidden.docs
-    ].map(x => convertBalanceDoc(x, Stringify)).map((collected) => {
-      return {
-        ...collected,
-        incomingApprovals: appendDefaultForIncomingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
-        outgoingApprovals: appendDefaultForOutgoingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
-        userPermissions: applyAddressMappingsToUserPermissions(collected.userPermissions, addressMappingsToPopulate),
-      };
-    }),
-    claimAlerts: claimAlertsRes.docs.map(x => convertClaimAlertDoc(x, Stringify)),
-    addressMappings: [
-      ...addressMappingsRes.docs,
-      ...explicitIncludedAddressMappingsRes.docs,
-      ...explicitExcludedAddressMappingsRes.docs,
-      ...latestAddressMappingsRes.docs,
-      ...privateListsRes.docs,
-      ...createdListsRes.docs
-    ].map(x => addressMappingsToPopulate.find(y => y.mappingId === x.mappingId)).filter(x => x !== undefined).map(x => convertAddressMappingWithMetadata(x!, Stringify)),
-    activity: activityRes.docs.map(x => convertTransferActivityDoc(x, Stringify)),
-    announcements: announcementsRes.docs.map(x => convertAnnouncementDoc(x, Stringify)),
-    reviews: reviewsRes.docs.map(x => convertReviewDoc(x, Stringify)),
-    authCodes: authCodesRes.docs.map(x => convertBlockinAuthSignatureDoc(x, Stringify)),
-    views: {
-      'authCodes': reqBody.viewsToFetch.find(x => x.viewKey === 'authCodes') ? {
-        ids: authCodesRes.docs.map(x => x._legacyId),
+    if (viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+      const result = results[i] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
+        type: 'Address Mappings',
+        pagination: {
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
+        }
+      }
+    } else if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
+      const result = results[i] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
+        type: 'Balances',
+        pagination: {
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
+        }
+      }
+    } else if (viewKey === 'authCodes') {
+      const result = results[i] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
         type: 'Auth Codes',
         pagination: {
-          bookmark: authCodesRes.bookmark ? authCodesRes.bookmark : '',
-          // hasMore: authCodesRes.docs.length >= 25
-          hasMore: false //we fetch all auth codes if requested
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: false, //we fetch all auth codes if requested
         }
-      } : undefined,
-      'latestActivity': reqBody.viewsToFetch.find(x => x.viewKey === 'latestActivity') ? {
-        ids: activityRes.docs.map(x => x._legacyId),
-        type: 'Activity',
-        pagination: {
-          bookmark: activityRes.bookmark ? activityRes.bookmark : '',
-          hasMore: activityRes.docs.length >= 25
-        }
-      } : undefined,
-      'badgesCollected': reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollected') ? {
-        ids: response.docs.map(x => x._legacyId),
-        type: 'Balances',
-        //With the view fetch, we return all balances, so we don't need to check if there are more
-        pagination: {
-          bookmark: response.bookmark ? response.bookmark : '',
-          hasMore: response.docs.length >= 25
-        }
-      } : undefined,
-      'badgesCollectedWithHidden': reqBody.viewsToFetch.find(x => x.viewKey === 'badgesCollectedWithHidden') ? {
-        ids: responseWithHidden.docs.map(x => x._legacyId),
-        type: 'Balances',
-        //With the view fetch, we return all balances, so we don't need to check if there are more
-        pagination: {
-          bookmark: responseWithHidden.bookmark ? responseWithHidden.bookmark : '',
-          hasMore: responseWithHidden.docs.length >= 25
-        }
-      } : undefined,
-      'latestAnnouncements': reqBody.viewsToFetch.find(x => x.viewKey === 'latestAnnouncements') ? {
-        ids: announcementsRes.docs.map(x => x._legacyId),
-        type: 'Announcements',
-        pagination: {
-          bookmark: announcementsRes.bookmark ? announcementsRes.bookmark : '',
-          hasMore: announcementsRes.docs.length >= 25
-        }
-      } : undefined,
-      'latestReviews': reqBody.viewsToFetch.find(x => x.viewKey === 'latestReviews') ? {
-        ids: reviewsRes.docs.map(x => x._legacyId),
-        type: 'Reviews',
-        pagination: {
-          bookmark: reviewsRes.bookmark ? reviewsRes.bookmark : '',
-          hasMore: reviewsRes.docs.length >= 25
-        }
-      } : undefined,
-      'addressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'addressMappings') ? {
-        ids: addressMappingsRes.docs.map(x => x._legacyId),
-        type: 'Address Mappings',
-        pagination: {
-          bookmark: addressMappingsRes.bookmark ? addressMappingsRes.bookmark : '',
-          hasMore: addressMappingsRes.docs.length >= 25
-        }
-      } : undefined,
-      'latestClaimAlerts': reqBody.viewsToFetch.find(x => x.viewKey === 'latestClaimAlerts') ? {
-        ids: claimAlertsRes.docs.map(x => x._legacyId),
+      }
+    } else if (viewKey === 'latestClaimAlerts') {
+      const result = results[i] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
         type: 'Claim Alerts',
         pagination: {
-          bookmark: claimAlertsRes.bookmark ? claimAlertsRes.bookmark : '',
-          hasMore: claimAlertsRes.docs.length >= 25
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
         }
-      } : undefined,
-      'privateLists': reqBody.viewsToFetch.find(x => x.viewKey === 'privateLists') ? {
-        ids: privateListsRes.docs.map(x => x._legacyId),
-        type: 'Private Lists',
+      }
+    } else if (viewKey === 'latestActivity') {
+      const result = results[i] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
+        type: 'Activity',
         pagination: {
-          bookmark: privateListsRes.bookmark ? privateListsRes.bookmark : '',
-          hasMore: privateListsRes.docs.length >= 25
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
         }
-      } : undefined,
-      'createdLists': reqBody.viewsToFetch.find(x => x.viewKey === 'createdLists') ? {
-        ids: createdListsRes.docs.map(x => x._legacyId),
-        type: 'Created Lists',
+      }
+    } else if (viewKey === 'latestAnnouncements') {
+      const result = results[i] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
+        type: 'Announcements',
         pagination: {
-          bookmark: createdListsRes.bookmark ? createdListsRes.bookmark : '',
-          hasMore: createdListsRes.docs.length >= 25
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
         }
-      } : undefined,
-      'explicitlyIncludedAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyIncludedAddressMappings') ? {
-        ids: explicitIncludedAddressMappingsRes.docs.map(x => x._legacyId),
-        type: 'Address Mappings',
+      }
+    } else if (viewKey === 'latestReviews') {
+      const result = results[i] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
+        type: 'Reviews',
         pagination: {
-          bookmark: explicitIncludedAddressMappingsRes.bookmark ? explicitIncludedAddressMappingsRes.bookmark : '',
-          hasMore: explicitIncludedAddressMappingsRes.docs.length >= 25
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
         }
-      } : undefined,
-      'explicitlyExcludedAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'explicitlyExcludedAddressMappings') ? {
-        ids: explicitExcludedAddressMappingsRes.docs.map(x => x._legacyId),
-        type: 'Address Mappings',
-        pagination: {
-          bookmark: explicitExcludedAddressMappingsRes.bookmark ? explicitExcludedAddressMappingsRes.bookmark : '',
-          hasMore: explicitExcludedAddressMappingsRes.docs.length >= 25
-        }
-      } : undefined,
-      'latestAddressMappings': reqBody.viewsToFetch.find(x => x.viewKey === 'latestAddressMappings') ? {
-        ids: latestAddressMappingsRes.docs.map(x => x._legacyId),
-        type: 'Address Mappings',
-        pagination: {
-          bookmark: latestAddressMappingsRes.bookmark ? latestAddressMappingsRes.bookmark : '',
-          hasMore: latestAddressMappingsRes.docs.length >= 25
-        }
-      } : undefined,
-      'managing': reqBody.viewsToFetch.find(x => x.viewKey === 'managing') ? {
-        ids: managingRes.docs,
+      }
+    } else if (viewKey === 'managing') {
+
+      const result = results[i] as any
+      views[viewId] = {
+        ids: result.docs,
         type: 'Collections',
         pagination: {
-          bookmark: managingRes.bookmark ? managingRes.bookmark : '',
-          hasMore: managingRes.docs.length >= 25
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
         }
-      } : undefined,
-      'createdBy': reqBody.viewsToFetch.find(x => x.viewKey === 'createdBy') ? {
-        ids: createdByRes.docs,
+      }
+    } else if (viewKey === 'createdBy') {
+      const result = results[i] as any
+      views[viewId] = {
+        ids: result.docs,
         type: 'Collections',
         pagination: {
-          bookmark: createdByRes.bookmark ? createdByRes.bookmark : '',
-          hasMore: createdByRes.docs.length >= 25
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25 
         }
-      } : undefined,
+      }
     }
   }
+
+
+  const responseObj: GetAdditionalUserInfoRes = {
+    collected: [],
+    activity: [],
+    announcements: [],
+    reviews: [],
+    addressMappings: [],
+    claimAlerts: [],
+    authCodes: [],
+    views: {},
+  };
+  for (let i = 0; i < results.length; i++) {
+    const viewKey = reqBody.viewsToFetch[i].viewType;
+    if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
+      const result = results[i] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
+      responseObj.collected = [
+        ...responseObj.collected,
+        ...result.docs
+      ].map(x => convertBalanceDoc(x, Stringify)).map((collected) => {
+        return {
+          ...collected,
+          incomingApprovals: appendDefaultForIncomingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
+          outgoingApprovals: appendDefaultForOutgoingUserApprovals(collected, addressMappingsToPopulate, cosmosAddress),
+          userPermissions: applyAddressMappingsToUserPermissions(collected.userPermissions, addressMappingsToPopulate),
+        };
+      });
+    } else if (viewKey === 'latestActivity') {
+      const result = results[i] as nano.MangoResponse<TransferActivityDoc<JSPrimitiveNumberType>>;
+      responseObj.activity = result.docs.map(x => convertTransferActivityDoc(x, Stringify));
+    } else if (viewKey === 'latestAnnouncements') {
+      const result = results[i] as nano.MangoResponse<AnnouncementDoc<JSPrimitiveNumberType>>;
+      responseObj.announcements = result.docs.map(x => convertAnnouncementDoc(x, Stringify));
+    } else if (viewKey === 'latestReviews') {
+      const result = results[i] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
+      responseObj.reviews = result.docs.map(x => convertReviewDoc(x, Stringify));
+    } else if (viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+      const result = results[i] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+      responseObj.addressMappings = [
+        ...responseObj.addressMappings,
+        ...result.docs
+      ].map(x => addressMappingsToPopulate.find(y => y.mappingId === x.mappingId)).filter(x => x !== undefined).map(x => convertAddressMappingWithMetadata(x!, Stringify));
+    } else if (viewKey === 'latestClaimAlerts') {
+      const result = results[i] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
+      responseObj.claimAlerts = result.docs.map(x => convertClaimAlertDoc(x, Stringify));
+    } else if (viewKey === 'authCodes') {
+      const result = results[i] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
+      responseObj.authCodes = result.docs.map(x => convertBlockinAuthSignatureDoc(x, Stringify));
+    } else if (viewKey === 'managing') {
+      
+    } else if (viewKey === 'createdBy') {
+
+    } 
+
+  }
+
+  responseObj.views = views;
+
+  return responseObj;
 }
 
 

@@ -51,7 +51,12 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     let hasMore = true;
     let currBookmark = followersBookmark ?? ''
     while (hasMore) {
-      const res = await executeCollectedQuery(followDoc.cosmosAddress, { hiddenBadges: [] } as any, false, currBookmark);
+      const res = await executeCollectedQuery(followDoc.cosmosAddress, { hiddenBadges: [] } as any, false, [
+        {
+          collectionId: followingCollectionId.toString(),
+          badgeIds: [{ start: 1n, end: "18446744073709551615" }]
+        }
+      ], currBookmark);
       hasMore = res.docs.length >= 25;
       currBookmark = res.bookmark ?? '';
       for (const doc of res.docs) {

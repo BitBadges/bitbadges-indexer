@@ -140,7 +140,8 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     for (const profile of [...allProfiles]) {
       promises.push(getAccountByAddress(req, profile._legacyId, {
         viewsToFetch: [{
-          viewKey: 'badgesCollected',
+          viewType: 'badgesCollected',
+          viewId: 'badgesCollected',
           bookmark: '',
         }],
       }));

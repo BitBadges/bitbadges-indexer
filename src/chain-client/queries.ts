@@ -109,6 +109,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
           createdBy: protocol.createdBy,
           uri: protocol.uri,
           customData: protocol.customData,
+          isFrozen: protocol.isFrozen
         }
       },
 

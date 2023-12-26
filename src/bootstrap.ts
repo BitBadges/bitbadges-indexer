@@ -36,7 +36,6 @@ async function main() {
     };
 
     const msgs: MessageGenerated[] = [];
-    // await deleteCollection();
     msgs.push(...bootstrapLists().map(x => createProtoMsg(x)));
 
     msgs.push(...bootstrapCollections().map(x => createProtoMsg(x)))
