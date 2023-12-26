@@ -1,11 +1,12 @@
 import { JSPrimitiveNumberType, Stringify } from "bitbadgesjs-proto";
-import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, convertAddressMappingDoc, convertAddressMappingEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { AddressMappingDoc, DeleteAddressMappingsRouteResponse, GetAddressMappingsRouteRequestBody, GetAddressMappingsRouteResponse, ListActivityDoc, NumberType, UpdateAddressMappingsRouteRequestBody, UpdateAddressMappingsRouteResponse, convertAddressMappingDoc, convertAddressMappingEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
-import { AddressMappingModel, deleteMany, getFromDB, insertMany, mustGetManyFromDB } from "../db/db";
+import { AddressMappingModel, ListActivityModel, deleteMany, getFromDB, insertMany, mustGetManyFromDB } from "../db/db";
 import { getStatus } from "../db/status";
 import { getAddressMappingsFromDB } from "./utils";
+import crypto from 'crypto';
 
 export const deleteAddressMappings = async (expressReq: Request, res: Response<DeleteAddressMappingsRouteResponse<bigint>>) => {
   try {
@@ -61,6 +62,9 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
 
     const status = await getStatus();
     const docs: AddressMappingDoc<JSPrimitiveNumberType>[] = [];
+
+    const activityDocs: ListActivityDoc<JSPrimitiveNumberType>[] = [];
+
     for (const mapping of mappings) {
       const _existingDoc = await getFromDB(AddressMappingModel, mapping.mappingId);
 
@@ -68,6 +72,10 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
         const existingDoc = convertAddressMappingDoc(_existingDoc, Stringify);
         if (existingDoc.createdBy !== cosmosAddress) {
           throw new Error("You are not the owner of mapping with ID " + mapping.mappingId);
+        }
+
+        if (existingDoc.includeAddresses !== mapping.includeAddresses) {
+          throw new Error("You cannot change from a whitelist to a blacklist or vice versa.");
         }
 
         docs.push({
@@ -82,6 +90,37 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
           }],
           lastUpdated: status.block.timestamp,
         })
+
+        //we really have three statuses: include, excluded, and deleted
+        if (existingDoc.includeAddresses !== mapping.includeAddresses) {
+          const newAddressesNotInOld = mapping.addresses.filter(x => !existingDoc.addresses.includes(x));
+          const oldAddressesNotInNew = existingDoc.addresses.filter(x => !mapping.addresses.includes(x));
+
+          if (newAddressesNotInOld.length > 0) {
+            activityDocs.push({
+              _legacyId: crypto.randomBytes(16).toString('hex'),
+              method: 'ListUpdate',
+              addresses: newAddressesNotInOld.map(x => convertToCosmosAddress(x)),
+              onList: true,
+              mappingId: mapping.mappingId,
+              timestamp: Date.now(),
+              block: status?.block.height ?? 0n,
+            })
+          }
+
+          if (oldAddressesNotInNew.length > 0) {
+            activityDocs.push({
+              _legacyId: crypto.randomBytes(16).toString('hex'),
+              method: 'ListUpdate',
+              addresses: oldAddressesNotInNew.map(x => convertToCosmosAddress(x)),
+              onList: false,
+              mappingId: mapping.mappingId,
+              timestamp: Date.now(),
+              block: status?.block.height ?? 0n,
+            })
+          }
+        }
+
       } else {
         docs.push({
           ...mapping,
@@ -97,11 +136,21 @@ export const updateAddressMappings = async (expressReq: Request, res: Response<U
           createdBlock: status.block.height,
           lastUpdated: status.block.timestamp,
         });
+
+        activityDocs.push({
+          _legacyId: crypto.randomBytes(16).toString('hex'),
+          method: 'ListUpdate',
+          addresses: mapping.addresses.map(x => convertToCosmosAddress(x)),
+          onList: true,
+          mappingId: mapping.mappingId,
+          timestamp: Date.now(),
+          block: status?.block.height ?? 0n,
+        })
       }
     }
 
     await insertMany(AddressMappingModel, docs);
-
+    await insertMany(ListActivityModel, activityDocs);
 
     return res.status(200).send({})
   } catch (e) {

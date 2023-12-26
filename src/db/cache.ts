@@ -1,8 +1,9 @@
 import { NumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, ProtocolDoc, RefreshDoc, StatusDoc, UserProtocolCollectionsDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertUserProtocolCollectionsDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, ListActivityDoc, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, ProtocolDoc, RefreshDoc, StatusDoc, UserProtocolCollectionsDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertToCosmosAddress, convertUserProtocolCollectionsDoc } from "bitbadgesjs-utils";
+import crypto from 'crypto';
 import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
-import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, MerkleChallengeModel, PasswordModel, ProtocolModel, QueueModel, RefreshModel, TransferActivityModel, UserProtocolCollectionsModel, getManyFromDB, insertMany, insertToDB } from "./db";
+import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, ListActivityModel, MerkleChallengeModel, PasswordModel, ProtocolModel, QueueModel, RefreshModel, TransferActivityModel, UserProtocolCollectionsModel, getManyFromDB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
 /**
@@ -305,6 +306,23 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
     if (addressMappingDocs.length) {
       if (parallelExecution) promises.push(insertMany(AddressMappingModel, addressMappingDocs, session));
       else await insertMany(AddressMappingModel, addressMappingDocs, session);
+
+      //We can do this bc on-chain mappings are permanent and non-updatable
+      const listActivityDocs: ListActivityDoc<NumberType>[] = [];
+      for (const doc of addressMappingDocs) {
+        listActivityDocs.push({
+          _legacyId: crypto.randomBytes(16).toString('hex'),
+          method: 'ListUpdate',
+          addresses: doc.addresses.map(x => convertToCosmosAddress(x)),
+          onList: true,
+          mappingId: doc.mappingId,
+          timestamp: status?.block.timestamp ?? BigInt(Date.now()),
+          block: status?.block.height ?? 0n,
+        });
+      }
+
+      if (parallelExecution) promises.push(insertMany(ListActivityModel, listActivityDocs, session));
+      else await insertMany(ListActivityModel, listActivityDocs, session);
     }
 
     if (passwordDocs.length) {

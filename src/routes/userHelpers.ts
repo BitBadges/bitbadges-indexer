@@ -1,6 +1,6 @@
 import { BigIntify, NumberType, Stringify, UintRange, convertBalance } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, ProfileInfoBase, SupportedChain, cosmosToBtc, cosmosToEth, isAddressValid, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
-import { AddressMappingModel, AirdropModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, EthTxCountModel, ReviewModel, TransferActivityModel, getFromDB, insertToDB } from "../db/db";
+import { AddressMappingModel, AirdropModel, BalanceModel, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, EthTxCountModel, ListActivityModel, ReviewModel, TransferActivityModel, getFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { OFFLINE_MODE } from "../indexer-vars";
 import { complianceDoc } from "../poll";
@@ -171,6 +171,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
       fetchedProfile: true,
 
       collected: [],
+      listsActivity: [],
       activity: [],
       addressMappings: [],
       announcements: [],
@@ -775,4 +776,66 @@ export async function executeCreatedListsQuery(cosmosAddress: string, filteredLi
     docs: res,
     bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
   }
+}
+
+export async function executeListsActivityQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('listsActivityQuery');
+
+  const hiddenLists = [...profileInfo.hiddenLists ?? [], ...complianceDoc?.addressMappings.reported.map(x => x.mappingId) ?? []];
+  let docsLeft = 25;
+  let currBookmark = bookmark;
+  const docs = [];
+
+  while (docsLeft > 0) {
+    const view = await ListActivityModel.find({
+      "addresses": {
+        "$elemMatch": {
+          "$eq": cosmosAddress,
+        },
+      },
+    }).sort({ timestamp: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
+
+
+
+    let viewDocs = view.map((doc) => {
+      return {
+        ...doc,
+        to: doc?.addresses?.includes(cosmosAddress) ? [cosmosAddress] : doc?.addresses //For the user queries, we don't need to return all the to addresses
+      }
+    })
+
+    if (!fetchHidden) {
+      const nonHiddenDocs = viewDocs.map((doc) => {
+        if (!doc || !hiddenLists) return undefined;
+        let matchingHiddenList = hiddenLists.find(x => x === doc.mappingId) ?? doc.mappingId;
+
+        return {
+          ...doc,
+          mappingId: matchingHiddenList
+        }
+      }).filter((doc) => doc !== undefined);
+
+      viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._legacyId === doc._legacyId));
+    }
+
+
+    //We rely on the fact docs length == 25 so we
+
+    docs.push(...viewDocs);
+    docsLeft -= viewDocs.length;
+
+    currBookmark = (currBookmark ? Number(currBookmark) + 1 : 1).toString();
+
+    if (viewDocs.length === 0) {
+      break;
+    }
+  }
+
+  const collectedRes = {
+    docs: docs,
+    bookmark: currBookmark,
+  }
+
+  if (QUERY_TIME_MODE) console.timeEnd('listsActivityQuery');
+  return collectedRes;
 }

@@ -1,7 +1,7 @@
 
 import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
 import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-proto";
-import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, AddressMappingDoc, AddressMappingWithMetadata, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, ListActivityDoc, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressMappingWithMetadata, convertAnnouncementDoc, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertListActivityDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -11,7 +11,7 @@ import { AccountModel, ProfileModel, UsernameModel, deleteMany, getFromDB, getMa
 import { client } from "../indexer";
 import { s3 } from "../indexer-vars";
 import { applyAddressMappingsToUserPermissions } from './balances';
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeCreatedListsQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userHelpers";
+import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeCreatedListsQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsActivityQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
@@ -261,6 +261,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
 interface GetAdditionalUserInfoRes {
   collected: BalanceDocWithDetails<JSPrimitiveNumberType>[],
   activity: TransferActivityDoc<JSPrimitiveNumberType>[],
+  listsActivity: ListActivityDoc<JSPrimitiveNumberType>[],
   announcements: AnnouncementDoc<JSPrimitiveNumberType>[],
   reviews: ReviewDoc<JSPrimitiveNumberType>[],
   addressMappings: AddressMappingWithMetadata<JSPrimitiveNumberType>[],
@@ -278,6 +279,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
   if (!reqBody.viewsToFetch) return {
     collected: [],
     activity: [],
+    listsActivity: [],
     announcements: [],
     reviews: [],
     addressMappings: [],
@@ -292,8 +294,13 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     const filteredCollections = view.filteredCollections;
     const filteredLists = view.filteredLists;
     
-
-    if (view.viewType === 'latestActivity') {
+    if (view.viewType === 'listsActivity') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(() => executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark));
+      } else {
+        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+      }
+    } else if (view.viewType === 'latestActivity') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, bookmark));
       } else {
@@ -414,8 +421,8 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqBody.viewsToFetch[i].viewType;
 
-    if (viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
-      const result = results[i] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
+    if (viewKey === 'listsActivity' ||  viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+      const result = results[i] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>> | nano.MangoResponse<ListActivityDoc<JSPrimitiveNumberType>>;
       for (const doc of result.docs) {
         addressMappingIdsToFetch.push({ mappingId: doc.mappingId });
       }
@@ -451,7 +458,17 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     const viewKey = reqBody.viewsToFetch[i].viewType;
     const viewId = reqBody.viewsToFetch[i].viewId;
 
-    if (viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    if (viewKey === 'listsActivity') {
+      const result = results[i] as nano.MangoResponse<ListActivityDoc<JSPrimitiveNumberType>>;
+      views[viewId] = {
+        ids: result.docs.map(x => x._legacyId),
+        type: 'ListActivity',
+        pagination: {
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
+        }
+      }
+    } else if (viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>>;
       views[viewId] = {
         ids: result.docs.map(x => x._legacyId),
@@ -549,6 +566,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
   const responseObj: GetAdditionalUserInfoRes = {
     collected: [],
     activity: [],
+    listsActivity: [],
     announcements: [],
     reviews: [],
     addressMappings: [],
@@ -558,7 +576,10 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
   };
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqBody.viewsToFetch[i].viewType;
-    if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
+    if (viewKey === 'listsActivity') {
+      const result = results[i] as nano.MangoResponse<ListActivityDoc<JSPrimitiveNumberType>>;
+      responseObj.listsActivity = result.docs.map(x => convertListActivityDoc(x, Stringify));
+    } else if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
       const result = results[i] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
       responseObj.collected = [
         ...responseObj.collected,
