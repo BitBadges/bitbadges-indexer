@@ -6,7 +6,14 @@ import { handleTransfers } from "./handleTransfers"
 import { MsgTransferBadges } from "bitbadgesjs-proto"
 
 export const handleMsgTransferBadges = async (msg: MsgTransferBadges<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
+  if (BigInt(msg.collectionId) === 0n) {
+    //we populate with nextCollecctionId
+    msg.collectionId = BigInt(status.nextCollectionId - 1n); 
+  }
+  
   const collectionIdString = `${msg.collectionId}`
+  
+
 
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [],  [], []);
   await handleNewAccountByAddress(msg.creator, docs);

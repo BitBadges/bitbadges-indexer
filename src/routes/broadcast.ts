@@ -1,9 +1,45 @@
 import axios from "axios";
-import { generateEndpointBroadcast } from "bitbadgesjs-utils";
-import { BroadcastTxRouteRequestBody, BroadcastTxRouteResponse, SimulateTxRouteResponse, NumberType } from "bitbadgesjs-utils";
+import { BroadcastTxRouteRequestBody, BroadcastTxRouteResponse, NumberType, SimulateTxRouteResponse, SupportedChain, generateEndpointBroadcast, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { DEV_MODE } from "../constants";
+import { getAccountByAddress } from "./users";
+
+// Cleans up the generated Cosmos SDK error messages into a more applicable format
+// Goal is for it to be human readable and understandable while also being informative
+async function tidyErrorMessage(originalMessage: string) {
+  const message = DEV_MODE ? originalMessage : originalMessage.split("[/")[0];
+  const words = message.split(" ");
+  
+
+  const newWords = [];
+  for (const word of words) {
+    const punctuation = word[word.length - 1];
+    let wordWithoutPunctuation = word;
+    if (punctuation === "." || punctuation === "," || punctuation === "!" || punctuation === "?") {
+      wordWithoutPunctuation = word.slice(0, word.length - 1);
+    }
+
+    if (wordWithoutPunctuation.startsWith("cosmos") && isAddressValid(wordWithoutPunctuation, SupportedChain.COSMOS)) {
+      const blankExpressRequest: Request = {
+        body: {},
+        params: {},
+        query: {},
+      } as any;
+
+      const account = await getAccountByAddress(blankExpressRequest, wordWithoutPunctuation);
+      if (account) {
+        newWords.push((account.username || account.resolvedName || account.address) + punctuation); 
+      } else {
+        newWords.push(word);
+      }
+    } else {
+      newWords.push(word);
+    }
+  }
+
+  return newWords.join(" ")
+}
 
 export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteResponse<NumberType>>) => {
   try {
@@ -46,12 +82,21 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
   } catch (e) {
     console.error(e);
 
-    const message = DEV_MODE ? e.message : e.message.split("[/")[0];
+    try {
+      const message = await tidyErrorMessage(e.message);
 
-    return res.status(500).send({
-      error: serializeError(e),
-      message: 'Error broadcasting transaction: ' + message
-    });
+      return res.status(500).send({
+        error: serializeError(e),
+        message: 'Error broadcasting transaction: ' + message
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: serializeError(e),
+        message: 'Error broadcasting transaction: ' + e.message
+      });
+    }
+
+    
   }
 }
 
@@ -72,11 +117,19 @@ export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResp
     return res.status(200).send(simulatePost.data);
   } catch (e) {
     console.error(e);
-    const message = DEV_MODE ? e.message : e.message.split("[/")[0];
 
-    return res.status(500).send({
-      error: serializeError(e),
-      message: 'Error simulating transaction: ' + message
-    });
+    try {
+      const message = await tidyErrorMessage(e.message);
+
+      return res.status(500).send({
+        error: serializeError(e),
+        message: 'Error simulating transaction: ' + message
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: serializeError(e),
+        message: 'Error simulating transaction: ' + e.message
+      });
+    }
   }
 }

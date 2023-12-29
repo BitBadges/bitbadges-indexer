@@ -126,7 +126,7 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
         {
           collectionId: req.params.collectionId,
           cosmosAddress: req.params.cosmosAddress,
-          balances: [],
+          balances: collection.defaultBalances.balances,
           incomingApprovals: collection.defaultBalances.incomingApprovals,
           outgoingApprovals: collection.defaultBalances.outgoingApprovals,
           autoApproveSelfInitiatedOutgoingTransfers: collection.defaultBalances.autoApproveSelfInitiatedOutgoingTransfers,
