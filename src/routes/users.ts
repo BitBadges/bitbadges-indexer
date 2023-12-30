@@ -293,7 +293,6 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     const bookmark = view.bookmark;
     const filteredCollections = view.filteredCollections;
     const filteredLists = view.filteredLists;
-    
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark));

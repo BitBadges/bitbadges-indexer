@@ -41,12 +41,14 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
     }
   };
 
-  
-  let mongoQuery = TransferActivityModel.find(query).sort({ timestamp: -1 }).limit(pageSize).lean();
+
+  let mongoQuery = TransferActivityModel.find(query).sort({ timestamp: -1, _id: -1 }).limit(pageSize).lean();
   if (bookmark) {
     mongoQuery = mongoQuery.skip(bookmark ? pageSize * Number(bookmark) : 0);
   }
   const docs = await mongoQuery.exec();
+
+
 
   const activity = docs.map(x => convertTransferActivityDoc(x, Stringify));
   const newBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
@@ -63,7 +65,7 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
 export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string) {
   const activityRes = await TransferActivityModel.find({
     collectionId: Number(collectionId),
-  }).sort({ timestamp: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
+  }).sort({ timestamp: -1, _id: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
   return {
     docs: activityRes.map(x => convertTransferActivityDoc(x, Stringify)),
@@ -88,7 +90,7 @@ export async function executeCollectionAnnouncementsQuery(collectionId: string, 
 export async function executeCollectionReviewsQuery(collectionId: string, bookmark?: string) {
   const reviewsRes = await ReviewModel.find({
     collectionId: Number(collectionId),
-  }).sort({ timestamp: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
+  }).sort({ timestamp: -1, _id: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
   return {
     docs: reviewsRes.filter(x => complianceDoc?.accounts.reported.find(y => y.cosmosAddress === convertToCosmosAddress(x.from)) === undefined),

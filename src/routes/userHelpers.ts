@@ -64,20 +64,20 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
           chain: SupportedChain.SOLANA
         }
       } else if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.BTC) {
-        
+
         return {
           address: cosmosToBtc(cosmosAddress),
           chain: SupportedChain.BTC
         }
-      } 
+      }
 
       //If we have neither, we can check if they have any transactions on the ETH chain
       const cachedEthTxCount = await getFromDB(EthTxCountModel, ethAddress);
       if (cachedEthTxCount && cachedEthTxCount.count) {
         return { address: ethAddress, chain: SupportedChain.ETH }
       } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
-        
-        
+
+
         ethTxCount = isAddressValid(ethAddress) ? await provider.getTransactionCount(ethAddress) : 0; //handle module generated addresses
 
         await insertToDB(EthTxCountModel, {
@@ -158,8 +158,8 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
     resultsToReturn.push({
       ...profileInfo,
       ...nameAndAvatarRes,
-      
-      resolvedName: aliasResolve?.mappingId ? 'Alias: List ' + aliasResolve.mappingId : 
+
+      resolvedName: aliasResolve?.mappingId ? 'Alias: List ' + aliasResolve.mappingId :
         aliasResolve?.collectionId ? 'Alias: Collection ' + aliasResolve.collectionId : nameAndAvatarRes.resolvedName,
       ...accountInfo,
       address: chainResolve?.address ?? '', //for ts
@@ -237,8 +237,7 @@ export async function executeActivityQuery(cosmosAddress: string, profileInfo: P
           },
         },
       ],
-    }).sort({ timestamp: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
-
+    }).sort({ timestamp: -1, _id: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
 
     let viewDocs = view.map((doc) => {
@@ -311,7 +310,7 @@ export async function executeReviewsQuery(cosmosAddress: string, bookmark?: stri
     _legacyId: {
       "$regex": `^user-${cosmosAddress}:`,
     }
-  }).sort({ timestamp: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+  }).sort({ timestamp: -1, _id: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
 
   if (QUERY_TIME_MODE) console.timeEnd('executeReviewsQuery');
   return {
@@ -326,8 +325,8 @@ export async function executeReviewsQuery(cosmosAddress: string, bookmark?: stri
 export async function executeCollectedQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, filteredCollections?: {
   badgeIds: UintRange<NumberType>[];
   collectionId: NumberType;
-}[], 
-bookmark?: string,) {
+}[],
+  bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeCollectedQuery');
   //keep searching until we have min 25 non-hidden docs
 
@@ -539,7 +538,7 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, f
   return collectedRes;
 }
 
-export async function executeLatestAddressMappingsQuery(cosmosAddress: string,filteredLists?: string[], bookmark?: string) {
+export async function executeLatestAddressMappingsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeLatestAddressMappingsQuery');
   let docsLeft = 25;
   let currBookmark = bookmark;
@@ -560,7 +559,7 @@ export async function executeLatestAddressMappingsQuery(cosmosAddress: string,fi
       }
 
 
-    }).sort({ lastUpdated: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
+    }).sort({ lastUpdated: -1, _id: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
     docs.push(...collectedRes.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined));
     docsLeft -= collectedRes.length;
@@ -590,7 +589,7 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
         "$eq": cosmosAddress,
       },
     },
-  }).sort({ createdTimestamp: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
+  }).sort({ createdTimestamp: -1, _id: -1 }).limit(25).skip(bookmark ? 25 * Number(bookmark) : 0).lean().exec();
 
   const collectedRes = {
     docs: view.map((row) => {
@@ -612,14 +611,14 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
   filteredCollections?: {
     badgeIds: UintRange<NumberType>[];
     collectionId: NumberType;
-  }[], 
+  }[],
   bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeManagingQuery');
   //keep searching until we have min 25 non-hidden docs
   let docsLeft = 25;
   let currBookmark = bookmark;
   const docs = [];
-  
+
   const specificCollectionIds = filteredCollections ? filteredCollections.map((collection) => Number(collection.collectionId)) : undefined;
 
   while (docsLeft > 0) {
@@ -670,11 +669,11 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
   return collectedRes;
 }
 
-export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, 
+export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>,
   filteredCollections?: {
     badgeIds: UintRange<NumberType>[];
     collectionId: NumberType;
-  }[], 
+  }[],
   bookmark?: string,) {
   if (QUERY_TIME_MODE) console.time('executeCreatedByQuery');
   //keep searching until we have min 25 non-hidden docs
@@ -793,7 +792,7 @@ export async function executeListsActivityQuery(cosmosAddress: string, profileIn
           "$eq": cosmosAddress,
         },
       },
-    }).sort({ timestamp: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
+    }).sort({ timestamp: -1, _id: -1 }).limit(25).skip(currBookmark ? 25 * Number(currBookmark) : 0).lean().exec();
 
 
 
