@@ -112,22 +112,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
 export async function checkifSignedInHandler(expressReq: Request, res: Response<CheckSignInStatusResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest<NumberType>;
-
-  if (!checkIfAuthenticated(req)) {
-    return res.status(200).send({ signedIn: false });
-  }
-
-  //TODO: Extend the cookie without inactivity?
-  // if (req.session.blockinParams?.expirationDate) {
-  //   //Extend cookie by 2 weeks from now
-  //   const now = new Date();
-  //   const twoWeeks = new Date(now.getTime() + 168 * 60 * 60 * 1000);
-  //   req.session.cookie.expires = twoWeeks;
-  //   req.session.save();
-  // }
-
-
-  return res.status(200).send({ signedIn: true });
+  return res.status(200).send({ signedIn: !!checkIfAuthenticated(req) });
 }
 
 export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse<NumberType>>) {

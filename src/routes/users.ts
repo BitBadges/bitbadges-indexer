@@ -11,8 +11,9 @@ import { AccountModel, ProfileModel, UsernameModel, deleteMany, getFromDB, getMa
 import { client } from "../indexer";
 import { s3 } from "../indexer-vars";
 import { applyAddressMappingsToUserPermissions } from './balances';
-import { convertToBitBadgesUserInfo, executeActivityQuery, executeAnnouncementsQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeCreatedListsQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressMappingsQuery, executeListsActivityQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userHelpers";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+import { convertToBitBadgesUserInfo } from "./userHelpers";
+import { executeListsActivityQuery, executeActivityQuery, executeCollectedQuery, executeManagingQuery, executeCreatedByQuery, executeAnnouncementsQuery, executeReviewsQuery, executeClaimAlertsQuery, executeAuthCodesQuery, executeListsQuery, executeExplicitIncludedListsQuery, executeExplicitExcludedListsQuery, executeLatestAddressMappingsQuery, executePrivateListsQuery, executeCreatedListsQuery } from "./userQueries";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
@@ -21,11 +22,13 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
   const addressesToFetchWithSequence = queries.filter(x => x.fetchOptions?.fetchSequence).map(x => x.address);
   const addressesToFetchWithoutSequence = queries.filter(x => !x.fetchOptions?.fetchSequence).map(x => x.address);
 
+  //Get from blockchain if requested, else get cached vals from DB
   const promises = [];
   for (const address of addressesToFetchWithSequence) {
     promises.push(client.badgesQueryClient?.badges.getAccountInfo(address));
   }
   if (addressesToFetchWithoutSequence.length > 0) promises.push(getManyFromDB(AccountModel, addressesToFetchWithoutSequence.map(x => convertToCosmosAddress(x))));
+
   const results = await Promise.all(promises);
 
   for (let i = 0; i < addressesToFetchWithSequence.length; i++) {
@@ -288,6 +291,18 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     views: {},
   };
 
+  const authReq = req as AuthenticatedRequest<NumberType>;
+
+  let isAuthenticated = false;
+  if (authReq.session && checkIfAuthenticated(authReq)) {
+    if (authReq.session.cosmosAddress !== cosmosAddress) {
+
+    } else {
+      isAuthenticated = true;
+    }
+  }
+
+
   const asyncOperations = [];
   for (const view of reqBody.viewsToFetch) {
     const bookmark = view.bookmark;
@@ -296,131 +311,75 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'latestActivity') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'badgesCollected' || view.viewType === 'badgesCollectedWithHidden') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, view.viewType === 'badgesCollectedWithHidden', filteredCollections, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'managing') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeManagingQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'createdBy') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'latestAnnouncements') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeAnnouncementsQuery(cosmosAddress, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'latestReviews') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeReviewsQuery(cosmosAddress, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
-    }  else if (view.viewType === 'latestClaimAlerts') {
+    } else if (view.viewType === 'latestClaimAlerts') {
       if (bookmark !== undefined) {
-        const authReq = req as AuthenticatedRequest<NumberType>;
-        if (authReq.session && checkIfAuthenticated(authReq)) {
-          if (authReq.session.cosmosAddress !== cosmosAddress) {
-            throw new Error('You can only fetch claim alerts for your own account.');
-          }
-
-          asyncOperations.push(() => executeClaimAlertsQuery(cosmosAddress, bookmark));
-        } else {
-          throw new Error('You must be authenticated to fetch claim alerts.');
-        }
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
+        asyncOperations.push(() => executeClaimAlertsQuery(cosmosAddress, bookmark));
       }
     } else if (view.viewType === 'authCodes') {
       if (bookmark !== undefined) {
-        const authReq = req as AuthenticatedRequest<NumberType>;
-        if (authReq.session && checkIfAuthenticated(authReq)) {
-          if (authReq.session.cosmosAddress !== cosmosAddress) {
-            throw new Error('You can only fetch auth codes for your own account.');
-          }
-
-          asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, bookmark));
-        } else {
-          throw new Error('You must be authenticated to fetch auth codes.');
-        }
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
+        asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, bookmark));
       }
     } else if (view.viewType === 'addressMappings') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeListsQuery(cosmosAddress, filteredLists, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'explicitlyIncludedAddressMappings') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, filteredLists, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'explicitlyExcludedAddressMappings') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, filteredLists, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'latestAddressMappings') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeLatestAddressMappingsQuery(cosmosAddress, filteredLists, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
     } else if (view.viewType === 'privateLists') {
       if (bookmark !== undefined) {
-        const authReq = req as AuthenticatedRequest<NumberType>;
-        if (authReq.session && checkIfAuthenticated(authReq)) {
-          if (authReq.session.cosmosAddress !== cosmosAddress) {
-            throw new Error('You can only fetch private lists for your own account.');
-          }
-
-          asyncOperations.push(() => executePrivateListsQuery(cosmosAddress, filteredLists, bookmark));
-        } else {
-          throw new Error('You must be authenticated to fetch private lists.');
-        }
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
+        asyncOperations.push(() => executePrivateListsQuery(cosmosAddress, filteredLists, bookmark));
       }
     } else if (view.viewType === 'createdLists') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeCreatedListsQuery(cosmosAddress, filteredLists, bookmark));
-      } else {
-        asyncOperations.push(() => Promise.resolve({ docs: [] }));
       }
-    }    
+    }
   }
-
-
 
   const results = await Promise.all(asyncOperations.map(operation => operation()));
   const addressMappingIdsToFetch: { collectionId?: NumberType; mappingId: string }[] = [];
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqBody.viewsToFetch[i].viewType;
 
-    if (viewKey === 'listsActivity' ||  viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    if (viewKey === 'listsActivity' || viewKey === 'addressMappings' || viewKey === 'explicitlyIncludedAddressMappings' || viewKey === 'explicitlyExcludedAddressMappings' || viewKey === 'latestAddressMappings' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressMappingDoc<JSPrimitiveNumberType>> | nano.MangoResponse<ListActivityDoc<JSPrimitiveNumberType>>;
       for (const doc of result.docs) {
         addressMappingIdsToFetch.push({ mappingId: doc.mappingId });
@@ -555,7 +514,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
         type: 'Collections',
         pagination: {
           bookmark: result.bookmark ? result.bookmark : '',
-          hasMore: result.docs.length >= 25 
+          hasMore: result.docs.length >= 25
         }
       }
     }
@@ -613,11 +572,10 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
       const result = results[i] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
       responseObj.authCodes = result.docs.map(x => convertBlockinAuthSignatureDoc(x, Stringify));
     } else if (viewKey === 'managing') {
-      
+
     } else if (viewKey === 'createdBy') {
 
-    } 
-
+    }
   }
 
   responseObj.views = views;
@@ -639,25 +597,12 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       };
     }
 
-    if (reqBody.customPages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
-      return res.status(400).send({
-        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
-      })
-    }
-
-    if (reqBody.customListPages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
-      return res.status(400).send({
-        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
-      })
-    }
-
-    if (reqBody.watchedBadgePages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
-      return res.status(400).send({
-        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
-      })
-    }
-
-    if (reqBody.watchedListPages?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
+    if ([
+      ...reqBody.customPages ?? [],
+      ...reqBody.customListPages ?? [],
+      ...reqBody.watchedBadgePages ?? [],
+      ...reqBody.watchedListPages ?? [],
+    ]?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
       return res.status(400).send({
         message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
       })

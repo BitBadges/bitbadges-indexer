@@ -2,6 +2,7 @@ import { AmountTrackerIdDetails } from "bitbadgesjs-proto";
 import { ChallengeTrackerIdDetails, GetBadgeActivityRouteResponse, NumberType, Stringify, convertToCosmosAddress, convertTransferActivityDoc } from "bitbadgesjs-utils";
 import { ApprovalsTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel, getFromDB, mustGetFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
+import mongoose from "mongoose";
 const pageSize = 25;
 
 export async function executeBadgeActivityQuery(collectionId: string, badgeId: string, bookmark?: string): Promise<GetBadgeActivityRouteResponse<NumberType>> {
@@ -25,6 +26,8 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
     throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
   }
 
+  const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, 'timestamp', '_id');
+
   const query = {
     'collectionId': Number(collectionId),
     'balances': {
@@ -38,66 +41,99 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
           }
         }
       }
-    }
+    },
+    ...paginationParams,
   };
 
 
   let mongoQuery = TransferActivityModel.find(query).sort({ timestamp: -1, _id: -1 }).limit(pageSize).lean();
-  if (bookmark) {
-    mongoQuery = mongoQuery.skip(bookmark ? pageSize * Number(bookmark) : 0);
-  }
   const docs = await mongoQuery.exec();
 
-
-
   const activity = docs.map(x => convertTransferActivityDoc(x, Stringify));
-  const newBookmark = (bookmark ? Number(bookmark) + 1 : 1).toString();
-
   return {
     activity: activity,
-    pagination: {
-      bookmark: newBookmark.toString(),
-      hasMore: docs.length === pageSize,
-    }
+    pagination: getPaginationInfoToReturn(docs),
   };
 }
 
-export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string) {
-  const activityRes = await TransferActivityModel.find({
-    collectionId: Number(collectionId),
-  }).sort({ timestamp: -1, _id: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
 
+export const getPaginationInfoToReturn = (docs: any[]) => {
+  const newBookmark = (docs.length > 0 ? docs[docs.length - 1]._id.toString() : undefined);
   return {
-    docs: activityRes.map(x => convertTransferActivityDoc(x, Stringify)),
-    pagination: {
-      bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: activityRes.length === pageSize,
+    bookmark: newBookmark ?? '',
+    hasMore: docs.length === pageSize,
+  }
+}
+
+//A little naive bc we always assume descending (-1) sort order
+//But basically what this does is ensures the query starts at the last fetched doc + 1
+//If we have duplicate primary sort fields, we need to handle based on the secondary sort field
+export const getQueryParamsFromBookmark = async (model: mongoose.Model<any>, bookmark: string | undefined, primarySort: string, secondarySort?: string) => {
+  let lastFetchedDoc: any = null;
+  if (bookmark) {
+    lastFetchedDoc = await model.findOne({ _id: bookmark }).lean().exec();
+  }
+
+  if (secondarySort) {
+    return {
+      $or: lastFetchedDoc ? [
+        {
+          [primarySort]: { $eq: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] },
+          [secondarySort]: { $lt: lastFetchedDoc[secondarySort as keyof typeof lastFetchedDoc] },
+        }, {
+          [primarySort]: { $lt: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] }
+        }
+      ] : [{
+        [primarySort]: { $exists: true },
+      }],
+    }
+  } else {
+    return {
+      [primarySort]: lastFetchedDoc ? { $lt: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] } : { $exists: true },
     }
   }
 }
+
+
+export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string) {
+
+  const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, 'timestamp', '_id');
+
+  //Little weird but this is to handle duplicate timestamped logic
+  //We want to fetch all docs with the same timestamp as the last fetched do (but greater than the same ID)
+  let query = TransferActivityModel.find({
+    collectionId: Number(collectionId),
+    ...paginationParams,
+  }).sort({ timestamp: -1, _id: -1 });
+
+
+  const activityRes = await query.limit(pageSize).lean().exec();
+  return {
+    docs: activityRes.map(x => convertTransferActivityDoc(x, Stringify)),
+    pagination: getPaginationInfoToReturn(activityRes),
+  }
+}
+
 
 export async function executeCollectionAnnouncementsQuery(collectionId: string, bookmark?: string) {
   //Keeping this here for now but we do not use this anymore
   return {
     docs: [],
-    pagination: {
-      bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: false,
-    }
+    pagination: getPaginationInfoToReturn([]),
   }
 }
 
 export async function executeCollectionReviewsQuery(collectionId: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(ReviewModel, bookmark, 'timestamp', '_id');
+
   const reviewsRes = await ReviewModel.find({
     collectionId: Number(collectionId),
-  }).sort({ timestamp: -1, _id: -1 }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
+    ...paginationParams,
+  }).sort({ timestamp: -1, _id: -1 }).limit(pageSize).lean().exec();
 
   return {
     docs: reviewsRes.filter(x => complianceDoc?.accounts.reported.find(y => y.cosmosAddress === convertToCosmosAddress(x.from)) === undefined),
-    pagination: {
-      bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: reviewsRes.length === pageSize,
-    }
+    pagination: getPaginationInfoToReturn(reviewsRes),
   }
 }
 
@@ -117,30 +153,30 @@ export async function fetchTotalAndUnmintedBalancesQuery(collectionId: string) {
 }
 
 export async function executeCollectionBalancesQuery(collectionId: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(BalanceModel, bookmark, '_id');
+
   const balancesRes = await BalanceModel.find({
     collectionId: Number(collectionId),
-  }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
+    ...paginationParams,
+  }).sort({ _id: 1 }).limit(pageSize).lean().exec();
 
   return {
     docs: balancesRes,
-    pagination: {
-      bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: balancesRes.length === pageSize,
-    }
+    pagination: getPaginationInfoToReturn(balancesRes),
   }
 }
 
 export async function executeCollectionMerkleChallengesQuery(collectionId: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(MerkleChallengeModel, bookmark, '_id');
+
   const merkleChallengesRes = await MerkleChallengeModel.find({
     collectionId: Number(collectionId),
-  }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
+    ...paginationParams,
+  }).limit(pageSize).sort({ _id: 1 }).lean().exec();
 
   return {
     docs: merkleChallengesRes,
-    pagination: {
-      bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: merkleChallengesRes.length === pageSize,
-    }
+    pagination: getPaginationInfoToReturn(merkleChallengesRes),
   }
 }
 
@@ -194,16 +230,15 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
 }
 
 export async function executeCollectionApprovalsTrackersQuery(collectionId: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(ApprovalsTrackerModel, bookmark, '_id');
+
   const approvalsTrackersRes = await ApprovalsTrackerModel.find({
     collectionId: Number(collectionId),
-  }).limit(pageSize).skip(bookmark ? pageSize * Number(bookmark) : 0).lean().exec();
-
+    ...paginationParams,
+  }).limit(pageSize).sort({ _id: 1 }).lean().exec();
 
   return {
     docs: approvalsTrackersRes,
-    pagination: {
-      bookmark: (bookmark ? Number(bookmark) + 1 : 1).toString(),
-      hasMore: approvalsTrackersRes.length === pageSize,
-    }
+    pagination: getPaginationInfoToReturn(approvalsTrackersRes),
   }
 }

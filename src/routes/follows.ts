@@ -7,7 +7,7 @@ import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { FollowDetailsModel, UserProtocolCollectionsModel, getFromDB } from "../db/db";
 import { client } from "../indexer";
 import { executeCollectionBalancesQuery } from "./activityHelpers";
-import { executeCollectedQuery } from "./userHelpers";
+import { executeCollectedQuery } from "./userQueries";
 
 //TODO: Implement a more efficient approach to this (CRON job that updates counts each day?)
 //TODO: Also paginate this w/ bookmarks correctly
