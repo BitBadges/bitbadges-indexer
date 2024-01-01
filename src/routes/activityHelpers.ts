@@ -158,7 +158,7 @@ export async function executeCollectionBalancesQuery(collectionId: string, bookm
   const balancesRes = await BalanceModel.find({
     collectionId: Number(collectionId),
     ...paginationParams,
-  }).sort({ _id: 1 }).limit(pageSize).lean().exec();
+  }).sort({ _id: -1 }).limit(pageSize).lean().exec();
 
   return {
     docs: balancesRes,
@@ -172,7 +172,7 @@ export async function executeCollectionMerkleChallengesQuery(collectionId: strin
   const merkleChallengesRes = await MerkleChallengeModel.find({
     collectionId: Number(collectionId),
     ...paginationParams,
-  }).limit(pageSize).sort({ _id: 1 }).lean().exec();
+  }).limit(pageSize).sort({ _id: -1 }).lean().exec();
 
   return {
     docs: merkleChallengesRes,
@@ -235,7 +235,7 @@ export async function executeCollectionApprovalsTrackersQuery(collectionId: stri
   const approvalsTrackersRes = await ApprovalsTrackerModel.find({
     collectionId: Number(collectionId),
     ...paginationParams,
-  }).limit(pageSize).sort({ _id: 1 }).lean().exec();
+  }).limit(pageSize).sort({ _id: -1 }).lean().exec();
 
   return {
     docs: approvalsTrackersRes,

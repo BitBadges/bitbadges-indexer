@@ -22,6 +22,7 @@ export function cleanMetadata(res: any): Metadata<NumberType> {
     name: typeof res.name === "string" ? res.name : "",
     description: typeof res.description === "string" ? res.description : "",
     image: typeof res.image === "string" ? res.image : "",
+    video: typeof res.video === "string" ? res.video : "",
     validFrom: res.validFrom ? res.validFrom.map((badgeId: any) => ({
       start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
       end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",

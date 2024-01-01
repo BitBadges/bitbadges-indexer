@@ -121,7 +121,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
             },
           }
         })
-
       ]
     );
 

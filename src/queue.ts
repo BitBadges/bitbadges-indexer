@@ -173,7 +173,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
 
 
     //Handle different types of docs
-    if (res.image) { //res.image is required for all metadata and not included in any other type
+    if (res.image || res.video) { //res.image is required for all metadata and not included in any other type
       dbType = 'Metadata';
       res = cleanMetadata(res);
     } else if (Object.values(res).some(x => Array.isArray(x)) || Object.keys(res).length == 0) {
@@ -437,7 +437,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     await fetchDocsForCacheIfEmpty(docs, [], [], [
       `${queueObj.collectionId}:Mint`,
       `${queueObj.collectionId}:Total`,
-    ], [], [], [], [],  [], []);
+    ], [], [], [], [], [], []);
 
     const mintDoc = docs.balances[`${queueObj.collectionId}:Mint`];
     if (!mintDoc) throw new Error('Mint doc not found');
@@ -471,7 +471,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
         ...allPreviousDocIds.map(x => x._legacyId),
       ]);
 
-      await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], [],  [], []);
+      await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], [], [], []);
 
       const docBalancesCopy = deepCopy(docs.balances);
       //Set all balances to empty array

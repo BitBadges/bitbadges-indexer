@@ -222,9 +222,9 @@ export const filterListsFunc = async (viewDocs: any[]) => {
 export async function executeListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeListsQuery');
   const queryFunc = async (currBookmark?: string) => {
-    const paginationParams = await getQueryParamsFromBookmark(ListActivityModel, currBookmark, '_id');
+    const paginationParams = await getQueryParamsFromBookmark(AddressMappingModel, currBookmark, '_id');
 
-    const view = await ListActivityModel.find({
+    const view = await AddressMappingModel.find({
       mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "addresses": {
         "$elemMatch": {
@@ -359,7 +359,9 @@ export async function executeLatestAddressMappingsQuery(cosmosAddress: string, f
     return await filterListsFunc(viewDocs);
   }
 
+
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
+
   if (QUERY_TIME_MODE) console.timeEnd('executeLatestAddressMappingsQuery');
   return collectedRes;
 }
