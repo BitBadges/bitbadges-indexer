@@ -434,15 +434,18 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
       ...paginationParams,
     }).limit(25).sort({ _id: -1 }).lean().exec();
 
-    return view.map((row) => row._legacyId);
+    //Dont filter here so we return the documents
+    return view;
   }
 
   const filterFunc = async (viewDocs: any[]) => {
-    return await filterCollectionsFunc(viewDocs, profileInfo.hiddenBadges ?? []);
+    const filtered = await filterCollectionsFunc(viewDocs, profileInfo.hiddenBadges ?? []);
+    return filtered.map((row) => row._legacyId);
   }
 
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
   if (QUERY_TIME_MODE) console.timeEnd('executeManagingQuery');
+
   return collectedRes;
 }
 
@@ -463,11 +466,12 @@ export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: 
       ...paginationParams,
     }).limit(25).sort({ _id: -1 }).lean().exec();
 
-    return view.map((row) => row._legacyId);
+    return view
   }
 
   const filterFunc = async (viewDocs: any[]) => {
-    return await filterCollectionsFunc(viewDocs, profileInfo.hiddenBadges ?? []);
+    const filtered = await filterCollectionsFunc(viewDocs, profileInfo.hiddenBadges ?? []);
+    return filtered.map((row) => row._legacyId);
   }
 
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
