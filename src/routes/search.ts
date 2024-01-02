@@ -315,10 +315,12 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
           return {
             collectionId: doc.collectionId, metadataToFetch: {
               uris: uris,
-              badgeIds: specificCollectionId && !isNaN(Number(searchValue)) ? [{
-                start: BigInt(Math.floor(Number(searchValue))),
-                end: BigInt(Math.floor(Number(searchValue))),
-              }] : undefined,
+              badgeIds: specificCollectionId && !isNaN(Number(searchValue))
+
+                ? [{
+                  start: BigInt(Math.floor(Number(searchValue))),
+                  end: BigInt(Math.floor(Number(searchValue))),
+                }] : undefined,
             },
           };
         })
@@ -376,7 +378,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
         const collection = collectionsResponses.find((x) => BigInt(x.collectionId) === BigInt(specificCollectionId));
         if (collection) {
-          if (getMaxBadgeIdForCollection(convertBitBadgesCollection(collection, BigIntify)) <= badgeIdNum) {
+          if (getMaxBadgeIdForCollection(convertBitBadgesCollection(collection, BigIntify)) >= badgeIdNum) {
             //Push it as the first val in list
             const newBadges = {
               collection: convertBitBadgesCollection(collection, BigIntify),
