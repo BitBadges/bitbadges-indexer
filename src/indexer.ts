@@ -38,7 +38,7 @@ import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
 import { getRefreshStatus, refreshMetadata } from './routes/refresh'
 import { addReport } from './routes/reports'
 import { addReviewForCollection, addReviewForUser, deleteReview } from './routes/reviews'
-import { searchHandler } from "./routes/search"
+import { filterBadgesInCollectionHandler, searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
@@ -302,7 +302,7 @@ app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx)
 app.post('/api/v0/protocols', getProtocols);
 app.post('/api/v0/protocols/collection', getCollectionForProtocol);
 
-
+app.post("/api/v0/collections/filter", filterBadgesInCollectionHandler);
 
 //TODO: Simple implementation of a one-way heartbeat mode.
 //If the parent process dies, the child process will take over.

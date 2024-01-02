@@ -602,9 +602,9 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       ...reqBody.customListPages ?? [],
       ...reqBody.watchedBadgePages ?? [],
       ...reqBody.watchedListPages ?? [],
-    ]?.find(x => x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
+    ]?.find(x => !x.title || x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
       return res.status(400).send({
-        message: 'Page name cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
+        message: 'Page name cannot be empty and cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
       })
     }
 

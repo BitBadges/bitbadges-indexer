@@ -1,13 +1,14 @@
 import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { ApprovalInfoDetails, ApprovalsTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, batchUpdateBadgeMetadata, convertAnnouncementDoc, convertApprovalInfoDetails, convertApprovalsTrackerDoc, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertComplianceDoc, convertMerkleChallengeDoc, convertMetadata, convertReviewDoc, convertTransferActivityDoc, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { ApprovalInfoDetails, ApprovalsTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, addBalance, batchUpdateBadgeMetadata, convertAnnouncementDoc, convertApprovalInfoDetails, convertApprovalsTrackerDoc, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertComplianceDoc, convertMerkleChallengeDoc, convertMetadata, convertReviewDoc, convertTransferActivityDoc, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { CollectionModel, mustGetFromDB, mustGetManyFromDB } from "../db/db";
+import { CollectionModel, PageVisitsModel, convertPageVisitsDoc, getFromDB, insertToDB, mustGetFromDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import { fetchUriFromDbAndAddToQueueIfEmpty } from "../queue";
 import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { applyAddressMappingsToUserPermissions } from "./balances";
 import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+import mongoose from "mongoose";
 
 /**
  * The executeCollectionsQuery function is the main query function used to fetch all data for a collection in bulk.
@@ -202,6 +203,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     Promise.all(claimFetchesPromises)
   ]);
 
+  const badgeIdsFetched: UintRange<JSPrimitiveNumberType>[][] = [];
   for (const query of collectionQueries) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
     if (!collectionRes) continue;
@@ -268,7 +270,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
 
     const metadataRes = responses[currPromiseIdx++] as { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] };
-
+    badgeIdsFetched.push(metadataRes.badgeMetadata.map(x => x.badgeIds).flat());
     const getBalanceDocsWithDetails = (docs: BalanceDoc<JSPrimitiveNumberType>[]) => {
       return docs.map((doc) => {
         return {
@@ -393,6 +395,8 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           outgoingApprovals: appendDefaultForOutgoingUserApprovals(balance, addressMappings, balance.cosmosAddress)
         }
       });
+
+
     }
 
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
@@ -400,6 +404,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
 
   //Append fetched approval details
+  const pageVisitsPromises = [];
   for (let i = 0; i < collectionResponses.length; i++) {
     const collectionRes = collectionResponses[i];
     for (let i = 0; i < collectionRes.collectionApprovals.length; i++) {
@@ -416,9 +421,101 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       collectionRes.collectionApprovals[i] = approval;
     }
     collectionResponses[i] = collectionRes;
+
+
+    pageVisitsPromises.push(incrementPageVisits(collectionRes.collectionId, badgeIdsFetched[i]));
   }
 
+  await Promise.all(pageVisitsPromises);
+
   return collectionResponses;
+}
+
+async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange<JSPrimitiveNumberType>[]) {
+  async () => {
+    //TODO: improve this bc it could run into lots of race conditions which is why we try catch
+    try {
+      let _currPageVisits = await getFromDB(PageVisitsModel, `${collectionId}`);
+      let currPageVisits = _currPageVisits ? convertPageVisitsDoc(_currPageVisits, BigIntify) : undefined
+      const badgeIdsToIncrement = badgeIds;
+      if (!currPageVisits) {
+        currPageVisits = {
+          _id: new mongoose.Types.ObjectId().toString(),
+          _legacyId: `${collectionId}`,
+          collectionId: BigInt(collectionId),
+          lastUpdated: Date.now(),
+          overallVisits: {
+            allTime: 0n,
+            daily: 0n,
+            weekly: 0n,
+            monthly: 0n,
+            yearly: 0n,
+          },
+          badgePageVisits: {
+            allTime: [],
+            daily: [],
+            weekly: [],
+            monthly: [],
+            yearly: [],
+          },
+        }
+      }
+
+      //if was last updated yesterday, reset daily
+      const yesterdayMidnight = new Date();
+      yesterdayMidnight.setHours(0, 0, 0, 0);
+      if (currPageVisits.lastUpdated < yesterdayMidnight.getTime()) {
+        currPageVisits.overallVisits.daily = 0n;
+        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.daily = [];
+      }
+
+      const sundayMidnight = new Date();
+      sundayMidnight.setHours(0, 0, 0, 0);
+      sundayMidnight.setDate(sundayMidnight.getDate() - sundayMidnight.getDay());
+      if (currPageVisits.lastUpdated < sundayMidnight.getTime()) {
+        currPageVisits.overallVisits.weekly = 0n;
+        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.weekly = [];
+      }
+
+      const firstOfMonth = new Date();
+      firstOfMonth.setHours(0, 0, 0, 0);
+      firstOfMonth.setDate(1);
+      if (currPageVisits.lastUpdated < firstOfMonth.getTime()) {
+        currPageVisits.overallVisits.monthly = 0n;
+        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.monthly = [];
+      }
+
+      const firstOfYear = new Date();
+      firstOfYear.setHours(0, 0, 0, 0);
+      firstOfYear.setMonth(0, 1);
+      if (currPageVisits.lastUpdated < firstOfYear.getTime()) {
+        currPageVisits.overallVisits.yearly = 0n;
+        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.yearly = [];
+      }
+
+      currPageVisits.lastUpdated = Date.now();
+
+      currPageVisits.overallVisits.allTime += 1n;
+      currPageVisits.overallVisits.daily += 1n;
+      currPageVisits.overallVisits.weekly += 1n;
+      currPageVisits.overallVisits.monthly += 1n;
+      currPageVisits.overallVisits.yearly += 1n;
+
+      if (currPageVisits.badgePageVisits) {
+        currPageVisits.badgePageVisits.allTime = addBalance(currPageVisits.badgePageVisits.allTime, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+        currPageVisits.badgePageVisits.daily = addBalance(currPageVisits.badgePageVisits.daily, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+        currPageVisits.badgePageVisits.weekly = addBalance(currPageVisits.badgePageVisits.weekly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+        currPageVisits.badgePageVisits.monthly = addBalance(currPageVisits.badgePageVisits.monthly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+        currPageVisits.badgePageVisits.yearly = addBalance(currPageVisits.badgePageVisits.yearly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+      }
+
+
+      await insertToDB(PageVisitsModel, convertPageVisitsDoc(currPageVisits, BigIntify));
+    } catch (e) {
+      console.log(e);
+      console.error(e);
+    }
+  }
 }
 
 export async function executeCollectionsQuery(req: Request, collectionQueries: CollectionQueryOptions[]) {
@@ -504,7 +601,6 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     uris.push(uri);
     metadataIdsToFetch.push(...getMetadataIdsForUri(uri, badgeUris));
   }
-
 
   for (const metadataId of metadataIds) {
     const metadataIdCastedAsUintRange = metadataId as UintRange<NumberType>;

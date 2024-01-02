@@ -31,7 +31,7 @@
     "bech32": "^2.0.0",
     "bip322-js": "^1.1.0",
     "bitbadgesjs-proto": "^0.1.207",
-    "bitbadgesjs-utils": "^1.1.424",
+    "bitbadgesjs-utils": "^1.1.429",
     "blockin": "^1.2.73",
     "blockin-cosmos-driver": "^1.0.3",
     "bs58": "^5.0.0",

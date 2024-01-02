@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, ListActivityModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PasswordModel, ProfileModel, ProtocolModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UserProtocolCollectionsModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
+import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, ListActivityModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PageVisitsModel, PageVisitsSchema, PasswordModel, ProfileModel, ProtocolModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UserProtocolCollectionsModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
 import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressMappingSchema, ApprovalsTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema, ProtocolSchema, UserProtocolCollectionsSchema, ListActivitySchema } from "bitbadgesjs-utils";
 
 config()
@@ -35,6 +35,7 @@ export async function deleteDatabases() {
   await MongoDB.dropCollection(ProtocolModel.collection.name);
   await MongoDB.dropCollection(UserProtocolCollectionsModel.collection.name);
   await MongoDB.dropCollection(ListActivityModel.collection.name);
+  await MongoDB.dropCollection(PageVisitsModel.collection.name);
 }
 //new ObjectId
 export async function initStatus() {
@@ -132,7 +133,9 @@ export async function createIndexesAndViews() {
   ProtocolSchema.index({ _legacyId: 1 }, { unique: true });
   UserProtocolCollectionsSchema.index({ _legacyId: 1 }, { unique: true });
   ListActivitySchema.index({ _legacyId: 1 }, { unique: true });
+  PageVisitsSchema.index({ _legacyId: 1 }, { unique: true });
 
+  await PageVisitsModel.createIndexes();
   await ListActivityModel.createIndexes();
   await BrowseModel.createIndexes();
   await UsernameModel.createIndexes();

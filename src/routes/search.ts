@@ -1,20 +1,119 @@
 
-import { JSPrimitiveNumberType, UintRange } from "bitbadgesjs-proto";
-import { AccountDoc, BigIntify, BitBadgesCollection, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType, UintRange, convertBadgeMetadataTimeline, convertUintRange } from "bitbadgesjs-proto";
+import { AccountDoc, BigIntify, BitBadgesCollection, FilterBadgesInCollectionRequestBody, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getBadgeIdsForMetadataId, getChainForAddress, getCurrentValueForTimeline, getFirstMatchForBadgeMetadata, getMaxBadgeIdForCollection, getMetadataIdsForUri, isAddressValid, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { AccountModel, AddressMappingModel, CollectionModel, FetchModel, ProfileModel, getManyFromDB } from "../db/db";
+import { AccountModel, AddressMappingModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel, getManyFromDB, mustGetFromDB } from "../db/db";
+import { complianceDoc } from "../poll";
 import { getAddressForName } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { getAddressMappingsFromDB } from "./utils";
-import { complianceDoc } from "../poll";
+import { getQueryParamsFromBookmark } from "./activityHelpers";
+
+export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
+  try {
+    const { categories, collectionId, tags, badgeIds, mostViewed, bookmark } = req.body as FilterBadgesInCollectionRequestBody
+
+    const collection = await CollectionModel.findOne({
+      collectionId: Number(collectionId),
+    }).lean().exec();
+    if (!collection) {
+      throw `Error getting collection ID ${collectionId}`
+    }
+
+    //This is a special view incompatible with the others
+    if (mostViewed) {
+      const mostViewedBadgesDoc = await mustGetFromDB(PageVisitsModel, `${collectionId}`);
+      const badgeBalances = mostViewedBadgesDoc.badgePageVisits ? mostViewedBadgesDoc.badgePageVisits[`${mostViewed}` as keyof typeof mostViewedBadgesDoc.badgePageVisits] : [];
+      const sortedBalances = badgeBalances.sort((a, b) => Number(b.amount) - Number(a.amount));
+      return res.status(200).send({
+        badgeIds: sortedBalances.map(x => x.badgeIds).flat(),
+        pagination: {
+          bookmark: '',
+          hasMore: false,
+        }
+      });
+    }
+
+
+    //These uris will have the {id} placeholder
+    const currTimeline = getCurrentValueForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)) ?? []);
+    const firstMatchesTimeline = getFirstMatchForBadgeMetadata(currTimeline?.badgeMetadata ?? []);
+    const currentMetadataUris = firstMatchesTimeline.map((x) => x.uri);
+
+    const metadataQuery: any = {
+
+      db: "Metadata",
+      $or: [{
+        _legacyId: {
+          "$in": currentMetadataUris
+        }
+      }, {
+        _legacyId: {
+          //replace {id} with any number and see if it matches
+          "$regex": `^${currentMetadataUris[0].replace('{id}', '[0-9]+')}$`
+        }
+      }]
+    }
+
+    if (categories && categories.length > 0) {
+      metadataQuery["content.category"] = {
+        "$in": categories
+      }
+    }
+
+    if (tags && tags.length > 0) {
+      metadataQuery["content.tags"] = {
+        "$elemMatch": {
+          "$in": tags
+        }
+      }
+    }
+
+    const paginationParams = await getQueryParamsFromBookmark(FetchModel, bookmark, '_id');
+    const metadata = await FetchModel.find({
+      ...paginationParams,
+      ...metadataQuery
+    }).lean().limit(25).sort({
+      _id: -1
+    }).exec();
+
+    const fetchedMatchingUris = metadata.map((doc) => doc._legacyId);
+
+    const matchingBadgeIds: UintRange<bigint>[] = [];
+    for (const uri of fetchedMatchingUris) {
+      const metadataIds = getMetadataIdsForUri(uri, firstMatchesTimeline);
+      for (const metadataId of metadataIds) {
+        const badgeIds = getBadgeIdsForMetadataId(metadataId, firstMatchesTimeline);
+        matchingBadgeIds.push(...badgeIds);
+      }
+    }
+
+    const [_, removed] = removeUintRangeFromUintRange(badgeIds?.map(x => convertUintRange(x, BigIntify)) ?? [], matchingBadgeIds);
+
+    return res.status(200).send({
+      badgeIds: sortUintRangesAndMergeIfNecessary(removed, true),
+      pagination: {
+        bookmark: metadata.length > 0 ? metadata[metadata.length - 1]._id.toString() : '',
+        hasMore: metadata.length >= 25,
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({
+      error: serializeError(e),
+      message: `Error filtering badges in collection ${req.body.collectionId}. Please try again later.`
+    })
+  }
+
+}
 
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
     const searchValue = req.params.searchValue;
     const { noCollections, noAddressMappings, noAccounts, specificCollectionId } = req.body as GetSearchRouteRequestBody;
-    
+
 
     if (!searchValue || searchValue.length == 0) {
       return res.json({
@@ -57,7 +156,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       { "ethAddress": { "$regex": `(?i)${searchValue}` } },
       { "solAddress": { "$regex": `(?i)${searchValue}` } },
       { "cosmosAddress": { "$regex": `(?i)${searchValue}` } },
-      { "btcAddress": {  "$regex": `(?i)${searchValue}` } },
+      { "btcAddress": { "$regex": `(?i)${searchValue}` } },
     ];
 
     if (resolvedEnsAddress) {
@@ -150,6 +249,11 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
             },
           },
           {
+            collectionId: {
+              "$eq": Number(specificCollectionId)
+            },
+          },
+          {
             collectionMetadataTimeline: {
               "$elemMatch": {
                 ["collectionMetadata.uri"]: {
@@ -181,7 +285,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         uri: { "$in": uris },
       }).lean().exec();
 
-    
+
 
     const fetchKeys = allAccounts.map(account => account.cosmosAddress);
     const fetchPromise = fetchKeys.length ? getManyFromDB(ProfileModel, fetchKeys) : Promise.resolve([]);
@@ -208,7 +312,15 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         req,
         collectionsRes,
         collectionsRes.map((doc) => {
-          return { collectionId: doc.collectionId, metadataToFetch: { uris: uris } };
+          return {
+            collectionId: doc.collectionId, metadataToFetch: {
+              uris: uris,
+              badgeIds: specificCollectionId && !isNaN(Number(searchValue)) ? [{
+                start: BigInt(Math.floor(Number(searchValue))),
+                end: BigInt(Math.floor(Number(searchValue))),
+              }] : undefined,
+            },
+          };
         })
       );
 
@@ -256,12 +368,46 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       }
     }
 
+    if (specificCollectionId) {
+      //If specific collection ID and the value is a number, make sure we also return the badge with that ID
+      const searchValNum = Number(searchValue);
+      if (!isNaN(searchValNum)) {
+        const badgeIdNum = BigInt(Math.floor(searchValNum));
+
+        const collection = collectionsResponses.find((x) => BigInt(x.collectionId) === BigInt(specificCollectionId));
+        if (collection) {
+          if (getMaxBadgeIdForCollection(convertBitBadgesCollection(collection, BigIntify)) <= badgeIdNum) {
+            //Push it as the first val in list
+            const newBadges = {
+              collection: convertBitBadgesCollection(collection, BigIntify),
+              badgeIds: [convertUintRange({
+                start: badgeIdNum,
+                end: badgeIdNum,
+              }, BigIntify)]
+            };
+            for (const obj of badges) {
+              const [remaining] = removeUintRangeFromUintRange([convertUintRange({
+                start: badgeIdNum,
+                end: badgeIdNum,
+              }, BigIntify)], obj.badgeIds);
+
+              newBadges.badgeIds.push(...remaining);
+            }
+
+            badges = [newBadges];
+          }
+        }
+      }
+    }
+
     //Make sure no NSFW or reported stuff gets populated
     let result = {
       collections: collectionsResponses.filter((x) => {
-        return Number(x.collectionId) === Number(searchValue) || x.collectionMetadataTimeline.find((timeline) => {
-          return uris.includes(timeline.collectionMetadata.uri);
-        })
+        return Number(x.collectionId) === Number(searchValue) ||
+          Number(specificCollectionId) === Number(x.collectionId) ||
+          x.collectionMetadataTimeline.find((timeline) => {
+            return uris.includes(timeline.collectionMetadata.uri);
+          })
       }),
       accounts,
       addressMappings: addressMappingsToReturn.map(x => convertAddressMappingWithMetadata(x, Stringify)),

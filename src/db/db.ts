@@ -1,8 +1,8 @@
-import { JSPrimitiveNumberType, NumberType, NumberifyIfPossible, UintRange } from 'bitbadgesjs-proto';
+import { Balance, JSPrimitiveNumberType, NumberType, NumberifyIfPossible, UintRange, convertBalance } from 'bitbadgesjs-proto';
 import { config } from "dotenv";
 import mongoose from 'mongoose';
 
-import {ListActivitySchema, AccountDoc, AccountSchema, ActivityDoc, AddressMappingDoc, AddressMappingSchema, AirdropDoc, AirdropSchema, AnnouncementDoc, AnnouncementSchema, ApprovalsTrackerDoc, ApprovalsTrackerSchema, BalanceDoc, BalanceSchema, BlockinAuthSignatureDoc, BlockinAuthSignatureSchema, ChallengeSchema, ClaimAlertDoc, ClaimAlertSchema, CollectionDoc, CollectionSchema, ComplianceDoc, ComplianceSchema, ErrorDoc, FetchDoc, FetchSchema, FollowDetailsDoc, FollowDetailsSchema, IPFSTotalsDoc, IPFSTotalsSchema, ListActivityDoc, MerkleChallengeDoc, PasswordDoc, PasswordSchema, ProfileDoc, ProfileSchema, ProtocolDoc, ProtocolSchema, QueueDoc, QueueSchema, RefreshDoc, RefreshSchema, ReviewDoc, ReviewSchema, StatusDoc, StatusSchema, TransferActivityDoc, TransferActivitySchema, UserProtocolCollectionsDoc, UserProtocolCollectionsSchema, convertAccountDoc, convertAddressMappingDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertCollectionDoc, convertComplianceDoc, convertFetchDoc, convertFollowDetailsDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertProtocolDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc, convertUserProtocolCollectionsDoc, convertListActivityDoc } from 'bitbadgesjs-utils';
+import { ListActivitySchema, AccountDoc, AccountSchema, ActivityDoc, AddressMappingDoc, AddressMappingSchema, AirdropDoc, AirdropSchema, AnnouncementDoc, AnnouncementSchema, ApprovalsTrackerDoc, ApprovalsTrackerSchema, BalanceDoc, BalanceSchema, BlockinAuthSignatureDoc, BlockinAuthSignatureSchema, ChallengeSchema, ClaimAlertDoc, ClaimAlertSchema, CollectionDoc, CollectionSchema, ComplianceDoc, ComplianceSchema, ErrorDoc, FetchDoc, FetchSchema, FollowDetailsDoc, FollowDetailsSchema, IPFSTotalsDoc, IPFSTotalsSchema, ListActivityDoc, MerkleChallengeDoc, PasswordDoc, PasswordSchema, ProfileDoc, ProfileSchema, ProtocolDoc, ProtocolSchema, QueueDoc, QueueSchema, RefreshDoc, RefreshSchema, ReviewDoc, ReviewSchema, StatusDoc, StatusSchema, TransferActivityDoc, TransferActivitySchema, UserProtocolCollectionsDoc, UserProtocolCollectionsSchema, convertAccountDoc, convertAddressMappingDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertCollectionDoc, convertComplianceDoc, convertFetchDoc, convertFollowDetailsDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertProtocolDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc, convertUserProtocolCollectionsDoc, convertListActivityDoc } from 'bitbadgesjs-utils';
 import crypto from 'crypto-js';
 
 const { SHA256 } = crypto;
@@ -18,6 +18,49 @@ MongoDB.once('open', () => {
   MONGO_CONNECTED = true;
   console.log('Connected to MongoDB');
 });
+
+export interface PageVisitsDoc<T extends NumberType> {
+  _id: string;
+  _legacyId: string;
+  collectionId?: T;
+  mappingId?: string;
+  lastUpdated: number;
+  overallVisits: {
+    daily: T,
+    weekly: T,
+    monthly: T,
+    yearly: T,
+    allTime: T,
+  };
+  badgePageVisits?: {
+    daily: Balance<T>[],
+    weekly: Balance<T>[],
+    monthly: Balance<T>[],
+    yearly: Balance<T>[],
+    allTime: Balance<T>[],
+  };
+}
+
+export function convertPageVisitsDoc<T extends NumberType, U extends NumberType>(item: PageVisitsDoc<T>, convertFunction: (item: T) => U): PageVisitsDoc<U> {
+  return {
+    ...item,
+    collectionId: item.collectionId ? convertFunction(item.collectionId) : undefined,
+    overallVisits: {
+      daily: convertFunction(item.overallVisits.daily),
+      weekly: convertFunction(item.overallVisits.weekly),
+      monthly: convertFunction(item.overallVisits.monthly),
+      yearly: convertFunction(item.overallVisits.yearly),
+      allTime: convertFunction(item.overallVisits.allTime),
+    },
+    badgePageVisits: item.badgePageVisits ? {
+      daily: item.badgePageVisits.daily.map(x => convertBalance(x, convertFunction)),
+      weekly: item.badgePageVisits.weekly.map(x => convertBalance(x, convertFunction)),
+      monthly: item.badgePageVisits.monthly.map(x => convertBalance(x, convertFunction)),
+      yearly: item.badgePageVisits.yearly.map(x => convertBalance(x, convertFunction)),
+      allTime: item.badgePageVisits.allTime.map(x => convertBalance(x, convertFunction)),
+    } : undefined,
+  }
+}
 
 
 export interface BrowseDoc<T extends NumberType> {
@@ -69,10 +112,18 @@ export interface OffChainUrlDoc {
   collectionId: number;
 }
 
-export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T> | BrowseDoc<T> | ProtocolDoc<T> | UserProtocolCollectionsDoc<T> | ListActivityDoc<T>;
+export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T> | BrowseDoc<T> | ProtocolDoc<T> | UserProtocolCollectionsDoc<T> | ListActivityDoc<T> | PageVisitsDoc<T>
 
 //TODO: Better schemas?
 const Schema = mongoose.Schema;
+
+export const PageVisitsSchema = new Schema({
+  _legacyId: String,
+  collectionId: Number,
+  mappingId: String,
+  overallVisits: Schema.Types.Mixed,
+  badgePageVisits: Schema.Types.Mixed,
+});
 
 export const BrowseSchema = new Schema({
   _legacyId: String,
@@ -156,6 +207,7 @@ export const UsernameModel = mongoose.model<UsernameDoc>('usernames', UsernameSc
 export const ProtocolModel = mongoose.model<ProtocolDoc<JSPrimitiveNumberType>>('protocols', ProtocolSchema);
 export const UserProtocolCollectionsModel = mongoose.model<UserProtocolCollectionsDoc<JSPrimitiveNumberType>>('user-collection-protocols', UserProtocolCollectionsSchema);
 export const ListActivityModel = mongoose.model<ListActivityDoc<JSPrimitiveNumberType>>('list-activity', ListActivitySchema);
+export const PageVisitsModel = mongoose.model<PageVisitsDoc<JSPrimitiveNumberType>>('page-visits', PageVisitsSchema);
 
 export async function getManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
   model: mongoose.Model<T>,
@@ -355,6 +407,8 @@ export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitive
       convertedDoc = convertUserProtocolCollectionsDoc(doc as UserProtocolCollectionsDoc<NumberType>, NumberifyIfPossible);
     } else if (model.modelName === ListActivityModel.modelName) {
       convertedDoc = convertListActivityDoc(doc as ListActivityDoc<NumberType>, NumberifyIfPossible);
+    } else if (model.modelName === PageVisitsModel.modelName) {
+      convertedDoc = convertPageVisitsDoc(doc as PageVisitsDoc<NumberType>, NumberifyIfPossible);
     }
 
     const docToAdd = {

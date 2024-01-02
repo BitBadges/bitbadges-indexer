@@ -399,7 +399,7 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
 
 export const filterCollectionsFunc = async (viewDocs: any[], hiddenBadges: { collectionId: bigint, badgeIds: UintRange<bigint>[] }[]) => {
   return viewDocs.filter((doc) => {
-    if (hiddenBadges?.find((hiddenBadge) => hiddenBadge.collectionId === BigInt(doc))) {
+    if (hiddenBadges?.find((hiddenBadge) => hiddenBadge.collectionId === BigInt(doc.collectionId))) {
       return false;
     }
 
