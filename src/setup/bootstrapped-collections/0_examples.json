@@ -3,11 +3,11 @@
   "collectionId": "0",
   "defaultBalances": {
     "balances": [],
-    "incomingApprovals":  [
+    "incomingApprovals": [
       {
-        "fromMappingId": "AllWithMint",
+        "fromMappingId": "All",
         "fromMapping": {
-          "mappingId": "AllWithMint",
+          "mappingId": "All",
           "addresses": [],
           "includeAddresses": false,
           "uri": "",
@@ -15,14 +15,14 @@
           "createdBy": ""
         },
         "initiatedByMapping": {
-          "mappingId": "AllWithMint",
+          "mappingId": "All",
           "addresses": [],
           "includeAddresses": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMappingId": "AllWithMint",
+        "initiatedByMappingId": "All",
         "transferTimes": [
           {
             "start": "1",

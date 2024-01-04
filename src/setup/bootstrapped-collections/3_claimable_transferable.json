@@ -3,7 +3,7 @@
   "collectionId": "0",
   "defaultBalances": {
     "balances": [],
-    "incomingApprovals":  [],
+    "incomingApprovals": [],
     "outgoingApprovals": [],
     "userPermissions": {
       "canUpdateOutgoingApprovals": [],
@@ -103,18 +103,18 @@
         "customData": "",
         "createdBy": ""
       },
-      "toMappingId": "AllWithMint",
+      "toMappingId": "All",
       "toMapping": {
-        "mappingId": "AllWithMint",
+        "mappingId": "All",
         "addresses": [],
         "includeAddresses": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "initiatedByMappingId": "AllWithMint",
+      "initiatedByMappingId": "All",
       "initiatedByMapping": {
-        "mappingId": "AllWithMint",
+        "mappingId": "All",
         "addresses": [],
         "includeAddresses": false,
         "uri": "",
@@ -207,9 +207,9 @@
       }
     },
     {
-      "fromMappingId": "AllWithoutMint",
-      "toMappingId": "AllWithoutMint",
-      "initiatedByMappingId": "AllWithoutMint",
+      "fromMappingId": "!Mint",
+      "toMappingId": "!Mint",
+      "initiatedByMappingId": "!Mint",
       "badgeIds": [
         {
           "start": "1",
@@ -223,7 +223,7 @@
         }
       ],
       "toMapping": {
-        "mappingId": "AllWithoutMint",
+        "mappingId": "!Mint",
         "addresses": [
           "Mint"
         ],
@@ -233,7 +233,7 @@
         "createdBy": ""
       },
       "fromMapping": {
-        "mappingId": "AllWithoutMint",
+        "mappingId": "!Mint",
         "addresses": [
           "Mint"
         ],
@@ -243,7 +243,7 @@
         "createdBy": ""
       },
       "initiatedByMapping": {
-        "mappingId": "AllWithoutMint",
+        "mappingId": "!Mint",
         "addresses": [
           "Mint"
         ],

@@ -3,11 +3,11 @@
   "collectionId": "0",
   "defaultBalances": {
     "balances": [],
-    "incomingApprovals":  [
+    "incomingApprovals": [
       {
-        "fromMappingId": "AllWithMint",
+        "fromMappingId": "All",
         "fromMapping": {
-          "mappingId": "AllWithMint",
+          "mappingId": "All",
           "addresses": [],
           "includeAddresses": false,
           "uri": "",
@@ -15,14 +15,14 @@
           "createdBy": ""
         },
         "initiatedByMapping": {
-          "mappingId": "AllWithMint",
+          "mappingId": "All",
           "addresses": [],
           "includeAddresses": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMappingId": "AllWithMint",
+        "initiatedByMappingId": "All",
         "transferTimes": [
           {
             "start": "1",
@@ -145,11 +145,11 @@
         "approvalId": "sgdfsdfgsdfg",
         "amountTrackerId": "All",
         "challengeTrackerId": "All",
-        "fromMappingId": "AllWithMint",
-        "toMappingId": "AllWithMint",
-        "initiatedByMappingId": "AllWithMint",
+        "fromMappingId": "All",
+        "toMappingId": "All",
+        "initiatedByMappingId": "All",
         "toMapping": {
-          "mappingId": "AllWithMint",
+          "mappingId": "All",
           "addresses": [],
           "includeAddresses": false,
           "uri": "",
@@ -157,7 +157,7 @@
           "createdBy": ""
         },
         "fromMapping": {
-          "mappingId": "AllWithMint",
+          "mappingId": "All",
           "addresses": [],
           "includeAddresses": false,
           "uri": "",
@@ -165,7 +165,7 @@
           "createdBy": ""
         },
         "initiatedByMapping": {
-          "mappingId": "AllWithMint",
+          "mappingId": "All",
           "addresses": [],
           "includeAddresses": false,
           "uri": "",
@@ -354,7 +354,7 @@
   "collectionApprovals": [
     {
       "fromMappingId": "Mint",
-      "toMappingId": "AllWithMint",
+      "toMappingId": "All",
       "initiatedByMappingId": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
       "fromMapping": {
         "mappingId": "Mint",
@@ -367,7 +367,7 @@
         "createdBy": ""
       },
       "toMapping": {
-        "mappingId": "AllWithMint",
+        "mappingId": "All",
         "addresses": [],
         "includeAddresses": false,
         "uri": "",
@@ -445,9 +445,9 @@
       }
     },
     {
-      "fromMappingId": "AllWithoutMint",
-      "toMappingId": "AllWithoutMint",
-      "initiatedByMappingId": "AllWithoutMint",
+      "fromMappingId": "!Mint",
+      "toMappingId": "!Mint",
+      "initiatedByMappingId": "!Mint",
       "badgeIds": [
         {
           "start": "1",
@@ -461,7 +461,7 @@
         }
       ],
       "toMapping": {
-        "mappingId": "AllWithoutMint",
+        "mappingId": "!Mint",
         "addresses": [
           "Mint"
         ],
@@ -471,7 +471,7 @@
         "createdBy": ""
       },
       "fromMapping": {
-        "mappingId": "AllWithoutMint",
+        "mappingId": "!Mint",
         "addresses": [
           "Mint"
         ],
@@ -481,7 +481,7 @@
         "createdBy": ""
       },
       "initiatedByMapping": {
-        "mappingId": "AllWithoutMint",
+        "mappingId": "!Mint",
         "addresses": [
           "Mint"
         ],

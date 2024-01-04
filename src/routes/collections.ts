@@ -432,89 +432,87 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 }
 
 async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange<JSPrimitiveNumberType>[]) {
-  async () => {
-    //TODO: improve this bc it could run into lots of race conditions which is why we try catch
-    try {
-      let _currPageVisits = await getFromDB(PageVisitsModel, `${collectionId}`);
-      let currPageVisits = _currPageVisits ? convertPageVisitsDoc(_currPageVisits, BigIntify) : undefined
-      const badgeIdsToIncrement = badgeIds;
-      if (!currPageVisits) {
-        currPageVisits = {
-          _id: new mongoose.Types.ObjectId().toString(),
-          _legacyId: `${collectionId}`,
-          collectionId: BigInt(collectionId),
-          lastUpdated: Date.now(),
-          overallVisits: {
-            allTime: 0n,
-            daily: 0n,
-            weekly: 0n,
-            monthly: 0n,
-            yearly: 0n,
-          },
-          badgePageVisits: {
-            allTime: [],
-            daily: [],
-            weekly: [],
-            monthly: [],
-            yearly: [],
-          },
-        }
+  //TODO: improve this bc it could run into lots of race conditions which is why we try catch
+  try {
+    let _currPageVisits = await getFromDB(PageVisitsModel, `${collectionId}`);
+    let currPageVisits = _currPageVisits ? convertPageVisitsDoc(_currPageVisits, BigIntify) : undefined
+    const badgeIdsToIncrement = badgeIds;
+    if (!currPageVisits) {
+      currPageVisits = {
+        _id: new mongoose.Types.ObjectId().toString(),
+        _legacyId: `${collectionId}`,
+        collectionId: BigInt(collectionId),
+        lastUpdated: Date.now(),
+        overallVisits: {
+          allTime: 0n,
+          daily: 0n,
+          weekly: 0n,
+          monthly: 0n,
+          yearly: 0n,
+        },
+        badgePageVisits: {
+          allTime: [],
+          daily: [],
+          weekly: [],
+          monthly: [],
+          yearly: [],
+        },
       }
-
-      //if was last updated yesterday, reset daily
-      const yesterdayMidnight = new Date();
-      yesterdayMidnight.setHours(0, 0, 0, 0);
-      if (currPageVisits.lastUpdated < yesterdayMidnight.getTime()) {
-        currPageVisits.overallVisits.daily = 0n;
-        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.daily = [];
-      }
-
-      const sundayMidnight = new Date();
-      sundayMidnight.setHours(0, 0, 0, 0);
-      sundayMidnight.setDate(sundayMidnight.getDate() - sundayMidnight.getDay());
-      if (currPageVisits.lastUpdated < sundayMidnight.getTime()) {
-        currPageVisits.overallVisits.weekly = 0n;
-        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.weekly = [];
-      }
-
-      const firstOfMonth = new Date();
-      firstOfMonth.setHours(0, 0, 0, 0);
-      firstOfMonth.setDate(1);
-      if (currPageVisits.lastUpdated < firstOfMonth.getTime()) {
-        currPageVisits.overallVisits.monthly = 0n;
-        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.monthly = [];
-      }
-
-      const firstOfYear = new Date();
-      firstOfYear.setHours(0, 0, 0, 0);
-      firstOfYear.setMonth(0, 1);
-      if (currPageVisits.lastUpdated < firstOfYear.getTime()) {
-        currPageVisits.overallVisits.yearly = 0n;
-        if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.yearly = [];
-      }
-
-      currPageVisits.lastUpdated = Date.now();
-
-      currPageVisits.overallVisits.allTime += 1n;
-      currPageVisits.overallVisits.daily += 1n;
-      currPageVisits.overallVisits.weekly += 1n;
-      currPageVisits.overallVisits.monthly += 1n;
-      currPageVisits.overallVisits.yearly += 1n;
-
-      if (currPageVisits.badgePageVisits) {
-        currPageVisits.badgePageVisits.allTime = addBalance(currPageVisits.badgePageVisits.allTime, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-        currPageVisits.badgePageVisits.daily = addBalance(currPageVisits.badgePageVisits.daily, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-        currPageVisits.badgePageVisits.weekly = addBalance(currPageVisits.badgePageVisits.weekly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-        currPageVisits.badgePageVisits.monthly = addBalance(currPageVisits.badgePageVisits.monthly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-        currPageVisits.badgePageVisits.yearly = addBalance(currPageVisits.badgePageVisits.yearly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-      }
-
-
-      await insertToDB(PageVisitsModel, convertPageVisitsDoc(currPageVisits, BigIntify));
-    } catch (e) {
-      console.log(e);
-      console.error(e);
     }
+
+    //if was last updated yesterday, reset daily
+    const yesterdayMidnight = new Date();
+    yesterdayMidnight.setHours(0, 0, 0, 0);
+    if (currPageVisits.lastUpdated < yesterdayMidnight.getTime()) {
+      currPageVisits.overallVisits.daily = 0n;
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.daily = [];
+    }
+
+    const sundayMidnight = new Date();
+    sundayMidnight.setHours(0, 0, 0, 0);
+    sundayMidnight.setDate(sundayMidnight.getDate() - sundayMidnight.getDay());
+    if (currPageVisits.lastUpdated < sundayMidnight.getTime()) {
+      currPageVisits.overallVisits.weekly = 0n;
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.weekly = [];
+    }
+
+    const firstOfMonth = new Date();
+    firstOfMonth.setHours(0, 0, 0, 0);
+    firstOfMonth.setDate(1);
+    if (currPageVisits.lastUpdated < firstOfMonth.getTime()) {
+      currPageVisits.overallVisits.monthly = 0n;
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.monthly = [];
+    }
+
+    const firstOfYear = new Date();
+    firstOfYear.setHours(0, 0, 0, 0);
+    firstOfYear.setMonth(0, 1);
+    if (currPageVisits.lastUpdated < firstOfYear.getTime()) {
+      currPageVisits.overallVisits.yearly = 0n;
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.yearly = [];
+    }
+
+    currPageVisits.lastUpdated = Date.now();
+
+    currPageVisits.overallVisits.allTime += 1n;
+    currPageVisits.overallVisits.daily += 1n;
+    currPageVisits.overallVisits.weekly += 1n;
+    currPageVisits.overallVisits.monthly += 1n;
+    currPageVisits.overallVisits.yearly += 1n;
+
+    if (currPageVisits.badgePageVisits) {
+      currPageVisits.badgePageVisits.allTime = addBalance(currPageVisits.badgePageVisits.allTime, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+      currPageVisits.badgePageVisits.daily = addBalance(currPageVisits.badgePageVisits.daily, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+      currPageVisits.badgePageVisits.weekly = addBalance(currPageVisits.badgePageVisits.weekly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+      currPageVisits.badgePageVisits.monthly = addBalance(currPageVisits.badgePageVisits.monthly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+      currPageVisits.badgePageVisits.yearly = addBalance(currPageVisits.badgePageVisits.yearly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+    }
+
+
+    await insertToDB(PageVisitsModel, convertPageVisitsDoc(currPageVisits, BigIntify));
+  } catch (e) {
+    console.log(e);
+    console.error(e);
   }
 }
 
