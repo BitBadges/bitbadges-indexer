@@ -43,7 +43,7 @@ export const handleApprovals = async (docs: DocsCache, collectionDoc: Collection
 
               const convertedDoc = convertPasswordDoc(doc as any, BigIntify);
 
-              docs.passwordDocs[doc._legacyId] = {
+              docs.passwordDocs[doc._docId] = {
                 ...convertedDoc,
                 docClaimedByCollection: true,
                 collectionId: collectionDoc.collectionId,
@@ -58,7 +58,7 @@ export const handleApprovals = async (docs: DocsCache, collectionDoc: Collection
                   const addresses = doc.challengeDetails?.leavesDetails.leaves.map(leaf => convertToCosmosAddress(leaf));
                   const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
                   docs.claimAlertsToAdd.push({
-                    _legacyId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
+                    _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
                     createdTimestamp: status.block.timestamp,
                     collectionId: collectionDoc.collectionId,
                     cosmosAddresses: addresses,

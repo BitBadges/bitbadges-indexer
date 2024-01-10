@@ -1,29 +1,29 @@
-import { AddressMapping, Balance, BigIntify, JSPrimitiveNumberType, UserPermissions, convertBalance, convertOffChainBalancesMetadataTimeline } from "bitbadgesjs-proto";
+import { AddressList, Balance, BigIntify, JSPrimitiveNumberType, UserPermissions, convertBalance, convertOffChainBalancesMetadataTimeline } from "bitbadgesjs-proto";
 import { BalanceDocWithDetails, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertToCosmosAddress, convertUserPermissionsWithDetails, getCurrentValueForTimeline } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { fetchUriFromSource } from "../queue";
 import { cleanBalanceArray } from "../utils/dataCleaners";
 import { BalanceModel, CollectionModel, getFromDB, mustGetFromDB } from "../db/db";
-import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
+import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from "./utils";
 import { getBalancesForEthFirstTx } from "./ethFirstTx";
 
-//Precondition: we assume all address mappings are present
-export const applyAddressMappingsToUserPermissions = (userPermissions: UserPermissions<JSPrimitiveNumberType>, addressMappings: AddressMapping[]): UserPermissionsWithDetails<JSPrimitiveNumberType> => {
+//Precondition: we assume all address lists are present
+export const applyAddressListsToUserPermissions = (userPermissions: UserPermissions<JSPrimitiveNumberType>, addressLists: AddressList[]): UserPermissionsWithDetails<JSPrimitiveNumberType> => {
   return {
     ...userPermissions,
     canUpdateIncomingApprovals: userPermissions.canUpdateIncomingApprovals.map((x) => {
       return {
         ...x,
-        fromMapping: addressMappings.find((y) => y.mappingId === x.fromMappingId) as AddressMapping,
-        initiatedByMapping: addressMappings.find((y) => y.mappingId === x.initiatedByMappingId) as AddressMapping,
+        fromList: addressLists.find((y) => y.listId === x.fromListId) as AddressList,
+        initiatedByList: addressLists.find((y) => y.listId === x.initiatedByListId) as AddressList,
       }
     }),
     canUpdateOutgoingApprovals: userPermissions.canUpdateOutgoingApprovals.map((x) => {
       return {
-        ...x,
-        toMapping: addressMappings.find((y) => y.mappingId === x.toMappingId) as AddressMapping,
-        initiatedByMapping: addressMappings.find((y) => y.mappingId === x.initiatedByMappingId) as AddressMapping,
+        ...x, 
+        toList: addressLists.find((y) => y.listId === x.toListId) as AddressList,
+        initiatedByList: addressLists.find((y) => y.listId === x.initiatedByListId) as AddressList,
       }
     })
   }
@@ -59,7 +59,7 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
       return res.status(200).send({
         balance: {
-          _legacyId: req.params.collectionId + ':' + cosmosAddress,
+          _docId: req.params.collectionId + ':' + cosmosAddress,
           collectionId: req.params.collectionId,
           cosmosAddress: req.params.cosmosAddress,
           balances: balances.map(x => convertBalance(x, BigIntify)),
@@ -82,42 +82,42 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
 
       const response = await getFromDB(BalanceModel, docId);
 
-      let addressMappingIdsToFetch = [];
+      let addressListIdsToFetch = [];
       for (const incoming of collection.defaultBalances.incomingApprovals) {
-        addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
+        addressListIdsToFetch.push(incoming.fromListId, incoming.initiatedByListId);
       }
 
       for (const outgoing of collection.defaultBalances.outgoingApprovals) {
-        addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+        addressListIdsToFetch.push(outgoing.toListId, outgoing.initiatedByListId);
       }
 
       for (const incoming of response?.incomingApprovals ?? []) {
-        addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
+        addressListIdsToFetch.push(incoming.fromListId, incoming.initiatedByListId);
       }
 
       for (const outgoing of response?.outgoingApprovals ?? []) {
-        addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+        addressListIdsToFetch.push(outgoing.toListId, outgoing.initiatedByListId);
       }
 
       for (const incoming of response?.userPermissions.canUpdateIncomingApprovals ?? []) {
-        addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
+        addressListIdsToFetch.push(incoming.fromListId, incoming.initiatedByListId);
       }
 
       for (const outgoing of response?.userPermissions.canUpdateOutgoingApprovals ?? []) {
-        addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+        addressListIdsToFetch.push(outgoing.toListId, outgoing.initiatedByListId);
       }
 
       for (const incoming of collection?.defaultBalances.userPermissions?.canUpdateIncomingApprovals ?? []) {
-        addressMappingIdsToFetch.push(incoming.fromMappingId, incoming.initiatedByMappingId);
+        addressListIdsToFetch.push(incoming.fromListId, incoming.initiatedByListId);
       }
 
       for (const outgoing of collection?.defaultBalances.userPermissions?.canUpdateOutgoingApprovals ?? []) {
-        addressMappingIdsToFetch.push(outgoing.toMappingId, outgoing.initiatedByMappingId);
+        addressListIdsToFetch.push(outgoing.toListId, outgoing.initiatedByListId);
       }
 
-      const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(id => {
+      const addressLists = await getAddressListsFromDB(addressListIdsToFetch.map(id => {
         return {
-          mappingId: id,
+          listId: id,
           collectionId: req.params.collectionId
         }
       }), false);
@@ -134,16 +134,16 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
           userPermissions: collection.defaultBalances.userPermissions,
           onChain: collection.balancesType === "Standard",
           updateHistory: [],
-          _legacyId: req.params.collectionId + ':' + cosmosAddress
+          _docId: req.params.collectionId + ':' + cosmosAddress
         }
 
 
 
       const balanceToReturnConverted: BalanceDocWithDetails<string> = {
         ...balanceToReturn,
-        incomingApprovals: appendDefaultForIncomingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress),
-        outgoingApprovals: appendDefaultForOutgoingUserApprovals(balanceToReturn, addressMappings, req.params.cosmosAddress),
-        userPermissions: convertUserPermissionsWithDetails(applyAddressMappingsToUserPermissions(balanceToReturn.userPermissions, addressMappings), Stringify),
+        incomingApprovals: appendSelfInitiatedIncomingApprovalToApprovals(balanceToReturn, addressLists, req.params.cosmosAddress),
+        outgoingApprovals: appendSelfInitiatedOutgoingApprovalToApprovals(balanceToReturn, addressLists, req.params.cosmosAddress),
+        userPermissions: convertUserPermissionsWithDetails(applyAddressListsToUserPermissions(balanceToReturn.userPermissions, addressLists), Stringify),
       }
 
 

@@ -19,7 +19,7 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
       const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
 
       const doc = {
-        _legacyId: `${claimAlert.collectionId}:${id}`,
+        _docId: `${claimAlert.collectionId}:${id}`,
         createdTimestamp: Number(Date.now()),
         collectionId: Number(claimAlert.collectionId),
         message: claimAlert.message,

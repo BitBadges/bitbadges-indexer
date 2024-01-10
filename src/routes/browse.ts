@@ -2,11 +2,11 @@ import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType, con
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { DEV_MODE } from "../constants";
-import { AddressMappingModel, BrowseModel, CollectionModel, FetchModel, ProfileModel, TransferActivityModel, mustGetFromDB } from "../db/db";
+import { AddressListModel, BrowseModel, CollectionModel, FetchModel, ProfileModel, TransferActivityModel, mustGetFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import { executeCollectionsQuery } from "./collections";
 import { getAccountByAddress } from "./users";
-import { getAddressMappingsFromDB } from "./utils";
+import { getAddressListsFromDB } from "./utils";
 import { BigIntify } from "bitbadgesjs-proto";
 
 let cachedResult: GetBrowseCollectionsRouteResponse<NumberType> | undefined = undefined;
@@ -31,10 +31,10 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     }
 
-    const mappingsToFetch = [];
-    for (const [_, value] of Object.entries(browseDoc.addressMappings)) {
-      for (const mappingId of value) {
-        mappingsToFetch.push(mappingId);
+    const listsToFetch = [];
+    for (const [_, value] of Object.entries(browseDoc.addressLists)) {
+      for (const listId of value) {
+        listsToFetch.push(listId);
       }
     }
 
@@ -51,8 +51,8 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       latestCollections,
       attendanceCollections,
       activity,
-      addressMappings,
-      browseDocAddressMappings,
+      addressLists,
+      browseDocAddressLists,
       browseDocProfiles,
     ] = await Promise.all([
       CollectionModel.find({ "collectionId": { "$in": browseDoc.collections.featured } }).lean().exec(),
@@ -60,24 +60,24 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       CollectionModel.find({}).sort({ "createdBlock": -1 }).limit(24).lean().exec(),
       FetchModel.find({ "content.category": "Attendance", "db": "Metadata" }).limit(24).lean().exec(),
       TransferActivityModel.find({}).sort({ "timestamp": -1 }).limit(100).lean().exec(),
-      AddressMappingModel.find({ private: { "$ne": true } }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
-      AddressMappingModel.find({ "mappingId": { "$in": mappingsToFetch } }).lean().exec(),
-      ProfileModel.find({ "_legacyId": { "$in": profilesToFetch } }).lean().exec(),
+      AddressListModel.find({ private: { "$ne": true } }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
+      AddressListModel.find({ "listId": { "$in": listsToFetch } }).lean().exec(),
+      ProfileModel.find({ "_docId": { "$in": profilesToFetch } }).lean().exec(),
     ]);
 
     const allProfiles = profilesToFetch.map(x => {
-      const profile = browseDocProfiles.find(y => y._legacyId === x);
+      const profile = browseDocProfiles.find(y => y._docId === x);
       if (profile) {
         return profile;
       } else {
         return {
-          _legacyId: convertToCosmosAddress(x),
+          _docId: convertToCosmosAddress(x),
         }
       }
     })
 
 
-    const uris = [...new Set([...attendanceCollections.map(x => x._legacyId), ...certificationsCollections.map(x => x._legacyId)])];
+    const uris = [...new Set([...attendanceCollections.map(x => x._docId), ...certificationsCollections.map(x => x._docId)])];
     const urisForCollectionQuery = await CollectionModel.find({
       collectionMetadataTimeline: {
         $elemMatch: {
@@ -113,7 +113,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
           ...urisForCollectionQuery,
         ].map(doc => {
           return {
-            collectionId: doc._legacyId,
+            collectionId: doc._docId,
             fetchTotalAndMintBalances: true,
             handleAllAndAppendDefaults: true,
             metadataToFetch: {
@@ -127,9 +127,9 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     //latest activity
 
 
-    let addressMappingsToReturn = await getAddressMappingsFromDB(addressMappings.map(x => {
+    let addressListsToReturn = await getAddressListsFromDB(addressLists.map(x => {
       return {
-        mappingId: x._legacyId,
+        listId: x._docId,
       }
     }), true);
 
@@ -137,7 +137,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     const promises = [];
     for (const profile of [...allProfiles]) {
-      promises.push(getAccountByAddress(req, profile._legacyId, {
+      promises.push(getAccountByAddress(req, profile._docId, {
         viewsToFetch: [{
           viewType: 'badgesCollected',
           viewId: 'badgesCollected',
@@ -157,21 +157,21 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
 
         // 'featured': collections,
-        'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._legacyId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
+        'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._docId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
         'attendance': attendanceCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-          attendanceCollections.map(x => x._legacyId).includes(x.collectionMetadata.uri)
+          attendanceCollections.map(x => x._docId).includes(x.collectionMetadata.uri)
         ))).filter(x => x) as BitBadgesCollection<NumberType>[],
         'certifications': certificationsCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-          certificationsCollections.map(x => x._legacyId).includes(x.collectionMetadata.uri)
+          certificationsCollections.map(x => x._docId).includes(x.collectionMetadata.uri)
         ))).filter(x => x) as BitBadgesCollection<NumberType>[],
       },
       activity: activity,
-      addressMappings: {
-        ...Object.fromEntries(Object.entries(browseDoc.addressMappings).map(([key, value]) => {
+      addressLists: {
+        ...Object.fromEntries(Object.entries(browseDoc.addressLists).map(([key, value]) => {
           return [key, []];
         })),
 
-        'latest': addressMappingsToReturn,
+        'latest': addressListsToReturn,
       },
       profiles: {
         ...Object.fromEntries(Object.entries(browseDoc.profiles).map(([key, value]) => {
@@ -201,14 +201,14 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     }
 
-    for (const [key, value] of Object.entries(browseDoc.addressMappings)) {
-      for (const mappingId of value) {
-        const addressMapping = browseDocAddressMappings.find(x => x.mappingId.toString() === mappingId.toString());
-        if (!addressMapping) {
+    for (const [key, value] of Object.entries(browseDoc.addressLists)) {
+      for (const listId of value) {
+        const addressList = browseDocAddressLists.find(x => x.listId.toString() === listId.toString());
+        if (!addressList) {
           continue;
         }
-        result.addressMappings[`${key}` as keyof typeof result.addressMappings] = result.addressMappings[`${key}` as keyof typeof result.addressMappings] || [];
-        result.addressMappings[`${key}` as keyof typeof result.addressMappings].push(addressMapping);
+        result.addressLists[`${key}` as keyof typeof result.addressLists] = result.addressLists[`${key}` as keyof typeof result.addressLists] || [];
+        result.addressLists[`${key}` as keyof typeof result.addressLists].push(addressList);
       }
     }
 
@@ -239,8 +239,8 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       result.collections[`${key}` as keyof typeof result.collections] = value.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
     }
 
-    for (const [key, value] of Object.entries(result.addressMappings)) {
-      result.addressMappings[`${key}` as keyof typeof result.addressMappings] = value.filter(x => complianceDoc?.addressMappings.reported?.some(y => y.mappingId === x.mappingId) !== true);
+    for (const [key, value] of Object.entries(result.addressLists)) {
+      result.addressLists[`${key}` as keyof typeof result.addressLists] = value.filter(x => complianceDoc?.addressLists.reported?.some(y => y.listId === x.listId) !== true);
     }
 
     for (const [key, value] of Object.entries(result.profiles)) {

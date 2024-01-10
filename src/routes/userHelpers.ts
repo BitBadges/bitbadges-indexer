@@ -1,6 +1,6 @@
 import { NumberType } from "bitbadgesjs-proto";
 import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, SupportedChain, cosmosToBtc, cosmosToEth, isAddressValid } from "bitbadgesjs-utils";
-import { AddressMappingModel, AirdropModel, CollectionModel, EthTxCountModel, getFromDB, insertToDB } from "../db/db";
+import { AddressListModel, AirdropModel, CollectionModel, EthTxCountModel, getFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { OFFLINE_MODE } from "../indexer-vars";
 import { complianceDoc } from "../poll";
@@ -82,7 +82,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
 
         await insertToDB(EthTxCountModel, {
           ...cachedEthTxCount,
-          _legacyId: ethAddress,
+          _docId: ethAddress,
           count: ethTxCount,
           lastFetched: Date.now(),
         });
@@ -108,12 +108,12 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
     promises.push(cosmosAccountInfo.cosmosAddress.length <= 45 ? Promise.resolve(undefined) : async () => {
       //check for aliase
 
-      const res = await AddressMappingModel.find({
+      const res = await AddressListModel.find({
         aliasAddress: cosmosAccountInfo.cosmosAddress,
       }).lean().limit(1).exec();
       if (res.length) {
         return {
-          mappingId: res[0].mappingId
+          listId: res[0].listId
         }
       }
 
@@ -148,9 +148,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
 
     const nameAndAvatarRes = results[i] as { resolvedName: string, avatar: string };
     const balanceInfo = results[i + 1] as CosmosCoin<NumberType>;
-    const airdropInfo = results[i + 2] as { _legacyId: string, airdropped: boolean } | undefined;
+    const airdropInfo = results[i + 2] as { _docId: string, airdropped: boolean } | undefined;
     const chainResolve = results[i + 3] as { address: string, chain: SupportedChain } | undefined;
-    const aliasResolve = results[i + 4] as { mappingId?: string, collectionId?: string } | undefined;
+    const aliasResolve = results[i + 4] as { listId?: string, collectionId?: string } | undefined;
 
     const isNSFW = complianceDoc?.accounts.nsfw.find(x => x.cosmosAddress === accountInfo.cosmosAddress);
     const isReported = complianceDoc?.accounts.reported.find(x => x.cosmosAddress === accountInfo.cosmosAddress);
@@ -159,7 +159,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
       ...profileInfo,
       ...nameAndAvatarRes,
 
-      resolvedName: aliasResolve?.mappingId ? 'Alias: List ' + aliasResolve.mappingId :
+      resolvedName: aliasResolve?.listId ? 'Alias: List ' + aliasResolve.listId :
         aliasResolve?.collectionId ? 'Alias: Collection ' + aliasResolve.collectionId : nameAndAvatarRes.resolvedName,
       ...accountInfo,
       address: chainResolve?.address ?? '', //for ts
@@ -173,19 +173,19 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
       collected: [],
       listsActivity: [],
       activity: [],
-      addressMappings: [],
+      addressLists: [],
       announcements: [],
       reviews: [],
       merkleChallenges: [],
       claimAlerts: [],
-      approvalsTrackers: [],
+      approvalTrackers: [],
       authCodes: [],
       views: {},
       nsfw: isNSFW ? isNSFW : undefined,
       reported: isReported ? isReported : undefined,
 
       //We don't want to return these to the user
-      _legacyId: accountInfo.cosmosAddress,
+      _docId: accountInfo.cosmosAddress,
       _rev: undefined,
     } as BitBadgesUserInfo<NumberType>);
   }

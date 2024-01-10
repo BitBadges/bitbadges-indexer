@@ -10,7 +10,7 @@ app.post = jest.fn();
 app.listen = jest.fn(() => app);
 
 import { OffChainBalancesMap, QueueDoc, convertToCosmosAddress } from 'bitbadgesjs-utils';
-import { AddressMappingModel, BalanceModel, deleteMany, getFromDB, insertToDB } from './db/db';
+import { AddressListModel, BalanceModel, deleteMany, getFromDB, insertToDB } from './db/db';
 import { handleBalances } from './queue';
 import mongoose from 'mongoose';
 
@@ -28,10 +28,10 @@ describe('handleBalances', () => {
 
   beforeEach(async () => {
     const allDocsForCollectionFive = await BalanceModel.find({ collectionId: 5n });
-    await deleteMany(BalanceModel, allDocsForCollectionFive.map(x => x._legacyId));
+    await deleteMany(BalanceModel, allDocsForCollectionFive.map(x => x._docId));
 
     await insertToDB(BalanceModel, {
-      "_legacyId": "5:Total",
+      "_docId": "5:Total",
       "balances": [
         {
           "amount": 1,
@@ -69,7 +69,7 @@ describe('handleBalances', () => {
     });
 
     await insertToDB(BalanceModel, {
-      "_legacyId": "5:Mint",
+      "_docId": "5:Mint",
       "balances": [
         {
           "amount": 1,
@@ -142,12 +142,12 @@ describe('handleBalances', () => {
     expect(docsCacheAdded!.activityToAdd!.length).toEqual(1);
   });
 
-  it('should support address mappings', async () => {
-    await insertToDB(AddressMappingModel, {
-      _legacyId: 'test',
-      mappingId: 'test',
+  it('should support address lists', async () => {
+    await insertToDB(AddressListModel, {
+      _docId: 'test',
+      listId: 'test',
       addresses: [helperAddressesArr[0]],
-      includeAddresses: true,
+      allowlist: true,
       uri: 'https://api.bitbadges.io',
       customData: '',
       createdBy: '',

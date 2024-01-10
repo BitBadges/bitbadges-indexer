@@ -40,7 +40,7 @@ export const createAuthCode = async (expressReq: Request, res: Response<CreateBl
     }
 
     await insertToDB(BlockinAuthSignatureModel, {
-      _legacyId: reqBody.signature,
+      _docId: reqBody.signature,
       ...reqBody,
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
       params: challengeParams,
@@ -114,7 +114,7 @@ export const deleteAuthCode = async (expressReq: Request, res: Response<DeleteBl
       throw new Error("You are not the owner of this auth code.");
     }
 
-    await deleteMany(BlockinAuthSignatureModel, [doc._legacyId]);
+    await deleteMany(BlockinAuthSignatureModel, [doc._docId]);
 
     return res.status(200).send({ success: true });
   } catch (e) {

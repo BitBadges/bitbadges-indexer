@@ -25,7 +25,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     let _followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
     if (!_followDoc) {
       _followDoc = {
-        _legacyId: reqBody.cosmosAddress,
+        _docId: reqBody.cosmosAddress,
         cosmosAddress: reqBody.cosmosAddress,
         followingCount: 0,
         followersCount: 0,
@@ -67,7 +67,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
 
 
         if (res.length > 0) {
-          followers.push(res[0]._legacyId);
+          followers.push(res[0]._docId);
         }
       }
 
@@ -101,7 +101,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     }
 
     return res.status(200).send({
-      _legacyId: followDoc._legacyId,
+      _docId: followDoc._docId,
       cosmosAddress: followDoc.cosmosAddress,
       followersCount: followDoc.followersCount,
       followingCount: followDoc.followingCount,

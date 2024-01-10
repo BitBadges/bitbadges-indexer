@@ -1,14 +1,14 @@
 
 import { JSPrimitiveNumberType, UintRange, convertBadgeMetadataTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AccountDoc, BigIntify, BitBadgesCollection, FilterBadgesInCollectionRequestBody, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressMappingWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getBadgeIdsForMetadataId, getChainForAddress, getCurrentValueForTimeline, getFirstMatchForBadgeMetadata, getMaxBadgeIdForCollection, getMetadataIdsForUri, isAddressValid, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AccountDoc, BigIntify, BitBadgesCollection, FilterBadgesInCollectionRequestBody, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressListWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getBadgeIdsForMetadataId, getChainForAddress, getCurrentValueForTimeline, getFirstMatchForBadgeMetadata, getMaxBadgeIdForCollection, getMetadataIdsForUri, isAddressValid, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { AccountModel, AddressMappingModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel, getManyFromDB, mustGetFromDB } from "../db/db";
+import { AccountModel, AddressListModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel, getManyFromDB, mustGetFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import { getAddressForName } from "../utils/ensResolvers";
 import { executeAdditionalCollectionQueries } from "./collections";
 import { convertToBitBadgesUserInfo } from "./userHelpers";
-import { getAddressMappingsFromDB } from "./utils";
+import { getAddressListsFromDB } from "./utils";
 import { getQueryParamsFromBookmark } from "./activityHelpers";
 
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
@@ -46,11 +46,11 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
 
       db: "Metadata",
       $or: [{
-        _legacyId: {
+        _docId: {
           "$in": currentMetadataUris
         }
       }, {
-        _legacyId: {
+        _docId: {
           //replace {id} with any number and see if it matches
           "$regex": `^${currentMetadataUris[0].replace('{id}', '[0-9]+')}$`
         }
@@ -79,7 +79,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
       _id: -1
     }).exec();
 
-    const fetchedMatchingUris = metadata.map((doc) => doc._legacyId);
+    const fetchedMatchingUris = metadata.map((doc) => doc._docId);
 
     const matchingBadgeIds: UintRange<bigint>[] = [];
     for (const uri of fetchedMatchingUris) {
@@ -90,7 +90,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
       }
     }
 
-    const [_, removed] = removeUintRangeFromUintRange(badgeIds?.map(x => convertUintRange(x, BigIntify)) ?? [], matchingBadgeIds);
+    const [_, removed] = removeUintRangesFromUintRanges(badgeIds?.map(x => convertUintRange(x, BigIntify)) ?? [], matchingBadgeIds);
 
     return res.status(200).send({
       badgeIds: sortUintRangesAndMergeIfNecessary(removed, true),
@@ -112,14 +112,14 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
 export const searchHandler = async (req: Request, res: Response<GetSearchRouteResponse<NumberType>>) => {
   try {
     const searchValue = req.params.searchValue;
-    const { noCollections, noAddressMappings, noAccounts, specificCollectionId } = req.body as GetSearchRouteRequestBody;
+    const { noCollections, noAddressLists, noAccounts, specificCollectionId } = req.body as GetSearchRouteRequestBody;
 
 
     if (!searchValue || searchValue.length == 0) {
       return res.json({
         collections: [],
         accounts: [],
-        addressMappings: [],
+        addressLists: [],
         badges: [],
       })
     }
@@ -149,7 +149,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       }
     }).lean().exec();
 
-    const cosmosAddresses = usernameRes.map((doc) => doc._legacyId);
+    const cosmosAddresses = usernameRes.map((doc) => doc._docId);
 
     const selectorCriteria: any[] = [
       { "cosmosAddress": { "$in": cosmosAddresses } },
@@ -167,20 +167,20 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       "$or": selectorCriteria,
     }
 
-    const addressMappingsQuery = {
-      mappingId: { "$regex": `(?i)${searchValue}` },
+    const addressListsQuery = {
+      listId: { "$regex": `(?i)${searchValue}` },
       private: { "$ne": true }
     }
 
     const results = await Promise.all([
-      noCollections && noAddressMappings ? Promise.resolve([]) : FetchModel.find(metadataQuery).limit(10).lean().exec(),
+      noCollections && noAddressLists ? Promise.resolve([]) : FetchModel.find(metadataQuery).limit(10).lean().exec(),
       noAccounts ? Promise.resolve([]) : AccountModel.find(accountQuery).limit(10).lean().exec(),
-      noAddressMappings ? Promise.resolve([]) : AddressMappingModel.find(addressMappingsQuery).limit(10).lean().exec(),
+      noAddressLists ? Promise.resolve([]) : AddressListModel.find(addressListsQuery).limit(10).lean().exec(),
     ]);
 
     const metadataResponseDocs = results[0];
     const accountsResponseDocs = results[1];
-    const addressMappingsResponseDocs = results[2];
+    const addressListsResponseDocs = results[2];
 
 
     const allAccounts: AccountDoc<JSPrimitiveNumberType>[] = [...accountsResponseDocs];
@@ -188,9 +188,9 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue || account.solAddress === searchValue || account.btcAddress === searchValue)) {
       const chain = getChainForAddress(searchValue);
 
-      if (searchValue === 'Mint') allAccounts.push({ ...convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify), _legacyId: MINT_ACCOUNT.cosmosAddress });
+      if (searchValue === 'Mint') allAccounts.push({ ...convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify), _docId: MINT_ACCOUNT.cosmosAddress });
       else allAccounts.push({
-        _legacyId: convertToCosmosAddress(searchValue),
+        _docId: convertToCosmosAddress(searchValue),
         btcAddress: cosmosToBtc(convertToCosmosAddress(searchValue)),
         solAddress: chain === SupportedChain.SOLANA ? searchValue : '',
         ethAddress: cosmosToEth(convertToCosmosAddress(searchValue)),
@@ -204,7 +204,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     if (resolvedEnsAddress
       && !accountsResponseDocs.find((account) => account.ethAddress === resolvedEnsAddress || account.cosmosAddress === resolvedEnsAddress || account.solAddress === resolvedEnsAddress || account.btcAddress === resolvedEnsAddress)) {
       allAccounts.push({
-        _legacyId: convertToCosmosAddress(resolvedEnsAddress),
+        _docId: convertToCosmosAddress(resolvedEnsAddress),
         ethAddress: resolvedEnsAddress,
         btcAddress: cosmosToBtc(convertToCosmosAddress(resolvedEnsAddress)),
         solAddress: '',
@@ -217,7 +217,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     allAccounts.sort((a, b) => a.ethAddress.localeCompare(b.ethAddress));
 
-    let uris = metadataResponseDocs.map((doc) => doc._legacyId);
+    let uris = metadataResponseDocs.map((doc) => doc._docId);
 
     //Little hacky but we post process the placeholders IDs here if we can
     uris = uris.map((uri) => {
@@ -280,8 +280,8 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         ]
       }).lean().exec();
 
-    const listsPromise = noAddressMappings ? Promise.resolve([]) :
-      AddressMappingModel.find({
+    const listsPromise = noAddressLists ? Promise.resolve([]) :
+      AddressListModel.find({
         uri: { "$in": uris },
       }).lean().exec();
 
@@ -297,12 +297,12 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
 
     const docs = fetchRes;
     for (const account of allAccounts) {
-      const doc = docs.find((doc) => doc && doc._legacyId === account.cosmosAddress);
+      const doc = docs.find((doc) => doc && doc._docId === account.cosmosAddress);
       if (doc) {
         profileDocs.push(doc);
       } else {
         profileDocs.push({
-          _legacyId: account.cosmosAddress,
+          _docId: account.cosmosAddress,
         })
       }
     }
@@ -330,20 +330,20 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
       noAccounts ? Promise.resolve([]) :
         convertToBitBadgesUserInfo(profileDocs, allAccounts);
 
-    const addressMappingsToReturnPromise =
-      [...listsRes, ...addressMappingsResponseDocs].length === 0 ? Promise.resolve([]) : getAddressMappingsFromDB(
-        [...listsRes, ...addressMappingsResponseDocs].map(x => {
+    const addressListsToReturnPromise =
+      [...listsRes, ...addressListsResponseDocs].length === 0 ? Promise.resolve([]) : getAddressListsFromDB(
+        [...listsRes, ...addressListsResponseDocs].map(x => {
           return {
-            mappingId: x._legacyId,
+            listId: x._docId,
           };
         }),
         true
       );
 
-    const [collectionsResponses, accounts, addressMappingsToReturn] = await Promise.all([
+    const [collectionsResponses, accounts, addressListsToReturn] = await Promise.all([
       collectionsResponsesPromise,
       convertToBitBadgesUserInfoPromise,
-      addressMappingsToReturnPromise
+      addressListsToReturnPromise
     ]);
 
     let badges: {
@@ -388,7 +388,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
               }, BigIntify)]
             };
             for (const obj of badges) {
-              const [remaining] = removeUintRangeFromUintRange([convertUintRange({
+              const [remaining] = removeUintRangesFromUintRanges([convertUintRange({
                 start: badgeIdNum,
                 end: badgeIdNum,
               }, BigIntify)], obj.badgeIds);
@@ -412,7 +412,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
           })
       }),
       accounts,
-      addressMappings: addressMappingsToReturn.map(x => convertAddressMappingWithMetadata(x, Stringify)),
+      addressLists: addressListsToReturn.map(x => convertAddressListWithMetadata(x, Stringify)),
       badges: badges.map((x) => {
         return {
           collection: x.collection,
@@ -424,7 +424,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     //Make sure no NSFW or reported stuff gets populated
     result.collections = result.collections.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
     result.accounts = result.accounts.filter(x => complianceDoc?.accounts.reported?.some(y => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true);
-    result.addressMappings = result.addressMappings.filter(x => complianceDoc?.addressMappings.reported?.some(y => y.mappingId === x.mappingId) !== true);
+    result.addressLists = result.addressLists.filter(x => complianceDoc?.addressLists.reported?.some(y => y.listId === x.listId) !== true);
     result.badges = result.badges.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collection.collectionId)) !== true);
 
     return res.json(result);

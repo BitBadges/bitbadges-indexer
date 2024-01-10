@@ -1,14 +1,20 @@
-import { AddressMapping, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { ApprovalInfoDetails, ApprovalsTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection, CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody, GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody, GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, GetMetadataForCollectionRouteRequestBody, GetMetadataForCollectionRouteResponse, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, addBalance, batchUpdateBadgeMetadata, convertAnnouncementDoc, convertApprovalInfoDetails, convertApprovalsTrackerDoc, convertBadgeMetadataDetails, convertBitBadgesCollection, convertCollectionDoc, convertComplianceDoc, convertMerkleChallengeDoc, convertMetadata, convertReviewDoc, convertTransferActivityDoc, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangeFromUintRange, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AddressList, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
+import {
+  ApprovalInfoDetails, ApprovalTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection,
+  CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody,
+  GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody,
+  GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, addBalance, batchUpdateBadgeMetadata, convertApprovalInfoDetails, convertApprovalTrackerDoc, convertBadgeMetadataDetails, convertBitBadgesCollection,
+  convertComplianceDoc, convertMerkleChallengeDoc, convertMetadata, convertReviewDoc, convertTransferActivityDoc, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary
+} from "bitbadgesjs-utils";
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
-import { CollectionModel, PageVisitsModel, convertPageVisitsDoc, getFromDB, insertToDB, mustGetFromDB, mustGetManyFromDB } from "../db/db";
+import { CollectionModel, PageVisitsModel, convertPageVisitsDoc, getFromDB, insertToDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import { fetchUriFromDbAndAddToQueueIfEmpty } from "../queue";
-import { executeApprovalsTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionAnnouncementsQuery, executeCollectionApprovalsTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
-import { applyAddressMappingsToUserPermissions } from "./balances";
-import { appendDefaultForIncomingUserApprovals, appendDefaultForOutgoingUserApprovals, getAddressMappingsFromDB } from "./utils";
-import mongoose from "mongoose";
+import { executeApprovalTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionApprovalTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
+import { applyAddressListsToUserPermissions } from "./balances";
+import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from "./utils";
 
 /**
  * The executeCollectionsQuery function is the main query function used to fetch all data for a collection in bulk.
@@ -47,15 +53,17 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     for (const view of query.viewsToFetch ?? []) {
       const bookmark = view.bookmark;
-      if (view.viewType === 'latestActivity') {
+      if (view.viewType === 'transferActivity') {
         if (bookmark !== undefined) {
           promises.push(executeCollectionActivityQuery(`${query.collectionId}`, bookmark));
         }
-      } else if (view.viewType === 'latestAnnouncements') {
-        if (bookmark !== undefined) {
-          promises.push(executeCollectionAnnouncementsQuery(`${query.collectionId}`, bookmark));
-        }
-      } else if (view.viewType === 'latestReviews') {
+      }
+      // else if (view.viewType === 'latestAnnouncements') {
+      //   if (bookmark !== undefined) {
+      //     promises.push(executeCollectionAnnouncementsQuery(`${query.collectionId}`, bookmark));
+      //   }
+      // } 
+      else if (view.viewType === 'reviews') {
         if (bookmark !== undefined) {
           promises.push(executeCollectionReviewsQuery(`${query.collectionId}`, bookmark));
         }
@@ -68,19 +76,19 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
         if (bookmark !== undefined) {
           promises.push(executeCollectionMerkleChallengesQuery(`${query.collectionId}`, bookmark));
         }
-      } else if (view.viewType === 'approvalsTrackers') {
+      } else if (view.viewType === 'approvalTrackers') {
         if (bookmark !== undefined) {
-          promises.push(executeCollectionApprovalsTrackersQuery(`${query.collectionId}`, bookmark));
+          promises.push(executeCollectionApprovalTrackersQuery(`${query.collectionId}`, bookmark));
         }
       }
     }
 
-    if (query.merkleChallengeIdsToFetch?.length) {
-      promises.push(executeMerkleChallengeByIdsQuery(`${query.collectionId}`, query.merkleChallengeIdsToFetch));
+    if (query.challengeTrackersToFetch?.length) {
+      promises.push(executeMerkleChallengeByIdsQuery(`${query.collectionId}`, query.challengeTrackersToFetch));
     }
 
-    if (query.approvalsTrackerIdsToFetch?.length) {
-      promises.push(executeApprovalsTrackersByIdsQuery(`${query.collectionId}`, query.approvalsTrackerIdsToFetch.map(x => convertAmountTrackerIdDetails(x, BigIntify))));
+    if (query.approvalTrackersToFetch?.length) {
+      promises.push(executeApprovalTrackersByIdsQuery(`${query.collectionId}`, query.approvalTrackersToFetch.map(x => convertAmountTrackerIdDetails(x, BigIntify))));
     }
 
     if (query.fetchTotalAndMintBalances) {
@@ -92,72 +100,72 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   //Parse results and add to collectionResponses
   const responses = await Promise.all(promises);
 
-  const addressMappingIdsToFetch: { collectionId: NumberType, mappingId: string }[] = [];
+  const addressListIdsToFetch: { collectionId: NumberType, listId: string }[] = [];
   let currPromiseIdx = 0;
   for (const query of collectionQueries) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
     if (!collectionRes) continue;
 
     for (const collectionApprovalVal of collectionRes.collectionApprovals) {
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: collectionApprovalVal.fromMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: collectionApprovalVal.fromListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: collectionApprovalVal.toMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: collectionApprovalVal.toListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: collectionApprovalVal.initiatedByMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: collectionApprovalVal.initiatedByListId
       });
     }
 
     for (const incomingPermission of collectionRes.defaultBalances.userPermissions.canUpdateIncomingApprovals) {
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: incomingPermission.fromMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: incomingPermission.fromListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: incomingPermission.initiatedByMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: incomingPermission.initiatedByListId
       });
     }
 
     for (const outgoingPermission of collectionRes.defaultBalances.userPermissions.canUpdateOutgoingApprovals) {
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: outgoingPermission.toMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: outgoingPermission.toListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: outgoingPermission.initiatedByMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: outgoingPermission.initiatedByListId
       });
     }
 
 
     for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovals) {
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: permission.fromMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: permission.fromListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: permission.toMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: permission.toListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: permission.initiatedByMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: permission.initiatedByListId
       });
     }
 
     for (const transfer of collectionRes.defaultBalances.incomingApprovals) {
 
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: transfer.fromListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
       });
 
     }
 
     for (const transfer of collectionRes.defaultBalances.outgoingApprovals) {
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: transfer.toListId
       });
-      addressMappingIdsToFetch.push({
-        collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+      addressListIdsToFetch.push({
+        collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
       });
     }
 
@@ -165,21 +173,21 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       const balanceRes = responses[idx] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
       for (const balanceDoc of balanceRes.docs) {
         for (const transfer of balanceDoc.incomingApprovals) {
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.fromMappingId
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId, listId: transfer.fromListId
           });
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
           });
 
         }
 
         for (const transfer of balanceDoc.outgoingApprovals) {
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.toMappingId
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId, listId: transfer.toListId
           });
-          addressMappingIdsToFetch.push({
-            collectionId: collectionRes.collectionId, mappingId: transfer.initiatedByMappingId
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
           });
         }
       }
@@ -194,12 +202,12 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
   }
 
-  const addressMappingsPromise = getAddressMappingsFromDB(addressMappingIdsToFetch, false);
+  const addressListsPromise = getAddressListsFromDB(addressListIdsToFetch, false);
   const uniqueUris = [...new Set(uris.flat())].filter(x => !!x);
 
   const claimFetchesPromises = uniqueUris.map(uri => fetchUriFromDbAndAddToQueueIfEmpty(uri.uri, BigInt(uri.collectionId).toString()));
-  const [addressMappings, claimFetches] = await Promise.all([
-    addressMappingsPromise,
+  const [addressLists, claimFetches] = await Promise.all([
+    addressListsPromise,
     Promise.all(claimFetchesPromises)
   ]);
 
@@ -219,9 +227,9 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       collectionApprovals: collectionRes.collectionApprovals.map(x => {
         return {
           ...x,
-          fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
-          toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
-          initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
+          fromList: addressLists.find((list) => list.listId === x.fromListId) as AddressList,
+          toList: addressLists.find((list) => list.listId === x.toListId) as AddressList,
+          initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
         }
       }),
       defaultBalances: {
@@ -229,18 +237,18 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
         outgoingApprovals: collectionRes.defaultBalances.outgoingApprovals.map(x => {
           return {
             ...x,
-            toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
-            initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
+            toList: addressLists.find((list) => list.listId === x.toListId) as AddressList,
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
           }
         }),
         incomingApprovals: collectionRes.defaultBalances.incomingApprovals.map(x => {
           return {
             ...x,
-            fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
-            initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
+            fromList: addressLists.find((list) => list.listId === x.fromListId) as AddressList,
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
           }
         }),
-        userPermissions: applyAddressMappingsToUserPermissions(collectionRes.defaultBalances.userPermissions, addressMappings),
+        userPermissions: applyAddressListsToUserPermissions(collectionRes.defaultBalances.userPermissions, addressLists),
       },
 
 
@@ -249,9 +257,9 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
         canUpdateCollectionApprovals: collectionRes.collectionPermissions.canUpdateCollectionApprovals.map(x => {
           return {
             ...x,
-            fromMapping: addressMappings.find((mapping) => mapping.mappingId === x.fromMappingId) as AddressMapping,
-            toMapping: addressMappings.find((mapping) => mapping.mappingId === x.toMappingId) as AddressMapping,
-            initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === x.initiatedByMappingId) as AddressMapping,
+            fromList: addressLists.find((list) => list.listId === x.fromListId) as AddressList,
+            toList: addressLists.find((list) => list.listId === x.toListId) as AddressList,
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
           }
         })
       },
@@ -262,7 +270,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       reviews: [],
       owners: [],
       merkleChallenges: [],
-      approvalsTrackers: [],
+      approvalTrackers: [],
 
       cachedBadgeMetadata: [],
       views: {},
@@ -278,15 +286,15 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           incomingApprovals: doc.incomingApprovals.map(x => {
             return {
               ...x,
-              fromMapping: addressMappings.find(z => z.mappingId === x.fromMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find(z => z.mappingId === x.initiatedByMappingId) as AddressMapping,
+              fromList: addressLists.find(z => z.listId === x.fromListId) as AddressList,
+              initiatedByList: addressLists.find(z => z.listId === x.initiatedByListId) as AddressList,
             }
           }),
           outgoingApprovals: doc.outgoingApprovals.map(x => {
             return {
               ...x,
-              toMapping: addressMappings.find(z => z.mappingId === x.toMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find(z => z.mappingId === x.initiatedByMappingId) as AddressMapping,
+              toList: addressLists.find(z => z.listId === x.toListId) as AddressList,
+              initiatedByList: addressLists.find(z => z.listId === x.initiatedByListId) as AddressList,
             }
           })
         }
@@ -298,15 +306,17 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
         const view = query.viewsToFetch[j];
         const genericViewRes = responses[currPromiseIdx] as { docs: any[], pagination: PaginationInfo };
         let type = 'Activity';
-        if (view.viewType === 'latestActivity') {
+        if (view.viewType === 'transferActivity') {
           const viewRes = responses[currPromiseIdx++] as { docs: TransferActivityDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
           collectionToReturn.activity.push(...viewRes.docs.map(x => convertTransferActivityDoc(x, Stringify)));
           type = 'Activity';
-        } else if (view.viewType === 'latestAnnouncements') {
-          const viewRes = responses[currPromiseIdx++] as { docs: any[], pagination: PaginationInfo };
-          collectionToReturn.announcements.push(...viewRes.docs.map(x => convertAnnouncementDoc(x, Stringify)));
-          type = 'Announcement';
-        } else if (view.viewType === 'latestReviews') {
+        }
+        // else if (view.viewType === 'latestAnnouncements') {
+        //   const viewRes = responses[currPromiseIdx++] as { docs: any[], pagination: PaginationInfo };
+        //   collectionToReturn.announcements.push(...viewRes.docs.map(x => convertAnnouncementDoc(x, Stringify)));
+        //   type = 'Announcement';
+        // } 
+        else if (view.viewType === 'reviews') {
           const viewRes = responses[currPromiseIdx++] as { docs: ReviewDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
           collectionToReturn.reviews.push(...viewRes.docs.map(x => convertReviewDoc(x, Stringify)));
           type = 'Review';
@@ -318,14 +328,14 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
           const viewRes = responses[currPromiseIdx++] as { docs: MerkleChallengeDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
           collectionToReturn.merkleChallenges.push(...viewRes.docs.map(x => convertMerkleChallengeDoc(x, Stringify)));
           type = 'MerkleChallenge';
-        } else if (view.viewType === 'approvalsTrackers') {
-          const viewRes = responses[currPromiseIdx++] as { docs: ApprovalsTrackerDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
-          collectionToReturn.approvalsTrackers.push(...viewRes.docs.map(x => convertApprovalsTrackerDoc(x, Stringify)));
-          type = 'ApprovalsTracker';
+        } else if (view.viewType === 'approvalTrackers') {
+          const viewRes = responses[currPromiseIdx++] as { docs: ApprovalTrackerDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+          collectionToReturn.approvalTrackers.push(...viewRes.docs.map(x => convertApprovalTrackerDoc(x, Stringify)));
+          type = 'ApprovalTracker';
         }
 
         collectionToReturn.views[view.viewId] = {
-          ids: genericViewRes.docs.map((doc) => doc._legacyId),
+          ids: genericViewRes.docs.map((doc) => doc._docId),
           type: type,
           pagination: {
             bookmark: genericViewRes.pagination.bookmark || '',
@@ -335,14 +345,14 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       }
     }
 
-    if (query.merkleChallengeIdsToFetch?.length) {
+    if (query.challengeTrackersToFetch?.length) {
       const merkleChallengeRes = responses[currPromiseIdx++] as (MerkleChallengeDoc<JSPrimitiveNumberType>)[];
       collectionToReturn.merkleChallenges.push(...merkleChallengeRes.map(x => convertMerkleChallengeDoc(x, Stringify)));
     }
 
-    if (query.approvalsTrackerIdsToFetch?.length) {
-      const approvalsTrackerRes = responses[currPromiseIdx++] as (ApprovalsTrackerDoc<JSPrimitiveNumberType>)[];
-      collectionToReturn.approvalsTrackers.push(...approvalsTrackerRes.map(x => convertApprovalsTrackerDoc(x, Stringify)));
+    if (query.approvalTrackersToFetch?.length) {
+      const approvalTrackerRes = responses[currPromiseIdx++] as (ApprovalTrackerDoc<JSPrimitiveNumberType>)[];
+      collectionToReturn.approvalTrackers.push(...approvalTrackerRes.map(x => convertApprovalTrackerDoc(x, Stringify)));
     }
 
     if (query.fetchTotalAndMintBalances) {
@@ -351,12 +361,12 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
 
     //Remove duplicates
-    collectionToReturn.activity = collectionToReturn.activity.filter((activity, index, self) => self.findIndex((t) => t._legacyId === activity._legacyId) === index);
-    collectionToReturn.announcements = collectionToReturn.announcements.filter((announcement, index, self) => self.findIndex((t) => t._legacyId === announcement._legacyId) === index);
-    collectionToReturn.reviews = collectionToReturn.reviews.filter((review, index, self) => self.findIndex((t) => t._legacyId === review._legacyId) === index);
-    collectionToReturn.owners = collectionToReturn.owners.filter((owner, index, self) => self.findIndex((t) => t._legacyId === owner._legacyId) === index);
-    collectionToReturn.merkleChallenges = collectionToReturn.merkleChallenges.filter((merkleChallenge, index, self) => self.findIndex((t) => t._legacyId === merkleChallenge._legacyId) === index);
-    collectionToReturn.approvalsTrackers = collectionToReturn.approvalsTrackers.filter((approvalsTracker, index, self) => self.findIndex((t) => t._legacyId === approvalsTracker._legacyId) === index);
+    collectionToReturn.activity = collectionToReturn.activity.filter((activity, index, self) => self.findIndex((t) => t._docId === activity._docId) === index);
+    collectionToReturn.announcements = collectionToReturn.announcements.filter((announcement, index, self) => self.findIndex((t) => t._docId === announcement._docId) === index);
+    collectionToReturn.reviews = collectionToReturn.reviews.filter((review, index, self) => self.findIndex((t) => t._docId === review._docId) === index);
+    collectionToReturn.owners = collectionToReturn.owners.filter((owner, index, self) => self.findIndex((t) => t._docId === owner._docId) === index);
+    collectionToReturn.merkleChallenges = collectionToReturn.merkleChallenges.filter((merkleChallenge, index, self) => self.findIndex((t) => t._docId === merkleChallenge._docId) === index);
+    collectionToReturn.approvalTrackers = collectionToReturn.approvalTrackers.filter((approvalTracker, index, self) => self.findIndex((t) => t._docId === approvalTracker._docId) === index);
 
 
     const appendedCollection = appendMetadataResToCollection(metadataRes, collectionToReturn);
@@ -391,8 +401,8 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       collectionToReturn.owners = collectionToReturn.owners.map((balance) => {
         return {
           ...balance,
-          incomingApprovals: appendDefaultForIncomingUserApprovals(balance, addressMappings, balance.cosmosAddress),
-          outgoingApprovals: appendDefaultForOutgoingUserApprovals(balance, addressMappings, balance.cosmosAddress)
+          incomingApprovals: appendSelfInitiatedIncomingApprovalToApprovals(balance, addressLists, balance.cosmosAddress),
+          outgoingApprovals: appendSelfInitiatedOutgoingApprovalToApprovals(balance, addressLists, balance.cosmosAddress)
         }
       });
 
@@ -440,7 +450,7 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
     if (!currPageVisits) {
       currPageVisits = {
         _id: new mongoose.Types.ObjectId().toString(),
-        _legacyId: `${collectionId}`,
+        _docId: `${collectionId}`,
         collectionId: BigInt(collectionId),
         lastUpdated: Date.now(),
         overallVisits: {
@@ -635,7 +645,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
         uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
 
         const otherMatchingBadgeUintRanges = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
-        const [remaining,] = removeUintRangeFromUintRange(otherMatchingBadgeUintRanges, badgeIdsLeft);
+        const [remaining,] = removeUintRangesFromUintRanges(otherMatchingBadgeUintRanges, badgeIdsLeft);
         badgeIdsLeft = sortUintRangesAndMergeIfNecessary(remaining, true);
 
       }
@@ -719,28 +729,4 @@ const appendMetadataResToCollection = (metadataRes: { collectionMetadata?: Metad
   }
 
   return collection;
-}
-
-export const getMetadataForCollection = async (req: Request, res: Response<GetMetadataForCollectionRouteResponse<NumberType>>) => {
-  try {
-    const reqBody = req.body as GetMetadataForCollectionRouteRequestBody;
-
-    const _collection = await mustGetFromDB(CollectionModel, req.params.collectionId);
-    const collection = convertCollectionDoc(_collection, BigIntify);
-
-    const collectionUri = getCurrentValueForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)))?.collectionMetadata.uri ?? '';
-    const badgeMetadata = getCurrentValueForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)))?.badgeMetadata.map(x => convertBadgeMetadata(x, BigIntify)) ?? [];
-
-    const metadata = await getMetadata(collection.collectionId, collectionUri, badgeMetadata, reqBody.metadataToFetch);
-    return res.json({
-      collectionMetadata: metadata.collectionMetadata ? convertMetadata(metadata.collectionMetadata, Stringify) : undefined,
-      badgeMetadata: metadata.badgeMetadata ? metadata.badgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, Stringify)) : undefined
-    });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      message: 'Error fetching collection metadata. Please try again later.'
-    })
-  }
 }

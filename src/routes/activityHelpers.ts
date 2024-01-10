@@ -1,6 +1,6 @@
 import { AmountTrackerIdDetails } from "bitbadgesjs-proto";
 import { ChallengeTrackerIdDetails, GetBadgeActivityRouteResponse, NumberType, Stringify, convertToCosmosAddress, convertTransferActivityDoc } from "bitbadgesjs-utils";
-import { ApprovalsTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel, getFromDB, mustGetFromDB } from "../db/db";
+import { ApprovalTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel, getFromDB, mustGetFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import mongoose from "mongoose";
 const pageSize = 25;
@@ -190,7 +190,7 @@ export async function executeMerkleChallengeByIdsQuery(collectionId: string, cha
     const res = await getFromDB(MerkleChallengeModel, docId);
 
     return res ?? {
-      _legacyId: docId,
+      _docId: docId,
       collectionId: Number(collectionId),
       challengeId: idObj.challengeId,
       challengeLevel: idObj.challengeLevel,
@@ -202,7 +202,7 @@ export async function executeMerkleChallengeByIdsQuery(collectionId: string, cha
   return docs;
 }
 
-export async function executeApprovalsTrackersByIdsQuery(collectionId: string, idsToFetch: AmountTrackerIdDetails<bigint>[]) {
+export async function executeApprovalTrackersByIdsQuery(collectionId: string, idsToFetch: AmountTrackerIdDetails<bigint>[]) {
   if (idsToFetch.length > 100) {
     throw new Error("You can only fetch up to 100 approval trackers at a time.");
   }
@@ -210,10 +210,10 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
 
   const docs = await Promise.all(idsToFetch.map(async (idObj) => {
     const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.amountTrackerId}-${idObj.trackerType}-${idObj.approvedAddress}`;
-    const res = await getFromDB(ApprovalsTrackerModel, docId);
+    const res = await getFromDB(ApprovalTrackerModel, docId);
 
     return res ?? {
-      _legacyId: docId,
+      _docId: docId,
       collectionId: Number(collectionId),
       approvalLevel: idObj.approvalLevel,
       approverAddress: idObj.approverAddress,
@@ -229,16 +229,16 @@ export async function executeApprovalsTrackersByIdsQuery(collectionId: string, i
 
 }
 
-export async function executeCollectionApprovalsTrackersQuery(collectionId: string, bookmark?: string) {
-  const paginationParams = await getQueryParamsFromBookmark(ApprovalsTrackerModel, bookmark, '_id');
+export async function executeCollectionApprovalTrackersQuery(collectionId: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(ApprovalTrackerModel, bookmark, '_id');
 
-  const approvalsTrackersRes = await ApprovalsTrackerModel.find({
+  const approvalTrackersRes = await ApprovalTrackerModel.find({
     collectionId: Number(collectionId),
     ...paginationParams,
   }).limit(pageSize).sort({ _id: -1 }).lean().exec();
 
   return {
-    docs: approvalsTrackersRes,
-    pagination: getPaginationInfoToReturn(approvalsTrackersRes),
+    docs: approvalTrackersRes,
+    pagination: getPaginationInfoToReturn(approvalTrackersRes),
   }
 }

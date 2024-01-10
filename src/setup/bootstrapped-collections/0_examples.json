@@ -5,24 +5,24 @@
     "balances": [],
     "incomingApprovals": [
       {
-        "fromMappingId": "All",
-        "fromMapping": {
-          "mappingId": "All",
+        "fromListId": "All",
+        "fromList": {
+          "listId": "All",
           "addresses": [],
-          "includeAddresses": false,
+          "allowlist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMapping": {
-          "mappingId": "All",
+        "initiatedByList": {
+          "listId": "All",
           "addresses": [],
-          "includeAddresses": false,
+          "allowlist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMappingId": "All",
+        "initiatedByListId": "All",
         "transferTimes": [
           {
             "start": "1",

@@ -8,9 +8,9 @@ export const addReport = async (req: Request, res: Response<{ message: string }>
     const report = req.body;
 
     const reportDoc: ReportDoc = {
-      _legacyId: new mongoose.Types.ObjectId().toString(),
+      _docId: new mongoose.Types.ObjectId().toString(),
       collectionId: report.collectionId,
-      mappingId: report.mappingId,
+      listId: report.listId,
       addressOrUsername: report.addressOrUsername,
       reason: report.reason,
     }

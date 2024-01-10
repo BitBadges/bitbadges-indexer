@@ -1,8 +1,8 @@
 
 
 import { BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UintRange, convertBalance } from "bitbadgesjs-proto";
-import { BalanceDoc, ProfileInfoBase, TransferActivityDoc, removeUintRangeFromUintRange } from "bitbadgesjs-utils";
-import { AddressMappingModel, BalanceModel, BitBadgesDoc, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, ListActivityModel, ReviewModel, TransferActivityModel } from "../db/db";
+import { BalanceDoc, ProfileInfoBase, TransferActivityDoc, removeUintRangesFromUintRanges } from "bitbadgesjs-utils";
+import { AddressListModel, BalanceModel, BitBadgesDoc, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, ListActivityModel, ReviewModel, TransferActivityModel } from "../db/db";
 import { complianceDoc } from "../poll";
 import { getPaginationInfoToReturn, getQueryParamsFromBookmark } from "./activityHelpers";
 
@@ -54,7 +54,7 @@ export const filterActivityFunc = async (viewDocs: TransferActivityDoc<JSPrimiti
     return {
       ...doc,
       balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
-        const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
+        const [remaining,] = removeUintRangesFromUintRanges(matchingHiddenBadge.badgeIds, balance.badgeIds);
         return {
           ...balance,
           badgeIds: remaining
@@ -65,7 +65,7 @@ export const filterActivityFunc = async (viewDocs: TransferActivityDoc<JSPrimiti
   }).filter((doc) => doc !== undefined);
 
 
-  viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._legacyId === doc._legacyId));
+  viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._docId === doc._docId));
   return viewDocs;
 }
 
@@ -133,7 +133,7 @@ export async function executeReviewsQuery(cosmosAddress: string, bookmark?: stri
   const paginationParams = await getQueryParamsFromBookmark(ReviewModel, bookmark, 'timestamp', '_id');
 
   const reviewsRes = await ReviewModel.find({
-    _legacyId: {
+    _docId: {
       "$regex": `^user-${cosmosAddress}:`,
     },
     ...paginationParams,
@@ -157,7 +157,7 @@ export const filterBalanceFunc = async (viewDocs: BalanceDoc<JSPrimitiveNumberTy
     return {
       ...doc,
       balances: doc.balances.map(x => convertBalance(x, BigIntify)).map((balance) => {
-        const [remaining,] = removeUintRangeFromUintRange(matchingHiddenBadge.badgeIds, balance.badgeIds);
+        const [remaining,] = removeUintRangesFromUintRanges(matchingHiddenBadge.badgeIds, balance.badgeIds);
         return {
           ...balance,
           badgeIds: remaining
@@ -167,7 +167,7 @@ export const filterBalanceFunc = async (viewDocs: BalanceDoc<JSPrimitiveNumberTy
     }
   }).filter((doc) => doc !== undefined);
 
-  viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._legacyId === doc._legacyId));
+  viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._docId === doc._docId));
 
   return viewDocs;
 }
@@ -216,16 +216,16 @@ export async function executeCollectedQuery(cosmosAddress: string, profileInfo: 
 }
 
 export const filterListsFunc = async (viewDocs: any[]) => {
-  return viewDocs.filter((doc) => complianceDoc?.addressMappings?.reported?.find((reported) => reported.mappingId === doc.mappingId) === undefined);
+  return viewDocs.filter((doc) => complianceDoc?.addressLists?.reported?.find((reported) => reported.listId === doc.listId) === undefined);
 }
 
 export async function executeListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('executeListsQuery');
   const queryFunc = async (currBookmark?: string) => {
-    const paginationParams = await getQueryParamsFromBookmark(AddressMappingModel, currBookmark, '_id');
+    const paginationParams = await getQueryParamsFromBookmark(AddressListModel, currBookmark, '_id');
 
-    const view = await AddressMappingModel.find({
-      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
+    const view = await AddressListModel.find({
+      listId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "addresses": {
         "$elemMatch": {
           "$eq": cosmosAddress,
@@ -254,10 +254,10 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, f
   if (QUERY_TIME_MODE) console.time('executeExplicitIncluded');
 
   const queryFunc = async (currBookmark?: string) => {
-    const paginationParams = await getQueryParamsFromBookmark(AddressMappingModel, currBookmark, '_id');
+    const paginationParams = await getQueryParamsFromBookmark(AddressListModel, currBookmark, '_id');
 
-    const view = await AddressMappingModel.find({
-      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
+    const view = await AddressListModel.find({
+      listId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "$or": [
         {
           "$and": [{
@@ -268,7 +268,7 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, f
             },
           },
           {
-            "includeAddresses": {
+            "allowlist": {
               "$eq": true,
             },
           }],
@@ -296,10 +296,10 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, f
   if (QUERY_TIME_MODE) console.time('executeExplicitExcluded');
 
   const queryFunc = async (currBookmark?: string) => {
-    const paginationParams = await getQueryParamsFromBookmark(AddressMappingModel, currBookmark, '_id');
+    const paginationParams = await getQueryParamsFromBookmark(AddressListModel, currBookmark, '_id');
 
-    const view = await AddressMappingModel.find({
-      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
+    const view = await AddressListModel.find({
+      listId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "$or": [
         {
           "$and": [{
@@ -310,7 +310,7 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, f
             },
           },
           {
-            "includeAddresses": {
+            "allowlist": {
               "$eq": false,
             },
           }],
@@ -334,13 +334,13 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, f
   return collectedRes;
 }
 
-export async function executeLatestAddressMappingsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
-  if (QUERY_TIME_MODE) console.time('executeLatestAddressMappingsQuery');
+export async function executeLatestAddressListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('executeLatestAddressListsQuery');
   const queryFunc = async (currBookmark?: string) => {
-    const paginationParams = await getQueryParamsFromBookmark(AddressMappingModel, currBookmark, 'lastUpdated', '_id');
+    const paginationParams = await getQueryParamsFromBookmark(AddressListModel, currBookmark, 'lastUpdated', '_id');
 
-    const view = await AddressMappingModel.find({
-      mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
+    const view = await AddressListModel.find({
+      listId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
       "addresses": {
         "$elemMatch": {
           "$eq": cosmosAddress,
@@ -362,7 +362,7 @@ export async function executeLatestAddressMappingsQuery(cosmosAddress: string, f
 
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
 
-  if (QUERY_TIME_MODE) console.timeEnd('executeLatestAddressMappingsQuery');
+  if (QUERY_TIME_MODE) console.timeEnd('executeLatestAddressListsQuery');
   return collectedRes;
 }
 
@@ -440,7 +440,7 @@ export async function executeManagingQuery(cosmosAddress: string, profileInfo: P
 
   const filterFunc = async (viewDocs: any[]) => {
     const filtered = await filterCollectionsFunc(viewDocs, profileInfo.hiddenBadges ?? []);
-    return filtered.map((row) => row._legacyId);
+    return filtered.map((row) => row._docId);
   }
 
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
@@ -471,7 +471,7 @@ export async function executeCreatedByQuery(cosmosAddress: string, profileInfo: 
 
   const filterFunc = async (viewDocs: any[]) => {
     const filtered = await filterCollectionsFunc(viewDocs, profileInfo.hiddenBadges ?? []);
-    return filtered.map((row) => row._legacyId);
+    return filtered.map((row) => row._docId);
   }
 
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
@@ -500,10 +500,10 @@ export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: st
 
 export async function executePrivateListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('privateLists');
-  const paginationParams = await getQueryParamsFromBookmark(AddressMappingModel, bookmark, '_id');
+  const paginationParams = await getQueryParamsFromBookmark(AddressListModel, bookmark, '_id');
 
-  const res = await AddressMappingModel.find({
-    mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
+  const res = await AddressListModel.find({
+    listId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
     createdBy: cosmosAddress,
     private: true,
     ...paginationParams,
@@ -521,10 +521,10 @@ export async function executePrivateListsQuery(cosmosAddress: string, filteredLi
 
 export async function executeCreatedListsQuery(cosmosAddress: string, filteredLists?: string[], bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('createdLists');
-  const paginationParams = await getQueryParamsFromBookmark(AddressMappingModel, bookmark, '_id');
+  const paginationParams = await getQueryParamsFromBookmark(AddressListModel, bookmark, '_id');
 
-  const res = await AddressMappingModel.find({
-    mappingId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
+  const res = await AddressListModel.find({
+    listId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
     createdBy: cosmosAddress,
     private: false,
     ...paginationParams,
@@ -541,7 +541,7 @@ export async function executeCreatedListsQuery(cosmosAddress: string, filteredLi
 export async function executeListsActivityQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string) {
   if (QUERY_TIME_MODE) console.time('listsActivityQuery');
 
-  const hiddenLists = [...profileInfo.hiddenLists ?? [], ...complianceDoc?.addressMappings.reported.map(x => x.mappingId) ?? []];
+  const hiddenLists = [...profileInfo.hiddenLists ?? [], ...complianceDoc?.addressLists.reported.map(x => x.listId) ?? []];
 
 
   const queryFunc = async (currBookmark?: string) => {
@@ -570,15 +570,15 @@ export async function executeListsActivityQuery(cosmosAddress: string, profileIn
     if (!fetchHidden) {
       const nonHiddenDocs = viewDocs.map((doc) => {
         if (!doc || !hiddenLists) return undefined;
-        let matchingHiddenList = hiddenLists.find(x => x === doc.mappingId) ?? doc.mappingId;
+        let matchingHiddenList = hiddenLists.find(x => x === doc.listId) ?? doc.listId;
 
         return {
           ...doc,
-          mappingId: matchingHiddenList
+          listId: matchingHiddenList
         }
       }).filter((doc) => doc !== undefined);
 
-      viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._legacyId === doc._legacyId));
+      viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._docId === doc._docId));
     }
 
     return viewDocs;

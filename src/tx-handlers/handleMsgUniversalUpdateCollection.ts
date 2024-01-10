@@ -34,7 +34,7 @@ export function recursivelyDeleteFalseProperties(obj: object) {
 export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], [],  [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
 
@@ -49,7 +49,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
 
 
     docs.collections[status.nextCollectionId.toString()] = {
-      _legacyId: status.nextCollectionId.toString(),
+      _docId: status.nextCollectionId.toString(),
       collectionId: status.nextCollectionId,
       aliasAddress: collection.aliasAddress,
       managerTimeline: [{
@@ -98,7 +98,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
 
     if (msg.balancesType === "Standard" || msg.balancesType === "Off-Chain - Indexed" || msg.balancesType === "Off-Chain - Non-Indexed") {
       docs.balances[`${status.nextCollectionId}:Total`] = {
-        _legacyId: `${status.nextCollectionId.toString()}:Total`,
+        _docId: `${status.nextCollectionId.toString()}:Total`,
         balances: [],
         cosmosAddress: "Total",
         collectionId: status.nextCollectionId,
@@ -117,7 +117,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       }
 
       docs.balances[`${status.nextCollectionId}:Mint`] = {
-        _legacyId: `${status.nextCollectionId.toString()}:Mint`,
+        _docId: `${status.nextCollectionId.toString()}:Mint`,
         balances: [],
         cosmosAddress: "Mint",
         collectionId: status.nextCollectionId,
@@ -139,7 +139,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
     await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [
       `${collectionId}:Total`,
       `${collectionId}:Mint`,
-    ], [], [], [], [],  [], []);
+    ], [], [], [], [], [], []);
   }
   const collection = docs.collections[collectionId.toString()];
   if (!collection) throw new Error(`Collection ${collectionId} does not exist`);
@@ -220,7 +220,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
 
 
   docs.refreshes[collection.collectionId.toString()] = {
-    _legacyId: collection.collectionId.toString(),
+    _docId: collection.collectionId.toString(),
     collectionId: collection.collectionId,
     refreshRequestTime: status.block.timestamp,
   }
@@ -240,7 +240,7 @@ export const handleMsgUniversalUpdateCollection = async (msg: MsgUniversalUpdate
       const existingDoc = await getFromDB(OffChainUrlModel, customData);
       if (!existingDoc) {
         await insertToDB(OffChainUrlModel, {
-          _legacyId: customData,
+          _docId: customData,
           collectionId: Number(collection.collectionId)
         } as OffChainUrlDoc);
       }

@@ -2,25 +2,25 @@ import { AddAddressToSurveyRouteRequestBody, AddAddressToSurveyRouteResponse, Nu
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
-import { AddressMappingModel, mustGetFromDB } from "../db/db";
+import { AddressListModel, mustGetFromDB } from "../db/db";
 
 export const addAddressToSurvey = async (expressReq: Request, res: Response<AddAddressToSurveyRouteResponse>) => {
   try {
     const req = expressReq as any;
     const reqBody = req.body as AddAddressToSurveyRouteRequestBody;
     const address = reqBody.address;
-    const mappingId = req.params.mappingId;
+    const listId = req.params.listId;
 
-    const mappingDoc = await mustGetFromDB(AddressMappingModel, mappingId);
+    const listDoc = await mustGetFromDB(AddressListModel, listId);
 
     const editKey = reqBody.editKey;
-    if (!mappingDoc.editKeys) {
-      throw new Error("This address mapping is not editable. No edit keys found.");
+    if (!listDoc.editKeys) {
+      throw new Error("This address list is not editable. No edit keys found.");
     }
 
-    const editKeyObj = mappingDoc.editKeys.find((key) => key.key === editKey);
+    const editKeyObj = listDoc.editKeys.find((key) => key.key === editKey);
     if (!editKeyObj) {
-      throw new Error("Invalid edit key for address mapping.");
+      throw new Error("Invalid edit key for address list.");
     }
 
     const expirationDate = new Date(Number(editKeyObj.expirationDate));
@@ -43,7 +43,7 @@ export const addAddressToSurvey = async (expressReq: Request, res: Response<AddA
       }
     }
 
-    await AddressMappingModel.findOneAndUpdate({ _legacyId: mappingId }, { $push: { addresses: convertToCosmosAddress(address) } }).lean().exec();
+    await AddressListModel.findOneAndUpdate({ _docId: listId }, { $push: { addresses: convertToCosmosAddress(address) } }).lean().exec();
 
     return res.status(200).send({});
   } catch (e) {

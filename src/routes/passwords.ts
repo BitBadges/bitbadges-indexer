@@ -49,7 +49,7 @@ export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res
 
     //Find the doc, increment currCode, and add the given code idx to claimedUsers
     const doc = await PasswordModel.findOneAndUpdate({
-      ...query, _legacyId: passwordDoc._legacyId,
+      ...query, _docId: passwordDoc._docId,
       [`claimedUsers.${req.session.cosmosAddress}`]: { $exists: false }
     },
       [

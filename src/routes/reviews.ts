@@ -54,8 +54,7 @@ export const addReviewForCollection = async (expressReq: Request, res: Response<
 
     const activityDoc: ReviewDoc<number> = {
 
-      _legacyId: `collection-${collectionId}:${id}`,
-      method: 'Review',
+      _docId: `collection-${collectionId}:${id}`,
       collectionId: Number(collectionId),
       stars: Number(stars),
       review: review,
@@ -111,8 +110,7 @@ export const addReviewForUser = async (expressReq: Request, res: Response<AddRev
     const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
 
     const activityDoc: ReviewDoc<NumberType> = {
-      _legacyId: `user-${cosmosAddress}:${id}`,
-      method: 'Review',
+      _docId: `user-${cosmosAddress}:${id}`,
       reviewedAddress: cosmosAddress,
       stars: Number(stars),
       review: review,

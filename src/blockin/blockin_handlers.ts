@@ -49,7 +49,7 @@ export async function checkIfManager(req: AuthenticatedRequest<NumberType>, coll
 }
 
 export async function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: boolean = false) {
-  return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : ''}.`, unauthorized: true });
+  return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : 'to access this feature'}.`, unauthorized: true });
 }
 
 const statement = `Sign this message only if prompted by a trusted party. The signature of this message can be used to authenticate you on BitBadges. By signing, you agree to the BitBadges privacy policy and terms of service.`;
@@ -180,7 +180,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     if (!profileDoc || (profileDoc && profileDoc.latestSignedInChain !== body.chain)) {
       await insertToDB(ProfileModel, {
         ...profileDoc,
-        _legacyId: req.session.cosmosAddress,
+        _docId: req.session.cosmosAddress,
         latestSignedInChain: body.chain,
         solAddress: getChainForAddress(challenge.address) == SupportedChain.SOLANA ? challenge.address : profileDoc?.solAddress,
       });

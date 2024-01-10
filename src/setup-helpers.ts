@@ -1,6 +1,6 @@
 import { config } from "dotenv";
-import { AccountModel, AddressMappingModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalsTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, ListActivityModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PageVisitsModel, PageVisitsSchema, PasswordModel, ProfileModel, ProtocolModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UserProtocolCollectionsModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
-import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressMappingSchema, ApprovalsTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema, ProtocolSchema, UserProtocolCollectionsSchema, ListActivitySchema } from "bitbadgesjs-utils";
+import { AccountModel, AddressListModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, ListActivityModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PageVisitsModel, PageVisitsSchema, PasswordModel, ProfileModel, ProtocolModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UserProtocolCollectionsModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
+import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressListSchema, ApprovalTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema, ProtocolSchema, UserProtocolCollectionsSchema, ListActivitySchema } from "bitbadgesjs-utils";
 
 config()
 
@@ -23,8 +23,8 @@ export async function deleteDatabases() {
   await MongoDB.dropCollection(ErrorModel.collection.name);
   await MongoDB.dropCollection(IPFSTotalsModel.collection.name);
   await MongoDB.dropCollection(AirdropModel.collection.name);
-  await MongoDB.dropCollection(AddressMappingModel.collection.name);
-  await MongoDB.dropCollection(ApprovalsTrackerModel.collection.name);
+  await MongoDB.dropCollection(AddressListModel.collection.name);
+  await MongoDB.dropCollection(ApprovalTrackerModel.collection.name);
   await MongoDB.dropCollection(ClaimAlertModel.collection.name);
   await MongoDB.dropCollection(EthTxCountModel.collection.name);
   await MongoDB.dropCollection(OffChainUrlModel.collection.name);
@@ -42,10 +42,10 @@ export async function initStatus() {
 
   if (process.env.BITBADGES_API_KEY === undefined) throw new Error("BITBADGES_API_KEY env var not set");
   await insertToDB(ApiKeyModel, {
-    "_legacyId": process.env.BITBADGES_API_KEY,
+    "_docId": process.env.BITBADGES_API_KEY,
   })
   await insertToDB(StatusModel, {
-    "_legacyId": "status",
+    "_docId": "status",
     "block": {
       "height": "1",
       "txIndex": "0",
@@ -62,12 +62,12 @@ export async function initStatus() {
   })
 
   await insertToDB(ComplianceModel, {
-    _legacyId: "compliance",
+    _docId: "compliance",
     badges: {
       nsfw: [],
       reported: [],
     },
-    addressMappings: {
+    addressLists: {
       nsfw: [],
       reported: [],
     },
@@ -78,12 +78,12 @@ export async function initStatus() {
   })
 
   await insertToDB(BrowseModel, {
-    _legacyId: "browse",
+    _docId: "browse",
     collections: {
       'featured': [1, 2, 16]
     },
     profiles: [],
-    addressMappings: [],
+    addressLists: [],
     badges: {
       'featured': [
 
@@ -102,38 +102,38 @@ export async function initStatus() {
 
 }
 export async function createIndexesAndViews() {
-  BrowseSchema.index({ _legacyId: 1 }, { unique: true });
-  UsernameSchema.index({ _legacyId: 1 }, { unique: true });
-  ApiKeySchema.index({ _legacyId: 1 }, { unique: true });
-  FetchSchema.index({ _legacyId: 1 }, { unique: true });
-  QueueSchema.index({ _legacyId: 1 }, { unique: true });
-  RefreshSchema.index({ _legacyId: 1 }, { unique: true });
-  StatusSchema.index({ _legacyId: 1 }, { unique: true });
-  AccountSchema.index({ _legacyId: 1 }, { unique: true });
-  CollectionSchema.index({ _legacyId: 1 }, { unique: true });
-  BalanceSchema.index({ _legacyId: 1 }, { unique: true });
-  ChallengeSchema.index({ _legacyId: 1 }, { unique: true });
-  PasswordSchema.index({ _legacyId: 1 }, { unique: true });
-  ProfileSchema.index({ _legacyId: 1 }, { unique: true });
-  TransferActivitySchema.index({ _legacyId: 1 }, { unique: true });
-  AnnouncementSchema.index({ _legacyId: 1 }, { unique: true });
-  ReviewSchema.index({ _legacyId: 1 }, { unique: true });
-  ErrorSchema.index({ _legacyId: 1 }, { unique: true });
-  IPFSTotalsSchema.index({ _legacyId: 1 }, { unique: true });
-  AirdropSchema.index({ _legacyId: 1 }, { unique: true });
-  AddressMappingSchema.index({ _legacyId: 1 }, { unique: true });
-  ApprovalsTrackerSchema.index({ _legacyId: 1 }, { unique: true });
-  ClaimAlertSchema.index({ _legacyId: 1 }, { unique: true });
-  EthTxCountSchema.index({ _legacyId: 1 }, { unique: true });
-  OffChainUrlSchema.index({ _legacyId: 1 }, { unique: true });
-  ReportSchema.index({ _legacyId: 1 }, { unique: true });
-  ComplianceSchema.index({ _legacyId: 1 }, { unique: true });
-  BlockinAuthSignatureSchema.index({ _legacyId: 1 }, { unique: true });
-  FollowDetailsSchema.index({ _legacyId: 1 }, { unique: true });
-  ProtocolSchema.index({ _legacyId: 1 }, { unique: true });
-  UserProtocolCollectionsSchema.index({ _legacyId: 1 }, { unique: true });
-  ListActivitySchema.index({ _legacyId: 1 }, { unique: true });
-  PageVisitsSchema.index({ _legacyId: 1 }, { unique: true });
+  BrowseSchema.index({ _docId: 1 }, { unique: true });
+  UsernameSchema.index({ _docId: 1 }, { unique: true });
+  ApiKeySchema.index({ _docId: 1 }, { unique: true });
+  FetchSchema.index({ _docId: 1 }, { unique: true });
+  QueueSchema.index({ _docId: 1 }, { unique: true });
+  RefreshSchema.index({ _docId: 1 }, { unique: true });
+  StatusSchema.index({ _docId: 1 }, { unique: true });
+  AccountSchema.index({ _docId: 1 }, { unique: true });
+  CollectionSchema.index({ _docId: 1 }, { unique: true });
+  BalanceSchema.index({ _docId: 1 }, { unique: true });
+  ChallengeSchema.index({ _docId: 1 }, { unique: true });
+  PasswordSchema.index({ _docId: 1 }, { unique: true });
+  ProfileSchema.index({ _docId: 1 }, { unique: true });
+  TransferActivitySchema.index({ _docId: 1 }, { unique: true });
+  AnnouncementSchema.index({ _docId: 1 }, { unique: true });
+  ReviewSchema.index({ _docId: 1 }, { unique: true });
+  ErrorSchema.index({ _docId: 1 }, { unique: true });
+  IPFSTotalsSchema.index({ _docId: 1 }, { unique: true });
+  AirdropSchema.index({ _docId: 1 }, { unique: true });
+  AddressListSchema.index({ _docId: 1 }, { unique: true });
+  ApprovalTrackerSchema.index({ _docId: 1 }, { unique: true });
+  ClaimAlertSchema.index({ _docId: 1 }, { unique: true });
+  EthTxCountSchema.index({ _docId: 1 }, { unique: true });
+  OffChainUrlSchema.index({ _docId: 1 }, { unique: true });
+  ReportSchema.index({ _docId: 1 }, { unique: true });
+  ComplianceSchema.index({ _docId: 1 }, { unique: true });
+  BlockinAuthSignatureSchema.index({ _docId: 1 }, { unique: true });
+  FollowDetailsSchema.index({ _docId: 1 }, { unique: true });
+  ProtocolSchema.index({ _docId: 1 }, { unique: true });
+  UserProtocolCollectionsSchema.index({ _docId: 1 }, { unique: true });
+  ListActivitySchema.index({ _docId: 1 }, { unique: true });
+  PageVisitsSchema.index({ _docId: 1 }, { unique: true });
 
   await PageVisitsModel.createIndexes();
   await ListActivityModel.createIndexes();
@@ -156,8 +156,8 @@ export async function createIndexesAndViews() {
   await ErrorModel.createIndexes();
   await IPFSTotalsModel.createIndexes();
   await AirdropModel.createIndexes();
-  await AddressMappingModel.createIndexes();
-  await ApprovalsTrackerModel.createIndexes();
+  await AddressListModel.createIndexes();
+  await ApprovalTrackerModel.createIndexes();
   await ClaimAlertModel.createIndexes();
   await EthTxCountModel.createIndexes();
   await OffChainUrlModel.createIndexes();

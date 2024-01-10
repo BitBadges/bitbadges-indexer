@@ -2,7 +2,7 @@ import { Balance, JSPrimitiveNumberType, NumberType, NumberifyIfPossible, UintRa
 import { config } from "dotenv";
 import mongoose from 'mongoose';
 
-import { ListActivitySchema, AccountDoc, AccountSchema, ActivityDoc, AddressMappingDoc, AddressMappingSchema, AirdropDoc, AirdropSchema, AnnouncementDoc, AnnouncementSchema, ApprovalsTrackerDoc, ApprovalsTrackerSchema, BalanceDoc, BalanceSchema, BlockinAuthSignatureDoc, BlockinAuthSignatureSchema, ChallengeSchema, ClaimAlertDoc, ClaimAlertSchema, CollectionDoc, CollectionSchema, ComplianceDoc, ComplianceSchema, ErrorDoc, FetchDoc, FetchSchema, FollowDetailsDoc, FollowDetailsSchema, IPFSTotalsDoc, IPFSTotalsSchema, ListActivityDoc, MerkleChallengeDoc, PasswordDoc, PasswordSchema, ProfileDoc, ProfileSchema, ProtocolDoc, ProtocolSchema, QueueDoc, QueueSchema, RefreshDoc, RefreshSchema, ReviewDoc, ReviewSchema, StatusDoc, StatusSchema, TransferActivityDoc, TransferActivitySchema, UserProtocolCollectionsDoc, UserProtocolCollectionsSchema, convertAccountDoc, convertAddressMappingDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertCollectionDoc, convertComplianceDoc, convertFetchDoc, convertFollowDetailsDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertProtocolDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc, convertUserProtocolCollectionsDoc, convertListActivityDoc } from 'bitbadgesjs-utils';
+import { ListActivitySchema, AccountDoc, AccountSchema, ActivityDoc, AddressListDoc, AddressListSchema, AirdropDoc, AirdropSchema, AnnouncementDoc, AnnouncementSchema, ApprovalTrackerDoc, ApprovalTrackerSchema, BalanceDoc, BalanceSchema, BlockinAuthSignatureDoc, BlockinAuthSignatureSchema, ChallengeSchema, ClaimAlertDoc, ClaimAlertSchema, CollectionDoc, CollectionSchema, ComplianceDoc, ComplianceSchema, ErrorDoc, FetchDoc, FetchSchema, FollowDetailsDoc, FollowDetailsSchema, IPFSTotalsDoc, IPFSTotalsSchema, ListActivityDoc, MerkleChallengeDoc, PasswordDoc, PasswordSchema, ProfileDoc, ProfileSchema, ProtocolDoc, ProtocolSchema, QueueDoc, QueueSchema, RefreshDoc, RefreshSchema, ReviewDoc, ReviewSchema, StatusDoc, StatusSchema, TransferActivityDoc, TransferActivitySchema, UserProtocolCollectionsDoc, UserProtocolCollectionsSchema, convertAccountDoc, convertAddressListDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalTrackerDoc, convertBalanceDoc, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertCollectionDoc, convertComplianceDoc, convertFetchDoc, convertFollowDetailsDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertProtocolDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc, convertUserProtocolCollectionsDoc, convertListActivityDoc } from 'bitbadgesjs-utils';
 import crypto from 'crypto-js';
 
 const { SHA256 } = crypto;
@@ -21,9 +21,9 @@ MongoDB.once('open', () => {
 
 export interface PageVisitsDoc<T extends NumberType> {
   _id: string;
-  _legacyId: string;
+  _docId: string;
   collectionId?: T;
-  mappingId?: string;
+  listId?: string;
   lastUpdated: number;
   overallVisits: {
     daily: T,
@@ -64,12 +64,12 @@ export function convertPageVisitsDoc<T extends NumberType, U extends NumberType>
 
 
 export interface BrowseDoc<T extends NumberType> {
-  _legacyId: string;
+  _docId: string;
   _id?: string;
   collections: {
     [category: string]: NumberType[];
   };
-  addressMappings: {
+  addressLists: {
     [category: string]: string[];
   };
   profiles: {
@@ -84,93 +84,93 @@ export interface BrowseDoc<T extends NumberType> {
 }
 
 export interface ApiKeyDoc {
-  _legacyId: string;
+  _docId: string;
   _id?: string
   numRequests: number;
   lastRequest: number;
 }
 
 export interface ReportDoc {
-  _legacyId: string;
+  _docId: string;
   _id?: string
   collectionId?: number;
-  mappingId?: string;
+  listId?: string;
   addressOrUsername?: string;
   reason: string;
 }
 
 export interface EthTxCountDoc {
-  _legacyId: string;
+  _docId: string;
   _id?: string
   count: number;
   lastFetched: number;
 }
 
 export interface OffChainUrlDoc {
-  _legacyId: string;
+  _docId: string;
   _id?: string
   collectionId: number;
 }
 
-export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalsTrackerDoc<T> | AddressMappingDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T> | BrowseDoc<T> | ProtocolDoc<T> | UserProtocolCollectionsDoc<T> | ListActivityDoc<T> | PageVisitsDoc<T>
+export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalTrackerDoc<T> | AddressListDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T> | BrowseDoc<T> | ProtocolDoc<T> | UserProtocolCollectionsDoc<T> | ListActivityDoc<T> | PageVisitsDoc<T>
 
 //TODO: Better schemas?
 const Schema = mongoose.Schema;
 
 export const PageVisitsSchema = new Schema({
-  _legacyId: String,
+  _docId: String,
   collectionId: Number,
-  mappingId: String,
+  listId: String,
   overallVisits: Schema.Types.Mixed,
   badgePageVisits: Schema.Types.Mixed,
 });
 
 export const BrowseSchema = new Schema({
-  _legacyId: String,
+  _docId: String,
   collections: Schema.Types.Mixed,
-  addressMappings: Schema.Types.Mixed,
+  addressLists: Schema.Types.Mixed,
   profiles: Schema.Types.Mixed,
   badges: Schema.Types.Mixed,
 });
 
 export const ApiKeySchema = new Schema({
-  _legacyId: String,
+  _docId: String,
   numRequests: Number,
   lastRequest: Number,
 });
 
 export const ErrorSchema = new Schema({
   error: Schema.Types.Mixed,
-  _legacyId: String,
+  _docId: String,
 
 });
 
 export const OffChainUrlSchema = new Schema({
   collectionId: Number,
-  _legacyId: String,
+  _docId: String,
 });
 
 export const ReportSchema = new Schema({
-  _legacyId: String,
+  _docId: String,
   collectionId: Number,
-  mappingId: String,
+  listId: String,
   addressOrUsername: String,
   reason: String,
 });
 
 
 export const EthTxCountSchema = new Schema({
-  _legacyId: String,
+  _docId: String,
   count: Number,
   lastFetched: Number,
 });
 
 export interface UsernameDoc {
-  _legacyId: string;
+  _docId: string;
   _id: string;
 }
 export const UsernameSchema = new Schema({
-  _legacyId: String,
+  _docId: String,
 });
 
 //set minimize to false to avoid issues with empty objects
@@ -194,8 +194,8 @@ export const ReviewModel = mongoose.model<ReviewDoc<JSPrimitiveNumberType>>('rev
 export const ErrorModel = mongoose.model<ErrorDoc>('errors', ErrorSchema);
 export const IPFSTotalsModel = mongoose.model<IPFSTotalsDoc<JSPrimitiveNumberType>>('ipfs-totals', IPFSTotalsSchema);
 export const AirdropModel = mongoose.model<AirdropDoc<JSPrimitiveNumberType>>('airdrop', AirdropSchema);
-export const AddressMappingModel = mongoose.model<AddressMappingDoc<JSPrimitiveNumberType>>('address-mappings', AddressMappingSchema);
-export const ApprovalsTrackerModel = mongoose.model<ApprovalsTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers', ApprovalsTrackerSchema);
+export const AddressListModel = mongoose.model<AddressListDoc<JSPrimitiveNumberType>>('address-lists', AddressListSchema);
+export const ApprovalTrackerModel = mongoose.model<ApprovalTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers', ApprovalTrackerSchema);
 export const ClaimAlertModel = mongoose.model<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts', ClaimAlertSchema);
 export const EthTxCountModel = mongoose.model<EthTxCountDoc>('eth-tx-count', EthTxCountSchema);
 export const OffChainUrlModel = mongoose.model<OffChainUrlDoc>('off-chain-urls', OffChainUrlSchema);
@@ -214,14 +214,14 @@ export async function getManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberTyp
   ids: string[],
   session?: mongoose.mongo.ClientSession
 ) {
-  const query = model.find({ _legacyId: { $in: ids } }).limit(ids.length).lean();
+  const query = model.find({ _docId: { $in: ids } }).limit(ids.length).lean();
   if (session) {
     query.session(session);
   }
   const res = await query.exec();
 
 
-  return ids.map(id => res.find(x => x._legacyId === id)).map(x => {
+  return ids.map(id => res.find(x => x._docId === id)).map(x => {
     if (!x) return undefined;
     return {
       ...x, _id: x._id ? x._id.toString() : undefined
@@ -236,7 +236,7 @@ export async function mustGetManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumbe
 ) {
   const res = await getManyFromDB(model, ids, session);
   for (const id of ids) {
-    if (!res.find(x => x?._legacyId === id)) {
+    if (!res.find(x => x?._docId === id)) {
       throw `Error in mustGetManyFromDB(): Could not find doc w/ id ${id}`;
     }
   }
@@ -250,7 +250,7 @@ export async function getFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>
   id: string,
   session?: mongoose.mongo.ClientSession
 ) {
-  const query = model.find({ _legacyId: id }).limit(1).lean();
+  const query = model.find({ _docId: id }).limit(1).lean();
   if (session) {
     query.session(session);
   }
@@ -268,7 +268,7 @@ export async function mustGetFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberTyp
   id: string,
   session?: mongoose.mongo.ClientSession
 ) {
-  const query = model.find({ _legacyId: id }).limit(1).lean();
+  const query = model.find({ _docId: id }).limit(1).lean();
   if (session) {
     query.session(session);
   }
@@ -300,12 +300,12 @@ export async function insertMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
     const convertedDocs = await convertDocsToStoreInDb(model, docs);
 
     const docsToInsert = convertedDocs.map(x => {
-      const hexHashString = SHA256(x._legacyId).toString();
+      const hexHashString = SHA256(x._docId).toString();
       //24 character limit
       const shortenedHexHashString = hexHashString.slice(0, 24);
       return {
         ...x,
-        _id: x._id ?? new mongoose.Types.ObjectId(shortenedHexHashString).toString() //We use a deterministic _id based on _legacyId which is going to be unique
+        _id: x._id ?? new mongoose.Types.ObjectId(shortenedHexHashString).toString() //We use a deterministic _id based on _docId which is going to be unique
       }
     });
 
@@ -334,7 +334,7 @@ export async function deleteMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
   session: mongoose.mongo.ClientSession | undefined = undefined
 ) {
   try {
-    await model.deleteMany({ _legacyId: { $in: ids } }, { session });
+    await model.deleteMany({ _docId: { $in: ids } }, { session });
   } catch (e) {
     throw e;
   }
@@ -379,10 +379,10 @@ export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitive
       convertedDoc = convertIPFSTotalsDoc(doc as IPFSTotalsDoc<NumberType>, NumberifyIfPossible);
     } else if (model.modelName === AirdropModel.modelName) {
       convertedDoc = convertAirdropDoc(doc as AirdropDoc<NumberType>, NumberifyIfPossible);
-    } else if (model.modelName === AddressMappingModel.modelName) {
-      convertedDoc = convertAddressMappingDoc(doc as AddressMappingDoc<NumberType>, NumberifyIfPossible);
-    } else if (model.modelName === ApprovalsTrackerModel.modelName) {
-      convertedDoc = convertApprovalsTrackerDoc(doc as ApprovalsTrackerDoc<NumberType>, NumberifyIfPossible);
+    } else if (model.modelName === AddressListModel.modelName) {
+      convertedDoc = convertAddressListDoc(doc as AddressListDoc<NumberType>, NumberifyIfPossible);
+    } else if (model.modelName === ApprovalTrackerModel.modelName) {
+      convertedDoc = convertApprovalTrackerDoc(doc as ApprovalTrackerDoc<NumberType>, NumberifyIfPossible);
     } else if (model.modelName === ApiKeyModel.modelName) {
       convertedDoc = doc as ApiKeyDoc;
     } else if (model.modelName === ClaimAlertModel.modelName) {

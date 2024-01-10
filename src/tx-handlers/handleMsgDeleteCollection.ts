@@ -1,13 +1,13 @@
 import { MsgDeleteCollection } from "bitbadgesjs-proto"
 import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
-import { ApprovalsTrackerModel, BalanceModel, CollectionModel, MerkleChallengeModel, deleteMany } from "../db/db"
+import { ApprovalTrackerModel, BalanceModel, CollectionModel, MerkleChallengeModel, deleteMany } from "../db/db"
 
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleNewAccountByAddress } from "./handleNewAccount"
 import mongoose from "mongoose"
 
 export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache, session: mongoose.ClientSession): Promise<void> => {
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [],  [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   //Safe to cast because MsgDeleteCollection can only be called if the collection exists
@@ -25,14 +25,14 @@ export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>
     collectionId: msg.collectionId.toString(),
   }).lean().session(session).exec();
 
-  const allApprovalDocs = await ApprovalsTrackerModel.find({
+  const allApprovalDocs = await ApprovalTrackerModel.find({
     collectionId: msg.collectionId.toString(),
   }).lean().session(session).exec();
 
   const promises = [];
-  promises.push(deleteMany(BalanceModel, allBalancesDocs.map((doc) => doc._legacyId), session));
-  promises.push(deleteMany(MerkleChallengeModel, allMerkleChallengesDocs.map((doc) => doc._legacyId), session))
-  promises.push(deleteMany(ApprovalsTrackerModel, allApprovalDocs.map((doc) => doc._legacyId), session))
+  promises.push(deleteMany(BalanceModel, allBalancesDocs.map((doc) => doc._docId), session));
+  promises.push(deleteMany(MerkleChallengeModel, allMerkleChallengesDocs.map((doc) => doc._docId), session))
+  promises.push(deleteMany(ApprovalTrackerModel, allApprovalDocs.map((doc) => doc._docId), session))
 
   await Promise.all(promises);
 
@@ -48,9 +48,9 @@ export const handleMsgDeleteCollection = async (msg: MsgDeleteCollection<bigint>
     }
   }
 
-  for (const key of Object.keys(docs.approvalsTrackers)) {
+  for (const key of Object.keys(docs.approvalTrackers)) {
     if (key.split(':')[0] === `${msg.collectionId}`) {
-      delete docs.approvalsTrackers[key];
+      delete docs.approvalTrackers[key];
     }
   }
 }

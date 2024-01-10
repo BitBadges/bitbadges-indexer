@@ -92,31 +92,31 @@
   "updateCollectionApprovals": true,
   "collectionApprovals": [
     {
-      "fromMappingId": "Mint",
-      "fromMapping": {
-        "mappingId": "Mint",
+      "fromListId": "Mint",
+      "fromList": {
+        "listId": "Mint",
         "addresses": [
           "Mint"
         ],
-        "includeAddresses": true,
+        "allowlist": true,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "toMappingId": "All",
-      "toMapping": {
-        "mappingId": "All",
+      "toListId": "All",
+      "toList": {
+        "listId": "All",
         "addresses": [],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "initiatedByMappingId": "All",
-      "initiatedByMapping": {
-        "mappingId": "All",
+      "initiatedByListId": "All",
+      "initiatedByList": {
+        "listId": "All",
         "addresses": [],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""

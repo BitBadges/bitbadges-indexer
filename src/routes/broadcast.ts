@@ -68,7 +68,7 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
         fetchResponse = res;
       } catch (e) {
         //wait 1 sec
-        console.log("Waiting 1 second for transaction to be included in block...");
+        // console.log("Waiting 1 second for transaction to be included in block...");
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         numTries++;

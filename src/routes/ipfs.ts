@@ -24,7 +24,7 @@ export const updateIpfsTotals = async (address: string, size: number, doNotInser
     ...convertIPFSTotalsDoc(_ipfsTotalsDoc, Number),
     bytesUploaded: Number(_ipfsTotalsDoc.bytesUploaded) + size,
   } : {
-    _legacyId: address,
+    _docId: address,
     _rev: undefined,
     bytesUploaded: size,
   };
@@ -144,7 +144,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
     const SYM_KEY = process.env.SYM_KEY;
 
     await insertToDB(PasswordModel, {
-      _legacyId: new mongoose.Types.ObjectId().toString(),
+      _docId: new mongoose.Types.ObjectId().toString(),
       createdBy: req.session.cosmosAddress,
       challengeLevel: "collection",
       collectionId: "-1",

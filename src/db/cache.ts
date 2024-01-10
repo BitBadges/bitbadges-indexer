@@ -1,9 +1,9 @@
 import { NumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, AddressMappingDoc, AddressMappingsDocs, ApprovalsTrackerDoc, ApprovalsTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, ListActivityDoc, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, ProtocolDoc, RefreshDoc, StatusDoc, UserProtocolCollectionsDoc, convertAccountDoc, convertAddressMappingDoc, convertApprovalsTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertToCosmosAddress, convertUserProtocolCollectionsDoc } from "bitbadgesjs-utils";
+import { AccountDoc, AccountDocs, AddressListDoc, AddressListsDocs, ApprovalTrackerDoc, ApprovalTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, ListActivityDoc, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, ProtocolDoc, RefreshDoc, StatusDoc, UserProtocolCollectionsDoc, convertAccountDoc, convertAddressListDoc, convertApprovalTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertToCosmosAddress, convertUserProtocolCollectionsDoc } from "bitbadgesjs-utils";
 import crypto from 'crypto';
 import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
-import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, ListActivityModel, MerkleChallengeModel, PasswordModel, ProtocolModel, QueueModel, RefreshModel, TransferActivityModel, UserProtocolCollectionsModel, getManyFromDB, insertMany, insertToDB } from "./db";
+import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, ListActivityModel, MerkleChallengeModel, PasswordModel, ProtocolModel, QueueModel, RefreshModel, TransferActivityModel, UserProtocolCollectionsModel, getManyFromDB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
 
 /**
@@ -11,16 +11,16 @@ import { setStatus } from "./status";
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], merkleChallengeIds: string[], approvalsTrackerIds: string[], addressMappingIds: string[], passwordDocIds: string[], 
+export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddresses: string[], collectionIds: bigint[], balanceIds: string[], challengeTrackers: string[], approvalTrackerIds: string[], addressListIds: string[], passwordDocIds: string[],
   protocolIds: string[],
   userProtocolCollectionsIds: string[],
-  
+
   session?: mongoose.mongo.ClientSession) {
   try {
     const newCollectionIds = collectionIds.map(x => x.toString()).filter((id) => !currDocs.collections[id]); //collectionId as keys (string: `${collectionId}`)
     const newCosmosAddresses = cosmosAddresses.map(x => x.toString()).filter((id) => !currDocs.collections[id]);
-    const newApprovalsTrackerIds = approvalsTrackerIds.filter((id) => !currDocs.approvalsTrackers[id]);
-    const newAddressMappingIds = addressMappingIds.filter((id) => !currDocs.addressMappings[id]);
+    const newApprovalTrackerIds = approvalTrackerIds.filter((id) => !currDocs.approvalTrackers[id]);
+    const newAddressListIds = addressListIds.filter((id) => !currDocs.addressLists[id]);
     const newPasswordDocIds = passwordDocIds.filter((id) => !currDocs.passwordDocs[id]);
 
     const newProtocolIds = protocolIds.filter((id) => !currDocs.protocols[id]);
@@ -28,10 +28,10 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
 
     //Partitioned IDs (collectionId:___)
     const newBalanceIds = balanceIds.filter((id) => !currDocs.balances[id]);
-    const newMerkleChallengeIds = merkleChallengeIds.filter((id) => !currDocs.merkleChallenges[id]);
+    const newMerkleChallengeIds = challengeTrackers.filter((id) => !currDocs.merkleChallenges[id]);
 
-    if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalsTrackerIds.length || newAddressMappingIds.length || newPasswordDocIds.length || newProtocolIds.length || newUserProtocolCollectionsIds.length) {
-      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalsTrackerIds, newAddressMappingIds, newPasswordDocIds, newProtocolIds, newUserProtocolCollectionsIds, session);
+    if (newCollectionIds.length || newBalanceIds.length || newMerkleChallengeIds.length || newCosmosAddresses.length || newApprovalTrackerIds.length || newAddressListIds.length || newPasswordDocIds.length || newProtocolIds.length || newUserProtocolCollectionsIds.length) {
+      const newDocs = await fetchDocsForCache(newCosmosAddresses, newCollectionIds, newBalanceIds, newMerkleChallengeIds, newApprovalTrackerIds, newAddressListIds, newPasswordDocIds, newProtocolIds, newUserProtocolCollectionsIds, session);
       currDocs.accounts = {
         ...currDocs.accounts,
         ...newDocs.accounts
@@ -55,20 +55,20 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
         ...currDocs.merkleChallenges,
         ...newDocs.merkleChallenges
       }
-      currDocs.approvalsTrackers = {
-        ...currDocs.approvalsTrackers,
-        ...newDocs.approvalsTrackers
+      currDocs.approvalTrackers = {
+        ...currDocs.approvalTrackers,
+        ...newDocs.approvalTrackers
       }
-      currDocs.addressMappings = {
-        ...currDocs.addressMappings,
-        ...newDocs.addressMappings
+      currDocs.addressLists = {
+        ...currDocs.addressLists,
+        ...newDocs.addressLists
       }
       currDocs.activityToAdd = currDocs.activityToAdd
       currDocs.queueDocsToAdd = currDocs.queueDocsToAdd
       //Within the poller, we never require fetching a refresh doc (only adding new ones)
       currDocs.refreshes = currDocs.refreshes
       currDocs.claimAlertsToAdd = currDocs.claimAlertsToAdd
-    
+
       currDocs.protocols = {
         ...currDocs.protocols,
         ...newDocs.protocols
@@ -90,7 +90,7 @@ export async function fetchDocsForCacheIfEmpty(currDocs: DocsCache, cosmosAddres
  * 
  * Assumes that all IDs are valid and filters out invalid IDs. If an ID is invalid, it will not be fetched or may throw an error.
  */
-export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalsTrackerIds: string[], _addressMappingIds: string[], _passwordDocIds: string[],
+export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionDocIds: string[], _balanceDocIds: string[], _claimDocIds: string[], _approvalTrackerIds: string[], _addressListIds: string[], _passwordDocIds: string[],
   _protocolIds: string[],
   _userProtocolCollectionsIds: string[],
   session?: mongoose.mongo.ClientSession) {
@@ -99,8 +99,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     const collectionDocIds = [...new Set(_collectionDocIds)].filter((id) => id.length > 0);
     const balanceDocIds = [...new Set(_balanceDocIds)].filter((id) => id.length > 0);
     const claimDocIds = [...new Set(_claimDocIds)].filter((id) => id.length > 0);
-    const approvalsTrackerIds = [...new Set(_approvalsTrackerIds)].filter((id) => id.length > 0);
-    const addressMappingIds = [...new Set(_addressMappingIds)].filter((id) => id.length > 0);
+    const approvalTrackerIds = [...new Set(_approvalTrackerIds)].filter((id) => id.length > 0);
+    const addressListIds = [...new Set(_addressListIds)].filter((id) => id.length > 0);
     const passwordDocIds = [...new Set(_passwordDocIds)].filter((id) => id.length > 0);
     const protocolIds = [...new Set(_protocolIds)].filter((id) => id.length > 0);
     const userProtocolCollectionsIds = [...new Set(_userProtocolCollectionsIds)].filter((id) => id.length > 0);
@@ -109,8 +109,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     const collectionData: CollectionDocs = {};
     const balanceData: BalanceDocs = {};
     const claimData: MerkleChallengeDocs = {};
-    const approvalsTrackerData: ApprovalsTrackerDocs = {};
-    const addressMappingsData: AddressMappingsDocs = {};
+    const approvalTrackerData: ApprovalTrackerDocs = {};
+    const addressListsData: AddressListsDocs = {};
     const passwordDocs: PasswordDocs = {};
     const protocolsData: {
       [protocolName: string]: (ProtocolDoc<bigint> | undefined);
@@ -125,8 +125,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
     if (collectionDocIds.length) promises.push(getManyFromDB(CollectionModel, collectionDocIds, session));
     if (balanceDocIds.length) promises.push(getManyFromDB(BalanceModel, balanceDocIds, session));
     if (claimDocIds.length) promises.push(getManyFromDB(MerkleChallengeModel, claimDocIds, session));
-    if (approvalsTrackerIds.length) promises.push(getManyFromDB(ApprovalsTrackerModel, approvalsTrackerIds, session));
-    if (addressMappingIds.length) promises.push(getManyFromDB(AddressMappingModel, addressMappingIds, session));
+    if (approvalTrackerIds.length) promises.push(getManyFromDB(ApprovalTrackerModel, approvalTrackerIds, session));
+    if (addressListIds.length) promises.push(getManyFromDB(AddressListModel, addressListIds, session));
     if (passwordDocIds.length) promises.push(getManyFromDB(PasswordModel, passwordDocIds, session));
     if (protocolIds.length) promises.push(getManyFromDB(ProtocolModel, protocolIds, session));
     if (userProtocolCollectionsIds.length) promises.push(getManyFromDB(UserProtocolCollectionsModel, userProtocolCollectionsIds, session));
@@ -145,7 +145,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter(x => x).map((x) => convertAccountDoc(x as AccountDoc<NumberType>, BigIntify));
           for (const address of cosmosAddresses) {
-            accountsData[address] = docs.find(x => x._legacyId === address);
+            accountsData[address] = docs.find(x => x._docId === address);
           }
         }
       }
@@ -155,7 +155,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter(x => x).map((x) => convertCollectionDoc(x as CollectionDoc<NumberType>, BigIntify));
           for (const collectionId of collectionDocIds) {
-            collectionData[collectionId] = docs.find(x => x._legacyId === collectionId);
+            collectionData[collectionId] = docs.find(x => x._docId === collectionId);
           }
         }
       }
@@ -165,7 +165,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter(x => x).map((x) => convertBalanceDoc(x as BalanceDoc<NumberType>, BigIntify));
           for (const balanceId of balanceDocIds) {
-            balanceData[balanceId] = docs.find(x => x._legacyId === balanceId);
+            balanceData[balanceId] = docs.find(x => x._docId === balanceId);
           }
         }
       }
@@ -175,27 +175,27 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter(x => x).map((x) => convertMerkleChallengeDoc(x as MerkleChallengeDoc<NumberType>, BigIntify));
           for (const claimId of claimDocIds) {
-            claimData[claimId] = docs.find(x => x._legacyId === claimId);
+            claimData[claimId] = docs.find(x => x._docId === claimId);
           }
         }
       }
 
-      if (addressMappingIds.length) {
+      if (addressListIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = (result.value as any[]).filter(x => x).map((x) => convertAddressMappingDoc(x as AddressMappingDoc<NumberType>, BigIntify));
-          for (const addressMappingId of addressMappingIds) {
-            addressMappingsData[addressMappingId] = docs.find(x => x._legacyId === addressMappingId);
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertAddressListDoc(x as AddressListDoc<NumberType>, BigIntify));
+          for (const addressListId of addressListIds) {
+            addressListsData[addressListId] = docs.find(x => x._docId === addressListId);
           }
         }
       }
 
-      if (approvalsTrackerIds.length) {
+      if (approvalTrackerIds.length) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
-          const docs = (result.value as any[]).filter(x => x).map((x) => convertApprovalsTrackerDoc(x as ApprovalsTrackerDoc<NumberType>, BigIntify));
-          for (const approvalsTrackerId of approvalsTrackerIds) {
-            approvalsTrackerData[approvalsTrackerId] = docs.find(x => x._legacyId === approvalsTrackerId);
+          const docs = (result.value as any[]).filter(x => x).map((x) => convertApprovalTrackerDoc(x as ApprovalTrackerDoc<NumberType>, BigIntify));
+          for (const approvalTrackerId of approvalTrackerIds) {
+            approvalTrackerData[approvalTrackerId] = docs.find(x => x._docId === approvalTrackerId);
           }
         }
       }
@@ -205,7 +205,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter(x => x).map((x) => convertPasswordDoc(x as PasswordDoc<NumberType>, BigIntify));
           for (const passwordDocId of passwordDocIds) {
-            passwordDocs[passwordDocId] = docs.find(x => x._legacyId === passwordDocId);
+            passwordDocs[passwordDocId] = docs.find(x => x._docId === passwordDocId);
           }
         }
       }
@@ -215,7 +215,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter(x => x).map((x) => x as ProtocolDoc<NumberType>);
           for (const protocolId of protocolIds) {
-            protocolsData[protocolId] = docs.find(x => x._legacyId === protocolId);
+            protocolsData[protocolId] = docs.find(x => x._docId === protocolId);
           }
         }
       }
@@ -225,7 +225,7 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter(x => x).map((x) => convertUserProtocolCollectionsDoc(x as UserProtocolCollectionsDoc<NumberType>, BigIntify));
           for (const userProtocolCollectionsId of userProtocolCollectionsIds) {
-            userProtocolCollectionsData[userProtocolCollectionsId] = docs.find(x => x._legacyId === userProtocolCollectionsId);
+            userProtocolCollectionsData[userProtocolCollectionsId] = docs.find(x => x._docId === userProtocolCollectionsId);
           }
         }
       }
@@ -233,7 +233,8 @@ export async function fetchDocsForCache(_cosmosAddresses: string[], _collectionD
 
     return {
       protocols: protocolsData, userProtocolCollections: userProtocolCollectionsData,
-      accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalsTrackers: approvalsTrackerData, addressMappings: addressMappingsData, passwordDocs: passwordDocs }
+      accounts: accountsData, collections: collectionData, balances: balanceData, merkleChallenges: claimData, approvalTrackers: approvalTrackerData, addressLists: addressListsData, passwordDocs: passwordDocs
+    }
   } catch (error) {
     throw `Error in fetchDocsForCache(): ${error}`;
   }
@@ -249,8 +250,8 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
     const balanceDocs = Object.values(docs.balances) as (BalanceDoc<bigint>)[];
     const claimDocs = Object.values(docs.merkleChallenges) as (MerkleChallengeDoc<bigint>)[];
     const refreshDocs = Object.values(docs.refreshes) as (RefreshDoc<bigint>)[];
-    const approvalsTrackerDocs = Object.values(docs.approvalsTrackers) as (ApprovalsTrackerDoc<bigint>)[];
-    const addressMappingDocs = Object.values(docs.addressMappings) as (AddressMappingDoc<bigint>)[];
+    const approvalTrackerDocs = Object.values(docs.approvalTrackers) as (ApprovalTrackerDoc<bigint>)[];
+    const addressListDocs = Object.values(docs.addressLists) as (AddressListDoc<bigint>)[];
     const passwordDocs = Object.values(docs.passwordDocs) as (PasswordDoc<bigint>)[];
     const activityDocs = docs.activityToAdd;
     const queueDocs = docs.queueDocsToAdd;
@@ -298,24 +299,23 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
       else await insertMany(RefreshModel, refreshDocs, session);
     }
 
-    if (approvalsTrackerDocs.length) {
-      if (parallelExecution) promises.push(insertMany(ApprovalsTrackerModel, approvalsTrackerDocs, session));
-      else await insertMany(ApprovalsTrackerModel, approvalsTrackerDocs, session);
+    if (approvalTrackerDocs.length) {
+      if (parallelExecution) promises.push(insertMany(ApprovalTrackerModel, approvalTrackerDocs, session));
+      else await insertMany(ApprovalTrackerModel, approvalTrackerDocs, session);
     }
 
-    if (addressMappingDocs.length) {
-      if (parallelExecution) promises.push(insertMany(AddressMappingModel, addressMappingDocs, session));
-      else await insertMany(AddressMappingModel, addressMappingDocs, session);
+    if (addressListDocs.length) {
+      if (parallelExecution) promises.push(insertMany(AddressListModel, addressListDocs, session));
+      else await insertMany(AddressListModel, addressListDocs, session);
 
-      //We can do this bc on-chain mappings are permanent and non-updatable
+      //We can do this bc on-chain lists are permanent and non-updatable
       const listActivityDocs: ListActivityDoc<NumberType>[] = [];
-      for (const doc of addressMappingDocs) {
+      for (const doc of addressListDocs) {
         listActivityDocs.push({
-          _legacyId: crypto.randomBytes(16).toString('hex'),
-          method: 'ListUpdate',
+          _docId: crypto.randomBytes(16).toString('hex'),
           addresses: doc.addresses.map(x => convertToCosmosAddress(x)),
-          onList: true,
-          mappingId: doc.mappingId,
+          addedToList: true,
+          listId: doc.listId,
           timestamp: status?.block.timestamp ?? BigInt(Date.now()),
           block: status?.block.height ?? 0n,
         });
@@ -360,7 +360,7 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
   } catch (error) {
 
     await insertToDB(ErrorModel, {
-      _legacyId: new mongoose.Types.ObjectId().toString(),
+      _docId: new mongoose.Types.ObjectId().toString(),
       function: 'flushCachedDocs',
       error: serializeError(error.message),
     });

@@ -1,42 +1,42 @@
-import { AddressMapping, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserBalance, UserIncomingApproval, UserOutgoingApproval } from "bitbadgesjs-proto";
-import { AddressMappingWithMetadata, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendDefaultForIncoming, appendDefaultForOutgoing, convertAddressMappingWithMetadata, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressMapping } from "bitbadgesjs-utils";
-import { AddressMappingModel, FetchModel, getFromDB, mustGetManyFromDB } from "../db/db";
+import { AddressList, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserBalanceStore, UserIncomingApproval, UserOutgoingApproval } from "bitbadgesjs-proto";
+import { AddressListWithMetadata, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendSelfInitiatedIncomingApproval, appendSelfInitiatedOutgoingApproval, convertAddressListWithMetadata, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressList } from "bitbadgesjs-utils";
+import { AddressListModel, FetchModel, getFromDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 
-export async function getAddressMappingsFromDB(mappingIds: {
-  mappingId: string;
+export async function getAddressListsFromDB(listIds: {
+  listId: string;
   collectionId?: NumberType;
 }[], fetchMetadata: boolean) {
-  let addressMappingIdsToFetch = [...new Set(mappingIds)];
-  let addressMappings: AddressMappingWithMetadata<bigint>[] = [];
-  for (const mappingIdObj of addressMappingIdsToFetch) {
+  let addressListIdsToFetch = [...new Set(listIds)];
+  let addressLists: AddressListWithMetadata<bigint>[] = [];
+  for (const listIdObj of addressListIdsToFetch) {
     try {
-      const mapping = getReservedAddressMapping(mappingIdObj.mappingId);
-      if (mapping) {
-        addressMappings.push({
-          ...mapping,
-          _legacyId: '',
+      const list = getReservedAddressList(listIdObj.listId);
+      if (list) {
+        addressLists.push({
+          ...list,
+          _docId: '',
           updateHistory: [],
           createdBy: '',
           lastUpdated: 0n,
           createdBlock: 0n,
         });
-        addressMappingIdsToFetch = addressMappingIdsToFetch.filter((x) => x.mappingId !== mappingIdObj.mappingId);
+        addressListIdsToFetch = addressListIdsToFetch.filter((x) => x.listId !== listIdObj.listId);
       }
     } catch (e) {
       //If it throws an error, it is a non-reserved ID
     }
   }
 
-  addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
+  addressListIdsToFetch = [...new Set(addressListIdsToFetch)];
 
-  if (addressMappingIdsToFetch.length > 0) {
-    const addressMappingDocs = await mustGetManyFromDB(AddressMappingModel, addressMappingIdsToFetch.map(x => x.mappingId));
-    addressMappings.push(...addressMappingDocs.map((doc) => convertAddressMappingWithMetadata(doc, BigIntify)));
+  if (addressListIdsToFetch.length > 0) {
+    const addressListDocs = await mustGetManyFromDB(AddressListModel, addressListIdsToFetch.map(x => x.listId));
+    addressLists.push(...addressListDocs.map((doc) => convertAddressListWithMetadata(doc, BigIntify)));
   }
 
   if (fetchMetadata) {
-    let uris: string[] = [...new Set(addressMappings.map(x => x.uri))];
+    let uris: string[] = [...new Set(addressLists.map(x => x.uri))];
 
     if (uris.length > 0) {
       const fetchPromises = uris.map(async (uri) => {
@@ -51,16 +51,16 @@ export async function getAddressMappingsFromDB(mappingIds: {
 
       results.forEach(({ uri, doc }) => {
         if (doc && doc.content) {
-          addressMappings = addressMappings.map(x => (x.uri === uri) ? { ...x, metadata: convertMetadata(doc.content as Metadata<JSPrimitiveNumberType>, BigIntify) } : x);
+          addressLists = addressLists.map(x => (x.uri === uri) ? { ...x, metadata: convertMetadata(doc.content as Metadata<JSPrimitiveNumberType>, BigIntify) } : x);
         }
       });
     }
   }
 
 
-  return addressMappings.map(x => {
-    const isNSFW = complianceDoc?.addressMappings.nsfw.find((y) => y.mappingId === x.mappingId);
-    const isReported = complianceDoc?.addressMappings.reported.find((y) => y.mappingId === x.mappingId);
+  return addressLists.map(x => {
+    const isNSFW = complianceDoc?.addressLists.nsfw.find((y) => y.listId === x.listId);
+    const isReported = complianceDoc?.addressLists.reported.find((y) => y.listId === x.listId);
     return {
       ...x,
       nsfw: isNSFW,
@@ -70,42 +70,42 @@ export async function getAddressMappingsFromDB(mappingIds: {
 }
 
 
-export const appendDefaultForIncomingUserApprovals = (
-  userBalance: UserBalance<NumberType>,
-  addressMappings: AddressMapping[], cosmosAddress: string,
+export const appendSelfInitiatedIncomingApprovalToApprovals = (
+  userBalance: UserBalanceStore<NumberType>,
+  addressLists: AddressList[], cosmosAddress: string,
   doNotAppendDefault?: boolean
 ) => {
   let transfers: UserIncomingApprovalWithDetails<NumberType>[] | UserIncomingApproval<NumberType>[] = userBalance.incomingApprovals;
   let transfersWithDetails = transfers.map((transfer) => {
     return {
       ...transfer,
-      fromMapping: addressMappings.find((x) => x.mappingId === transfer.fromMappingId) as AddressMapping,
-      initiatedByMapping: addressMappings.find((x) => x.mappingId === transfer.initiatedByMappingId) as AddressMapping,
+      fromList: addressLists.find((x) => x.listId === transfer.fromListId) as AddressList,
+      initiatedByList: addressLists.find((x) => x.listId === transfer.initiatedByListId) as AddressList,
     };
   }).map(x => convertUserIncomingApprovalWithDetails(x, BigIntify))
 
   return (doNotAppendDefault || !userBalance.autoApproveSelfInitiatedIncomingTransfers
     ? transfersWithDetails
-    : appendDefaultForIncoming(transfersWithDetails, cosmosAddress,)).map(x => convertUserIncomingApprovalWithDetails(x, Stringify)
+    : appendSelfInitiatedIncomingApproval(transfersWithDetails, cosmosAddress,)).map(x => convertUserIncomingApprovalWithDetails(x, Stringify)
     )
 }
 
-export const appendDefaultForOutgoingUserApprovals = (
-  userBalance: UserBalance<NumberType>,
-  addressMappings: AddressMapping[], cosmosAddress: string,
+export const appendSelfInitiatedOutgoingApprovalToApprovals = (
+  userBalance: UserBalanceStore<NumberType>,
+  addressLists: AddressList[], cosmosAddress: string,
   doNotAppendDefault?: boolean
 ) => {
   let transfers: UserOutgoingApprovalWithDetails<NumberType>[] | UserOutgoingApproval<NumberType>[] = userBalance.outgoingApprovals;
   let transfersWithDetails = transfers.map((transfer) => {
     return {
       ...transfer,
-      toMapping: addressMappings.find((x) => x.mappingId === transfer.toMappingId) as AddressMapping,
-      initiatedByMapping: addressMappings.find((x) => x.mappingId === transfer.initiatedByMappingId) as AddressMapping,
+      toList: addressLists.find((x) => x.listId === transfer.toListId) as AddressList,
+      initiatedByList: addressLists.find((x) => x.listId === transfer.initiatedByListId) as AddressList,
     };
   }
 
   ).map(x => convertUserOutgoingApprovalWithDetails(x, BigIntify))
 
   return (doNotAppendDefault || !userBalance.autoApproveSelfInitiatedOutgoingTransfers
-    ? transfersWithDetails : appendDefaultForOutgoing(transfersWithDetails, cosmosAddress)).map(x => convertUserOutgoingApprovalWithDetails(x, Stringify))
+    ? transfersWithDetails : appendSelfInitiatedOutgoingApproval(transfersWithDetails, cosmosAddress)).map(x => convertUserOutgoingApprovalWithDetails(x, Stringify))
 }

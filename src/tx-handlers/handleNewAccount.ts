@@ -17,7 +17,7 @@ import { client } from "../indexer";
 export const handleNewAccountByAddress = async (cosmosAddress: string, docs: DocsCache, solanaAddress?: string): Promise<void> => {
 
   if (!docs.accounts[cosmosAddress]) {
-    await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], [], [], [],  [], []);
+    await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], [], [], [], [], []);
   }
 
   //If we already have an account doc with an acct number and public key, we don't need to do anything
@@ -36,7 +36,7 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
   const accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(cosmosAddress)
   if (accountInfo) {
     docs.accounts[cosmosAddress] = convertAccountDoc({
-      _legacyId: `${cosmosAddress}`,
+      _docId: `${cosmosAddress}`,
       ...docs.accounts[cosmosAddress],
       ...accountInfo,
       solAddress: solanaAddress ? solanaAddress : docs.accounts[cosmosAddress]?.solAddress ?? '', //Solana address is inserted manually by extension options (bc we can't revert the hash)

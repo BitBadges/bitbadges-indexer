@@ -2,7 +2,7 @@ import { convertBalance, convertUserIncomingApproval, convertUserOutgoingApprova
 import { BadgeCollection } from "bitbadgesjs-proto/dist/proto/badges/collections_pb";
 import { BigIntify, CollectionDoc, NumberType, convertCollectionDoc, convertStatusDoc } from "bitbadgesjs-utils";
 import mongoose from "mongoose";
-import { AccountModel, AddressMappingModel, ApprovalsTrackerModel, BalanceModel, CollectionModel, MerkleChallengeModel, StatusModel, getFromDB } from "../db/db";
+import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, CollectionModel, MerkleChallengeModel, StatusModel, getFromDB } from "../db/db";
 import { client } from "../indexer";
 import { connectToRpc } from "../poll";
 
@@ -45,7 +45,7 @@ describe("queryClient", () => {
       const bigIntifiedCollectionDoc = convertCollectionDoc(collectionDoc, BigIntify);
       const bigIntifiedCollectionRes = convertCollectionDoc({
         ...collectionRes,
-        _legacyId: i.toString(),
+        _docId: i.toString(),
         createdBlock: 0n,
         createdTimestamp: 0n,
         updateHistory: [],
@@ -149,7 +149,7 @@ describe("queryClient", () => {
 
         console.log(indexedChallenge);
 
-        const challengeRes = await queryClient.badges.getNumUsedForMerkleChallenge(indexedChallenge.collectionId.toString(), indexedChallenge.challengeLevel, indexedChallenge.approverAddress, indexedChallenge.challengeId, leafIndex.toString());
+        const challengeRes = await queryClient.badges.getChallengeTracker(indexedChallenge.collectionId.toString(), indexedChallenge.challengeLevel, indexedChallenge.approverAddress, indexedChallenge.challengeId, leafIndex.toString());
 
         expect(challengeRes).toBeDefined();
         if (!challengeRes) continue; //For TS
@@ -159,7 +159,7 @@ describe("queryClient", () => {
       }
 
       //Check something not used 
-      const challengeRes = await queryClient.badges.getNumUsedForMerkleChallenge(indexedChallenge.collectionId.toString(), indexedChallenge.challengeLevel, indexedChallenge.approverAddress, indexedChallenge.challengeId, "10000000000000000000000");
+      const challengeRes = await queryClient.badges.getChallengeTracker(indexedChallenge.collectionId.toString(), indexedChallenge.challengeLevel, indexedChallenge.approverAddress, indexedChallenge.challengeId, "10000000000000000000000");
       expect(challengeRes).toBeDefined();
       if (!challengeRes) continue; //For TS
 
@@ -168,23 +168,23 @@ describe("queryClient", () => {
     }
   });
 
-  it('all address mappings should be indexed correctly', async () => {
+  it('all address lists should be indexed correctly', async () => {
     const queryClient = client.badgesQueryClient;
     if (!queryClient) throw new Error("queryClient not ready");
 
-    const allAddressMappings = await AddressMappingModel.find({
-      _legacyId: {
+    const allAddressLists = await AddressListModel.find({
+      _docId: {
         $regex: /^[^_]+$/,
       },
     }).lean().exec();
 
-    for (const indexedAddressMapping of allAddressMappings) {
-      const addressMappingRes = await queryClient.badges.getAddressMapping(indexedAddressMapping.mappingId);
-      expect(addressMappingRes).toBeDefined();
-      if (!addressMappingRes) continue; //For TS
+    for (const indexedAddressList of allAddressLists) {
+      const addressListRes = await queryClient.badges.getAddressList(indexedAddressList.listId);
+      expect(addressListRes).toBeDefined();
+      if (!addressListRes) continue; //For TS
 
-      for (const key of Object.keys(addressMappingRes)) {
-        expect(JSON.stringify(addressMappingRes[key as keyof typeof addressMappingRes])).toEqual(JSON.stringify(indexedAddressMapping[key as keyof typeof indexedAddressMapping]));
+      for (const key of Object.keys(addressListRes)) {
+        expect(JSON.stringify(addressListRes[key as keyof typeof addressListRes])).toEqual(JSON.stringify(indexedAddressList[key as keyof typeof indexedAddressList]));
       }
     }
   });
@@ -193,15 +193,15 @@ describe("queryClient", () => {
     const queryClient = client.badgesQueryClient;
     if (!queryClient) throw new Error("queryClient not ready");
 
-    const allApprovalsTrackers = await ApprovalsTrackerModel.find({}).lean().exec();
+    const allApprovalTrackers = await ApprovalTrackerModel.find({}).lean().exec();
 
-    for (const indexedApprovalsTracker of allApprovalsTrackers) {
-      const approvalsTrackerRes = await queryClient.badges.getApprovalsTracker(indexedApprovalsTracker.collectionId.toString(), indexedApprovalsTracker.approvalLevel, indexedApprovalsTracker.approverAddress, indexedApprovalsTracker.amountTrackerId, indexedApprovalsTracker.trackerType, indexedApprovalsTracker.approvedAddress);
-      expect(approvalsTrackerRes).toBeDefined();
-      if (!approvalsTrackerRes) continue; //For TS
+    for (const indexedApprovalTracker of allApprovalTrackers) {
+      const approvalTrackerRes = await queryClient.badges.getApprovalTracker(indexedApprovalTracker.collectionId.toString(), indexedApprovalTracker.approvalLevel, indexedApprovalTracker.approverAddress, indexedApprovalTracker.amountTrackerId, indexedApprovalTracker.trackerType, indexedApprovalTracker.approvedAddress);
+      expect(approvalTrackerRes).toBeDefined();
+      if (!approvalTrackerRes) continue; //For TS
 
-      expect(approvalsTrackerRes.numTransfers).toEqual(JSON.stringify(indexedApprovalsTracker.numTransfers));
-      expect(approvalsTrackerRes.amounts.map(x => convertBalance(x, BigIntify))).toEqual(indexedApprovalsTracker.amounts.map(x => convertBalance(x, BigIntify)));
+      expect(approvalTrackerRes.numTransfers).toEqual(JSON.stringify(indexedApprovalTracker.numTransfers));
+      expect(approvalTrackerRes.amounts.map(x => convertBalance(x, BigIntify))).toEqual(indexedApprovalTracker.amounts.map(x => convertBalance(x, BigIntify)));
     }
   });
 });

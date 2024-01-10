@@ -5,24 +5,24 @@
     "balances": [],
     "incomingApprovals": [
       {
-        "fromMappingId": "All",
-        "fromMapping": {
-          "mappingId": "All",
+        "fromListId": "All",
+        "fromList": {
+          "listId": "All",
           "addresses": [],
-          "includeAddresses": false,
+          "allowlist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMapping": {
-          "mappingId": "All",
+        "initiatedByList": {
+          "listId": "All",
           "addresses": [],
-          "includeAddresses": false,
+          "allowlist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMappingId": "All",
+        "initiatedByListId": "All",
         "transferTimes": [
           {
             "start": "1",
@@ -91,8 +91,8 @@
             "end": "18446744073709551615"
           }
         ],
-        "permittedTimes": [],
-        "forbiddenTimes": [
+        "permanentlyPermittedTimes": [],
+        "permanentlyForbiddenTimes": [
           {
             "start": "1",
             "end": "18446744073709551615"
@@ -108,12 +108,12 @@
           "allValues": false,
           "noValues": false
         },
-        "permittedTimesOptions": {
+        "permanentlyPermittedTimesOptions": {
           "invertDefault": false,
           "allValues": false,
           "noValues": false
         },
-        "forbiddenTimesOptions": {
+        "permanentlyForbiddenTimesOptions": {
           "invertDefault": false,
           "allValues": false,
           "noValues": false
@@ -124,29 +124,29 @@
     "canUpdateBadgeMetadata": [],
     "canUpdateCollectionApprovals": [
       {
-        "fromMappingId": "All",
-        "toMappingId": "All",
-        "initiatedByMappingId": "All",
-        "toMapping": {
-          "mappingId": "All",
+        "fromListId": "All",
+        "toListId": "All",
+        "initiatedByListId": "All",
+        "toList": {
+          "listId": "All",
           "addresses": [],
-          "includeAddresses": false,
+          "allowlist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "fromMapping": {
-          "mappingId": "All",
+        "fromList": {
+          "listId": "All",
           "addresses": [],
-          "includeAddresses": false,
+          "allowlist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMapping": {
-          "mappingId": "All",
+        "initiatedByList": {
+          "listId": "All",
           "addresses": [],
-          "includeAddresses": false,
+          "allowlist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -177,8 +177,8 @@
         ],
         "amountTrackerId": "All",
         "challengeTrackerId": "All",
-        "permittedTimes": [],
-        "forbiddenTimes": [
+        "permanentlyPermittedTimes": [],
+        "permanentlyForbiddenTimes": [
           {
             "start": "1",
             "end": "18446744073709551615"
@@ -186,35 +186,35 @@
         ]
       },
       {
-        "fromMappingId": "Mint",
-        "toMappingId": "Mint",
-        "initiatedByMappingId": "Mint",
-        "toMapping": {
-          "mappingId": "Mint",
+        "fromListId": "Mint",
+        "toListId": "Mint",
+        "initiatedByListId": "Mint",
+        "toList": {
+          "listId": "Mint",
           "addresses": [
             "Mint"
           ],
-          "includeAddresses": true,
+          "allowlist": true,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "fromMapping": {
-          "mappingId": "Mint",
+        "fromList": {
+          "listId": "Mint",
           "addresses": [
             "Mint"
           ],
-          "includeAddresses": true,
+          "allowlist": true,
           "uri": "",
           "customData": "",
           "createdBy": ""
         },
-        "initiatedByMapping": {
-          "mappingId": "Mint",
+        "initiatedByList": {
+          "listId": "Mint",
           "addresses": [
             "Mint"
           ],
-          "includeAddresses": true,
+          "allowlist": true,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -245,8 +245,8 @@
         ],
         "amountTrackerId": "All",
         "challengeTrackerId": "All",
-        "permittedTimes": [],
-        "forbiddenTimes": [
+        "permanentlyPermittedTimes": [],
+        "permanentlyForbiddenTimes": [
           {
             "start": "1",
             "end": "18446744073709551615"
@@ -317,31 +317,31 @@
   "updateCollectionApprovals": true,
   "collectionApprovals": [
     {
-      "fromMappingId": "Mint",
-      "fromMapping": {
-        "mappingId": "Mint",
+      "fromListId": "Mint",
+      "fromList": {
+        "listId": "Mint",
         "addresses": [
           "Mint"
         ],
-        "includeAddresses": true,
+        "allowlist": true,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "toMappingId": "All",
-      "toMapping": {
-        "mappingId": "All",
+      "toListId": "All",
+      "toList": {
+        "listId": "All",
         "addresses": [],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "initiatedByMappingId": "All",
-      "initiatedByMapping": {
-        "mappingId": "All",
+      "initiatedByListId": "All",
+      "initiatedByList": {
+        "listId": "All",
         "addresses": [],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -432,9 +432,9 @@
       }
     },
     {
-      "fromMappingId": "!Mint",
-      "toMappingId": "!Mint",
-      "initiatedByMappingId": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+      "fromListId": "!Mint",
+      "toListId": "!Mint",
+      "initiatedByListId": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
       "badgeIds": [
         {
           "start": "1",
@@ -447,32 +447,32 @@
           "end": "18446744073709551615"
         }
       ],
-      "toMapping": {
-        "mappingId": "!Mint",
+      "toList": {
+        "listId": "!Mint",
         "addresses": [
           "Mint"
         ],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "fromMapping": {
-        "mappingId": "!Mint",
+      "fromList": {
+        "listId": "!Mint",
         "addresses": [
           "Mint"
         ],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "initiatedByMapping": {
-        "mappingId": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+      "initiatedByList": {
+        "listId": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
         "addresses": [
           "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x"
         ],
-        "includeAddresses": true,
+        "allowlist": true,
         "uri": "",
         "customData": "",
         "createdBy": ""

@@ -18,17 +18,15 @@ import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { ApiKeyModel, insertToDB, mustGetFromDB } from './db/db'
 import { OFFLINE_MODE, TIME_MODE } from './indexer-vars'
 import { poll, pollUris } from "./poll"
-import { deleteAddressMappings, getAddressMappings, updateAddressMappings } from './routes/addressMappings'
-import { getApprovals } from './routes/approvalTrackers'
+import { deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists'
 import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes'
 import { getOwnersForBadge } from './routes/badges'
 import { getBadgeBalanceByAddress } from "./routes/balances"
 import { broadcastTx, simulateTx } from './routes/broadcast'
 import { getBrowseCollections } from './routes/browse'
-import { getChallengeTrackers } from './routes/challengeTrackers'
 import { getClaimAlertsForCollection, sendClaimAlert } from './routes/claimAlerts'
 import { getAllCodesAndPasswords } from "./routes/codes"
-import { getBadgeActivity, getCollectionById, getCollections, getMetadataForCollection, } from "./routes/collections"
+import { getBadgeActivity, getCollectionById, getCollections } from "./routes/collections"
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx'
 import { getTokensFromFaucet } from './routes/faucet'
 import { getFollowDetails } from './routes/follows'
@@ -221,7 +219,6 @@ app.post("/api/v0/search/:searchValue", searchHandler);
 app.post("/api/v0/collection/batch", getCollections)
 app.post("/api/v0/collection/:collectionId", getCollectionById)
 app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);
-app.post("/api/v0/collection/:collectionId/metadata", getMetadataForCollection)
 app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
 app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
 
@@ -268,25 +265,18 @@ app.post('/api/v0/metadata', websiteOnlyCors, fetchMetadataDirectly);
 //Faucet
 app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
 
-//Address Mappings
-app.post('/api/v0/addressMappings', getAddressMappings);
-app.post('/api/v0/addressMappings/update', authorizeBlockinRequest, updateAddressMappings);
-app.post('/api/v0/addressMappings/delete', authorizeBlockinRequest, deleteAddressMappings);
-
-//Approvals
-app.post('/api/v0/approvals', getApprovals);
-
-//Merkle Challenge Tracker
-app.post('/api/v0/challenges', getChallengeTrackers);
+//Address Lists
+app.post('/api/v0/addressLists', getAddressLists);
+app.post('/api/v0/addressLists/update', authorizeBlockinRequest, updateAddressLists);
+app.post('/api/v0/addressLists/delete', authorizeBlockinRequest, deleteAddressLists);
 
 //Blockin Auth Codes
 app.post('/api/v0/authCode', getAuthCode)
-// app.post("/api/v0/authCode/create", authorizeBlockinRequest, createAuthCode)
 app.post("/api/v0/authCode/create", createAuthCode) //we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest)
 app.post("/api/v0/authCode/delete", authorizeBlockinRequest, deleteAuthCode)
 
 //Surveys
-app.post('/api/v0/survey/:mappingId/add', addAddressToSurvey);
+app.post('/api/v0/survey/:listId/add', addAddressToSurvey);
 
 //Claim Alerts
 app.post('/api/v0/claimAlerts/send', authorizeBlockinRequest, sendClaimAlert);

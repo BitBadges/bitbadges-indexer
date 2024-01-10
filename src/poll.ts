@@ -2,7 +2,7 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
-import { Balance, JSPrimitiveNumberType, Transfer, convertBalance, convertFromProtoToMsgCreateAddressMappings, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
+import { Balance, JSPrimitiveNumberType, Transfer, convertBalance, convertFromProtoToMsgCreateAddressLists, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
 import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
@@ -18,7 +18,7 @@ import { getStatus } from "./db/status"
 import { SHUTDOWN, client, setClient, setTimer, setUriPollerTimer } from "./indexer"
 import { TIME_MODE } from "./indexer-vars"
 import { handleQueueItems } from "./queue"
-import { handleMsgCreateAddressMappings } from "./tx-handlers/handleMsgCreateAddressMappings"
+import { handleMsgCreateAddressLists } from "./tx-handlers/handleMsgCreateAddressLists"
 import { handleMsgCreateCollection } from "./tx-handlers/handleMsgCreateCollection"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
 import { handleMsgTransferBadges } from "./tx-handlers/handleMsgTransferBadges"
@@ -77,7 +77,7 @@ export const pollUris = async () => {
       console.error(e);
 
       await insertMany(ErrorModel, [{
-        _legacyId: new mongoose.Types.ObjectId().toString(),
+        _docId: new mongoose.Types.ObjectId().toString(),
         error: serializeError(e),
         function: 'pollUris',
       }]);
@@ -149,8 +149,8 @@ export const poll = async () => {
         claimAlertsToAdd: [],
         queueDocsToAdd: [],
         merkleChallenges: {},
-        addressMappings: {},
-        approvalsTrackers: {},
+        addressLists: {},
+        approvalTrackers: {},
         balances: {},
         passwordDocs: {},
         protocols: {},
@@ -222,7 +222,7 @@ export const poll = async () => {
       console.error(e);
 
       await insertMany(ErrorModel, [{
-        _legacyId: new mongoose.Types.ObjectId().toString(),
+        _docId: new mongoose.Types.ObjectId().toString(),
         error: serializeError(e),
         function: 'poll',
       }]);
@@ -268,8 +268,8 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const amounts = JSON.parse(amountsJsonStr && amountsJsonStr != "null" ? amountsJsonStr : '[]') as Balance<string>[];
     const numTransfers = numTransfersJsonStr && numTransfersJsonStr != "null" ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
 
-    docs.approvalsTrackers[docId] = {
-      _legacyId: docId,
+    docs.approvalTrackers[docId] = {
+      _docId: docId,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       approvalLevel: approvalLevel ? approvalLevel : '',
       approverAddress: approverAddress ? approverAddress : '',
@@ -294,7 +294,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     newLeafIndices.push(BigIntify(leafIndex ? leafIndex : 0n));
 
     docs.merkleChallenges[docId] = {
-      _legacyId: docId,
+      _docId: docId,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       challengeId: challengeId ? challengeId : '',
       challengeLevel: challengeLevel ? challengeLevel : '' as "collection" | "incoming" | "outgoing" | "",
@@ -407,10 +407,10 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
 
         const newProtocolMsg = protocoltx.MsgCreateProtocol.fromBinary(value)
 
-        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [],  [newProtocolMsg.name], []);
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [newProtocolMsg.name], []);
 
         docs.protocols[newProtocolMsg.name] = {
-          _legacyId: newProtocolMsg.name,
+          _docId: newProtocolMsg.name,
           ...newProtocolMsg,
           createdBy: newProtocolMsg.creator,
         }
@@ -420,8 +420,8 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [updateProtocolMsg.name], []);
         docs.protocols[updateProtocolMsg.name] = {
           ...docs.protocols[updateProtocolMsg.name],
-          _legacyId: updateProtocolMsg.name,
-          
+          _docId: updateProtocolMsg.name,
+
           createdBy: updateProtocolMsg.creator,
           ...updateProtocolMsg,
         }
@@ -444,7 +444,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         }
 
         docs.userProtocolCollections[setCollectionForProtocolMsg.creator] = {
-          _legacyId: setCollectionForProtocolMsg.creator,
+          _docId: setCollectionForProtocolMsg.creator,
           protocols: {
             ...docs.userProtocolCollections[setCollectionForProtocolMsg.creator]?.protocols,
             [setCollectionForProtocolMsg.name]: BigInt(collectionIdToSet),
@@ -455,7 +455,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const unsetCollectionForProtocolMsg = protocoltx.MsgUnsetCollectionForProtocol.fromBinary(value)
         await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [], [unsetCollectionForProtocolMsg.creator]);
         delete docs.userProtocolCollections[unsetCollectionForProtocolMsg.creator]?.protocols[unsetCollectionForProtocolMsg.name];
-        
+
         break;
       case "/badges.MsgTransferBadges":
         const transferMsg = convertFromProtoToMsgTransferBadges(tx.MsgTransferBadges.fromBinary(value))
@@ -465,11 +465,11 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const newDeleteMsg = convertFromProtoToMsgDeleteCollection(tx.MsgDeleteCollection.fromBinary(value))
         await handleMsgDeleteCollection(newDeleteMsg, status, docs, session);
         break;
-      case "/badges.MsgCreateAddressMappings":
-        const newAddressMappingsMsg = convertFromProtoToMsgCreateAddressMappings(tx.MsgCreateAddressMappings.fromBinary(value))
-        await handleMsgCreateAddressMappings(newAddressMappingsMsg, status, docs, indexed.hash);
-        //Don't need to track, we have created at and address mappings on-chain are permanent and immutable
-        // msg = newAddressMappingsMsg;
+      case "/badges.MsgCreateAddressLists":
+        const newAddressListsMsg = convertFromProtoToMsgCreateAddressLists(tx.MsgCreateAddressLists.fromBinary(value))
+        await handleMsgCreateAddressLists(newAddressListsMsg, status, docs, indexed.hash);
+        //Don't need to track, we have created at and address lists on-chain are permanent and immutable
+        // msg = newAddressListsMsg;
         break;
       case "/badges.MsgUniversalUpdateCollection":
         const newUpdateCollectionMsg = convertFromProtoToMsgUniversalUpdateCollection(tx.MsgUniversalUpdateCollection.fromBinary(value))
@@ -524,7 +524,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
 
 
     await insertMany(ErrorModel, [{
-      _legacyId: new mongoose.Types.ObjectId().toString(),
+      _docId: new mongoose.Types.ObjectId().toString(),
       error: serializeError(e),
       function: 'handleEvents' + ' - ' + indexed.hash,
     }]);

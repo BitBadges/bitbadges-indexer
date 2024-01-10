@@ -92,9 +92,9 @@
   "updateCollectionApprovals": true,
   "collectionApprovals": [
     {
-      "fromMappingId": "Mint",
-      "toMappingId": "All",
-      "initiatedByMappingId": "All",
+      "fromListId": "Mint",
+      "toListId": "All",
+      "initiatedByListId": "All",
       "transferTimes": [
         {
           "start": "1691953200000",
@@ -181,9 +181,9 @@
       }
     },
     {
-      "fromMappingId": "!Mint",
-      "toMappingId": "!Mint",
-      "initiatedByMappingId": "!Mint",
+      "fromListId": "!Mint",
+      "toListId": "!Mint",
+      "initiatedByListId": "!Mint",
       "badgeIds": [
         {
           "start": "1",
@@ -196,32 +196,32 @@
           "end": "18446744073709551615"
         }
       ],
-      "toMapping": {
-        "mappingId": "!Mint",
+      "toList": {
+        "listId": "!Mint",
         "addresses": [
           "Mint"
         ],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "fromMapping": {
-        "mappingId": "!Mint",
+      "fromList": {
+        "listId": "!Mint",
         "addresses": [
           "Mint"
         ],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
       },
-      "initiatedByMapping": {
-        "mappingId": "!Mint",
+      "initiatedByList": {
+        "listId": "!Mint",
         "addresses": [
           "Mint"
         ],
-        "includeAddresses": false,
+        "allowlist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""

@@ -1,5 +1,5 @@
 import axios from "axios";
-import { AddressMapping, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
+import { AddressList, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
 import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import crypto from 'crypto';
 import CryptoJS from "crypto-js";
@@ -12,7 +12,7 @@ import { BalanceModel, ErrorModel, FetchModel, QueueModel, RefreshModel, deleteM
 import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer-vars";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE } from "./poll";
-import { getAddressMappingsFromDB } from "./routes/utils";
+import { getAddressListsFromDB } from "./routes/utils";
 import { compareObjects } from "./utils/compare";
 import { cleanApprovalInfo, cleanBalanceMap, cleanMetadata } from "./utils/dataCleaners";
 import { getLoadBalancerId } from "./utils/loadBalancer";
@@ -66,7 +66,7 @@ export const fetchUriFromDbAndAddToQueueIfEmpty = async (uri: string, collection
     Below, we use a clever approach to prevent multiple queue documents for the same URI and same refresh request.
     This is in case the RefreshModel is ahead of the QueueModel. If RefreshModel is ahead, we do not want
     all N nodes to pick up on the fact that it needs a refresh and create N separate queue documents. Instead, we want
-    only one queue document to be created. To do this, we use the refreshRequestTime of the refresh document as the _legacyId of the queue document.
+    only one queue document to be created. To do this, we use the refreshRequestTime of the refresh document as the _docId of the queue document.
     This way, the same exact document is created by all N nodes and will not cause any conflicts.
   */
 
@@ -83,7 +83,7 @@ export const fetchUriFromDbAndAddToQueueIfEmpty = async (uri: string, collection
       const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc.refreshRequestTime}`); //`${uri}-${refreshDoc.refreshRequestTime}
 
       await insertToDB(QueueModel, {
-        _legacyId: `${uri}-${refreshDoc.refreshRequestTime}`,
+        _docId: `${uri}-${refreshDoc.refreshRequestTime}`,
         uri: uri,
         collectionId: collectionId,
         refreshRequestTime,
@@ -191,7 +191,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     await insertToDB(FetchModel, {
       ...fetchDoc,
 
-      _legacyId: uri,
+      _docId: uri,
       content: res,
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: block,
@@ -227,7 +227,7 @@ export const getApprovalInfoIdForQueueDb = (entropy: string, collectionId: strin
 
 export const pushApprovalInfoFetchToQueue = async (docs: DocsCache, collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, uri: string, loadBalanceId: number, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _legacyId: deterministicEntropy ? getApprovalInfoIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), uri.toString()) : crypto.randomBytes(16).toString('hex'),
+    _docId: deterministicEntropy ? getApprovalInfoIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), uri.toString()) : crypto.randomBytes(16).toString('hex'),
     uri: uri,
     collectionId: BigInt(collection.collectionId),
     numRetries: 0n,
@@ -255,7 +255,7 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
   for (const uri of nonDuplicates) {
     const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "")) : 0;
     docs.queueDocsToAdd.push({
-      _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "") : crypto.randomBytes(16).toString('hex'),
+      _docId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), collection.collectionMetadataTimeline.find(x => x.collectionMetadata.uri === uri)?.timelineTimes[0].start.toString() ?? "") : crypto.randomBytes(16).toString('hex'),
       uri: uri,
       collectionId: BigInt(collection.collectionId),
       numRetries: 0n,
@@ -299,7 +299,7 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
       if (uri) {
         const loadBalanceId = deterministicEntropy ? getLoadBalancerId(getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`)) : 0;
         docs.queueDocsToAdd.push({
-          _legacyId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`) : crypto.randomBytes(16).toString('hex'),
+          _docId: deterministicEntropy ? getCollectionIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "", `${i}`) : crypto.randomBytes(16).toString('hex'),
           uri: uri,
           collectionId: collection.collectionId,
           numRetries: 0n,
@@ -314,14 +314,14 @@ export const pushCollectionFetchToQueue = async (docs: DocsCache, collection: Co
   }
 }
 
-export const getAddressMappingIdForQueueDb = (entropy: string, mappingId: string) => {
-  return entropy + "-addressMapping-" + mappingId.toString()
+export const getAddressListIdForQueueDb = (entropy: string, listId: string) => {
+  return entropy + "-addressList-" + listId.toString()
 }
 
-export const pushAddressMappingFetchToQueue = async (docs: DocsCache, mapping: AddressMapping, refreshTime: bigint, deterministicEntropy?: string) => {
+export const pushAddressListFetchToQueue = async (docs: DocsCache, list: AddressList, refreshTime: bigint, deterministicEntropy?: string) => {
   docs.queueDocsToAdd.push({
-    _legacyId: deterministicEntropy ? getAddressMappingIdForQueueDb(deterministicEntropy, mapping.mappingId) : crypto.randomBytes(16).toString('hex'),
-    uri: mapping.uri,
+    _docId: deterministicEntropy ? getAddressListIdForQueueDb(deterministicEntropy, list.listId) : crypto.randomBytes(16).toString('hex'),
+    uri: list.uri,
     numRetries: 0n,
     collectionId: 0n,
     refreshRequestTime: refreshTime,
@@ -353,7 +353,7 @@ export const pushBalancesFetchToQueue = async (docs: DocsCache, collection: Coll
   const docId = deterministicEntropy ? getBalancesIdForQueueDb(deterministicEntropy, collection.collectionId.toString(), timelineVal.timelineTimes[0]?.start.toString() ?? "") : new mongoose.Types.ObjectId().toString();
   const loadBalanceId = getLoadBalancerId(docId ?? "");
   docs.queueDocsToAdd.push({
-    _legacyId: docId,
+    _docId: docId,
     uri: offChainBalancesMetadata.uri,
     collectionId: collection.collectionId,
     refreshRequestTime: refreshTime,
@@ -385,8 +385,8 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     balances: {},
     refreshes: {},
     merkleChallenges: {},
-    approvalsTrackers: {},
-    addressMappings: {},
+    approvalTrackers: {},
+    addressLists: {},
     passwordDocs: {},
     claimAlertsToAdd: [],
     activityToAdd: [],
@@ -405,20 +405,20 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
 
     const newBalanceMap: OffChainBalancesMap<bigint> = {};
     for (const key of balanceMapKeys) {
-      const res = await getAddressMappingsFromDB([{ mappingId: key }], false);
-      const addressMapping = res[0];
+      const res = await getAddressListsFromDB([{ listId: key }], false);
+      const addressList = res[0];
 
-      if (!addressMapping.includeAddresses) {
-        throw new Error("Blacklists are not supported for address mappings: " + key);
+      if (!addressList.allowlist) {
+        throw new Error("Blacklists are not supported for address lists: " + key);
       }
-      if (addressMapping.mappingId.indexOf("_") >= 0) {
-        throw new Error("Address mappings cannot be off-chain: " + key);
+      if (addressList.listId.indexOf("_") >= 0) {
+        throw new Error("Address lists cannot be off-chain: " + key);
       }
-      if (mapKeys.length + addressMapping.addresses.length > MAX_NUM_ADDRESSES) {
+      if (mapKeys.length + addressList.addresses.length > MAX_NUM_ADDRESSES) {
         throw new Error(`Too many addresses in balances map. Max allowed currently for scalability is ${MAX_NUM_ADDRESSES}.`);
       }
 
-      const addresses = addressMapping.addresses.map(x => convertToCosmosAddress(x))
+      const addresses = addressList.addresses.map(x => convertToCosmosAddress(x))
       mapKeys.push(...addresses);
       for (const address of addresses) {
         newBalanceMap[address] = balanceMap[key];
@@ -468,7 +468,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
 
       const allIdsToFetch = new Set([
         ...mapKeys.map((key) => `${queueObj.collectionId}:${key}`),
-        ...allPreviousDocIds.map(x => x._legacyId),
+        ...allPreviousDocIds.map(x => x._docId),
       ]);
 
       await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], [], [], []);
@@ -509,7 +509,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
       for (const [key, val] of entries) {
         if (isAddressValid(key) && getChainForAddress(key) === SupportedChain.COSMOS) {
           docs.balances[`${queueObj.collectionId}:${key}`] = {
-            _legacyId: `${queueObj.collectionId}:${key}`,
+            _docId: `${queueObj.collectionId}:${key}`,
             balances: val,
             //Off-Chain Balances so we don't care ab approvals or permissions
             incomingApprovals: [],
@@ -542,7 +542,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
 
 
       docs.balances[`${queueObj.collectionId}:Mint`] = {
-        _legacyId: `${queueObj.collectionId}:Mint`,
+        _docId: `${queueObj.collectionId}:Mint`,
         balances: remainingSupplys.map(x => convertBalance(x, BigIntify)),
         //Off-Chain Balances so we don't care ab approvals or permissions
         incomingApprovals: [],
@@ -597,8 +597,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
 
 
           const newActivity: TransferActivityDoc<bigint> = {
-            _legacyId: crypto.randomBytes(16).toString('hex'),
-            method: 'Transfer',
+            _docId: crypto.randomBytes(16).toString('hex'),
             from: 'Mint',
             to: [val.cosmosAddress],
             collectionId: BigInt(val.collectionId),
@@ -628,7 +627,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
   } catch (e) {
     console.log(serializeError(e));
     await ErrorModel.create({
-      _legacyId: crypto.randomBytes(16).toString('hex'),
+      _docId: crypto.randomBytes(16).toString('hex'),
       error: serializeError(e),
     });
 
@@ -654,7 +653,7 @@ export const handleQueueItems = async (block: bigint) => {
 
 
   const queueRes = await QueueModel.find({
-    _legacyId: { $exists: true },
+    _docId: { $exists: true },
     loadBalanceId: LOAD_BALANCER_ID,
     nextFetchTime: {
       "$lte": Date.now() - 1000 * 10 * 1 //If it is too quick, we sometimes have data race issues
@@ -687,7 +686,7 @@ export const handleQueueItems = async (block: bigint) => {
         uri: queueObj.uri,
       }).lean().exec();
 
-      const queueDocsIds = queueDocs.map(x => x._legacyId);
+      const queueDocsIds = queueDocs.map(x => x._docId);
       await deleteMany(QueueModel, queueDocsIds);
     } catch (e) {
       let reason = '';

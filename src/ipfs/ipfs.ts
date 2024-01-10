@@ -71,7 +71,7 @@ export const addBalancesToOffChainStorage = async (balances: OffChainBalancesMap
     const result = await last(ipfsClient.addAll(files));
     if (result) {
       await insertToDB(FetchModel, {
-        _legacyId: `ipfs://${result.cid.toString()}`,
+        _docId: `ipfs://${result.cid.toString()}`,
         fetchedAt: BigInt(Date.now()),
         fetchedAtBlock: status.block.height,
         content: balances,
@@ -196,7 +196,7 @@ export const addMetadataToIpfs = async (_collectionMetadata?: Metadata<NumberTyp
   const promises = files.map(async (file, idx) => {
     const result = await ipfsClient.add(file);
     await insertToDB(FetchModel, {
-      _legacyId: `ipfs://${result.cid.toString()}`,
+      _docId: `ipfs://${result.cid.toString()}`,
       fetchedAt: BigInt(Date.now()),
       fetchedAtBlock: status.block.height,
       content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
@@ -245,7 +245,7 @@ export const addApprovalDetailsToOffChainStorage = async (name: string, descript
 
   const status = await getStatus();
   await insertToDB(FetchModel, {
-    _legacyId: `ipfs://${result.cid.toString()}`,
+    _docId: `ipfs://${result.cid.toString()}`,
     fetchedAt: BigInt(Date.now()),
     fetchedAtBlock: status.block.height,
     content: {

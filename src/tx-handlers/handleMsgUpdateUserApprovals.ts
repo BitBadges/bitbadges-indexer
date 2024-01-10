@@ -10,7 +10,7 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
 
   await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
     `${msg.collectionId}:${msg.creator}`,
-  ], [], [], [], [],  [], []);
+  ], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const collectionDoc = docs.collections[`${msg.collectionId}`];
@@ -19,7 +19,7 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
   let balancesDoc = docs.balances[`${msg.collectionId}:${msg.creator}`];
   if (!balancesDoc) {
     balancesDoc = {
-      _legacyId: `${msg.collectionId}:${msg.creator}`,
+      _docId: `${msg.collectionId}:${msg.creator}`,
       balances: collectionDoc.defaultBalances.balances,
       cosmosAddress: msg.creator,
       collectionId: msg.collectionId,

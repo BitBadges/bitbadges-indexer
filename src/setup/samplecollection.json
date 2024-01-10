@@ -1,5 +1,5 @@
 {
-  "_legacyId": "2",
+  "_docId": "2",
   "collectionId": 2,
   "managerTimeline": [
     {
@@ -71,8 +71,8 @@
             "end": "18446744073709551615"
           }
         ],
-        "permittedTimes": [],
-        "forbiddenTimes": [
+        "permanentlyPermittedTimes": [],
+        "permanentlyForbiddenTimes": [
           {
             "start": 1,
             "end": "18446744073709551615"
@@ -99,8 +99,8 @@
             "end": "18446744073709551615"
           }
         ],
-        "permittedTimes": [],
-        "forbiddenTimes": [
+        "permanentlyPermittedTimes": [],
+        "permanentlyForbiddenTimes": [
           {
             "start": 1,
             "end": "18446744073709551615"

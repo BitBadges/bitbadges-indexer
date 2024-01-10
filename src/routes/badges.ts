@@ -1,10 +1,10 @@
-import { AddressMapping, NumberType, Stringify } from "bitbadgesjs-proto";
+import { AddressList, NumberType, Stringify } from "bitbadgesjs-proto";
 import { GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, convertBalanceDoc } from "bitbadgesjs-utils";
 import { Request, Response } from 'express';
 import { serializeError } from "serialize-error";
 import { BalanceModel, mustGetFromDB } from "../db/db";
-import { applyAddressMappingsToUserPermissions } from "./balances";
-import { getAddressMappingsFromDB } from "./utils";
+import { applyAddressListsToUserPermissions } from "./balances";
+import { getAddressListsFromDB } from "./utils";
 
 export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersForBadgeRouteResponse<NumberType>>) => {
   try {
@@ -55,33 +55,33 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
 
     const newBookmark = (reqBody.bookmark ? Number(reqBody.bookmark) + 1 : 1).toString();
 
-    let addressMappingIdsToFetch = [];
+    let addressListIdsToFetch = [];
     for (const balanceDoc of ownersRes) {
       for (const incomingTransfer of balanceDoc.incomingApprovals) {
-        addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
-        addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
+        addressListIdsToFetch.push(incomingTransfer.fromListId);
+        addressListIdsToFetch.push(incomingTransfer.initiatedByListId);
       }
 
 
       for (const outgoingTransfer of balanceDoc.outgoingApprovals) {
-        addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
-        addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
+        addressListIdsToFetch.push(outgoingTransfer.toListId);
+        addressListIdsToFetch.push(outgoingTransfer.initiatedByListId);
       }
 
       for (const incomingTransfer of balanceDoc.userPermissions.canUpdateIncomingApprovals) {
-        addressMappingIdsToFetch.push(incomingTransfer.fromMappingId);
-        addressMappingIdsToFetch.push(incomingTransfer.initiatedByMappingId);
+        addressListIdsToFetch.push(incomingTransfer.fromListId);
+        addressListIdsToFetch.push(incomingTransfer.initiatedByListId);
       }
 
       for (const outgoingTransfer of balanceDoc.userPermissions.canUpdateOutgoingApprovals) {
-        addressMappingIdsToFetch.push(outgoingTransfer.toMappingId);
-        addressMappingIdsToFetch.push(outgoingTransfer.initiatedByMappingId);
+        addressListIdsToFetch.push(outgoingTransfer.toListId);
+        addressListIdsToFetch.push(outgoingTransfer.initiatedByListId);
       }
     }
 
-    addressMappingIdsToFetch = [...new Set(addressMappingIdsToFetch)];
+    addressListIdsToFetch = [...new Set(addressListIdsToFetch)];
 
-    const addressMappings = await getAddressMappingsFromDB(addressMappingIdsToFetch.map(x => { return { mappingId: x } }), false);
+    const addressLists = await getAddressListsFromDB(addressListIdsToFetch.map(x => { return { listId: x } }), false);
 
     return res.status(200).send({
       owners: ownersRes.map(doc => convertBalanceDoc(doc, Stringify)).map((balance) => {
@@ -90,18 +90,18 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
           incomingApprovals: balance.incomingApprovals.map(y => {
             return {
               ...y,
-              fromMapping: addressMappings.find((mapping) => mapping.mappingId === y.fromMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
+              fromList: addressLists.find((list) => list.listId === y.fromListId) as AddressList,
+              initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as AddressList,
             }
           }),
           outgoingApprovals: balance.outgoingApprovals.map(y => {
             return {
               ...y,
-              toMapping: addressMappings.find((mapping) => mapping.mappingId === y.toMappingId) as AddressMapping,
-              initiatedByMapping: addressMappings.find((mapping) => mapping.mappingId === y.initiatedByMappingId) as AddressMapping,
+              toList: addressLists.find((list) => list.listId === y.toListId) as AddressList,
+              initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as AddressList,
             }
           }),
-          userPermissions: applyAddressMappingsToUserPermissions(balance.userPermissions, addressMappings),
+          userPermissions: applyAddressListsToUserPermissions(balance.userPermissions, addressLists),
         }
       }),
       pagination: {

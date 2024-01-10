@@ -9,8 +9,8 @@ import * as secp256k1 from 'bitbadgesjs-proto/dist/proto/cosmos/crypto/secp256k1
 import * as ethereum from 'bitbadgesjs-proto/dist/proto/ethereum/ethsecp256k1/keys_pb';
 import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-utils";
 import { BadgeCollection } from "bitbadgesjs-proto/dist/proto/badges/collections_pb";
-import { ApprovalsTracker, UserBalanceStore } from "bitbadgesjs-proto/dist/proto/badges/transfers_pb";
-import { AddressMapping } from "bitbadgesjs-proto/dist/proto/badges/address_mappings_pb";
+import { ApprovalTracker, UserBalanceStore } from "bitbadgesjs-proto/dist/proto/badges/transfers_pb";
+import { AddressList } from "bitbadgesjs-proto/dist/proto/badges/address_lists_pb";
 import { Protocol } from "bitbadgesjs-proto/dist/proto-types/protocols/types"
 
 /**
@@ -75,9 +75,9 @@ export interface BadgesExtension {
     readonly getAccountInfo: (address: string) => Promise<CleanedCosmosAccountInformation>
     readonly getCollection: (collectionId: string) => Promise<BadgeCollection | undefined>
     readonly getBalance: (collectionId: string, address: string) => Promise<UserBalanceStore | undefined>
-    readonly getAddressMapping: (mappingId: string) => Promise<AddressMapping | undefined>
-    readonly getApprovalsTracker: (collectionId: string, approvalLevel: string, approverAddress: string, amountTrackerId: string, trackerType: string, approvedAddress: string) => Promise<ApprovalsTracker | undefined>
-    readonly getNumUsedForMerkleChallenge: (collectionId: string, approvalLevel: string, approverAddress: string, challengeTrackerId: string, leafIndex: string) => Promise<string | undefined>
+    readonly getAddressList: (listId: string) => Promise<AddressList | undefined>
+    readonly getApprovalTracker: (collectionId: string, approvalLevel: string, approverAddress: string, amountTrackerId: string, trackerType: string, approvedAddress: string) => Promise<ApprovalTracker | undefined>
+    readonly getChallengeTracker: (collectionId: string, approvalLevel: string, approverAddress: string, challengeTrackerId: string, leafIndex: string) => Promise<string | undefined>
 
 
   }
@@ -176,19 +176,19 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
         return bitbadgesQuery.QueryGetBalanceResponse.fromBinary(balancePromise).balance;
       },
 
-      getAddressMapping: async (mappingId: string) => {
-        const addressMappingData = new bitbadgesQuery.QueryGetAddressMappingRequest({ mappingId: mappingId }).toBinary();
-        const addressMappingPromise = await rpc.request(
+      getAddressList: async (listId: string) => {
+        const addressListData = new bitbadgesQuery.QueryGetAddressListRequest({ listId: listId }).toBinary();
+        const addressListPromise = await rpc.request(
           'badges.Query',
-          'GetAddressMapping',
-          addressMappingData
+          'GetAddressList',
+          addressListData
         )
 
-        return bitbadgesQuery.QueryGetAddressMappingResponse.fromBinary(addressMappingPromise).mapping;
+        return bitbadgesQuery.QueryGetAddressListResponse.fromBinary(addressListPromise).list;
       },
 
-      getApprovalsTracker: async (collectionId: string, approvalLevel: string, approverAddress: string, amountTrackerId: string, trackerType: string, approvedAddress: string) => {
-        const approvalsTrackerData = new bitbadgesQuery.QueryGetApprovalsTrackerRequest({
+      getApprovalTracker: async (collectionId: string, approvalLevel: string, approverAddress: string, amountTrackerId: string, trackerType: string, approvedAddress: string) => {
+        const approvalTrackerData = new bitbadgesQuery.QueryGetApprovalTrackerRequest({
           collectionId: collectionId ?? "",
           approvalLevel: approvalLevel ?? "",
           approverAddress: approverAddress ?? "",
@@ -196,17 +196,17 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
           trackerType: trackerType ?? "",
           approvedAddress: approvedAddress ?? ""
         }).toBinary();
-        const approvalsTrackerPromise = await rpc.request(
+        const approvalTrackerPromise = await rpc.request(
           'badges.Query',
-          'GetApprovalsTracker',
-          approvalsTrackerData
+          'GetApprovalTracker',
+          approvalTrackerData
         )
 
-        return bitbadgesQuery.QueryGetApprovalsTrackerResponse.fromBinary(approvalsTrackerPromise).tracker;
+        return bitbadgesQuery.QueryGetApprovalTrackerResponse.fromBinary(approvalTrackerPromise).tracker;
       },
 
-      getNumUsedForMerkleChallenge: async (collectionId: string, approvalLevel: string, approverAddress: string, challengeTrackerId: string, leafIndex: string) => {
-        const numUsedForMerkleChallengeData = new bitbadgesQuery.QueryGetNumUsedForMerkleChallengeRequest({
+      getChallengeTracker: async (collectionId: string, approvalLevel: string, approverAddress: string, challengeTrackerId: string, leafIndex: string) => {
+        const challengeTrackerData = new bitbadgesQuery.QueryGetChallengeTrackerRequest({
           collectionId: collectionId,
           approvalLevel: approvalLevel,
           approverAddress: approverAddress,
@@ -214,13 +214,13 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
           leafIndex: leafIndex
         }).toBinary();
 
-        const numUsedForMerkleChallengePromise = await rpc.request(
+        const challengeTrackerPromise = await rpc.request(
           'badges.Query',
-          'GetNumUsedForMerkleChallenge',
-          numUsedForMerkleChallengeData
+          'GetChallengeTracker',
+          challengeTrackerData
         )
 
-        return bitbadgesQuery.QueryGetNumUsedForMerkleChallengeResponse.fromBinary(numUsedForMerkleChallengePromise).numUsed;
+        return bitbadgesQuery.QueryGetChallengeTrackerResponse.fromBinary(challengeTrackerPromise).numUsed;
       }
     },
   }

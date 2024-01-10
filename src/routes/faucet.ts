@@ -40,7 +40,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
       if (doc && doc.airdropped) {
         return { message: "Already airdropped" };
       } else {
-        await insertToDB(AirdropModel, { ...doc, airdropped: true, _legacyId: req.session.cosmosAddress, timestamp: Date.now() });
+        await insertToDB(AirdropModel, { ...doc, airdropped: true, _docId: req.session.cosmosAddress, timestamp: Date.now() });
         return null;
       }
     });
@@ -97,7 +97,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
       assertIsDeliverTxSuccess(result);
 
       await insertToDB(AirdropModel, {
-        _legacyId: req.session.cosmosAddress,
+        _docId: req.session.cosmosAddress,
         airdropped: true,
         hash: result.transactionHash, timestamp: Date.now()
       });
@@ -108,7 +108,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
 
 
         const allAirdropped = await AirdropModel.find().exec();
-        const airdropped = allAirdropped.filter(doc => doc.airdropped).map(doc => doc._legacyId);
+        const airdropped = allAirdropped.filter(doc => doc.airdropped).map(doc => doc._docId);
         const balancesMap: OffChainBalancesMap<bigint> = {};
         for (const address of airdropped) {
           balancesMap[address] = [{

@@ -4,7 +4,7 @@ import { Account, SigningStargateClient, assertIsDeliverTxSuccess } from "@cosmj
 import axios from "axios";
 import { MessageGenerated, MsgUniversalUpdateCollection, SupportedChain, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
 
-import { MsgTransferBadges, MsgCreateAddressMappings as ProtoMsgCreateAddressMappings, MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
+import { MsgTransferBadges, MsgCreateAddressLists as ProtoMsgCreateAddressLists, MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
 import { MsgCreateProtocol as ProtoMsgCreateProtocol } from 'bitbadgesjs-proto/dist/proto/protocols/tx_pb';
 
 import { createProtoMsg } from 'bitbadgesjs-proto/dist/proto-types/base';
@@ -61,7 +61,7 @@ async function main() {
       txnExtension,
     )
 
-   const res = await broadcastTx(rawTx);
+    const res = await broadcastTx(rawTx);
     console.log(res);
   } catch (e) {
     console.log(e);
@@ -239,20 +239,20 @@ export function bootstrapLists() {
 
   const msgs = [];
   for (let i = 0; i < jsonObjects.length; i++) {
-    const msg1 = new ProtoMsgCreateAddressMappings({
+    const msg1 = new ProtoMsgCreateAddressLists({
       creator: convertToCosmosAddress(ethWallet.address),
-      addressMappings: [{
+      addressLists: [{
 
         ...jsonObjects[i],
-        mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
+        listId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
         //random bool
-        includeAddresses: Math.random() < 0.5,
+        allowlist: Math.random() < 0.5,
 
       }, {
         ...jsonObjects[i],
-        mappingId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
+        listId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
         addresses: addresses.slice(0, 1000),
-        includeAddresses: Math.random() < 0.5,
+        allowlist: Math.random() < 0.5,
       }]
     });
 
@@ -282,20 +282,20 @@ export function bootstrapTransfers() {
       console.log(toAddress);
 
       transferMsgs.push(new MsgTransferBadges({
-          creator: convertToCosmosAddress(ethWallet.address),
-          collectionId: "9",
-          transfers: [
-            {
-              from: "Mint",
-              toAddresses: [toAddress],
-              balances: [{
-                amount: '1',
-                badgeIds: [{ start: j.toString(), end: j.toString() }],
-                ownershipTimes: [{ start: "1", end: "18446744073709551615" }]
-              }]
-            }
-          ]
-        })
+        creator: convertToCosmosAddress(ethWallet.address),
+        collectionId: "9",
+        transfers: [
+          {
+            from: "Mint",
+            toAddresses: [toAddress],
+            balances: [{
+              amount: '1',
+              badgeIds: [{ start: j.toString(), end: j.toString() }],
+              ownershipTimes: [{ start: "1", end: "18446744073709551615" }]
+            }]
+          }
+        ]
+      })
       );
     }
   }
@@ -348,7 +348,7 @@ export function bootstrapCollections() {
       collectionApprovals: jsonFileNames[i] === "9_10000_manual_transfers.json" ?
         jsonObjects[i].collectionApprovals.map((x: any, idx: any) => {
           if (idx == 0) {
-            return { ...x, initiatedByMappingId: convertToCosmosAddress(ethWallet.address) }
+            return { ...x, initiatedByListId: convertToCosmosAddress(ethWallet.address) }
           } else return x
         }) : jsonObjects[i].collectionApprovals,
       // inheritedCollectionId: jsonFileNames[i] === "12_inherited.json" ? manualTransfersId : jsonObjects[i].inheritedCollectionId,
