@@ -54,24 +54,45 @@ export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], ad
     )
 
     const mustOwnAmount = asset.mustOwnAmounts
+    const mustSatisfyAll = asset.mustSatisfyForAllAssets;
+    let satisfiedForOne = false;
+
     for (const balance of balances) {
       if (balance.amount < mustOwnAmount.start) {
-        throw new Error(
-          `Address ${address} does not own enough of IDs ${balance.badgeIds
-            .map((x) => `${x.start}-${x.end}`)
-            .join(",")} from collection ${asset.collectionId
-          } to meet minimum balance requirement of ${mustOwnAmount.start}`,
-        )
+        if (mustSatisfyAll) {
+          throw new Error(
+            `Address ${address} does not own enough of IDs ${balance.badgeIds
+              .map((x) => `${x.start}-${x.end}`)
+              .join(",")} from collection ${asset.collectionId
+            } to meet minimum balance requirement of ${mustOwnAmount.start}`,
+          )
+        } else {
+          continue
+        }
       }
 
       if (balance.amount > mustOwnAmount.end) {
-        throw new Error(
-          `Address ${address} owns too much of IDs ${balance.badgeIds
-            .map((x) => `${x.start}-${x.end}`)
-            .join(",")} from collection ${asset.collectionId
-          } to meet maximum balance requirement of ${mustOwnAmount.end}`,
-        )
+        if (mustSatisfyAll) {
+          throw new Error(
+            `Address ${address} owns too much of IDs ${balance.badgeIds
+              .map((x) => `${x.start}-${x.end}`)
+              .join(",")} from collection ${asset.collectionId
+            } to meet maximum balance requirement of ${mustOwnAmount.end}`,
+          )
+        } else {
+          continue
+        }
       }
+
+      satisfiedForOne = true;
+    }
+
+    if (mustSatisfyAll) {
+      //we made it through all balances and didn't throw an error so we are good
+    } else if (!satisfiedForOne) {
+      throw new Error(
+        `Address ${address} did not meet the ownership requirements for any of the assets.`,
+      )
     }
   }
 

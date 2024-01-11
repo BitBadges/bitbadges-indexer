@@ -12,7 +12,7 @@ import { client } from "../indexer";
 import { s3 } from "../indexer-vars";
 import { applyAddressListsToUserPermissions } from './balances';
 import { convertToBitBadgesUserInfo } from "./userHelpers";
-import { executeActivityQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeCreatedListsQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeLatestAddressListsQuery, executeListsActivityQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userQueries";
+import { executeActivityQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeCreatedListsQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeListsActivityQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userQueries";
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from "./utils";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
@@ -316,15 +316,15 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, bookmark));
       }
-    } else if (view.viewType === 'badgesCollected' || view.viewType === 'badgesCollectedWithHidden') {
+    } else if (view.viewType === 'badgesCollected') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, view.viewType === 'badgesCollectedWithHidden', filteredCollections, bookmark));
+        asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, false, filteredCollections, bookmark));
       }
-    } else if (view.viewType === 'managing') {
+    } else if (view.viewType === 'managingBadges') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeManagingQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
       }
-    } else if (view.viewType === 'createdBy') {
+    } else if (view.viewType === 'createdBadges') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
       }
@@ -348,21 +348,17 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, bookmark));
       }
-    } else if (view.viewType === 'addressLists') {
+    } else if (view.viewType === 'allLists') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeListsQuery(cosmosAddress, filteredLists, bookmark));
       }
-    } else if (view.viewType === 'explicitlyIncludedAddressLists') {
+    } else if (view.viewType === 'allowlists') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, filteredLists, bookmark));
       }
-    } else if (view.viewType === 'explicitlyExcludedAddressLists') {
+    } else if (view.viewType === 'blocklists') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, filteredLists, bookmark));
-      }
-    } else if (view.viewType === 'latestAddressLists') {
-      if (bookmark !== undefined) {
-        asyncOperations.push(() => executeLatestAddressListsQuery(cosmosAddress, filteredLists, bookmark));
       }
     } else if (view.viewType === 'privateLists') {
       if (bookmark !== undefined) {
@@ -381,12 +377,12 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqBody.viewsToFetch[i].viewType;
 
-    if (viewKey === 'listsActivity' || viewKey === 'addressLists' || viewKey === 'explicitlyIncludedAddressLists' || viewKey === 'explicitlyExcludedAddressLists' || viewKey === 'latestAddressLists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    if (viewKey === 'listsActivity' || viewKey === 'allLists' || viewKey === 'allowlists' || viewKey === 'blocklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressListDoc<JSPrimitiveNumberType>> | nano.MangoResponse<ListActivityDoc<JSPrimitiveNumberType>>;
       for (const doc of result.docs) {
         addressListIdsToFetch.push({ listId: doc.listId });
       }
-    } else if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
+    } else if (viewKey === 'badgesCollected') {
       const result = results[i] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
       for (const balance of result.docs) {
         for (const incoming of balance.incomingApprovals) {
@@ -428,7 +424,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
           hasMore: result.docs.length >= 25
         }
       }
-    } else if (viewKey === 'addressLists' || viewKey === 'explicitlyIncludedAddressLists' || viewKey === 'explicitlyExcludedAddressLists' || viewKey === 'latestAddressLists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    } else if (viewKey === 'allLists' || viewKey === 'allowlists' || viewKey === 'blocklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressListDoc<JSPrimitiveNumberType>>;
       views[viewId] = {
         ids: result.docs.map(x => x._docId),
@@ -438,7 +434,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
           hasMore: result.docs.length >= 25
         }
       }
-    } else if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
+    } else if (viewKey === 'badgesCollected') {
       const result = results[i] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
       views[viewId] = {
         ids: result.docs.map(x => x._docId),
@@ -500,7 +496,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
           hasMore: result.docs.length >= 25
         }
       }
-    } else if (viewKey === 'managing') {
+    } else if (viewKey === 'managingBadges') {
 
       const result = results[i] as any
       views[viewId] = {
@@ -511,7 +507,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
           hasMore: result.docs.length >= 25
         }
       }
-    } else if (viewKey === 'createdBy') {
+    } else if (viewKey === 'createdBadges') {
       const result = results[i] as any
       views[viewId] = {
         ids: result.docs,
@@ -541,7 +537,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     if (viewKey === 'listsActivity') {
       const result = results[i] as nano.MangoResponse<ListActivityDoc<JSPrimitiveNumberType>>;
       responseObj.listsActivity = result.docs.map(x => convertListActivityDoc(x, Stringify));
-    } else if (viewKey === 'badgesCollected' || viewKey === 'badgesCollectedWithHidden') {
+    } else if (viewKey === 'badgesCollected') {
       const result = results[i] as nano.MangoResponse<BalanceDoc<JSPrimitiveNumberType>>;
       responseObj.collected = [
         ...responseObj.collected,
@@ -565,7 +561,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     else if (viewKey === 'reviews') {
       const result = results[i] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
       responseObj.reviews = result.docs.map(x => convertReviewDoc(x, Stringify));
-    } else if (viewKey === 'addressLists' || viewKey === 'explicitlyIncludedAddressLists' || viewKey === 'explicitlyExcludedAddressLists' || viewKey === 'latestAddressLists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    } else if (viewKey === 'allLists' || viewKey === 'allowlists' || viewKey === 'blocklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressListDoc<JSPrimitiveNumberType>>;
       responseObj.addressLists = [
         ...responseObj.addressLists,
@@ -577,11 +573,12 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     } else if (viewKey === 'authCodes') {
       const result = results[i] as nano.MangoResponse<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>;
       responseObj.authCodes = result.docs.map(x => convertBlockinAuthSignatureDoc(x, Stringify));
-    } else if (viewKey === 'managing') {
-
-    } else if (viewKey === 'createdBy') {
-
     }
+    //  else if (viewKey === 'managing') {
+
+    // } else if (viewKey === 'createdBy') {
+
+    // }
   }
 
   responseObj.views = views;

@@ -124,9 +124,10 @@ export default class CosmosDriver implements IChainDriver<NumberType> {
     }
 
     if (cosmosAssets.length > 0) {
-      throw new Error(`Ethereum assets are not yet supported`)
+      throw new Error(`Cosmos assets are not yet supported`)
     }
   }
+
   /**
    * Currently just a boilerplate
    */
