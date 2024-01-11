@@ -666,7 +666,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
     //Didn't want to introduce sessions into this
     //1. Check if new username exists. If not, claim it
     //2. Delete any previous usernames
-    if (reqBody.username) {
+    if (reqBody.username && reqBody.username !== profileInfo.username) {
       //fail if already taken (upsert = false)
       try {
         await UsernameModel.create([{ _docId: reqBody.username }]);
