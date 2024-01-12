@@ -26,7 +26,7 @@ export async function executeBadgeActivityQuery(collectionId: string, badgeId: s
     throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
   }
 
-  const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, 'timestamp', '_id');
+  const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, false, 'timestamp', '_id');
 
   const query = {
     'collectionId': Number(collectionId),
@@ -68,20 +68,22 @@ export const getPaginationInfoToReturn = (docs: any[]) => {
 //A little naive bc we always assume descending (-1) sort order
 //But basically what this does is ensures the query starts at the last fetched doc + 1
 //If we have duplicate primary sort fields, we need to handle based on the secondary sort field
-export const getQueryParamsFromBookmark = async (model: mongoose.Model<any>, bookmark: string | undefined, primarySort: string, secondarySort?: string) => {
+export const getQueryParamsFromBookmark = async (model: mongoose.Model<any>, bookmark: string | undefined, oldestFirst: boolean | undefined, primarySort: string, secondarySort?: string) => {
   let lastFetchedDoc: any = null;
   if (bookmark) {
     lastFetchedDoc = await model.findOne({ _id: bookmark }).lean().exec();
   }
+
+  const operator = oldestFirst ? "$gt" : "$lt";
 
   if (secondarySort) {
     return {
       $or: lastFetchedDoc ? [
         {
           [primarySort]: { $eq: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] },
-          [secondarySort]: { $lt: lastFetchedDoc[secondarySort as keyof typeof lastFetchedDoc] },
+          [secondarySort]: { [`${operator}`]: lastFetchedDoc[secondarySort as keyof typeof lastFetchedDoc] },
         }, {
-          [primarySort]: { $lt: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] }
+          [primarySort]: { [`${operator}`]: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] }
         }
       ] : [{
         [primarySort]: { $exists: true },
@@ -89,15 +91,15 @@ export const getQueryParamsFromBookmark = async (model: mongoose.Model<any>, boo
     }
   } else {
     return {
-      [primarySort]: lastFetchedDoc ? { $lt: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] } : { $exists: true },
+      [primarySort]: lastFetchedDoc ? { [`${operator}`]: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] } : { $exists: true },
     }
   }
 }
 
 
-export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string) {
+export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
 
-  const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, 'timestamp', '_id');
+  const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, oldestFirst, 'timestamp', '_id');
 
   //Little weird but this is to handle duplicate timestamped logic
   //We want to fetch all docs with the same timestamp as the last fetched do (but greater than the same ID)
@@ -115,7 +117,7 @@ export async function executeCollectionActivityQuery(collectionId: string, bookm
 }
 
 
-export async function executeCollectionAnnouncementsQuery(collectionId: string, bookmark?: string) {
+export async function executeCollectionAnnouncementsQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
   //Keeping this here for now but we do not use this anymore
   return {
     docs: [],
@@ -123,8 +125,8 @@ export async function executeCollectionAnnouncementsQuery(collectionId: string, 
   }
 }
 
-export async function executeCollectionReviewsQuery(collectionId: string, bookmark?: string) {
-  const paginationParams = await getQueryParamsFromBookmark(ReviewModel, bookmark, 'timestamp', '_id');
+export async function executeCollectionReviewsQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
+  const paginationParams = await getQueryParamsFromBookmark(ReviewModel, bookmark, oldestFirst, 'timestamp', '_id');
 
   const reviewsRes = await ReviewModel.find({
     collectionId: Number(collectionId),
@@ -152,8 +154,8 @@ export async function fetchTotalAndUnmintedBalancesQuery(collectionId: string) {
   };
 }
 
-export async function executeCollectionBalancesQuery(collectionId: string, bookmark?: string) {
-  const paginationParams = await getQueryParamsFromBookmark(BalanceModel, bookmark, '_id');
+export async function executeCollectionBalancesQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
+  const paginationParams = await getQueryParamsFromBookmark(BalanceModel, bookmark, oldestFirst, '_id');
 
   const balancesRes = await BalanceModel.find({
     collectionId: Number(collectionId),
@@ -166,8 +168,8 @@ export async function executeCollectionBalancesQuery(collectionId: string, bookm
   }
 }
 
-export async function executeCollectionMerkleChallengesQuery(collectionId: string, bookmark?: string) {
-  const paginationParams = await getQueryParamsFromBookmark(MerkleChallengeModel, bookmark, '_id');
+export async function executeCollectionMerkleChallengesQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
+  const paginationParams = await getQueryParamsFromBookmark(MerkleChallengeModel, bookmark, oldestFirst, '_id');
 
   const merkleChallengesRes = await MerkleChallengeModel.find({
     collectionId: Number(collectionId),
@@ -229,8 +231,8 @@ export async function executeApprovalTrackersByIdsQuery(collectionId: string, id
 
 }
 
-export async function executeCollectionApprovalTrackersQuery(collectionId: string, bookmark?: string) {
-  const paginationParams = await getQueryParamsFromBookmark(ApprovalTrackerModel, bookmark, '_id');
+export async function executeCollectionApprovalTrackersQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
+  const paginationParams = await getQueryParamsFromBookmark(ApprovalTrackerModel, bookmark, oldestFirst, '_id');
 
   const approvalTrackersRes = await ApprovalTrackerModel.find({
     collectionId: Number(collectionId),

@@ -308,25 +308,26 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     const bookmark = view.bookmark;
     const filteredCollections = view.specificCollections;
     const filteredLists = view.specificLists;
+    const oldestFirst = view.oldestFirst;
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark));
+        asyncOperations.push(() => executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'transferActivity') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, bookmark));
+        asyncOperations.push(() => executeActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'badgesCollected') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, false, filteredCollections, bookmark));
+        asyncOperations.push(() => executeCollectedQuery(cosmosAddress, profileInfo, false, filteredCollections, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'managingBadges') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeManagingQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
+        asyncOperations.push(() => executeManagingQuery(cosmosAddress, profileInfo, filteredCollections, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'createdBadges') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, profileInfo, filteredCollections, bookmark));
+        asyncOperations.push(() => executeCreatedByQuery(cosmosAddress, profileInfo, filteredCollections, bookmark, oldestFirst));
       }
     }
     // else if (view.viewType === 'latestAnnouncements') {
@@ -336,38 +337,38 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     // } 
     else if (view.viewType === 'reviews') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeReviewsQuery(cosmosAddress, bookmark));
+        asyncOperations.push(() => executeReviewsQuery(cosmosAddress, bookmark, oldestFirst));
       }
-    } else if (view.viewType === 'latestClaimAlerts') {
+    } else if (view.viewType === 'claimAlerts') {
       if (bookmark !== undefined) {
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
-        asyncOperations.push(() => executeClaimAlertsQuery(cosmosAddress, bookmark));
+        asyncOperations.push(() => executeClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'authCodes') {
       if (bookmark !== undefined) {
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
-        asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, bookmark));
+        asyncOperations.push(() => executeAuthCodesQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'allLists') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeListsQuery(cosmosAddress, filteredLists, bookmark));
+        asyncOperations.push(() => executeListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'allowlists') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, filteredLists, bookmark));
+        asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'blocklists') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, filteredLists, bookmark));
+        asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'privateLists') {
       if (bookmark !== undefined) {
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
-        asyncOperations.push(() => executePrivateListsQuery(cosmosAddress, filteredLists, bookmark));
+        asyncOperations.push(() => executePrivateListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'createdLists') {
       if (bookmark !== undefined) {
-        asyncOperations.push(() => executeCreatedListsQuery(cosmosAddress, filteredLists, bookmark));
+        asyncOperations.push(() => executeCreatedListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
     }
   }
@@ -454,7 +455,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
           hasMore: false, //we fetch all auth codes if requested
         }
       }
-    } else if (viewKey === 'latestClaimAlerts') {
+    } else if (viewKey === 'claimAlerts') {
       const result = results[i] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
       views[viewId] = {
         ids: result.docs.map(x => x._docId),
@@ -567,7 +568,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
         ...responseObj.addressLists,
         ...result.docs
       ].map(x => addressListsToPopulate.find(y => y.listId === x.listId)).filter(x => x !== undefined).map(x => convertAddressListWithMetadata(x!, Stringify));
-    } else if (viewKey === 'latestClaimAlerts') {
+    } else if (viewKey === 'claimAlerts') {
       const result = results[i] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
       responseObj.claimAlerts = result.docs.map(x => convertClaimAlertDoc(x, Stringify));
     } else if (viewKey === 'authCodes') {

@@ -71,7 +71,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
       }
     }
 
-    const paginationParams = await getQueryParamsFromBookmark(FetchModel, bookmark, '_id');
+    const paginationParams = await getQueryParamsFromBookmark(FetchModel, bookmark, false, '_id');
     const metadata = await FetchModel.find({
       ...paginationParams,
       ...metadataQuery
