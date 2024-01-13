@@ -699,7 +699,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
           text: string
         }[] = [{
           to: reqBody.notifications.email,
-          from: 'trevormil@comcast.net',
+          from: 'mail@em2620.bitbadges.io',
           subject: 'Verify your email',
           text: `Please verify your email by clicking on this link: https://bitbadges.io/email-verify/${uniqueToken}`
         }]

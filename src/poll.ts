@@ -141,7 +141,7 @@ export async function sendPushNotification(address: string, type: string, messag
       text: string
     }[] = [{
       to: profile.notifications.email,
-      from: 'trevormil@comcast.net',
+      from: 'mail@em2620.bitbadges.io',
       subject: subject,
       text: message,
     }]
