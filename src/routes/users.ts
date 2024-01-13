@@ -1,7 +1,7 @@
 
 import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
 import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-proto";
-import { AccountDoc, AccountInfoBase, AddressListDoc, AddressListWithMetadata, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, ListActivityDoc, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertAddressListWithMetadata, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertListActivityDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { AccountDoc, AccountInfoBase, AddressListDoc, BitBadgesAddressList, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, ListActivityDoc, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertBitBadgesAddressList, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertListActivityDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -277,7 +277,7 @@ interface GetAdditionalUserInfoRes {
   listsActivity: ListActivityDoc<JSPrimitiveNumberType>[],
   announcements: AnnouncementDoc<JSPrimitiveNumberType>[],
   reviews: ReviewDoc<JSPrimitiveNumberType>[],
-  addressLists: AddressListWithMetadata<JSPrimitiveNumberType>[],
+  addressLists: BitBadgesAddressList<JSPrimitiveNumberType>[],
   claimAlerts: ClaimAlertDoc<JSPrimitiveNumberType>[],
   authCodes: BlockinAuthSignatureDoc<JSPrimitiveNumberType>[],
   views: {
@@ -577,7 +577,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
       responseObj.addressLists = [
         ...responseObj.addressLists,
         ...result.docs
-      ].map(x => addressListsToPopulate.find(y => y.listId === x.listId)).filter(x => x !== undefined).map(x => convertAddressListWithMetadata(x!, Stringify));
+      ].map(x => addressListsToPopulate.find(y => y.listId === x.listId)).filter(x => x !== undefined).map(x => convertBitBadgesAddressList(x!, Stringify));
     } else if (viewKey === 'claimAlerts') {
       const result = results[i] as nano.MangoResponse<ClaimAlertDoc<JSPrimitiveNumberType>>;
       responseObj.claimAlerts = result.docs.map(x => convertClaimAlertDoc(x, Stringify));

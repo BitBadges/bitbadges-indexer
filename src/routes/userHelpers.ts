@@ -159,8 +159,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
       ...profileInfo,
       ...nameAndAvatarRes,
 
-      resolvedName: aliasResolve?.listId ? 'Alias: List ' + aliasResolve.listId :
-        aliasResolve?.collectionId ? 'Alias: Collection ' + aliasResolve.collectionId : nameAndAvatarRes.resolvedName,
+      resolvedName: nameAndAvatarRes.resolvedName,
+      // aliasResolve?.listId ? 'Alias: List ' + aliasResolve.listId :
+      //   aliasResolve?.collectionId ? 'Alias: Collection ' + aliasResolve.collectionId : 
       ...accountInfo,
       address: chainResolve?.address ?? '', //for ts
       chain: chainResolve?.chain ?? '',

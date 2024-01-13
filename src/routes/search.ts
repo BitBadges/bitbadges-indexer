@@ -1,6 +1,6 @@
 
 import { JSPrimitiveNumberType, UintRange, convertBadgeMetadataTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AccountDoc, BigIntify, BitBadgesCollection, FilterBadgesInCollectionRequestBody, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertAddressListWithMetadata, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getBadgeIdsForMetadataId, getChainForAddress, getCurrentValueForTimeline, getFirstMatchForBadgeMetadata, getMaxBadgeIdForCollection, getMetadataIdsForUri, isAddressValid, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { AccountDoc, BigIntify, BitBadgesCollection, FilterBadgesInCollectionRequestBody, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertBitBadgesAddressList, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getBadgeIdsForMetadataId, getChainForAddress, getCurrentValueForTimeline, getFirstMatchForBadgeMetadata, getMaxBadgeIdForCollection, getMetadataIdsForUri, isAddressValid, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AccountModel, AddressListModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel, getManyFromDB, mustGetFromDB } from "../db/db";
@@ -412,7 +412,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
           })
       }),
       accounts,
-      addressLists: addressListsToReturn.map(x => convertAddressListWithMetadata(x, Stringify)),
+      addressLists: addressListsToReturn.map(x => convertBitBadgesAddressList(x, Stringify)),
       badges: badges.map((x) => {
         return {
           collection: x.collection,

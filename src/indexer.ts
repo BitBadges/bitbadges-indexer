@@ -286,7 +286,7 @@ app.post("/api/v0/authCode/delete", authorizeBlockinRequest, deleteAuthCode)
 app.post('/api/v0/survey/:listId/add', addAddressToSurvey);
 
 //Claim Alerts
-app.post('/api/v0/claimAlerts/send', authorizeBlockinRequest, sendClaimAlert);
+app.post('/api/v0/claimAlerts/send', websiteOnlyCors, authorizeBlockinRequest, sendClaimAlert);
 
 //Follow Protocol
 app.post('/api/v0/follow-protocol', getFollowDetails);

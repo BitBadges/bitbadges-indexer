@@ -208,7 +208,11 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
           continue;
         }
         result.addressLists[`${key}` as keyof typeof result.addressLists] = result.addressLists[`${key}` as keyof typeof result.addressLists] || [];
-        result.addressLists[`${key}` as keyof typeof result.addressLists].push(addressList);
+        result.addressLists[`${key}` as keyof typeof result.addressLists].push({
+          ...addressList,
+          listsActivity: [],
+          views: {}
+        });
       }
     }
 

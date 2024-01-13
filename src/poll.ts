@@ -168,8 +168,6 @@ export async function sendPushNotification(address: string, type: string, messag
     const BASE_DELAY = process.env.BASE_DELAY ? Number(process.env.BASE_DELAY) : 1000 * 60 * 60 * 1; //1 hour
     const delay = BASE_DELAY * Math.pow(2, Number(queueObj.numRetries + 1n));
 
-    console.log(queueObj);
-
     let reason = '';
     try {
       reason = e.toString();

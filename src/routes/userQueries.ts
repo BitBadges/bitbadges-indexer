@@ -555,3 +555,44 @@ export async function executeListsActivityQuery(cosmosAddress: string, profileIn
   if (QUERY_TIME_MODE) console.timeEnd('listsActivityQuery');
   return collectedRes;
 }
+
+
+
+export async function executeListsActivityQueryForList(listId: string, fetchHidden: boolean, bookmark?: string, oldestFirst?: boolean) {
+  if (QUERY_TIME_MODE) console.time('listsActivityQueryForList');
+
+  const hiddenLists = [...complianceDoc?.addressLists.reported.map(x => x.listId) ?? []];
+
+  const queryFunc = async (currBookmark?: string) => {
+    const paginationParams = await getQueryParamsFromBookmark(ListActivityModel, currBookmark, oldestFirst, 'timestamp', '_id');
+
+    const view = await ListActivityModel.find({
+      listId: listId,
+      ...paginationParams,
+    }).sort({ timestamp: oldestFirst ? 1 : -1, _id: -1 }).limit(25).lean().exec();
+
+    return view;
+  }
+
+  const filterFunc = async (viewDocs: any[]) => {
+    if (!fetchHidden) {
+      const nonHiddenDocs = viewDocs.map((doc) => {
+        if (!doc || !hiddenLists) return undefined;
+        let matchingHiddenList = hiddenLists.find(x => x === doc.listId) ?? doc.listId;
+
+        return {
+          ...doc,
+          listId: matchingHiddenList
+        }
+      }).filter((doc) => doc !== undefined);
+
+      viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find(x => x && x._docId === doc._docId));
+    }
+
+    return viewDocs;
+  }
+
+  const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
+  if (QUERY_TIME_MODE) console.timeEnd('listsActivityQueryForList');
+  return collectedRes;
+}

@@ -1,5 +1,5 @@
 import { JSPrimitiveNumberType, Stringify } from "bitbadgesjs-proto";
-import { AddressListDoc, DeleteAddressListsRouteResponse, GetAddressListsRouteRequestBody, GetAddressListsRouteResponse, ListActivityDoc, NumberType, UpdateAddressListsRouteRequestBody, UpdateAddressListsRouteResponse, convertAddressListDoc, convertAddressListEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { AddressListDoc, DeleteAddressListsRouteRequestBody, DeleteAddressListsRouteResponse, GetAddressListsRouteRequestBody, GetAddressListsRouteResponse, ListActivityDoc, NumberType, UpdateAddressListsRouteRequestBody, UpdateAddressListsRouteResponse, convertAddressListDoc, convertAddressListEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
@@ -11,7 +11,7 @@ import crypto from 'crypto';
 export const deleteAddressLists = async (expressReq: Request, res: Response<DeleteAddressListsRouteResponse<bigint>>) => {
   try {
     const req = expressReq as AuthenticatedRequest<NumberType>;
-    const reqBody = req.body as GetAddressListsRouteRequestBody;
+    const reqBody = req.body as DeleteAddressListsRouteRequestBody;
     const listIds = reqBody.listIds;
 
     if (listIds.length > 100) {
@@ -162,13 +162,13 @@ export const updateAddressLists = async (expressReq: Request, res: Response<Upda
 export const getAddressLists = async (req: Request, res: Response<GetAddressListsRouteResponse<NumberType>>) => {
   try {
     const reqBody = req.body as GetAddressListsRouteRequestBody;
-    let listIds = reqBody.listIds;
+    const listsToFetch = reqBody.listsToFetch
 
-    if (listIds.length > 100) {
+    if (listsToFetch.length > 100) {
       throw new Error("You can only fetch up to 100 address lists at a time.");
     }
 
-    const docs = await getAddressListsFromDB(listIds.map(x => { return { listId: x } }), true);
+    const docs = await getAddressListsFromDB(listsToFetch, true);
 
     const hasPrivateList = docs.find(x => x.private);
     if (hasPrivateList) {

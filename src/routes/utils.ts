@@ -1,15 +1,19 @@
 import { AddressList, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserBalanceStore, UserIncomingApproval, UserOutgoingApproval } from "bitbadgesjs-proto";
-import { AddressListWithMetadata, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendSelfInitiatedIncomingApproval, appendSelfInitiatedOutgoingApproval, convertAddressListWithMetadata, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressList } from "bitbadgesjs-utils";
+import { BitBadgesAddressList, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendSelfInitiatedIncomingApproval, appendSelfInitiatedOutgoingApproval, convertBitBadgesAddressList, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressList } from "bitbadgesjs-utils";
 import { AddressListModel, FetchModel, getFromDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
+import { executeListsActivityQueryForList } from "./userQueries";
 
-export async function getAddressListsFromDB(listIds: {
+export async function getAddressListsFromDB(listsToFetch: {
   listId: string;
-  collectionId?: NumberType;
+  viewsToFetch?: {
+    viewId: string;
+    viewType: 'listActivity';
+    bookmark: string;
+  }[];
 }[], fetchMetadata: boolean) {
-  let addressListIdsToFetch = [...new Set(listIds)];
-  let addressLists: AddressListWithMetadata<bigint>[] = [];
-  for (const listIdObj of addressListIdsToFetch) {
+  let addressLists: BitBadgesAddressList<bigint>[] = [];
+  for (const listIdObj of listsToFetch) {
     try {
       const list = getReservedAddressList(listIdObj.listId);
       if (list) {
@@ -20,19 +24,45 @@ export async function getAddressListsFromDB(listIds: {
           createdBy: '',
           lastUpdated: 0n,
           createdBlock: 0n,
+          listsActivity: [],
+          views: {},
         });
-        addressListIdsToFetch = addressListIdsToFetch.filter((x) => x.listId !== listIdObj.listId);
+        listsToFetch = listsToFetch.filter((x) => x.listId !== listIdObj.listId);
       }
     } catch (e) {
       //If it throws an error, it is a non-reserved ID
     }
   }
 
-  addressListIdsToFetch = [...new Set(addressListIdsToFetch)];
+  // addressListIdsToFetch = [...new Set(addressListIdsToFetch)];
 
-  if (addressListIdsToFetch.length > 0) {
-    const addressListDocs = await mustGetManyFromDB(AddressListModel, addressListIdsToFetch.map(x => x.listId));
-    addressLists.push(...addressListDocs.map((doc) => convertAddressListWithMetadata(doc, BigIntify)));
+  if (listsToFetch.length > 0) {
+    const addressListDocs = await mustGetManyFromDB(AddressListModel, listsToFetch.map(x => x.listId));
+    for (const listToFetch of listsToFetch) {
+      const listActivity = await executeListsActivityQueryForList(
+        listToFetch.listId,
+        false,
+        listToFetch.viewsToFetch?.find((x) => x.viewType === 'listActivity')?.bookmark,
+      );
+
+      const doc = addressListDocs.find((x) => x.listId === listToFetch.listId);
+      if (doc) {
+        addressLists.push(convertBitBadgesAddressList({
+          ...doc,
+          listsActivity: listActivity.docs,
+          views: {
+            listActivity: {
+              ids: listActivity.docs.map(x => x._docId),
+              type: 'List Activity',
+              pagination: {
+                bookmark: listActivity.bookmark ?? '',
+                hasMore: listActivity.docs.length >= 25,
+              }
+            }
+          }
+        }, BigIntify));
+      }
+    }
   }
 
   if (fetchMetadata) {
