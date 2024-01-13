@@ -28,6 +28,7 @@ declare global {
       BASE_DELAY: string //string number ex: "60000"
       POLL_INTERVAL_MS: string //string number ex: "1000"
       URI_POLL_INTERVAL_MS: string //string number ex: "1000"
+      NOTIFICATION_POLL_INTERVAL_MS: string //string number ex: "1000"
 
       PORT: string //string number ex: "3000"
 
@@ -39,6 +40,7 @@ declare global {
       DISABLE_URI_POLLER: string //string boolean ex: "false"
       DISABLE_BLOCKCHAIN_POLLER: string //string boolean ex: "false"
       DISABLE_API: string //string boolean ex: "false"
+      DISABLE_NOTIFICATION_POLLER: string //string boolean ex: "false"
 
       //Development flags
       TIME_MODE: string //boolean string ex: "false"
@@ -50,6 +52,8 @@ declare global {
       PARENT_PROCESS_URL: string //string ex: "https://api.bitbadges.io"
 
       MORALIS_API_KEY: string //string ex: "1"
+
+      SENDGRID_API_KEY: string //string
     }
   }
 }

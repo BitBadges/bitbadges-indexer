@@ -14,6 +14,8 @@ import { applyAddressListsToUserPermissions } from './balances';
 import { convertToBitBadgesUserInfo } from "./userHelpers";
 import { executeActivityQuery, executeAuthCodesQuery, executeClaimAlertsQuery, executeCollectedQuery, executeCreatedByQuery, executeCreatedListsQuery, executeExplicitExcludedListsQuery, executeExplicitIncludedListsQuery, executeListsActivityQuery, executeListsQuery, executeManagingQuery, executePrivateListsQuery, executeReviewsQuery } from "./userQueries";
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from "./utils";
+import crypto from "crypto";
+import sgMail from '@sendgrid/mail';
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
@@ -66,7 +68,7 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
   return accountInfos;
 }
 
-async function getBatchProfileInformation(queries: { address: string, fetchOptions?: AccountFetchOptions }[]) {
+async function getBatchProfileInformation(req: Request, queries: { address: string, fetchOptions?: AccountFetchOptions }[]) {
   const profileInfos: ProfileDoc<JSPrimitiveNumberType>[] = [];
   const addressesToFetch = queries.map(x => convertToCosmosAddress(x.address));
 
@@ -87,6 +89,14 @@ async function getBatchProfileInformation(queries: { address: string, fetchOptio
     }
   }
 
+  //Filter out private info if not authenticated user
+  const currAddress = (req.session as any).cosmosAddress;
+  for (const profileInfo of profileInfos) {
+    if (profileInfo._docId !== currAddress) {
+      profileInfo.notifications = undefined;
+    }
+  }
+
   return profileInfos;
 }
 
@@ -95,7 +105,7 @@ async function getBatchProfileInformation(queries: { address: string, fetchOptio
 export const getAccountByAddress = async (req: Request, address: string, fetchOptions?: AccountFetchOptions) => {
   if (address === 'Mint') return convertBitBadgesUserInfo(MINT_ACCOUNT, Stringify);
   let accountInfo = (await getBatchAccountInformation([{ address, fetchOptions }]))[0];
-  let profileInfo = (await getBatchProfileInformation([{ address, fetchOptions }]))[0];
+  let profileInfo = (await getBatchProfileInformation(req, [{ address, fetchOptions }]))[0];
 
   let fetchName = true;
   if (fetchOptions?.noExternalCalls) {
@@ -212,7 +222,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
       }
     }
     const accountInfos = await getBatchAccountInformation(allQueries);
-    const profileInfos = await getBatchProfileInformation(allQueries);
+    const profileInfos = await getBatchProfileInformation(req, allQueries);
 
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
 
@@ -660,6 +670,58 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       })
     }
 
+    if (reqBody.notifications) {
+      if (reqBody.notifications.email && reqBody.notifications.email !== profileInfo.notifications?.email) {
+        const uniqueToken = crypto.randomBytes(32).toString('hex');
+        newProfileInfo.notifications = newProfileInfo.notifications ?? {};
+
+        newProfileInfo.notifications.email = reqBody.notifications.email;
+
+        //Is valid email - regex 
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reqBody.notifications.email)) {
+          return res.status(400).send({
+            message: 'Email is not valid.'
+          })
+        }
+
+        newProfileInfo.notifications.emailVerification = {
+          ...newProfileInfo.notifications.emailVerification,
+          verified: false,
+          token: uniqueToken,
+          expiry: Number(Date.now() + 1000 * 60 * 60 * 1), //1 hour
+        }
+        newProfileInfo.notifications.preferences = reqBody.notifications.preferences;
+
+        const emails: {
+          to: string
+          from: string
+          subject: string
+          text: string
+        }[] = [{
+          to: reqBody.notifications.email,
+          from: 'trevormil@comcast.net',
+          subject: 'Verify your email',
+          text: `Please verify your email by clicking on this link: https://bitbadges.io/email-verify/${uniqueToken}`
+        }]
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : "");
+        await sgMail.send(emails, true);
+
+      } else if (reqBody.notifications.email !== undefined) {
+        newProfileInfo.notifications = newProfileInfo.notifications ?? {};
+        newProfileInfo.notifications.email = reqBody.notifications.email;
+      }
+
+      if (reqBody.notifications.antiPhishingCode !== undefined) {
+        newProfileInfo.notifications = newProfileInfo.notifications ?? {};
+        newProfileInfo.notifications.emailVerification = newProfileInfo.notifications.emailVerification ?? {};
+        newProfileInfo.notifications.emailVerification.antiPhishingCode = reqBody.notifications.antiPhishingCode;
+      }
+
+      if (reqBody.notifications.preferences !== undefined) {
+        newProfileInfo.notifications = newProfileInfo.notifications ?? {};
+        newProfileInfo.notifications.preferences = reqBody.notifications.preferences;
+      }
+    }
 
     //Delete any previous usernames
 
@@ -685,6 +747,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
     );
   } catch (e) {
     console.log("Error updating account info", e);
+    console.log(e.response.body);
     return res.status(500).send({
       error: serializeError(e),
       message: "Error updating account info. Please try again later."

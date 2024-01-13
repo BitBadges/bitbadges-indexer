@@ -23,11 +23,6 @@ export function cleanMetadata(res: any): Metadata<NumberType> {
     description: typeof res.description === "string" ? res.description : "",
     image: typeof res.image === "string" ? res.image : "",
     video: typeof res.video === "string" ? res.video : "",
-    validFrom: res.validFrom ? res.validFrom.map((badgeId: any) => ({
-      start: badgeId.start ? BigInt(badgeId.start).toString() : "-1",
-      end: badgeId.end ? BigInt(badgeId.end).toString() : "-1",
-    })) : undefined,
-    color: typeof res.color === "string" ? res.color : undefined,
     category: typeof res.category === "string" ? res.category : undefined,
     externalUrl: typeof res.externalUrl === "string" ? res.externalUrl : undefined,
     tags: Array.isArray(res.tags) && res.tags.every((tag: any) => typeof tag === "string")

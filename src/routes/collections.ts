@@ -53,32 +53,27 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     for (const view of query.viewsToFetch ?? []) {
       const bookmark = view.bookmark;
+      const oldestFirst = view.oldestFirst;
       if (view.viewType === 'transferActivity') {
         if (bookmark !== undefined) {
-          promises.push(executeCollectionActivityQuery(`${query.collectionId}`, bookmark));
+          promises.push(executeCollectionActivityQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
-      }
-      // else if (view.viewType === 'latestAnnouncements') {
-      //   if (bookmark !== undefined) {
-      //     promises.push(executeCollectionAnnouncementsQuery(`${query.collectionId}`, bookmark));
-      //   }
-      // } 
-      else if (view.viewType === 'reviews') {
+      }      else if (view.viewType === 'reviews') {
         if (bookmark !== undefined) {
-          promises.push(executeCollectionReviewsQuery(`${query.collectionId}`, bookmark));
+          promises.push(executeCollectionReviewsQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
       } else if (view.viewType === 'owners') {
         if (bookmark !== undefined) {
-          promises.push(executeCollectionBalancesQuery(`${query.collectionId}`, bookmark));
+          promises.push(executeCollectionBalancesQuery(`${query.collectionId}`, bookmark, oldestFirst));
           balanceResIdxs.push(promises.length - 1);
         }
       } else if (view.viewType === 'merkleChallenges') {
         if (bookmark !== undefined) {
-          promises.push(executeCollectionMerkleChallengesQuery(`${query.collectionId}`, bookmark));
+          promises.push(executeCollectionMerkleChallengesQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
       } else if (view.viewType === 'approvalTrackers') {
         if (bookmark !== undefined) {
-          promises.push(executeCollectionApprovalTrackersQuery(`${query.collectionId}`, bookmark));
+          promises.push(executeCollectionApprovalTrackersQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
       }
     }

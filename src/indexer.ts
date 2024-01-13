@@ -15,9 +15,9 @@ import multer from 'multer'
 import responseTime from 'response-time'
 import { authorizeBlockinRequest, checkifSignedInHandler, genericBlockinVerifyHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
-import { ApiKeyModel, insertToDB, mustGetFromDB } from './db/db'
+import { ApiKeyModel, ProfileModel, insertToDB, mustGetFromDB } from './db/db'
 import { OFFLINE_MODE, TIME_MODE } from './indexer-vars'
-import { poll, pollUris } from "./poll"
+import { poll, pollNotifications, pollUris } from "./poll"
 import { deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists'
 import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes'
 import { getOwnersForBadge } from './routes/badges'
@@ -41,6 +41,7 @@ import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 import { getCollectionForProtocol, getProtocols } from './routes/protocols'
+import { serializeError } from 'serialize-error'
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config()
@@ -91,6 +92,12 @@ export const setUriPollerTimer = (newTimer: NodeJS.Timer) => {
 export let heartbeatTimer: NodeJS.Timer | undefined
 export const setHeartbeatTimer = (newTimer: NodeJS.Timer) => {
   heartbeatTimer = newTimer
+}
+
+
+export let notificationPollerTimer: NodeJS.Timer | undefined
+export const setNotificationPollerTimer = (newTimer: NodeJS.Timer) => {
+  uriPollerTimer = newTimer
 }
 
 const upload = multer({ dest: 'uploads/' });
@@ -294,6 +301,53 @@ app.post('/api/v0/protocols/collection', getCollectionForProtocol);
 
 app.post("/api/v0/collections/filter", filterBadgesInCollectionHandler);
 
+app.get("/api/v0/verifyEmail/:token", websiteOnlyCors, async (req: Request, res: Response) => {
+
+  try {
+    const doc = await ProfileModel.findOne({ "notifications.emailVerification.token": req.params.token }).lean().exec();
+    if (!doc) {
+      throw new Error('Token not found');
+    }
+
+    if (!doc.notifications || !doc.notifications.emailVerification) {
+      throw new Error('Token not found');
+    }
+
+    if (doc.notifications.emailVerification.verified) {
+      throw new Error('Email already verified');
+    }
+
+    const expiry = new Date(Number(doc.notifications.emailVerification.expiry) ?? 0);
+    if (expiry < new Date()) {
+      throw new Error('Token expired');
+    }
+
+    const newDoc = {
+      ...doc,
+      notifications: {
+        ...doc.notifications,
+        emailVerification: {
+          ...doc.notifications.emailVerification,
+          verified: true,
+          token: undefined,
+          expiry: undefined,
+        }
+      }
+    }
+    await insertToDB(ProfileModel, newDoc);
+
+    return res.status(200).send({
+      success: true
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      message: "Error verfiying email"
+    });
+  }
+})
+
 //TODO: Simple implementation of a one-way heartbeat mode.
 //If the parent process dies, the child process will take over.
 //Probably 
@@ -354,6 +408,10 @@ const init = async () => {
     }
     if (process.env.DISABLE_URI_POLLER !== 'true') {
       setTimeout(pollUris, 1)
+    }
+
+    if (process.env.DISABLE_NOTIFICATION_POLLER !== 'true') {
+      setTimeout(pollNotifications, 1)
     }
   }
 }

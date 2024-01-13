@@ -20,7 +20,7 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
 
       const doc = {
         _docId: `${claimAlert.collectionId}:${id}`,
-        createdTimestamp: Number(Date.now()),
+        timestamp: Number(Date.now()),
         collectionId: Number(claimAlert.collectionId),
         message: claimAlert.message,
         cosmosAddresses: [convertToCosmosAddress(claimAlert.recipientAddress)],

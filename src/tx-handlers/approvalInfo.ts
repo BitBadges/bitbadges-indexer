@@ -59,7 +59,8 @@ export const handleApprovals = async (docs: DocsCache, collectionDoc: Collection
                   const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
                   docs.claimAlertsToAdd.push({
                     _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
-                    createdTimestamp: status.block.timestamp,
+                    timestamp: status.block.timestamp,
+                    block: status.block.height,
                     collectionId: collectionDoc.collectionId,
                     cosmosAddresses: addresses,
                     message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`,

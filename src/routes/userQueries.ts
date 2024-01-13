@@ -336,7 +336,7 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
   if (QUERY_TIME_MODE) console.time('executeClaimAlertsQuery');
 
   const queryFunc = async (currBookmark?: string) => {
-    const paginationParams = await getQueryParamsFromBookmark(ClaimAlertModel, currBookmark, oldestFirst, 'createdTimestamp', '_id');
+    const paginationParams = await getQueryParamsFromBookmark(ClaimAlertModel, currBookmark, oldestFirst, 'timestamp', '_id');
 
     const view = await ClaimAlertModel.find({
       cosmosAddresses: {
@@ -345,7 +345,7 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
         },
       },
       ...paginationParams,
-    }).sort({ createdTimestamp: oldestFirst ? 1 : -1, _id: -1 }).limit(25).lean().exec();
+    }).sort({ timestamp: oldestFirst ? 1 : -1, _id: -1 }).limit(25).lean().exec();
 
     return view.map((row) => {
       return {

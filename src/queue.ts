@@ -11,7 +11,7 @@ import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
 import { BalanceModel, ErrorModel, FetchModel, QueueModel, RefreshModel, deleteMany, getFromDB, insertToDB, mustGetFromDB } from "./db/db";
 import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer-vars";
 import { getFromIpfs } from "./ipfs/ipfs";
-import { QUEUE_TIME_MODE } from "./poll";
+import { QUEUE_TIME_MODE, sendPushNotification } from "./poll";
 import { getAddressListsFromDB } from "./routes/utils";
 import { compareObjects } from "./utils/compare";
 import { cleanApprovalInfo, cleanBalanceMap, cleanMetadata } from "./utils/dataCleaners";
@@ -713,7 +713,11 @@ export const handleQueueItems = async (block: bigint) => {
 
 
   const promises = queueItems.map(async (queueObj) => {
-    await executeFunc(queueObj);
+    if (queueObj.emailMessage && queueObj.recipientAddress && queueObj.activityDocId && queueObj.notificationType) {
+      await sendPushNotification(queueObj.recipientAddress, queueObj.notificationType, queueObj.emailMessage, queueObj.activityDocId, queueObj)
+    } else {
+      await executeFunc(queueObj);
+    }
   });
 
   await Promise.all(promises);

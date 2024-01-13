@@ -7,15 +7,15 @@ import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
 import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
 import * as protocoltx from 'bitbadgesjs-proto/dist/proto/protocols/tx_pb'
-import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
+import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, QueueDoc, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import mongoose from "mongoose"
 import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache"
-import { ComplianceModel, ErrorModel, MongoDB, ProtocolModel, StatusModel, deleteMany, insertMany, mustGetFromDB } from "./db/db"
+import { ClaimAlertModel, ComplianceModel, ErrorModel, ListActivityModel, MongoDB, ProfileModel, ProtocolModel, QueueModel, StatusModel, TransferActivityModel, deleteMany, getFromDB, insertMany, insertToDB, mustGetFromDB } from "./db/db"
 import { getStatus } from "./db/status"
-import { SHUTDOWN, client, setClient, setTimer, setUriPollerTimer } from "./indexer"
+import { SHUTDOWN, client, setClient, setNotificationPollerTimer, setTimer, setUriPollerTimer } from "./indexer"
 import { TIME_MODE } from "./indexer-vars"
 import { handleQueueItems } from "./queue"
 import { handleMsgCreateAddressLists } from "./tx-handlers/handleMsgCreateAddressLists"
@@ -27,9 +27,12 @@ import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollecti
 import { handleMsgUpdateUserApprovals } from "./tx-handlers/handleMsgUpdateUserApprovals"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
+import crypto from "crypto"
+import sgMail from '@sendgrid/mail';
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000
 const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000
+const notificationPollIntervalMs = Number(process.env.NOTIFICATION_POLL_INTERVAL_MS) || 1_000
 
 let outageTime: Date | undefined
 
@@ -92,6 +95,164 @@ export const pollUris = async () => {
 
   const newTimer = setTimeout(pollUris, uriPollIntervalMs);
   setUriPollerTimer(newTimer);
+}
+
+enum NotificationType {
+  TransferActivity = "transfer",
+  List = "list",
+  ClaimAlert = "claimAlert",
+}
+
+export async function sendPushNotification(address: string, type: string, message: string, docId: string, queueDoc?: QueueDoc<bigint>) {
+  try {
+    const profile = await getFromDB(ProfileModel, address);
+    if (!profile) return;
+
+    if (!profile.notifications?.email) return;
+    if (!profile.notifications?.emailVerification?.verified) return;
+
+    // const antiPhishingCode = profile.notifications.emailVerification.antiPhishingCode;
+
+    let subject = '';
+    switch (type) {
+      case NotificationType.TransferActivity:
+        subject = 'You have received badges';
+        break;
+      case NotificationType.List:
+        subject = 'You have been added to a list';
+        break;
+      case NotificationType.ClaimAlert:
+        subject = 'You are able to claim BitBadges';
+        break;
+    }
+
+    const toReceiveListActivity = profile.notifications.preferences?.listActivity;
+    const toReceiveTransferActivity = profile.notifications.preferences?.transferActivity;
+    const toReceiveClaimAlerts = profile.notifications.preferences?.claimAlerts;
+
+    if (type === NotificationType.List && !toReceiveListActivity) return;
+    if (type === NotificationType.TransferActivity && !toReceiveTransferActivity) return;
+    if (type === NotificationType.ClaimAlert && !toReceiveClaimAlerts) return;
+
+    const emails: {
+      to: string
+      from: string
+      subject: string
+      text: string
+    }[] = [{
+      to: profile.notifications.email,
+      from: 'trevormil@comcast.net',
+      subject: subject,
+      text: message,
+    }]
+
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : "");
+    await sgMail.send(emails, true);
+
+  } catch (e) {
+    const queueObj = queueDoc ?? {
+      _docId: crypto.randomBytes(16).toString('hex'),
+      uri: '',
+      collectionId: 0n,
+      loadBalanceId: 0n,
+      activityDocId: docId,
+      refreshRequestTime: BigInt(Date.now()),
+      numRetries: 0n,
+      lastFetchedAt: BigInt(Date.now()),
+      nextFetchTime: BigInt(Date.now() + 1000 * 60),
+      emailMessage: message,
+      recipientAddress: address,
+      notificationType: type,
+    }
+
+    const BASE_DELAY = process.env.BASE_DELAY ? Number(process.env.BASE_DELAY) : 1000 * 60 * 60 * 1; //1 hour
+    const delay = BASE_DELAY * Math.pow(2, Number(queueObj.numRetries + 1n));
+
+    console.log(queueObj);
+
+    let reason = '';
+    try {
+      reason = e.toString();
+    } catch (e) {
+      try {
+        reason = JSON.stringify(e);
+      } catch (e) {
+        reason = 'Could not stringify error message';
+      }
+    }
+    await insertToDB(QueueModel, {
+      ...queueObj,
+      lastFetchedAt: BigInt(Date.now()),
+      error: reason,
+      numRetries: BigInt(queueObj.numRetries + 1n),
+      nextFetchTime: BigInt(delay) + BigInt(Date.now()),
+    });
+
+  }
+}
+
+
+export const pollNotifications = async () => {
+  if (TIME_MODE && QUEUE_TIME_MODE) {
+    console.time("pollNotifications");
+  }
+  try {
+    const transferActivityRes = await TransferActivityModel.find({ _notificationsHandled: { $exists: false } }).lean().limit(25).exec();
+    const listsActivityRes = await ListActivityModel.find({ _notificationsHandled: { $exists: false } }).lean().limit(25).exec();
+    const claimAlertsRes = await ClaimAlertModel.find({ _notificationsHandled: { $exists: false } }).lean().limit(25).exec();
+
+    for (const activityDoc of transferActivityRes) {
+      const initiatedBy = activityDoc.initiatedBy;
+      const addressesToNotify = [...activityDoc.from, ...activityDoc.to].filter(x => x !== initiatedBy);
+      const message = `You have received badges`;
+
+      for (const address of addressesToNotify) {
+        await sendPushNotification(address, NotificationType.TransferActivity, message, activityDoc._docId);
+      }
+    }
+    await insertMany(TransferActivityModel, transferActivityRes.map(x => ({ ...x, _notificationsHandled: true })));
+
+    for (const activityDoc of listsActivityRes) {
+      const addresses = activityDoc.addresses;
+      const message = `You have been added to the list: ${activityDoc.listId}`;
+
+      for (const address of addresses ?? []) {
+        await sendPushNotification(address, NotificationType.List, message, activityDoc._docId);
+      }
+    }
+    await insertMany(ListActivityModel, listsActivityRes.map(x => ({ ...x, _notificationsHandled: true })));
+
+    for (const claimAlertDoc of claimAlertsRes) {
+      const addresses = claimAlertDoc.cosmosAddresses;
+      const message = claimAlertDoc.message;
+
+      for (const address of addresses) {
+        await sendPushNotification(address, NotificationType.ClaimAlert, message ?? '', claimAlertDoc._docId);
+      }
+    }
+    await insertMany(ClaimAlertModel, claimAlertsRes.map(x => ({ ...x, _notificationsHandled: true })));
+
+  } catch (e) {
+    //Log error to DB, unless it is a connection refused error
+    if (e && e.code !== 'ECONNREFUSED') {
+      console.error(e);
+
+      await insertMany(ErrorModel, [{
+        _docId: new mongoose.Types.ObjectId().toString(),
+        error: serializeError(e),
+        function: 'pollNotifications',
+      }]);
+    }
+  }
+
+  if (TIME_MODE && QUEUE_TIME_MODE) {
+    console.timeEnd("pollNotifications");
+  }
+
+  if (SHUTDOWN) return;
+
+  const newTimer = setTimeout(pollNotifications, notificationPollIntervalMs);
+  setNotificationPollerTimer(newTimer);
 }
 
 export let complianceDoc: ComplianceDoc<bigint> | undefined = undefined;
