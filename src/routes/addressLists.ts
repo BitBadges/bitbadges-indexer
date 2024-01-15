@@ -74,8 +74,8 @@ export const updateAddressLists = async (expressReq: Request, res: Response<Upda
           throw new Error("You are not the owner of list with ID " + list.listId);
         }
 
-        if (existingDoc.allowlist !== list.allowlist) {
-          throw new Error("You cannot change from a whitelist to a blocklist or vice versa.");
+        if (existingDoc.whitelist !== list.whitelist) {
+          throw new Error("You cannot change from a whitelist to a blacklist or vice versa.");
         }
 
         docs.push({
@@ -92,7 +92,7 @@ export const updateAddressLists = async (expressReq: Request, res: Response<Upda
         })
 
         //we really have three statuses: include, excluded, and deleted
-        if (existingDoc.allowlist !== list.allowlist) {
+        if (existingDoc.whitelist !== list.whitelist) {
           const newAddressesNotInOld = list.addresses.filter(x => !existingDoc.addresses.includes(x));
           const oldAddressesNotInNew = existingDoc.addresses.filter(x => !list.addresses.includes(x));
 

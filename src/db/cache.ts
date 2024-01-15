@@ -3,8 +3,9 @@ import { AccountDoc, AccountDocs, AddressListDoc, AddressListsDocs, ApprovalTrac
 import crypto from 'crypto';
 import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
-import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, ListActivityModel, MerkleChallengeModel, PasswordModel, ProtocolModel, QueueModel, RefreshModel, TransferActivityModel, UserProtocolCollectionsModel, getManyFromDB, insertMany, insertToDB } from "./db";
+import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, ClaimAlertModel, CollectionModel, ErrorModel, FollowDetailsModel, ListActivityModel, MerkleChallengeModel, PasswordModel, ProtocolModel, QueueModel, RefreshModel, TransferActivityModel, UserProtocolCollectionsModel, getManyFromDB, insertMany, insertToDB } from "./db";
 import { setStatus } from "./status";
+import { handleFollowsByBalanceDocId } from "../routes/follows";
 
 /**
  * Fetches docs from DB if they are not already in the docs cache
@@ -286,6 +287,24 @@ export async function flushCachedDocs(docs: DocsCache, session?: mongoose.mongo.
     if (balanceDocs.length) {
       if (parallelExecution) promises.push(insertMany(BalanceModel, balanceDocs, session));
       else await insertMany(BalanceModel, balanceDocs, session);
+
+      //Check if any user has this balance as their followingCollectionId
+      //If not, we do not have to handle follows
+      const emptyCollections: bigint[] = [];
+      for (const doc of balanceDocs) {
+        if (emptyCollections.includes(doc.collectionId)) continue;
+
+        const users = await FollowDetailsModel.find({
+          followingCollectionId: Number(doc.collectionId),
+        }).lean().exec();
+
+        if (users.length === 0) {
+          emptyCollections.push(doc.collectionId);
+          continue
+        }
+
+        await handleFollowsByBalanceDocId(doc._docId, []);
+      }
     }
 
 
