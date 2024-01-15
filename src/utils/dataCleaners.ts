@@ -28,8 +28,8 @@ export function cleanMetadata(res: any): Metadata<NumberType> {
     tags: Array.isArray(res.tags) && res.tags.every((tag: any) => typeof tag === "string")
       ? res.tags
       : undefined,
-    socials: typeof res.socials === "object" ? res.socials : undefined,
-    offChainTransferabilityInfo: typeof res.socials === "object" ? {
+    socials: res.socials && typeof res.socials === "object" ? res.socials : undefined,
+    offChainTransferabilityInfo: res.offChainTransferabilityInfo && typeof res.offChainTransferabilityInfo === "object" ? {
       host: res.offChainTransferabilityInfo.host,
       assignMethod: res.offChainTransferabilityInfo.assignMethod,
     } : undefined,

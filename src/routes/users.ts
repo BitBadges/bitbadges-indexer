@@ -363,11 +363,11 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
-    } else if (view.viewType === 'allowlists') {
+    } else if (view.viewType === 'whitelists') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeExplicitIncludedListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
-    } else if (view.viewType === 'blocklists') {
+    } else if (view.viewType === 'blacklists') {
       if (bookmark !== undefined) {
         asyncOperations.push(() => executeExplicitExcludedListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
@@ -388,7 +388,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqBody.viewsToFetch[i].viewType;
 
-    if (viewKey === 'listsActivity' || viewKey === 'allLists' || viewKey === 'allowlists' || viewKey === 'blocklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    if (viewKey === 'listsActivity' || viewKey === 'allLists' || viewKey === 'whitelists' || viewKey === 'blacklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressListDoc<JSPrimitiveNumberType>> | nano.MangoResponse<ListActivityDoc<JSPrimitiveNumberType>>;
       for (const doc of result.docs) {
         addressListIdsToFetch.push({ listId: doc.listId });
@@ -435,7 +435,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
           hasMore: result.docs.length >= 25
         }
       }
-    } else if (viewKey === 'allLists' || viewKey === 'allowlists' || viewKey === 'blocklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    } else if (viewKey === 'allLists' || viewKey === 'whitelists' || viewKey === 'blacklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressListDoc<JSPrimitiveNumberType>>;
       views[viewId] = {
         ids: result.docs.map(x => x._docId),
@@ -572,7 +572,7 @@ const getAdditionalUserInfo = async (req: Request, profileInfo: ProfileDoc<bigin
     else if (viewKey === 'reviews') {
       const result = results[i] as nano.MangoResponse<ReviewDoc<JSPrimitiveNumberType>>;
       responseObj.reviews = result.docs.map(x => convertReviewDoc(x, Stringify));
-    } else if (viewKey === 'allLists' || viewKey === 'allowlists' || viewKey === 'blocklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
+    } else if (viewKey === 'allLists' || viewKey === 'whitelists' || viewKey === 'blacklists' || viewKey === 'privateLists' || viewKey === 'createdLists') {
       const result = results[i] as nano.MangoResponse<AddressListDoc<JSPrimitiveNumberType>>;
       responseObj.addressLists = [
         ...responseObj.addressLists,

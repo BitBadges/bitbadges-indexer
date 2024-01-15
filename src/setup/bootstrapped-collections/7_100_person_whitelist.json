@@ -201,7 +201,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -211,7 +211,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -221,7 +221,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""

@@ -108,7 +108,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": true,
+        "whitelist": true,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -117,7 +117,7 @@
       "toList": {
         "listId": "All",
         "addresses": [],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -126,7 +126,7 @@
       "initiatedByList": {
         "listId": "All",
         "addresses": [],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""

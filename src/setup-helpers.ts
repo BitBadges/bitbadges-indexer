@@ -80,10 +80,13 @@ export async function initStatus() {
   await insertToDB(BrowseModel, {
     _docId: "browse",
     collections: {
-      'featured': [1, 2, 16]
+      'featured': [1, 2, 16],
+      'earnable': [],
     },
-    profiles: [],
-    addressLists: [],
+    profiles: {
+      'featured': ["cosmos1xv9tklw7d82sezh9haa573wufgy59vmwe6xxe5"],
+    },
+    addressLists: {},
     badges: {
       'featured': [
 
@@ -97,6 +100,7 @@ export async function initStatus() {
           collectionId: 16,
           badgeIds: [{ start: 1n, end: 10n }]
         }],
+      'earnable': [],
     },
   })
 

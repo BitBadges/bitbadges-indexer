@@ -9,7 +9,7 @@
         "fromList": {
           "listId": "All",
           "addresses": [],
-          "allowlist": false,
+          "whitelist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -17,7 +17,7 @@
         "initiatedByList": {
           "listId": "All",
           "addresses": [],
-          "allowlist": false,
+          "whitelist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -151,7 +151,7 @@
         "toList": {
           "listId": "All",
           "addresses": [],
-          "allowlist": false,
+          "whitelist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -159,7 +159,7 @@
         "fromList": {
           "listId": "All",
           "addresses": [],
-          "allowlist": false,
+          "whitelist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -167,7 +167,7 @@
         "initiatedByList": {
           "listId": "All",
           "addresses": [],
-          "allowlist": false,
+          "whitelist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -216,7 +216,7 @@
           "addresses": [
             "Mint"
           ],
-          "allowlist": true,
+          "whitelist": true,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -226,7 +226,7 @@
           "addresses": [
             "Mint"
           ],
-          "allowlist": true,
+          "whitelist": true,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -236,7 +236,7 @@
           "addresses": [
             "Mint"
           ],
-          "allowlist": true,
+          "whitelist": true,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -361,7 +361,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": true,
+        "whitelist": true,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -369,7 +369,7 @@
       "toList": {
         "listId": "All",
         "addresses": [],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -465,7 +465,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -475,7 +475,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""
@@ -485,7 +485,7 @@
         "addresses": [
           "Mint"
         ],
-        "allowlist": false,
+        "whitelist": false,
         "uri": "",
         "customData": "",
         "createdBy": ""

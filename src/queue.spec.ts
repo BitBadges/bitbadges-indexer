@@ -147,7 +147,7 @@ describe('handleBalances', () => {
       _docId: 'test',
       listId: 'test',
       addresses: [helperAddressesArr[0]],
-      allowlist: true,
+      whitelist: true,
       uri: 'https://api.bitbadges.io',
       customData: '',
       createdBy: '',

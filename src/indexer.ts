@@ -97,7 +97,7 @@ export const setHeartbeatTimer = (newTimer: NodeJS.Timer) => {
 
 export let notificationPollerTimer: NodeJS.Timer | undefined
 export const setNotificationPollerTimer = (newTimer: NodeJS.Timer) => {
-  uriPollerTimer = newTimer
+  notificationPollerTimer = newTimer
 }
 
 const upload = multer({ dest: 'uploads/' });
@@ -192,12 +192,6 @@ app.use(expressSession({
 
 app.use(cookieParser());
 
-// // parse application/x-www-form-urlencoded
-// app.use(express.urlencoded({ limit: '50mb', extended: true }))
-
-// // parse application/json
-// app.use(express.json({ limit: '50mb' }))
-
 // app.use((req, res, next) => {
 //   // if (!TIME_MODE) {
 //   //   console.log();
@@ -235,9 +229,9 @@ app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus); //
 app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
 app.post('/api/v0/collection/:collectionId/password/:cid/:password', authorizeBlockinRequest, getMerkleChallengeCodeViaPassword); //Write route
 
-app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
+app.post("/api/v0/collections/filter", filterBadgesInCollectionHandler);
 
-// `/api/v0/collection/${collectionId.toString()}/deleteReview/${reviewId}`;
+app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); //Write route
 app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest, deleteReview); //Write route
 
 
@@ -252,12 +246,16 @@ app.post('/api/v0/addMetadataToIpfs', websiteOnlyCors, authorizeBlockinRequest, 
 app.post('/api/v0/addApprovalDetailsToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, express.json({ limit: '100mb' }), addApprovalDetailsToOffChainStorageHandler); //
 app.post('/api/v0/addBalancesToOffChainStorage', websiteOnlyCors, authorizeBlockinRequest, express.json({ limit: '100mb' }), addBalancesToOffChainStorageHandler); //
 
-//Blockin Auth
+//Blockin Auth - bitbadges.io only
 app.post('/api/v0/auth/getChallenge', getChallenge);
 app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
 app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
 app.post('/api/v0/auth/status', checkifSignedInHandler);
 app.post("/api/v0/auth/genericVerify", genericBlockinVerifyHandler);
+
+//Fetch arbitrary metadata - bitbadges.io only
+app.post('/api/v0/metadata', websiteOnlyCors, fetchMetadataDirectly);
+
 
 //Browse
 app.post('/api/v0/browse', getBrowseCollections);
@@ -266,8 +264,6 @@ app.post('/api/v0/browse', getBrowseCollections);
 app.post('/api/v0/broadcast', broadcastTx);
 app.post('/api/v0/simulate', simulateTx);
 
-//Fetch arbitrary metadata
-app.post('/api/v0/metadata', websiteOnlyCors, fetchMetadataDirectly);
 
 //Faucet
 app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
@@ -281,25 +277,22 @@ app.post('/api/v0/addressLists/delete', authorizeBlockinRequest, deleteAddressLi
 app.post('/api/v0/authCode', getAuthCode)
 app.post("/api/v0/authCode/create", createAuthCode) //we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest)
 app.post("/api/v0/authCode/delete", authorizeBlockinRequest, deleteAuthCode)
-
-//Surveys
 app.post('/api/v0/survey/:listId/add', addAddressToSurvey);
 
 //Claim Alerts
 app.post('/api/v0/claimAlerts/send', websiteOnlyCors, authorizeBlockinRequest, sendClaimAlert);
+app.post('/api/v0/claimAlerts', authorizeBlockinRequest, getClaimAlertsForCollection);
 
 //Follow Protocol
 app.post('/api/v0/follow-protocol', getFollowDetails);
 
-app.post('/api/v0/claimAlerts', authorizeBlockinRequest, getClaimAlertsForCollection);
-//Set up Moralis
-
+//Eth First Tx
 app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx)
 
+//Protocols
 app.post('/api/v0/protocols', getProtocols);
 app.post('/api/v0/protocols/collection', getCollectionForProtocol);
 
-app.post("/api/v0/collections/filter", filterBadgesInCollectionHandler);
 
 app.get("/api/v0/verifyEmail/:token", websiteOnlyCors, async (req: Request, res: Response) => {
 

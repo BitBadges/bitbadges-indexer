@@ -246,13 +246,13 @@ export function bootstrapLists() {
         ...jsonObjects[i],
         listId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
         //random bool
-        allowlist: Math.random() < 0.5,
+        whitelist: Math.random() < 0.5,
 
       }, {
         ...jsonObjects[i],
         listId: jsonFileNames[i].split('_')[1].split('.')[0] + '-' + crypto.randomBytes(32).toString('hex'),
         addresses: addresses.slice(0, 1000),
-        allowlist: Math.random() < 0.5,
+        whitelist: Math.random() < 0.5,
       }]
     });
 

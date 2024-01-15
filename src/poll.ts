@@ -2,13 +2,15 @@ import { sha256 } from "@cosmjs/crypto"
 import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
+import sgMail from '@sendgrid/mail'
 import { Balance, JSPrimitiveNumberType, Transfer, convertBalance, convertFromProtoToMsgCreateAddressLists, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
 import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
 import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
-import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
 import * as protocoltx from 'bitbadgesjs-proto/dist/proto/protocols/tx_pb'
+import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
 import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, QueueDoc, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
+import crypto from "crypto"
 import mongoose from "mongoose"
 import { serializeError } from "serialize-error"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
@@ -18,6 +20,7 @@ import { getStatus } from "./db/status"
 import { SHUTDOWN, client, setClient, setNotificationPollerTimer, setTimer, setUriPollerTimer } from "./indexer"
 import { TIME_MODE } from "./indexer-vars"
 import { handleQueueItems } from "./queue"
+import { initializeFollowProtocol, unsetFollowCollection } from "./routes/follows"
 import { handleMsgCreateAddressLists } from "./tx-handlers/handleMsgCreateAddressLists"
 import { handleMsgCreateCollection } from "./tx-handlers/handleMsgCreateCollection"
 import { handleMsgDeleteCollection } from "./tx-handlers/handleMsgDeleteCollection"
@@ -27,8 +30,6 @@ import { handleMsgUpdateCollection } from "./tx-handlers/handleMsgUpdateCollecti
 import { handleMsgUpdateUserApprovals } from "./tx-handlers/handleMsgUpdateUserApprovals"
 import { handleNewAccountByAddress } from "./tx-handlers/handleNewAccount"
 import { handleTransfers } from "./tx-handlers/handleTransfers"
-import crypto from "crypto"
-import sgMail from '@sendgrid/mail';
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000
 const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000
@@ -92,7 +93,6 @@ export const pollUris = async () => {
   }
 
   if (SHUTDOWN) return;
-
   const newTimer = setTimeout(pollUris, uriPollIntervalMs);
   setUriPollerTimer(newTimer);
 }
@@ -609,12 +609,22 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
             [setCollectionForProtocolMsg.name]: BigInt(collectionIdToSet),
           }
         }
+
+        //TODO: Should we only allow initializations to empty collections?
+        if (setCollectionForProtocolMsg.name === 'BitBadges Follow Protocol') {
+          await unsetFollowCollection(setCollectionForProtocolMsg.creator);
+          await initializeFollowProtocol(setCollectionForProtocolMsg.creator, Number(collectionIdToSet));
+        }
         break;
       case "/protocols.MsgUnsetCollectionForProtocol":
         const unsetCollectionForProtocolMsg = protocoltx.MsgUnsetCollectionForProtocol.fromBinary(value)
         await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [], [unsetCollectionForProtocolMsg.creator]);
         delete docs.userProtocolCollections[unsetCollectionForProtocolMsg.creator]?.protocols[unsetCollectionForProtocolMsg.name];
 
+
+        if (unsetCollectionForProtocolMsg.name === 'BitBadges Follow Protocol') {
+          await unsetFollowCollection(unsetCollectionForProtocolMsg.creator);
+        }
         break;
       case "/badges.MsgTransferBadges":
         const transferMsg = convertFromProtoToMsgTransferBadges(tx.MsgTransferBadges.fromBinary(value))

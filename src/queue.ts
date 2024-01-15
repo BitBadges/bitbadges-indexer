@@ -137,6 +137,7 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     return;
   }
 
+
   //Get document from cache if it exists
   const _fetchDoc = await getFromDB(FetchModel, uri);
   fetchDoc = _fetchDoc ? convertFetchDoc(_fetchDoc, BigIntify) : undefined;
@@ -408,7 +409,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
       const res = await getAddressListsFromDB([{ listId: key }], false);
       const addressList = res[0];
 
-      if (!addressList.allowlist) {
+      if (!addressList.whitelist) {
         throw new Error("Blacklists are not supported for address lists: " + key);
       }
       if (addressList.listId.indexOf("_") >= 0) {
@@ -656,7 +657,7 @@ export const handleQueueItems = async (block: bigint) => {
     _docId: { $exists: true },
     loadBalanceId: LOAD_BALANCER_ID,
     nextFetchTime: {
-      "$lte": Date.now() - 1000 * 10 * 1 //If it is too quick, we sometimes have data race issues
+      "$lte": Date.now() - 1000 * 5 * 1 //If it is too quick, we sometimes have data race issues
     },
     deletedAt: {
       "$exists": false
@@ -680,7 +681,6 @@ export const handleQueueItems = async (block: bigint) => {
 
   const executeFunc = async (queueObj: QueueDoc<bigint>) => {
     try {
-
       await fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj, block);
       const queueDocs = await QueueModel.find({
         uri: queueObj.uri,
@@ -716,9 +716,10 @@ export const handleQueueItems = async (block: bigint) => {
     if (queueObj.emailMessage && queueObj.recipientAddress && queueObj.activityDocId && queueObj.notificationType) {
       await sendPushNotification(queueObj.recipientAddress, queueObj.notificationType, queueObj.emailMessage, queueObj.activityDocId, queueObj)
     } else {
+
       await executeFunc(queueObj);
     }
   });
 
-  await Promise.all(promises);
+  if (promises.length) await Promise.all(promises);
 }

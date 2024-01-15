@@ -9,7 +9,7 @@
         "fromList": {
           "listId": "All",
           "addresses": [],
-          "allowlist": false,
+          "whitelist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""
@@ -17,7 +17,7 @@
         "initiatedByList": {
           "listId": "All",
           "addresses": [],
-          "allowlist": false,
+          "whitelist": false,
           "uri": "",
           "customData": "",
           "createdBy": ""

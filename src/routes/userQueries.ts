@@ -69,6 +69,53 @@ export const filterActivityFunc = async (viewDocs: TransferActivityDoc<JSPrimiti
   return viewDocs;
 }
 
+export async function executeMultiUserActivityQuery(cosmosAddresses: string[], bookmark?: string, oldestFirst?: boolean) {
+  if (QUERY_TIME_MODE) console.time('multiUserActivityQuery');
+
+
+
+  const queryFunc = async (currBookmark?: string) => {
+    const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, currBookmark, oldestFirst, 'timestamp', '_id');
+
+    const view = await TransferActivityModel.find({
+      "$or": [
+        {
+          "from": { "$in": cosmosAddresses },
+          ...paginationParams,
+        },
+        {
+          "to": {
+            "$elemMatch": {
+              "$in": cosmosAddresses,
+            },
+          },
+          ...paginationParams,
+        },
+      ],
+    }).sort({ timestamp: oldestFirst ? 1 : -1, _id: -1 }).limit(25).lean().exec();
+
+    let viewDocs = view.map((doc) => {
+      return {
+        ...doc,
+        to: doc?.to.filter((to) => cosmosAddresses.includes(to)) //For the user queries, we don't need to return all the to addresses
+      }
+    })
+
+    return viewDocs;
+  }
+
+  const filterFunc = async (viewDocs: TransferActivityDoc<JSPrimitiveNumberType>[]) => {
+    //TODO: Do we incorporate the user hidden badges here?
+    const hiddenBadges = [...complianceDoc?.badges.reported ?? []];
+    viewDocs = await filterActivityFunc(viewDocs, hiddenBadges);
+    return viewDocs;
+  }
+
+  const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
+  if (QUERY_TIME_MODE) console.timeEnd('multiUserActivityQuery');
+  return collectedRes;
+}
+
 export async function executeActivityQuery(cosmosAddress: string, profileInfo: ProfileInfoBase<bigint>, fetchHidden: boolean, bookmark?: string, oldestFirst?: boolean) {
   if (QUERY_TIME_MODE) console.time('activityQuery');
 
@@ -265,7 +312,7 @@ export async function executeExplicitIncludedListsQuery(cosmosAddress: string, f
             },
           },
           {
-            "allowlist": {
+            "whitelist": {
               "$eq": true,
             },
           }],
@@ -307,7 +354,7 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, f
             },
           },
           {
-            "allowlist": {
+            "whitelist": {
               "$eq": false,
             },
           }],
