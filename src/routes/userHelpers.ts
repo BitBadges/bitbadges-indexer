@@ -76,10 +76,15 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
       if (cachedEthTxCount && cachedEthTxCount.count) {
         return { address: ethAddress, chain: SupportedChain.ETH }
       } else if (!cachedEthTxCount || (cachedEthTxCount && cachedEthTxCount.lastFetched < Date.now() - 1000 * 60 * 60 * 24)) {
+        ethTxCount = 0;
 
-
-        ethTxCount = isAddressValid(ethAddress) ? await provider.getTransactionCount(ethAddress) : 0; //handle module generated addresses
-
+        try {
+          ethTxCount = isAddressValid(ethAddress) ? await provider.getTransactionCount(ethAddress) : 0; //handle module generated addresses
+        } catch (e) {
+          console.log(e);
+          //we dont want the whole indexer to go down if Infura is down
+        }
+        
         await insertToDB(EthTxCountModel, {
           ...cachedEthTxCount,
           _docId: ethAddress,

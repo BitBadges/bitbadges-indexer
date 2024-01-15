@@ -1,13 +1,13 @@
-import { BitBadgesCollection, GetBrowseCollectionsRouteResponse, NumberType, convertBitBadgesCollection, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { BigIntify, UintRange, convertUintRange } from "bitbadgesjs-proto";
+import { GetBrowseCollectionsRouteResponse, NumberType, convertBitBadgesCollection, convertToCosmosAddress, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { DEV_MODE } from "../constants";
-import { AddressListModel, BrowseModel, CollectionModel, FetchModel, ProfileModel, TransferActivityModel, mustGetFromDB } from "../db/db";
+import { AddressListModel, BrowseModel, CollectionModel, ProfileModel, TransferActivityModel, mustGetFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
-import { executeCollectionsQuery } from "./collections";
+import { CollectionQueryOptions, executeCollectionsQuery } from "./collections";
 import { getAccountByAddress } from "./users";
 import { getAddressListsFromDB } from "./utils";
-import { BigIntify } from "bitbadgesjs-proto";
+import { DEV_MODE } from "../constants";
 
 let cachedResult: GetBrowseCollectionsRouteResponse<NumberType> | undefined = undefined;
 let lastFetchTime = 0;
@@ -15,16 +15,16 @@ let lastFetchTime = 0;
 
 export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
   try {
-    if (cachedResult && Date.now() - lastFetchTime < 1000 * 60 * 5 && !DEV_MODE) {
+    if (cachedResult && Date.now() - lastFetchTime < 1000 * 60 * 1 && !DEV_MODE) {
       return res.status(200).send(cachedResult);
     }
-
     const browseDoc = await mustGetFromDB(BrowseModel, 'browse');
 
     const collectionsToFetch = [];
     for (const [_, value] of Object.entries(browseDoc.collections)) {
       collectionsToFetch.push(...value);
     }
+
     for (const [_, value] of Object.entries(browseDoc.badges)) {
       for (const badge of value) {
         collectionsToFetch.push(badge.collectionId);
@@ -47,18 +47,12 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     const [
       browseDocCollections,
-      certificationsCollections,
-      latestCollections,
-      attendanceCollections,
       activity,
       addressLists,
       browseDocAddressLists,
       browseDocProfiles,
     ] = await Promise.all([
       CollectionModel.find({ "collectionId": { "$in": browseDoc.collections.featured } }).lean().exec(),
-      FetchModel.find({ "content.category": "Certification", "db": "Metadata" }).lean().exec(),
-      CollectionModel.find({}).sort({ "createdBlock": -1 }).limit(24).lean().exec(),
-      FetchModel.find({ "content.category": "Attendance", "db": "Metadata" }).limit(24).lean().exec(),
       TransferActivityModel.find({}).sort({ "timestamp": -1 }).limit(100).lean().exec(),
       AddressListModel.find({ private: { "$ne": true } }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
       AddressListModel.find({ "listId": { "$in": listsToFetch } }).lean().exec(),
@@ -76,55 +70,53 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     })
 
-
-    const uris = [...new Set([...attendanceCollections.map(x => x._docId), ...certificationsCollections.map(x => x._docId)])];
-    const urisForCollectionQuery = await CollectionModel.find({
-      collectionMetadataTimeline: {
-        $elemMatch: {
-          collectionMetadata: {
-            uri: {
-              $in: uris,
-            },
-          },
-        },
-      },
-    }).limit(100).lean().exec();
-
-
-    const collections = await executeCollectionsQuery(req,
-      [
-        //we also need to fetch metadata for the browse collections
-        ...Object.entries(browseDoc.badges).map(([_, value]) => {
-          return value.map(x => {
-            return {
-              collectionId: x.collectionId,
-              fetchTotalAndMintBalances: true,
-              handleAllAndAppendDefaults: true,
-              metadataToFetch: {
-                badgeIds: x.badgeIds,
-              },
-            }
-          })
-        }).flat(),
-
-        ...[
-          ...browseDocCollections,
-          ...latestCollections,
-          ...urisForCollectionQuery,
-        ].map(doc => {
+    const toFetch = [
+      //we also need to fetch metadata for the browse collections
+      ...Object.entries(browseDoc.badges).map(([_, value]) => {
+        return value.map(x => {
           return {
-            collectionId: doc._docId,
+            collectionId: x.collectionId,
             fetchTotalAndMintBalances: true,
             handleAllAndAppendDefaults: true,
             metadataToFetch: {
-              badgeIds: [{ start: 1n, end: 15n }],
+              badgeIds: x.badgeIds,
             },
           }
         })
-      ]
-    );
+      }).flat(),
 
-    //latest activity
+      ...[
+        ...browseDocCollections,
+      ].map(doc => {
+        return {
+          collectionId: doc._docId,
+          fetchTotalAndMintBalances: true,
+          handleAllAndAppendDefaults: true,
+          metadataToFetch: {
+            badgeIds: [{ start: 1n, end: 15n }],
+          },
+        }
+      })
+    ]
+
+    const condensedToFetch: CollectionQueryOptions[] = [];
+    for (const fetch of toFetch) {
+      const matchingReq = condensedToFetch.find(x => BigInt(x.collectionId) === BigInt(fetch.collectionId));
+      if (matchingReq) {
+        matchingReq.metadataToFetch = matchingReq.metadataToFetch || {
+          badgeIds: [],
+        };
+        matchingReq.metadataToFetch.badgeIds = sortUintRangesAndMergeIfNecessary([...matchingReq.metadataToFetch.badgeIds as UintRange<bigint>[], ...fetch.metadataToFetch.badgeIds as UintRange<bigint>[]]
+          .map(x => convertUintRange(x, BigIntify))
+          , true);
+      } else {
+        condensedToFetch.push(fetch);
+      }
+
+    }
+    const collections = await executeCollectionsQuery(req,
+      condensedToFetch
+    );
 
 
     let addressListsToReturn = await getAddressListsFromDB(addressLists.map(x => {
@@ -133,16 +125,10 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       }
     }), true);
 
-
-
     const promises = [];
     for (const profile of [...allProfiles]) {
       promises.push(getAccountByAddress(req, profile._docId, {
-        viewsToFetch: [{
-          viewType: 'badgesCollected',
-          viewId: 'badgesCollected',
-          bookmark: '',
-        }],
+        viewsToFetch: [],
       }));
     }
 
@@ -155,15 +141,8 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
           return [key, []];
         })),
 
-
         // 'featured': collections,
-        'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._docId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
-        'attendance': attendanceCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-          attendanceCollections.map(x => x._docId).includes(x.collectionMetadata.uri)
-        ))).filter(x => x) as BitBadgesCollection<NumberType>[],
-        'certifications': certificationsCollections.map(x => collections.find(y => y.collectionMetadataTimeline.find(x =>
-          certificationsCollections.map(x => x._docId).includes(x.collectionMetadata.uri)
-        ))).filter(x => x) as BitBadgesCollection<NumberType>[],
+        // 'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._docId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
       },
       activity: activity,
       addressLists: {
@@ -259,7 +238,6 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     cachedResult = result;
     lastFetchTime = Date.now();
-
 
 
     return res.status(200).send(result);

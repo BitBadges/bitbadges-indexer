@@ -115,11 +115,13 @@ export async function createIndexesAndViews() {
   StatusSchema.index({ _docId: 1 }, { unique: true });
   AccountSchema.index({ _docId: 1 }, { unique: true });
   CollectionSchema.index({ _docId: 1 }, { unique: true });
+  CollectionSchema.index({ collectionId: 1 }, { unique: true });
   BalanceSchema.index({ _docId: 1 }, { unique: true });
   ChallengeSchema.index({ _docId: 1 }, { unique: true });
   PasswordSchema.index({ _docId: 1 }, { unique: true });
   ProfileSchema.index({ _docId: 1 }, { unique: true });
   TransferActivitySchema.index({ _docId: 1 }, { unique: true });
+  TransferActivitySchema.index({ timestamp: 1 });
   AnnouncementSchema.index({ _docId: 1 }, { unique: true });
   ReviewSchema.index({ _docId: 1 }, { unique: true });
   ErrorSchema.index({ _docId: 1 }, { unique: true });
@@ -128,6 +130,7 @@ export async function createIndexesAndViews() {
   AddressListSchema.index({ _docId: 1 }, { unique: true });
   ApprovalTrackerSchema.index({ _docId: 1 }, { unique: true });
   ClaimAlertSchema.index({ _docId: 1 }, { unique: true });
+  ClaimAlertSchema.index({ timestamp: 1 });
   EthTxCountSchema.index({ _docId: 1 }, { unique: true });
   OffChainUrlSchema.index({ _docId: 1 }, { unique: true });
   ReportSchema.index({ _docId: 1 }, { unique: true });
@@ -137,6 +140,7 @@ export async function createIndexesAndViews() {
   ProtocolSchema.index({ _docId: 1 }, { unique: true });
   UserProtocolCollectionsSchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ _docId: 1 }, { unique: true });
+  ListActivitySchema.index({ timestamp: 1 });
   PageVisitsSchema.index({ _docId: 1 }, { unique: true });
 
   await PageVisitsModel.createIndexes();

@@ -11,7 +11,7 @@ import mongoose from "mongoose";
 import { serializeError } from "serialize-error";
 import { CollectionModel, PageVisitsModel, convertPageVisitsDoc, getFromDB, insertToDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
-import { fetchUriFromDbAndAddToQueueIfEmpty } from "../queue";
+import { fetchUrisFromDbAndAddToQueueIfEmpty } from "../queue";
 import { executeApprovalTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionApprovalTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
 import { applyAddressListsToUserPermissions } from "./balances";
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from "./utils";
@@ -34,7 +34,7 @@ import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutg
  * ownersBookmark - The bookmark to start fetching balances from.
  * claimsBookmark - The bookmark to start fetching claims from.
  */
-type CollectionQueryOptions = ({ collectionId: NumberType } & GetMetadataForCollectionRequestBody & GetAdditionalCollectionDetailsRequestBody);
+export type CollectionQueryOptions = ({ collectionId: NumberType } & GetMetadataForCollectionRequestBody & GetAdditionalCollectionDetailsRequestBody);
 
 export async function executeAdditionalCollectionQueries(req: Request, baseCollections: CollectionDoc<JSPrimitiveNumberType>[], collectionQueries: CollectionQueryOptions[]) {
   const promises = [];
@@ -58,7 +58,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
         if (bookmark !== undefined) {
           promises.push(executeCollectionActivityQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
-      }      else if (view.viewType === 'reviews') {
+      } else if (view.viewType === 'reviews') {
         if (bookmark !== undefined) {
           promises.push(executeCollectionReviewsQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
@@ -189,18 +189,25 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
   }
 
-  const uris: { uri: string, collectionId: JSPrimitiveNumberType }[] = [];
+  const claimFetchesPromises = [];
   for (const collectionRes of baseCollections) {
+    const collectionId = collectionRes.collectionId;
+    const urisToFetch = [];
     for (const approval of collectionRes.collectionApprovals) {
       const uri = approval.uri;
-      if (uri) uris.push({ uri: uri ?? '', collectionId: collectionRes.collectionId });
+      if (uri) urisToFetch.push(uri);
+    }
+
+    if (urisToFetch.length) {
+      claimFetchesPromises.push(fetchUrisFromDbAndAddToQueueIfEmpty(
+        [...new Set(urisToFetch)].filter(x => x),
+        collectionId.toString())
+      );
     }
   }
 
   const addressListsPromise = getAddressListsFromDB(addressListIdsToFetch, false);
-  const uniqueUris = [...new Set(uris.flat())].filter(x => !!x);
 
-  const claimFetchesPromises = uniqueUris.map(uri => fetchUriFromDbAndAddToQueueIfEmpty(uri.uri, BigInt(uri.collectionId).toString()));
   const [addressLists, claimFetches] = await Promise.all([
     addressListsPromise,
     Promise.all(claimFetchesPromises)
@@ -407,15 +414,16 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
   }
 
-
   //Append fetched approval details
   const pageVisitsPromises = [];
+  const claimFetchesFlat = claimFetches.flat();
   for (let i = 0; i < collectionResponses.length; i++) {
     const collectionRes = collectionResponses[i];
+
     for (let i = 0; i < collectionRes.collectionApprovals.length; i++) {
       const approval = collectionRes.collectionApprovals[i];
       if (approval.uri) {
-        const claimFetch = claimFetches.find((fetch) => fetch.uri === approval.uri);
+        const claimFetch = claimFetchesFlat.find((fetch) => fetch.uri === approval.uri);
         if (!claimFetch || !claimFetch.content) continue;
 
         approval.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
@@ -523,7 +531,8 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
 
 export async function executeCollectionsQuery(req: Request, collectionQueries: CollectionQueryOptions[]) {
   const baseCollections = await mustGetManyFromDB(CollectionModel, collectionQueries.map((query) => `${query.collectionId.toString()}`));
-  return await executeAdditionalCollectionQueries(req, baseCollections, collectionQueries);
+  const res = await executeAdditionalCollectionQueries(req, baseCollections, collectionQueries);
+  return res;
 }
 
 export const getCollectionById = async (req: Request, res: Response<GetCollectionRouteResponse<NumberType>>) => {
@@ -661,19 +670,8 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     throw new Error('For scalability, we limit the number of metadata URIs that can be fetched at once to 250. Please design your application to fetch metadata in batches of 250 or less.');
   }
 
-  const promises = [];
-  for (const uri of uris) {
-    promises.push(fetchUriFromDbAndAddToQueueIfEmpty(uri, collectionId.toString()));
-  }
-
-
-  const results = await Promise.all(promises) as {
-    content: Metadata<JSPrimitiveNumberType> | undefined,
-    updating: boolean,
-    fetchedAt: bigint,
-    fetchedAtBlock: bigint
-  }[];
-
+  const results = await fetchUrisFromDbAndAddToQueueIfEmpty(uris, collectionId.toString());
+  
   let collectionMetadata: Metadata<bigint> | undefined = undefined;
   if (!doNotFetchCollectionMetadata) {
     const collectionMetadataResult = results[0];
@@ -681,8 +679,8 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       collectionMetadata = {
         ...convertMetadata(collectionMetadataResult.content ?? DefaultPlaceholderMetadata, BigIntify),
         _isUpdating: collectionMetadataResult.updating,
-        fetchedAt: collectionMetadataResult.fetchedAt,
-        fetchedAtBlock: collectionMetadataResult.fetchedAtBlock
+        fetchedAt: BigInt(collectionMetadataResult.fetchedAt),
+        fetchedAtBlock: BigInt(collectionMetadataResult.fetchedAtBlock)
       }
     }
   }
@@ -700,8 +698,8 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
       metadata: {
         ...convertMetadata(results[resultIdx].content ?? DefaultPlaceholderMetadata, BigIntify),
         _isUpdating: results[resultIdx].updating,
-        fetchedAt: results[resultIdx].fetchedAt,
-        fetchedAtBlock: results[resultIdx].fetchedAtBlock
+        fetchedAt: BigInt(results[resultIdx].fetchedAt),
+        fetchedAtBlock: BigInt(results[resultIdx].fetchedAtBlock)
       }
     });
   }

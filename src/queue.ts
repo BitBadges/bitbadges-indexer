@@ -1,5 +1,5 @@
 import axios from "axios";
-import { AddressList, JSPrimitiveNumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
+import { AddressList, JSPrimitiveNumberType, NumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
 import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
 import crypto from 'crypto';
 import CryptoJS from "crypto-js";
@@ -8,7 +8,7 @@ import mongoose from "mongoose";
 import nano from "nano";
 import { serializeError } from "serialize-error";
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from "./db/cache";
-import { BalanceModel, ErrorModel, FetchModel, QueueModel, RefreshModel, deleteMany, getFromDB, insertToDB, mustGetFromDB } from "./db/db";
+import { BalanceModel, ErrorModel, FetchModel, QueueModel, RefreshModel, deleteMany, getFromDB, getManyFromDB, insertToDB, mustGetFromDB } from "./db/db";
 import { LOAD_BALANCER_ID, TIME_MODE } from "./indexer-vars";
 import { getFromIpfs } from "./ipfs/ipfs";
 import { QUEUE_TIME_MODE, sendPushNotification } from "./poll";
@@ -39,68 +39,100 @@ const { SHA256 } = CryptoJS
 // 	3. BASE_DELAY = 12 hours
 
 //Upon fetch request, check in RefreshModel if it is to be refreshed
-export const fetchUriFromDbAndAddToQueueIfEmpty = async (uri: string, collectionId: string) => {
-  let fetchDoc: (FetchDoc<JSPrimitiveNumberType>) | undefined;
-  let refreshDoc: (RefreshDoc<JSPrimitiveNumberType>) | undefined;
-  let alreadyInQueue = false;
-  let needsRefresh = false;
-  let refreshRequestTime = Date.now();
+export const fetchUrisFromDbAndAddToQueueIfEmpty = async (uris: string[], collectionId: string) => {
+  for (const uri of uris) {
 
-  const isValidUri = Joi.string().uri().validate(uri);
-  if (isValidUri.error) {
-    throw new Error(`Invalid URI: ${uri}`);
+    const isValidUri = Joi.string().uri().validate(uri);
+    if (isValidUri.error) {
+      throw new Error(`Invalid URI: ${uri}`);
+    }
   }
+
+  const promises = [];
+
+
 
   //Check if we need to refresh
-  const fetchDocPromise = getFromDB(FetchModel, uri);
+  const fetchDocPromise = getManyFromDB(FetchModel, uris);
   const refreshDocPromise = mustGetFromDB(RefreshModel, collectionId);
 
-  [fetchDoc, refreshDoc] = await Promise.all([fetchDocPromise, refreshDocPromise]);
+  promises.push(fetchDocPromise);
+  promises.push(refreshDocPromise);
 
-  if (!fetchDoc || refreshDoc.refreshRequestTime > fetchDoc.fetchedAt) {
-    needsRefresh = true;
-    refreshRequestTime = Number(refreshDoc.refreshRequestTime);
-  }
 
-  /*
-    Below, we use a clever approach to prevent multiple queue documents for the same URI and same refresh request.
-    This is in case the RefreshModel is ahead of the QueueModel. If RefreshModel is ahead, we do not want
-    all N nodes to pick up on the fact that it needs a refresh and create N separate queue documents. Instead, we want
-    only one queue document to be created. To do this, we use the refreshRequestTime of the refresh document as the _docId of the queue document.
-    This way, the same exact document is created by all N nodes and will not cause any conflicts.
-  */
+  const promiseRes = await Promise.all(promises);
 
-  //If not already in queue and we need to refresh, add to queue
-  if (needsRefresh) {
-    const id = `${uri}-${refreshDoc.refreshRequestTime}`;
-    //Check if already in queue
-    const res = await getFromDB(QueueModel, id);
-    if (res) {
-      alreadyInQueue = true;
+  const toReturn: {
+    content?: any,
+    updating: boolean,
+    fetchedAt: NumberType,
+    fetchedAtBlock: NumberType,
+    uri: string,
+  }[] = [];
+  for (let i = 0; i < uris.length; i++) {
+    const uri = uris[i];
+
+    let fetchDoc: (FetchDoc<JSPrimitiveNumberType>) | undefined;
+    let refreshDoc: (RefreshDoc<JSPrimitiveNumberType>) | undefined;
+    let alreadyInQueue = false;
+    let needsRefresh = false;
+    let refreshRequestTime = Date.now();
+
+    const fetchDocRes = promiseRes[0] as (FetchDoc<JSPrimitiveNumberType> | undefined)[];
+
+    fetchDoc = fetchDocRes[i] as FetchDoc<JSPrimitiveNumberType>;
+    refreshDoc = promiseRes[1] as RefreshDoc<JSPrimitiveNumberType>;
+
+
+
+    if (!fetchDoc || refreshDoc.refreshRequestTime > fetchDoc.fetchedAt) {
+      needsRefresh = true;
+      refreshRequestTime = Number(refreshDoc.refreshRequestTime);
     }
 
-    if (!alreadyInQueue) {
-      const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc.refreshRequestTime}`); //`${uri}-${refreshDoc.refreshRequestTime}
 
-      await insertToDB(QueueModel, {
-        _docId: `${uri}-${refreshDoc.refreshRequestTime}`,
-        uri: uri,
-        collectionId: collectionId,
-        refreshRequestTime,
-        numRetries: 0,
-        loadBalanceId,
-        nextFetchTime: BigInt(Date.now(),)
-      });
+    /*
+      Below, we use a clever approach to prevent multiple queue documents for the same URI and same refresh request.
+      This is in case the RefreshModel is ahead of the QueueModel. If RefreshModel is ahead, we do not want
+      all N nodes to pick up on the fact that it needs a refresh and create N separate queue documents. Instead, we want
+      only one queue document to be created. To do this, we use the refreshRequestTime of the refresh document as the _docId of the queue document.
+      This way, the same exact document is created by all N nodes and will not cause any conflicts.
+    */
+
+    //If not already in queue and we need to refresh, add to queue
+    if (needsRefresh) {
+      const id = `${uri}-${refreshDoc.refreshRequestTime}`;
+      //Check if already in queue
+      const res = await getFromDB(QueueModel, id);
+      if (res) {
+        alreadyInQueue = true;
+      }
+
+      if (!alreadyInQueue) {
+        const loadBalanceId = getLoadBalancerId(`${uri}-${refreshDoc.refreshRequestTime}`); //`${uri}-${refreshDoc.refreshRequestTime}
+
+        await insertToDB(QueueModel, {
+          _docId: `${uri}-${refreshDoc.refreshRequestTime}`,
+          uri: uri,
+          collectionId: collectionId,
+          refreshRequestTime,
+          numRetries: 0,
+          loadBalanceId,
+          nextFetchTime: BigInt(Date.now(),)
+        });
+      }
     }
+
+    toReturn.push({
+      content: fetchDoc ? fetchDoc.content : undefined,
+      updating: alreadyInQueue || needsRefresh,
+      fetchedAt: fetchDoc ? fetchDoc.fetchedAt : 0n,
+      fetchedAtBlock: fetchDoc ? fetchDoc.fetchedAtBlock : 0n,
+      uri: uri,
+    });
   }
 
-  return {
-    content: fetchDoc ? fetchDoc.content : undefined,
-    updating: alreadyInQueue || needsRefresh,
-    fetchedAt: fetchDoc ? fetchDoc.fetchedAt : 0n,
-    fetchedAtBlock: fetchDoc ? fetchDoc.fetchedAtBlock : 0n,
-    uri: uri,
-  };
+  return toReturn;
 }
 
 export const fetchUriFromSource = async (uri: string) => {

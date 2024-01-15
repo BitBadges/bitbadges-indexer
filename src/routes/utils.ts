@@ -39,18 +39,18 @@ export async function getAddressListsFromDB(listsToFetch: {
   if (listsToFetch.length > 0) {
     const addressListDocs = await mustGetManyFromDB(AddressListModel, listsToFetch.map(x => x.listId));
     for (const listToFetch of listsToFetch) {
-      const listActivity = await executeListsActivityQueryForList(
+      const listActivity = fetchMetadata ? await executeListsActivityQueryForList(
         listToFetch.listId,
         false,
         listToFetch.viewsToFetch?.find((x) => x.viewType === 'listActivity')?.bookmark,
-      );
+      ) : { docs: [], bookmark: '' };
 
       const doc = addressListDocs.find((x) => x.listId === listToFetch.listId);
       if (doc) {
         addressLists.push(convertBitBadgesAddressList({
           ...doc,
           listsActivity: listActivity.docs,
-          views: {
+          views: fetchMetadata ? {
             listActivity: {
               ids: listActivity.docs.map(x => x._docId),
               type: 'List Activity',
@@ -59,7 +59,7 @@ export async function getAddressListsFromDB(listsToFetch: {
                 hasMore: listActivity.docs.length >= 25,
               }
             }
-          }
+          } : {}
         }, BigIntify));
       }
     }
