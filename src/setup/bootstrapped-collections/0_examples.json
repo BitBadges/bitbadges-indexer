@@ -119,221 +119,211 @@
     {
       "badgeMetadata": [
         {
-          "badgeMetadata": [
+          "uri": "ipfs://Qmbtv34wgPcCtmX1yheuP7AGFtVrrfLUXwzGmARP2RZBow",
+          "customData": "",
+          "badgeIds": [
             {
-              "uri": "ipfs://Qmbtv34wgPcCtmX1yheuP7AGFtVrrfLUXwzGmARP2RZBow",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 2,
-                  "end": 2
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmRe9Es1Wx3hwUEAsvpFVdVEbnQkD5BihKHqsKegZeBpJu",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 9,
-                  "end": 9
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmcrhcuqSRa9cx64HMaAwX6GaiJgDmVcpLEgfbXW8q5qRT",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 17,
-                  "end": 17
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmZWRn4DUCs7YL2kGTZggxeUh3BeaXGnNgha3wzGTMUxsE",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 18,
-                  "end": 18
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmPKmCUmdNgXvPvihpiFjLf6jC3hUy4YM6odyWn1TsGH38",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 19,
-                  "end": 19
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://Qmcv1aZvjjFw1A4S4yJjsWP6uXpCJKYpvm9tYBB4CYZq7c",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 20,
-                  "end": 20
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmSft5yM5SpB8TcHdeNgA6BTgqaaLj8fXBUAtzdNWfrbBE",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 4,
-                  "end": 4
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmNVuNcfR9oAYBUStFYnkz3ZmRrV9Ck5ZzHx2qJUabGm6f",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 5,
-                  "end": 5
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmdjUfci9ncdgR7bU8eCBoc35WUwHUUarN95DuHKW1pAfN",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 6,
-                  "end": 6
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmX36D7oHMMy8tPETaGGXsZeHrGAPyjsj4w4FoVFHoMbJb",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 7,
-                  "end": 7
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmZxNqSD256rwxhromBBkyrwf8GwJiGg4yVL8MgkPdrRZi",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 8,
-                  "end": 8
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://Qmady4c8k7teEpXNLBmPyKHFfwzMuPFeabaEyfVJNhQFGv",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 10,
-                  "end": 10
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmWJRsKUczzTijpJgexSsJdRbZDo6hFK63aQKbzAfLVJux",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 11,
-                  "end": 11
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmdpTYGWfs3L8f6JmPSpzGbTVjRvZ3VHqQENV2dF6vbNkr",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 12,
-                  "end": 12
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmZrtYPkfYxvfY4PdH1dtzQeNfQq88apDTQ8AGaHkADUum",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 13,
-                  "end": 13
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmRApEgZwpr8bfATMLZseTyf7RynzPMTwdzXeRyPvr5NMB",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 14,
-                  "end": 14
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmSdob6nJs8gqG2iHdLLunsLcV4VJBbczthgtjj8RNNzC2",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 16,
-                  "end": 16
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmTpELFKNwxTEHPSb8Jkkbyt76syfGMdnM8XvQtizZaz8Q",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 1,
-                  "end": 1
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmPViVfiZyHrm3yidbesJK8rv9kCu1yCowgYPLPfxvAKcj",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 3,
-                  "end": 3
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmSiftzGpybguNtu3j2gFAQesUc48atjMSCAfDxcbEFVMQ",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 15,
-                  "end": 15
-                }
-              ]
-            },
-            {
-              "uri": "ipfs://QmQKn1G41gcVEZPenXjtTTQfQJnx5Q6fDtZrcSNJvBqxUs",
-              "customData": "",
-              "badgeIds": [
-                {
-                  "start": 21,
-                  "end": "18446744073709551615"
-                }
-              ]
+              "start": 2,
+              "end": 2
             }
-          ],
-          "timelineTimes": [
+          ]
+        },
+        {
+          "uri": "ipfs://QmRe9Es1Wx3hwUEAsvpFVdVEbnQkD5BihKHqsKegZeBpJu",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 9,
+              "end": 9
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmcrhcuqSRa9cx64HMaAwX6GaiJgDmVcpLEgfbXW8q5qRT",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 17,
+              "end": 17
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmZWRn4DUCs7YL2kGTZggxeUh3BeaXGnNgha3wzGTMUxsE",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 18,
+              "end": 18
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmPKmCUmdNgXvPvihpiFjLf6jC3hUy4YM6odyWn1TsGH38",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 19,
+              "end": 19
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://Qmcv1aZvjjFw1A4S4yJjsWP6uXpCJKYpvm9tYBB4CYZq7c",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 20,
+              "end": 20
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmSft5yM5SpB8TcHdeNgA6BTgqaaLj8fXBUAtzdNWfrbBE",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 4,
+              "end": 4
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmNVuNcfR9oAYBUStFYnkz3ZmRrV9Ck5ZzHx2qJUabGm6f",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 5,
+              "end": 5
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmdjUfci9ncdgR7bU8eCBoc35WUwHUUarN95DuHKW1pAfN",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 6,
+              "end": 6
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmX36D7oHMMy8tPETaGGXsZeHrGAPyjsj4w4FoVFHoMbJb",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 7,
+              "end": 7
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmZxNqSD256rwxhromBBkyrwf8GwJiGg4yVL8MgkPdrRZi",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 8,
+              "end": 8
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://Qmady4c8k7teEpXNLBmPyKHFfwzMuPFeabaEyfVJNhQFGv",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 10,
+              "end": 10
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmWJRsKUczzTijpJgexSsJdRbZDo6hFK63aQKbzAfLVJux",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 11,
+              "end": 11
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmdpTYGWfs3L8f6JmPSpzGbTVjRvZ3VHqQENV2dF6vbNkr",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 12,
+              "end": 12
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmZrtYPkfYxvfY4PdH1dtzQeNfQq88apDTQ8AGaHkADUum",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 13,
+              "end": 13
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmRApEgZwpr8bfATMLZseTyf7RynzPMTwdzXeRyPvr5NMB",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 14,
+              "end": 14
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmSdob6nJs8gqG2iHdLLunsLcV4VJBbczthgtjj8RNNzC2",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 16,
+              "end": 16
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmTpELFKNwxTEHPSb8Jkkbyt76syfGMdnM8XvQtizZaz8Q",
+          "customData": "",
+          "badgeIds": [
             {
               "start": 1,
+              "end": 1
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmPViVfiZyHrm3yidbesJK8rv9kCu1yCowgYPLPfxvAKcj",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 3,
+              "end": 3
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmSiftzGpybguNtu3j2gFAQesUc48atjMSCAfDxcbEFVMQ",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 15,
+              "end": 15
+            }
+          ]
+        },
+        {
+          "uri": "ipfs://QmQKn1G41gcVEZPenXjtTTQfQJnx5Q6fDtZrcSNJvBqxUs",
+          "customData": "",
+          "badgeIds": [
+            {
+              "start": 21,
               "end": "18446744073709551615"
             }
           ]
@@ -341,7 +331,7 @@
       ],
       "timelineTimes": [
         {
-          "start": "1",
+          "start": 1,
           "end": "18446744073709551615"
         }
       ]

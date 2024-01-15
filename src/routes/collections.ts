@@ -524,8 +524,7 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
 
     await insertToDB(PageVisitsModel, convertPageVisitsDoc(currPageVisits, BigIntify));
   } catch (e) {
-    console.log(e);
-    console.error(e);
+    //bound to be write conflicts
   }
 }
 
