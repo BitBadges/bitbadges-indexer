@@ -498,6 +498,7 @@ export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: st
 
   const res = await BlockinAuthSignatureModel.find({
     cosmosAddress: cosmosAddress,
+    deletedAt: { "$exists": false },
     ...paginationParams,
 
 

@@ -212,7 +212,6 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
     }
 
     const chainDriver = getChainDriver(body.chain);
-
     const verificationResponse = await verifyChallenge(
       chainDriver,
       body.message,

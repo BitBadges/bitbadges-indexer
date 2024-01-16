@@ -4,7 +4,7 @@ import { constructChallengeObjectFromString, constructChallengeStringFromChallen
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, genericBlockinVerify } from "../blockin/blockin_handlers";
-import { BlockinAuthSignatureModel, deleteMany, insertToDB, mustGetFromDB } from "../db/db";
+import { BlockinAuthSignatureModel, insertToDB, mustGetFromDB } from "../db/db";
 
 export const createAuthCode = async (expressReq: Request, res: Response<CreateBlockinAuthCodeRouteResponse>) => {
   try {
@@ -114,7 +114,10 @@ export const deleteAuthCode = async (expressReq: Request, res: Response<DeleteBl
       throw new Error("You are not the owner of this auth code.");
     }
 
-    await deleteMany(BlockinAuthSignatureModel, [doc._docId]);
+    await insertToDB(BlockinAuthSignatureModel, {
+      ...doc,
+      deletedAt: Date.now()
+    });
 
     return res.status(200).send({ success: true });
   } catch (e) {
