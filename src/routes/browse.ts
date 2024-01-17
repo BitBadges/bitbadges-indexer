@@ -245,7 +245,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: 'Error getting collections'
+      errorMessage: 'Error getting collections'
     });
   }
 }

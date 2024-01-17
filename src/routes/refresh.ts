@@ -36,7 +36,7 @@ export const getRefreshStatus = async (req: Request, res: Response<RefreshStatus
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      message: `Error getting refresh status: ${e.message}`
+      errorMessage: `Error getting refresh status: ${e.message}`
     });
   }
 }
@@ -99,7 +99,7 @@ export const refreshMetadata = async (req: Request, res: Response<RefreshMetadat
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      message: `Error refreshing metadata: ${e.message}`
+      errorMessage: `Error refreshing metadata: ${e.message}`
     });
   }
 }

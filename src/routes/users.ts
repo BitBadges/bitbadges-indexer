@@ -190,7 +190,7 @@ export const getAccount = async (req: Request, res: Response<GetAccountRouteResp
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error fetching account. Please try again later."
+      errorMessage: "Error fetching account. Please try again later."
     })
   }
 };
@@ -203,11 +203,11 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     const allDoNotHaveExternalCalls = reqBody.accountsToFetch.every(x => x.noExternalCalls);
     if (!allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 250) {
       return res.status(400).send({
-        message: 'You can only fetch up to 250 accounts with external calls at a time. Please structure your request accordingly.'
+        errorMessage: 'You can only fetch up to 250 accounts with external calls at a time. Please structure your request accordingly.'
       })
     } else if (allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 10000) {
       return res.status(400).send({
-        message: 'You can only fetch up to 10,000 accounts without external calls at a time. Please structure your request accordingly.'
+        errorMessage: 'You can only fetch up to 10,000 accounts without external calls at a time. Please structure your request accordingly.'
       })
     }
 
@@ -266,7 +266,7 @@ export const getAccounts = async (req: Request, res: Response<GetAccountsRouteRe
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error fetching accounts. Please try again later."
+      errorMessage: "Error fetching accounts. Please try again later."
     })
   }
 }
@@ -618,7 +618,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       ...reqBody.watchlists?.lists ?? [],
     ]?.find(x => !x.title || x.title === 'Hidden' || x.title === 'All' || x.title === 'Created' || x.title === 'Managing' || x.title === 'Included' || x.title === 'Excluded' || x.title === 'Private')) {
       return res.status(400).send({
-        message: 'Page name cannot be empty and cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
+        errorMessage: 'Page name cannot be empty and cannot be a reserved word. Certain page names are reserved by us for special purposes. Please choose a different name.'
       })
     }
 
@@ -627,7 +627,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
       //Do standard username regex
       if (!/^[a-zA-Z0-9_]{1,15}$/.test(reqBody.username)) {
         return res.status(400).send({
-          message: 'Username must be 1 to 15 characters long and can only contain letters, numbers, and underscores.'
+          errorMessage: 'Username must be 1 to 15 characters long and can only contain letters, numbers, and underscores.'
         })
       }
     }
@@ -666,7 +666,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
     const profileSize = JSON.stringify(newProfileInfo).length;
     if (profileSize > 100000) {
       return res.status(400).send({
-        message: 'Profile information is too large to store. Please reduce the size of the details for your profile.'
+        errorMessage: 'Profile information is too large to store. Please reduce the size of the details for your profile.'
       })
     }
 
@@ -680,7 +680,7 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
         //Is valid email - regex 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reqBody.notifications.email)) {
           return res.status(400).send({
-            message: 'Email is not valid.'
+            errorMessage: 'Email is not valid.'
           })
         }
 
@@ -743,14 +743,14 @@ export const updateAccountInfo = async (expressReq: Request, res: Response<Updat
     await insertToDB(ProfileModel, newProfileInfo);
 
     return res.status(200).send(
-      { message: 'Account info updated successfully' }
+      { errorMessage: 'Account info updated successfully' }
     );
   } catch (e) {
     console.log("Error updating account info", e);
     console.log(e.response.body);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error updating account info. Please try again later."
+      errorMessage: "Error updating account info. Please try again later."
     })
   }
 }

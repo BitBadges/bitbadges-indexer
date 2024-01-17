@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { ReportDoc, ReportModel, insertToDB } from "../db/db";
 
-export const addReport = async (req: Request, res: Response<{ message: string }>) => {
+export const addReport = async (req: Request, res: Response<any>) => {
   try {
     const report = req.body;
 
@@ -15,9 +15,9 @@ export const addReport = async (req: Request, res: Response<{ message: string }>
       reason: report.reason,
     }
     await insertToDB(ReportModel, reportDoc);
-    return res.status(200).send({ message: 'Report successfully submitted.' });
+    return res.status(200).send();
   } catch (e) {
     console.error(e);
-    return res.status(500).send({ message: e.message });
+    return res.status(500).send({ errorMessage: e.message });
   }
 }

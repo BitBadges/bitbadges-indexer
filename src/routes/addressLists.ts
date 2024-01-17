@@ -36,7 +36,7 @@ export const deleteAddressLists = async (expressReq: Request, res: Response<Dele
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error deleting address lists. Please try again later."
+      errorMessage: "Error deleting address lists. Please try again later."
     })
   }
 }
@@ -154,7 +154,7 @@ export const updateAddressLists = async (expressReq: Request, res: Response<Upda
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error creating address lists. Please try again later."
+      errorMessage: "Error creating address lists. Please try again later."
     })
   }
 }
@@ -179,7 +179,7 @@ export const getAddressLists = async (req: Request, res: Response<GetAddressList
       const cosmosAddress = authReq.session.cosmosAddress;
       if (docs.some(x => x.private && x.createdBy !== cosmosAddress)) {
         return res.status(401).send({
-          message: `Your signed in address ${authReq.session.address} does not have permission to view one or more of the requested address lists.`
+          errorMessage: `Your signed in address ${authReq.session.address} does not have permission to view one or more of the requested address lists.`
         })
       }
     }
@@ -189,7 +189,7 @@ export const getAddressLists = async (req: Request, res: Response<GetAddressList
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error fetching address lists. Please try again later."
+      errorMessage: "Error fetching address lists. Please try again later."
     })
   }
 }

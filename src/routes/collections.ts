@@ -551,7 +551,7 @@ export const getCollectionById = async (req: Request, res: Response<GetCollectio
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: 'Error fetching collection. Please try again later.'
+      errorMessage: 'Error fetching collection. Please try again later.'
     });
   }
 }
@@ -566,7 +566,7 @@ export const getBadgeActivity = async (req: Request, res: Response<GetBadgeActiv
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: 'Error fetching badge activity'
+      errorMessage: 'Error fetching badge activity'
     });
   }
 }
@@ -575,7 +575,7 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
   try {
     if (req.body.collectionsToFetch.length > 100) {
       return res.status(400).send({
-        message: 'For scalability purposes, we limit the number of collections that can be fetched at once to 250. Please design your application to fetch collections in batches of 250 or less.'
+        errorMessage: 'For scalability purposes, we limit the number of collections that can be fetched at once to 250. Please design your application to fetch collections in batches of 250 or less.'
       });
     }
 
@@ -589,7 +589,7 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: 'Error fetching collections. Please try again later.'
+      errorMessage: 'Error fetching collections. Please try again later.'
     })
   }
 }
@@ -670,7 +670,7 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   }
 
   const results = await fetchUrisFromDbAndAddToQueueIfEmpty(uris, collectionId.toString());
-  
+
   let collectionMetadata: Metadata<bigint> | undefined = undefined;
   if (!doNotFetchCollectionMetadata) {
     const collectionMetadataResult = results[0];

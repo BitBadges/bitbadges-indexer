@@ -82,7 +82,7 @@ export const addBalancesToOffChainStorageHandler = async (expressReq: Request, r
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error adding balances to storage."
+      errorMessage: "Error adding balances to storage."
     })
   }
 }
@@ -109,7 +109,7 @@ export const addMetadataToIpfsHandler = async (expressReq: Request, res: Respons
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error adding metadata. Please try again later."
+      errorMessage: "Error adding metadata. Please try again later."
     })
   }
 }
@@ -138,7 +138,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
     }).lean().exec();
 
     if (duplicateCheckRes.length > 0) {
-      return res.status(400).send({ message: 'You have already added a challenge with an equivalent CID to IPFS. We do not allow duplicate CIDs.' });
+      return res.status(400).send({ errorMessage: 'You have already added a challenge with an equivalent CID to IPFS. We do not allow duplicate CIDs.' });
     }
 
     const SYM_KEY = process.env.SYM_KEY;
@@ -169,7 +169,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (expressReq: Req
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error adding claim details to IPFS. Please try again later."
+      errorMessage: "Error adding claim details to IPFS. Please try again later."
     })
   }
 }

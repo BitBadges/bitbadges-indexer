@@ -52,7 +52,7 @@ export const createAuthCode = async (expressReq: Request, res: Response<CreateBl
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error creating QR auth code. Please try again later."
+      errorMessage: "Error creating QR auth code. Please try again later."
     })
   }
 }
@@ -74,32 +74,38 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
           options: reqBody.options,
         }
       );
+      if (!verificationResponse.success) {
+        return res.status(200).send({
+          message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
+          verification: {
+            success: false,
+            response: verificationResponse.message
+          }
+        });
+      }
 
       return res.status(200).send({
         message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
-        verificationResponse: {
+        verification: {
           success: verificationResponse.success,
-          verificationMessage: verificationResponse.message
+          response: verificationResponse.message
         }
       });
     } catch (e) {
-
       return res.status(200).send({
         message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
-        verificationResponse: {
+        verification: {
           success: false,
-          verificationMessage: e.message
+          response: e.message
         }
       });
     }
-
-
 
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting auth QR code. Please try again later."
+      errorMessage: "Error getting auth QR code. Please try again later."
     })
   }
 }
@@ -124,7 +130,7 @@ export const deleteAuthCode = async (expressReq: Request, res: Response<DeleteBl
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error deleting QR auth code. Please try again later."
+      errorMessage: "Error deleting QR auth code. Please try again later."
     })
   }
 }

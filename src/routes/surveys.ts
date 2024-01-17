@@ -38,7 +38,7 @@ export const addAddressToSurvey = async (expressReq: Request, res: Response<AddA
       if (convertToCosmosAddress(address) !== cosmosAddress) {
         return res.status(403).send({
           error: `Address that you are attempting to add does not match your logged in address. For this edit key, you are required o be logged in to add addresses.`,
-          message: "Address does not match logged in address."
+          errorMessage: "Address does not match logged in address."
         })
       }
     }
@@ -50,7 +50,7 @@ export const addAddressToSurvey = async (expressReq: Request, res: Response<AddA
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error adding address to survey. Please try again later."
+      errorMessage: "Error adding address to survey. Please try again later."
     })
   }
 }

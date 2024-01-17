@@ -432,7 +432,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     console.error(e);
     return res.status(500).json({
       error: serializeError(e),
-      message: `Error searching for ${req.params.searchValue}. Please try a different search value or try again later.`
+      errorMessage: `Error searching for ${req.params.searchValue}. Please try a different search value or try again later.`
     })
   }
 }

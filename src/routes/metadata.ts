@@ -33,6 +33,6 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMet
 
     return res.status(200).send({ metadata: results });
   } catch (e) {
-    return res.status(500).send({ message: e.message });
+    return res.status(500).send({ errorMessage: e.message });
   }
 }

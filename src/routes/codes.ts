@@ -46,7 +46,7 @@ export const getAllCodesAndPasswords = async (expressReq: Request, res: Response
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting codes. Please try again later."
+      errorMessage: "Error getting codes. Please try again later."
     });
   }
 }

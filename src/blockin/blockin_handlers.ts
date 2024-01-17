@@ -49,7 +49,7 @@ export async function checkIfManager(req: AuthenticatedRequest<NumberType>, coll
 }
 
 export async function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: boolean = false) {
-  return res.status(401).json({ message: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : 'to access this feature'}.`, unauthorized: true });
+  return res.status(401).json({ errorMessage: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : 'to access this feature'}.`, unauthorized: true });
 }
 
 const statement = `Sign this message only if prompted by a trusted party. The signature of this message can be used to authenticate you on BitBadges. By signing, you agree to the BitBadges privacy policy and terms of service.`;
@@ -62,7 +62,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
     const cosmosAddress = convertToCosmosAddress(reqBody.address);
     if (!cosmosAddress) {
-      return res.status(400).json({ message: 'Invalid address' });
+      return res.status(400).json({ errorMessage: 'Invalid address' });
     }
 
     if (cosmosAddress !== req.session.cosmosAddress) {
@@ -72,7 +72,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
     const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 168 * 2;
     if (isNaN(hours)) {
-      return res.status(400).json({ message: 'Invalid hours' });
+      return res.status(400).json({ errorMessage: 'Invalid hours' });
     }
 
     // Get the current time
@@ -99,13 +99,13 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
     return res.status(200).json({
       nonce: req.session.nonce,
       params: challengeParams,
-      blockinMessage: blockinMessage
+      message: blockinMessage
     });
   } catch (err) {
     console.error(err);
     return res.status(500).json({
       error: serializeError(err),
-      message: 'Error creating challenge. Please try again later.'
+      errorMessage: 'Error creating challenge. Please try again later.'
     });
   }
 }
@@ -132,7 +132,7 @@ export async function removeBlockinSessionCookie(expressReq: Request, res: Respo
 
   req.session.save();
 
-  return res.status(200).send({ message: 'Successfully removed session cookie!' });
+  return res.status(200).send({ errorMessage: 'Successfully removed session cookie!' });
 }
 
 export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
@@ -168,6 +168,10 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
       }
     );
 
+    if (!verificationResponse.success) {
+      return res.status(401).json({ success: false, errorMessage: `${verificationResponse.message} ` });
+    }
+
     req.session.address = challenge.address;
     req.session.cosmosAddress = convertToCosmosAddress(challenge.address);
     req.session.blockinParams = challenge;
@@ -188,11 +192,11 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
 
     req.session.save();
 
-    return res.status(200).json({ success: true, successMessage: verificationResponse.message });
+    return res.status(200).json({ success: true });
   } catch (err) {
     console.log(err);
 
-    return res.status(401).json({ success: false, message: `${err.message} ` });
+    return res.status(401).json({ success: false, errorMessage: `${err.message} ` });
   }
 }
 
@@ -212,6 +216,8 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
     }
 
     const chainDriver = getChainDriver(body.chain);
+
+
     const verificationResponse = await verifyChallenge(
       chainDriver,
       body.message,
@@ -235,10 +241,13 @@ export async function genericBlockinVerifyHandler(expressReq: Request, res: Resp
 
   try {
     const verificationResponse = await genericBlockinVerify(body);
+    if (!verificationResponse.success) {
+      return res.status(401).json({ success: false, errorMessage: `${verificationResponse.message} ` });
+    }
 
-    return res.status(200).json({ success: true, successMessage: verificationResponse.message });
+    return res.status(200).json({ success: true });
   } catch (err) {
     console.error(err);
-    return res.status(401).json({ success: false, message: `${err.message} ` });
+    return res.status(401).json({ success: false, errorMessage: `${err.message} ` });
   }
 }

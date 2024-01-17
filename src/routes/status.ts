@@ -14,7 +14,7 @@ export const getStatusHandler = async (req: Request, res: Response<GetStatusRout
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      message: "We encountered an error communicating with the database. We could not get its status."
+      errorMessage: "We encountered an error communicating with the database. We could not get its status."
     });
   }
 };

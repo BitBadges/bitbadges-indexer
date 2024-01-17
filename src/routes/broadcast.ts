@@ -10,7 +10,7 @@ import { getAccountByAddress } from "./users";
 async function tidyErrorMessage(originalMessage: string) {
   const message = DEV_MODE ? originalMessage : originalMessage.split("[/")[0];
   const words = message.split(" ");
-  
+
 
   const newWords = [];
   for (const word of words) {
@@ -29,7 +29,7 @@ async function tidyErrorMessage(originalMessage: string) {
 
       const account = await getAccountByAddress(blankExpressRequest, wordWithoutPunctuation);
       if (account) {
-        newWords.push((account.username || account.resolvedName || account.address) + punctuation); 
+        newWords.push((account.username || account.resolvedName || account.address) + punctuation);
       } else {
         newWords.push(word);
       }
@@ -87,16 +87,16 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
 
       return res.status(500).send({
         error: serializeError(e),
-        message: 'Error broadcasting transaction: ' + message
+        errorMessage: 'Error broadcasting transaction: ' + message
       });
     } catch (e) {
       return res.status(500).send({
         error: serializeError(e),
-        message: 'Error broadcasting transaction: ' + e.message
+        errorMessage: 'Error broadcasting transaction: ' + e.message
       });
     }
 
-    
+
   }
 }
 
@@ -123,12 +123,12 @@ export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResp
 
       return res.status(500).send({
         error: serializeError(e),
-        message: 'Error simulating transaction: ' + message
+        errorMessage: 'Error simulating transaction: ' + message
       });
     } catch (e) {
       return res.status(500).send({
         error: serializeError(e),
-        message: 'Error simulating transaction: ' + e.message
+        errorMessage: 'Error simulating transaction: ' + e.message
       });
     }
   }

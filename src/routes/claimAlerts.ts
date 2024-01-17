@@ -12,7 +12,7 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
     for (const claimAlert of reqBody.claimAlerts) {
       const isManager = await checkIfManager(req, claimAlert.collectionId);
       if (!isManager) {
-        return res.status(403).send({ message: 'You must be a manager of the collection you are trying to send claim alerts for.' });
+        return res.status(403).send({ errorMessage: 'You must be a manager of the collection you are trying to send claim alerts for.' });
       }
 
       //random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
@@ -34,7 +34,7 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error adding announcement. Please try again later."
+      errorMessage: "Error adding announcement. Please try again later."
     })
   }
 }
@@ -48,7 +48,7 @@ export async function getClaimAlertsForCollection(expressReq: Request, res: Resp
 
     const isManager = await checkIfManager(req, collectionId);
     if (!isManager) {
-      return res.status(403).send({ message: 'You must be the manager of the collection you are trying to get claim alerts for.' });
+      return res.status(403).send({ errorMessage: 'You must be the manager of the collection you are trying to get claim alerts for.' });
     }
 
     const claimAlerts = await ClaimAlertModel.find({
@@ -65,7 +65,7 @@ export async function getClaimAlertsForCollection(expressReq: Request, res: Resp
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting claim alerts. Please try again later."
+      errorMessage: "Error getting claim alerts. Please try again later."
     })
   }
 }

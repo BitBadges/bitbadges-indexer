@@ -60,7 +60,7 @@ const limiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   handler: (req, res) => {
     const errorResponse: ErrorResponse = {
-      message: 'Exceeded rate limit. Too many requests, please try again later.',
+      errorMessage: 'Exceeded rate limit. Too many requests, please try again later.',
     }
     res.status(429).json(errorResponse);
   },
@@ -146,7 +146,7 @@ app.use(async (req, res, next) => {
     } catch (error) {
       console.log(error);
       const errorResponse: ErrorResponse = {
-        message: 'Unauthorized request. API key is required.',
+        errorMessage: 'Unauthorized request. API key is required.',
       }
       return res.status(401).json(errorResponse);
     }
@@ -336,7 +336,7 @@ app.get("/api/v0/verifyEmail/:token", websiteOnlyCors, async (req: Request, res:
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error verfiying email"
+      errorMessage: "Error verfiying email"
     });
   }
 })

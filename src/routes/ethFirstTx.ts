@@ -41,7 +41,7 @@ export async function getBalancesForEthFirstTxRoute(req: Request, res: Response)
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error fetching balances. Please try again later."
+      errorMessage: "Error fetching balances. Please try again later."
     })
   }
 }

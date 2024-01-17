@@ -113,7 +113,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<GetOwnersFor
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: 'Error fetching owners for collection. Please try again later.'
+      errorMessage: 'Error fetching owners for collection. Please try again later.'
     });
   }
 }

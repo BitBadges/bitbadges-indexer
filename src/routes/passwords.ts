@@ -12,7 +12,7 @@ export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res
   try {
     const req = expressReq as AuthenticatedRequest<NumberType>;
     if (!req.session.blockin || !req.session.cosmosAddress) {
-      return Promise.reject({ authenticated: false, message: 'You must Sign In w/ Ethereum.' });
+      return Promise.reject({ authenticated: false, errorMessage: 'You must Sign In w/ Ethereum.' });
     }
 
     const collectionId = req.params.collectionId;
@@ -75,7 +75,7 @@ export const getMerkleChallengeCodeViaPassword = async (expressReq: Request, res
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting codes. " + e.message,
+      errorMessage: "Error getting codes. " + e.message,
     });
   }
 }

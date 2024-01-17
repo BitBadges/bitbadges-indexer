@@ -21,7 +21,7 @@ export const applyAddressListsToUserPermissions = (userPermissions: UserPermissi
     }),
     canUpdateOutgoingApprovals: userPermissions.canUpdateOutgoingApprovals.map((x) => {
       return {
-        ...x, 
+        ...x,
         toList: addressLists.find((y) => y.listId === x.toListId) as AddressList,
         initiatedByList: addressLists.find((y) => y.listId === x.initiatedByListId) as AddressList,
       }
@@ -155,7 +155,7 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<GetBa
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting badge balances"
+      errorMessage: "Error getting badge balances"
     });
   }
 }

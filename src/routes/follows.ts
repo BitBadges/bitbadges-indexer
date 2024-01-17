@@ -93,7 +93,7 @@ export const getFollowDetails = async (expressReq: Request, res: Response<GetFol
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error getting follow details"
+      errorMessage: "Error getting follow details"
     });
   }
 }

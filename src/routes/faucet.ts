@@ -32,13 +32,13 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
     const returnValue = await faucetMutex.runExclusive(async () => {
       const req = expressReq as AuthenticatedRequest<NumberType>;
       if (!req.session.blockin || !req.session.cosmosAddress) {
-        return { authenticated: false, message: 'You must Sign In w/ Ethereum.' };
+        return { authenticated: false, errorMessage: 'You must Sign In w/ Ethereum.' };
       }
 
       const doc = await getFromDB(AirdropModel, req.session.cosmosAddress);
 
       if (doc && doc.airdropped) {
-        return { message: "Already airdropped" };
+        return { errorMessage: "Already airdropped" };
       } else {
         await insertToDB(AirdropModel, { ...doc, airdropped: true, _docId: req.session.cosmosAddress, timestamp: Date.now() });
         return null;
@@ -148,7 +148,7 @@ export const getTokensFromFaucet = async (expressReq: Request, res: Response<Get
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      message: "Error sending airdrop tokens. Please try again later."
+      errorMessage: "Error sending airdrop tokens. Please try again later."
     });
   }
 }
