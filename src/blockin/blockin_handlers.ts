@@ -149,7 +149,6 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
       chainDriver,
       body.message,
       body.signature,
-      BigIntify,
       body.options ?? {
         expectedChallengeParams: {
           domain: 'https://bitbadges.io',
@@ -217,12 +216,10 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
 
     const chainDriver = getChainDriver(body.chain);
 
-
     const verificationResponse = await verifyChallenge(
       chainDriver,
       body.message,
       body.signature,
-      BigIntify,
       {
         ...body.options,
         beforeVerification: undefined,

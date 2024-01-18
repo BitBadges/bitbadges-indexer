@@ -68,7 +68,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
     try {
       const verificationResponse = await genericBlockinVerify(
         {
-          message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
+          message: constructChallengeStringFromChallengeObject(params),
           signature: reqBody.signature,
           chain: getChainForAddress(params.address),
           options: reqBody.options,
@@ -76,7 +76,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
       );
       if (!verificationResponse.success) {
         return res.status(200).send({
-          message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
+          message: constructChallengeStringFromChallengeObject(params),
           verification: {
             success: false,
             response: verificationResponse.message
@@ -85,7 +85,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
       }
 
       return res.status(200).send({
-        message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
+        message: constructChallengeStringFromChallengeObject(params),
         verification: {
           success: verificationResponse.success,
           response: verificationResponse.message
@@ -93,7 +93,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
       });
     } catch (e) {
       return res.status(200).send({
-        message: constructChallengeStringFromChallengeObject(params, getChainForAddress(params.address)),
+        message: constructChallengeStringFromChallengeObject(params),
         verification: {
           success: false,
           response: e.message
