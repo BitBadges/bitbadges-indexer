@@ -1,9 +1,10 @@
 import { NumberType } from "bitbadgesjs-proto";
-import { GetClaimAlertsForCollectionRouteRequestBody, GetClaimAlertsForCollectionRouteResponse, SendClaimAlertsRouteRequestBody, SendClaimAlertsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { ClaimAlertDoc, GetClaimAlertsForCollectionRouteRequestBody, GetClaimAlertsForCollectionRouteResponse, SendClaimAlertsRouteRequestBody, SendClaimAlertsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager } from "../blockin/blockin_handlers";
 import { ClaimAlertModel, insertToDB } from "../db/db";
+import { getStatus } from "../db/status";
 
 export const sendClaimAlert = async (expressReq: Request, res: Response<SendClaimAlertsRouteResponse<NumberType>>) => {
   try {
@@ -17,13 +18,14 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
 
       //random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
       const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
-
-      const doc = {
+      const status = await getStatus();
+      const doc: ClaimAlertDoc<NumberType> = {
         _docId: `${claimAlert.collectionId}:${id}`,
         timestamp: Number(Date.now()),
         collectionId: Number(claimAlert.collectionId),
         message: claimAlert.message,
         cosmosAddresses: [convertToCosmosAddress(claimAlert.recipientAddress)],
+        block: status.block.height,
       }
 
       await insertToDB(ClaimAlertModel, doc);
@@ -34,7 +36,7 @@ export const sendClaimAlert = async (expressReq: Request, res: Response<SendClai
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error adding announcement. Please try again later."
+      errorMessage: "Error adding claim alert. Please try again later."
     })
   }
 }
