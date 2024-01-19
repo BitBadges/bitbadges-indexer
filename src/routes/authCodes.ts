@@ -77,26 +77,26 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
       if (!verificationResponse.success) {
         return res.status(200).send({
           message: constructChallengeStringFromChallengeObject(params),
-          verification: {
+          verificationResponse: {
             success: false,
-            response: verificationResponse.message
+            errorMessage: verificationResponse.message,
+            
           }
         });
       }
 
       return res.status(200).send({
         message: constructChallengeStringFromChallengeObject(params),
-        verification: {
+        verificationResponse: {
           success: verificationResponse.success,
-          response: verificationResponse.message
         }
       });
     } catch (e) {
       return res.status(200).send({
         message: constructChallengeStringFromChallengeObject(params),
-        verification: {
+        verificationResponse: {
           success: false,
-          response: e.message
+          errorMessage: e.message,
         }
       });
     }

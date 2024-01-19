@@ -112,7 +112,7 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
 
 export async function checkifSignedInHandler(expressReq: Request, res: Response<CheckSignInStatusResponse<NumberType>>) {
   const req = expressReq as AuthenticatedRequest<NumberType>;
-  return res.status(200).send({ signedIn: !!checkIfAuthenticated(req) });
+  return res.status(200).send({ signedIn: !!checkIfAuthenticated(req), message: req.session.blockin });
 }
 
 export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse<NumberType>>) {
