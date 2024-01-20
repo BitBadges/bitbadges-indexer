@@ -1,18 +1,21 @@
 import { Balance, BigIntify, UintRange, convertBalance, convertUintRange } from "bitbadgesjs-proto"
-import { OffChainBalancesMap, convertToCosmosAddress, getBalancesForIds } from "bitbadgesjs-utils"
+import { OffChainBalancesMap, addBalances, convertToCosmosAddress, getBalancesForIds, isInAddressList } from "bitbadgesjs-utils"
 import { Asset } from "blockin"
 import { BalanceModel, getFromDB } from "../db/db"
+import { getAddressListsFromDB } from "../routes/utils"
 
 export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], address: string, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
   for (const asset of bitbadgesAssets) {
     let docBalances: Balance<bigint>[] = []
     if (!balancesSnapshot) {
-      const balanceDoc = await getFromDB(BalanceModel, `${asset.collectionId}:${convertToCosmosAddress(address)}`)
+      if (asset.collectionId !== 'BitBadges Lists') {
+        const balanceDoc = await getFromDB(BalanceModel, `${asset.collectionId}:${convertToCosmosAddress(address)}`)
 
-      if (!balanceDoc) {
-        docBalances = []
-      } else {
-        docBalances = balanceDoc.balances.map((x) => convertBalance(x, BigIntify))
+        if (!balanceDoc) {
+          docBalances = []
+        } else {
+          docBalances = balanceDoc.balances.map((x) => convertBalance(x, BigIntify))
+        }
       }
     } else {
       const cosmosAddress = convertToCosmosAddress(address)
@@ -20,12 +23,20 @@ export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], ad
       docBalances = balancesSnapshotObj[cosmosAddress] ? balancesSnapshotObj[cosmosAddress].map(x => convertBalance(x, BigIntify)) : []
     }
 
-    if (
-      !asset.assetIds.every(
-        (x) => typeof x === "object" && BigInt(x.start) >= 0 && BigInt(x.end) >= 0,
-      )
-    ) {
-      throw new Error(`All assetIds must be UintRanges for BitBadges compatibility`)
+    if (asset.collectionId === 'BitBadges Lists') {
+      if (!asset.assetIds.every((x) => typeof x === "string")) {
+        throw new Error(`For "BitBadges Lists" collection, all assetIds must be the list IDs as strings`)
+      }
+
+
+    } else {
+      if (
+        !asset.assetIds.every(
+          (x) => typeof x === "object" && BigInt(x.start) >= 0 && BigInt(x.end) >= 0,
+        )
+      ) {
+        throw new Error(`All assetIds must be UintRanges for BitBadges compatibility`)
+      }
     }
 
     if (
@@ -43,15 +54,54 @@ export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], ad
       throw new Error(`mustOwnAmount must be UintRange for BitBadges compatibility`)
     }
 
+    if (asset.collectionId === 'BitBadges Lists') {
+      if (asset.mustOwnAmounts && !(asset.mustOwnAmounts.start === 1n || asset.mustOwnAmounts.start === 0n)) {
+        throw new Error(`mustOwnAmount must be 0 or 1 for BitBadges Lists`)
+      }
+
+      if (asset.mustOwnAmounts && (asset.mustOwnAmounts.start !== asset.mustOwnAmounts.end)) {
+        throw new Error(`mustOwnAmount must be the same start and end for BitBadges Lists (x0-0 or x1-1)`)
+      }
+    }
+
     if (!asset.ownershipTimes) {
       asset.ownershipTimes = [{ start: BigInt(Date.now()), end: BigInt(Date.now()) }]
     }
 
-    const balances = getBalancesForIds(
-      asset.assetIds.map((x) => convertUintRange(x as UintRange<bigint>, BigIntify)),
-      asset.ownershipTimes.map((x) => convertUintRange(x, BigIntify)),
-      docBalances,
-    )
+
+    let balances: Balance<bigint>[] = [];
+
+    if (asset.collectionId === 'BitBadges Lists') {
+      //Little hacky but it works
+      const res = await getAddressListsFromDB((asset.assetIds as string[]).map(x => ({ listId: x })), false)
+
+      for (let i = 0; i < res.length; i++) {
+        const list = res[i];
+        const badgeId = BigInt(i + 1)
+
+        if (!list) {
+          throw new Error(`Could not find list with ID ${asset.assetIds[0]}`)
+        }
+
+        list.addresses = list.addresses.map(x => convertToCosmosAddress(x))
+
+        if (isInAddressList(list, convertToCosmosAddress(address))) {
+          balances = addBalances([{
+            badgeIds: [{ start: badgeId, end: badgeId }], amount: 1n, ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }]
+          }], balances)
+        } else {
+          balances = addBalances([{
+            badgeIds: [{ start: badgeId, end: badgeId }], amount: 0n, ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }]
+          }], balances)
+        }
+      }
+    } else {
+      balances = getBalancesForIds(
+        asset.assetIds.map((x) => convertUintRange(x as UintRange<bigint>, BigIntify)),
+        asset.ownershipTimes.map((x) => convertUintRange(x, BigIntify)),
+        docBalances,
+      )
+    }
 
     const mustOwnAmount = asset.mustOwnAmounts
     const mustSatisfyAll = asset.mustSatisfyForAllAssets;
@@ -60,12 +110,20 @@ export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], ad
     for (const balance of balances) {
       if (balance.amount < mustOwnAmount.start) {
         if (mustSatisfyAll) {
-          throw new Error(
-            `Address ${address} does not own enough of IDs ${balance.badgeIds
-              .map((x) => `${x.start}-${x.end}`)
-              .join(",")} from collection ${asset.collectionId
-            } to meet minimum balance requirement of ${mustOwnAmount.start}`,
-          )
+          if (asset.collectionId === 'BitBadges Lists') {
+            const listIdIdx = balance.badgeIds[0].start - 1n;
+            const correspondingListId = asset.assetIds[Number(listIdIdx)]
+            throw new Error(
+              `Address ${address} does not meet the requirements for list ${correspondingListId}`,
+            )
+          } else {
+            throw new Error(
+              `Address ${address} does not own enough of IDs ${balance.badgeIds
+                .map((x) => `${x.start}-${x.end}`)
+                .join(",")} from collection ${asset.collectionId
+              } to meet minimum balance requirement of ${mustOwnAmount.start}`,
+            )
+          }
         } else {
           continue
         }
@@ -73,12 +131,21 @@ export async function verifyBitBadgesAssets(bitbadgesAssets: Asset<bigint>[], ad
 
       if (balance.amount > mustOwnAmount.end) {
         if (mustSatisfyAll) {
-          throw new Error(
-            `Address ${address} owns too much of IDs ${balance.badgeIds
-              .map((x) => `${x.start}-${x.end}`)
-              .join(",")} from collection ${asset.collectionId
-            } to meet maximum balance requirement of ${mustOwnAmount.end}`,
-          )
+          if (asset.collectionId === 'BitBadges Lists') {
+            const listIdIdx = balance.badgeIds[0].start - 1n;
+            const correspondingListId = asset.assetIds[Number(listIdIdx)]
+            throw new Error(
+              `Address ${address} does not meet requirements for list ${correspondingListId}`,
+            )
+          }
+          else {
+            throw new Error(
+              `Address ${address} owns too much of IDs ${balance.badgeIds
+                .map((x) => `${x.start}-${x.end}`)
+                .join(",")} from collection ${asset.collectionId
+              } to meet maximum balance requirement of ${mustOwnAmount.end}`,
+            )
+          }
         } else {
           continue
         }

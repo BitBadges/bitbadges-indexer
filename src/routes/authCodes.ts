@@ -1,6 +1,6 @@
 import { NumberType, Stringify } from "bitbadgesjs-proto";
 import { CreateBlockinAuthCodeRouteRequestBody, CreateBlockinAuthCodeRouteResponse, DeleteBlockinAuthCodeRouteRequestBody, DeleteBlockinAuthCodeRouteResponse, GetBlockinAuthCodeRouteRequestBody, GetBlockinAuthCodeRouteResponse, convertToCosmosAddress, getChainForAddress, } from "bitbadgesjs-utils";
-import { constructChallengeObjectFromString, constructChallengeStringFromChallengeObject } from "blockin";
+import { constructChallengeObjectFromString, createChallenge } from "blockin";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, genericBlockinVerify } from "../blockin/blockin_handlers";
@@ -68,7 +68,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
     try {
       const verificationResponse = await genericBlockinVerify(
         {
-          message: constructChallengeStringFromChallengeObject(params),
+          message: createChallenge(params),
           signature: reqBody.signature,
           chain: getChainForAddress(params.address),
           options: reqBody.options,
@@ -76,7 +76,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
       );
       if (!verificationResponse.success) {
         return res.status(200).send({
-          message: constructChallengeStringFromChallengeObject(params),
+          message: createChallenge(params),
           verificationResponse: {
             success: false,
             errorMessage: verificationResponse.message,
@@ -86,14 +86,14 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
       }
 
       return res.status(200).send({
-        message: constructChallengeStringFromChallengeObject(params),
+        message: createChallenge(params),
         verificationResponse: {
           success: verificationResponse.success,
         }
       });
     } catch (e) {
       return res.status(200).send({
-        message: constructChallengeStringFromChallengeObject(params),
+        message: createChallenge(params),
         verificationResponse: {
           success: false,
           errorMessage: e.message,

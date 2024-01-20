@@ -161,7 +161,7 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
           }
 
           if (challengeParams.nonce !== req.session.nonce) {
-            return Promise.reject(new Error(`Invalid nonce.Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
+            return Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
           }
         }
       }
