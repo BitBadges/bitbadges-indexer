@@ -1,11 +1,10 @@
-import { IChainDriver, constructChallengeObjectFromString } from "blockin"
-import { Asset } from "blockin"
+import { Stringify } from "bitbadgesjs-proto"
+import { OffChainBalancesMap } from "bitbadgesjs-utils"
+import { AssetConditionGroup, IChainDriver, constructChallengeObjectFromString } from "blockin"
 import { Buffer } from "buffer"
 import { recoverPersonalSignature } from "eth-sig-util"
 import { ethers } from "ethers"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
-import { Stringify } from "bitbadgesjs-proto"
-import { OffChainBalancesMap } from "bitbadgesjs-utils"
 
 /**
  * Ethereum implementation of the IChainDriver interface. This implementation is based off the Moralis API
@@ -52,28 +51,7 @@ export default class EthDriver implements IChainDriver<bigint> {
     }
   }
 
-
-  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
-
-    let ethAssets: Asset<bigint>[] = []
-    let bitbadgesAssets: Asset<bigint>[] = []
-    if (resources) {
-
-    }
-
-    if (_assets) {
-      ethAssets = _assets.filter((elem) => elem.chain === "Ethereum")
-      bitbadgesAssets = _assets.filter((elem) => elem.chain === "BitBadges")
-    }
-
-    if (ethAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
-
-    if (bitbadgesAssets.length > 0) {
-      await verifyBitBadgesAssets(bitbadgesAssets, address, balancesSnapshot)
-    }
-
-    if (ethAssets.length > 0) {
-      throw new Error(`Ethereum assets are not yet supported`)
-    }
+  async verifyAssets(address: string, _resources: string[], assets: AssetConditionGroup<bigint>, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+    await verifyBitBadgesAssets(assets, address, balancesSnapshot)
   }
 }

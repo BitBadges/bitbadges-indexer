@@ -142,9 +142,7 @@
     ],
     "canUpdateCollectionApprovals": [
       {
-        "approvalId": "sgdfsdfgsdfg",
-        "amountTrackerId": "All",
-        "challengeTrackerId": "All",
+        "approvalId": "All",
         "fromListId": "All",
         "toListId": "All",
         "initiatedByListId": "All",
@@ -205,9 +203,7 @@
         ]
       },
       {
-        "approvalId": "sgdfsdfgsdfg",
-        "amountTrackerId": "asdfasdf",
-        "challengeTrackerId": "All",
+        "approvalId": "All",
         "fromListId": "Mint",
         "toListId": "Mint",
         "initiatedByListId": "Mint",

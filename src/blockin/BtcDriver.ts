@@ -1,7 +1,7 @@
 import { Verifier } from "bip322-js"
 import { Stringify } from "bitbadgesjs-proto"
 import { OffChainBalancesMap, convertToCosmosAddress, } from "bitbadgesjs-utils"
-import { Asset, IChainDriver, constructChallengeObjectFromString } from "blockin"
+import { AssetConditionGroup, IChainDriver, constructChallengeObjectFromString } from "blockin"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
 
 /**
@@ -44,27 +44,7 @@ export default class BtcDriver implements IChainDriver<bigint> {
   }
 
 
-  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
-
-    let btcAssets: Asset<bigint>[] = []
-    let bitbadgesAssets: Asset<bigint>[] = []
-    if (resources) {
-
-    }
-
-    if (_assets) {
-      btcAssets = _assets.filter((elem) => elem.chain === "Bitcoin")
-      bitbadgesAssets = _assets.filter((elem) => elem.chain === "BitBadges")
-    }
-
-    if (btcAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
-
-    if (bitbadgesAssets.length > 0) {
-      await verifyBitBadgesAssets(bitbadgesAssets, address, balancesSnapshot)
-    }
-
-    if (btcAssets.length > 0) {
-      throw new Error(`Bitcoin assets are not yet supported`)
-    }
+  async verifyAssets(address: string, _resources: string[], assets: AssetConditionGroup<bigint>, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+    await verifyBitBadgesAssets(assets, address, balancesSnapshot)
   }
 }

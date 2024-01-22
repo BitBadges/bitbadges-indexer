@@ -2,7 +2,7 @@ import { verifyADR36Amino } from '@keplr-wallet/cosmos';
 import axiosApi from 'axios';
 import { Stringify } from 'bitbadgesjs-proto';
 import { NumberType, OffChainBalancesMap, SupportedChain, getChainForAddress } from 'bitbadgesjs-utils';
-import { Asset, CreateAssetParams, IChainDriver, UniversalTxn, constructChallengeObjectFromString } from 'blockin';
+import { AssetConditionGroup, CreateAssetParams, IChainDriver, UniversalTxn, constructChallengeObjectFromString } from 'blockin';
 import { Buffer } from 'buffer';
 import { concat } from 'ethers/lib/utils';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
@@ -105,27 +105,8 @@ export default class CosmosDriver implements IChainDriver<NumberType> {
     }
   }
 
-  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
-    let cosmosAssets: Asset<bigint>[] = []
-    let bitbadgesAssets: Asset<bigint>[] = []
-    if (resources) {
-
-    }
-
-    if (_assets) {
-      cosmosAssets = _assets.filter((elem) => elem.chain === "Cosmos")
-      bitbadgesAssets = _assets.filter((elem) => elem.chain === "BitBadges")
-    }
-
-    if (cosmosAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
-
-    if (bitbadgesAssets.length > 0) {
-      await verifyBitBadgesAssets(bitbadgesAssets, address, balancesSnapshot)
-    }
-
-    if (cosmosAssets.length > 0) {
-      throw new Error(`Cosmos assets are not yet supported`)
-    }
+  async verifyAssets(address: string, _resources: string[], assets: AssetConditionGroup<bigint>, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+    await verifyBitBadgesAssets(assets, address, balancesSnapshot)
   }
 
   /**

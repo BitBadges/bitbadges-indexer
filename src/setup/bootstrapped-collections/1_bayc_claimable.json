@@ -175,8 +175,7 @@
             "end": "18446744073709551615"
           }
         ],
-        "amountTrackerId": "All",
-        "challengeTrackerId": "All",
+        "approvalId": "All",
         "permanentlyPermittedTimes": [],
         "permanentlyForbiddenTimes": [
           {
@@ -243,8 +242,7 @@
             "end": "18446744073709551615"
           }
         ],
-        "amountTrackerId": "All",
-        "challengeTrackerId": "All",
+        "approvalId": "All",
         "permanentlyPermittedTimes": [],
         "permanentlyForbiddenTimes": [
           {

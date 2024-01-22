@@ -1,10 +1,9 @@
-import { IChainDriver, constructChallengeObjectFromString } from "blockin"
-import { Asset } from "blockin"
+import { Stringify } from "bitbadgesjs-proto"
+import { OffChainBalancesMap } from "bitbadgesjs-utils"
+import { AssetConditionGroup, IChainDriver, constructChallengeObjectFromString } from "blockin"
 import bs58 from "bs58"
 import nacl from "tweetnacl"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
-import { Stringify } from "bitbadgesjs-proto"
-import { OffChainBalancesMap } from "bitbadgesjs-utils"
 
 /**
  * Ethereum implementation of the IChainDriver interface. This implementation is based off the Moralis API
@@ -52,27 +51,7 @@ export default class SolDriver implements IChainDriver<bigint> {
   }
 
 
-  async verifyAssets(address: string, resources: string[], _assets: Asset<bigint>[], balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
-
-    let solAssets: Asset<bigint>[] = []
-    let bitbadgesAssets: Asset<bigint>[] = []
-    if (resources) {
-
-    }
-
-    if (_assets) {
-      solAssets = _assets.filter((elem) => elem.chain === "Solana")
-      bitbadgesAssets = _assets.filter((elem) => elem.chain === "BitBadges")
-    }
-
-    if (solAssets.length === 0 && bitbadgesAssets.length === 0) return //No assets to verify
-
-    if (bitbadgesAssets.length > 0) {
-      await verifyBitBadgesAssets(bitbadgesAssets, address, balancesSnapshot)
-    }
-
-    if (solAssets.length > 0) {
-      throw new Error(`Solana assets are not yet supported`)
-    }
+  async verifyAssets(address: string, _resources: string[], assets: AssetConditionGroup<bigint>, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+    await verifyBitBadgesAssets(assets, address, balancesSnapshot)
   }
 }

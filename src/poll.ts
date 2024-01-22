@@ -103,6 +103,7 @@ enum NotificationType {
   ClaimAlert = "claimAlert",
 }
 
+const BETANET = true;
 export async function sendPushNotification(address: string, type: string, message: string, docId: string, queueDoc?: QueueDoc<bigint>) {
   try {
     const profile = await getFromDB(ProfileModel, address);
@@ -110,7 +111,7 @@ export async function sendPushNotification(address: string, type: string, messag
 
     if (!profile.notifications?.email) return;
     if (!profile.notifications?.emailVerification?.verified) return;
-
+    if (BETANET) return;
     // const antiPhishingCode = profile.notifications.emailVerification.antiPhishingCode;
 
     let subject = '';
