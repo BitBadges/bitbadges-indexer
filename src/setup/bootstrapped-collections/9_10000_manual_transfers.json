@@ -143,6 +143,8 @@
     "canUpdateCollectionApprovals": [
       {
         "approvalId": "All",
+        "amountTrackerId": "All",
+        "challengeTrackerId": "All",
         "fromListId": "All",
         "toListId": "All",
         "initiatedByListId": "All",
@@ -204,6 +206,8 @@
       },
       {
         "approvalId": "All",
+        "amountTrackerId": "All",
+        "challengeTrackerId": "All",
         "fromListId": "Mint",
         "toListId": "Mint",
         "initiatedByListId": "Mint",
