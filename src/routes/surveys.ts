@@ -1,8 +1,10 @@
-import { AddAddressToSurveyRouteRequestBody, AddAddressToSurveyRouteResponse, NumberType, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { AddAddressToSurveyRouteRequestBody, AddAddressToSurveyRouteResponse, JSPrimitiveNumberType, ListActivityDoc, NumberType, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
-import { AddressListModel, mustGetFromDB } from "../db/db";
+import { AddressListModel, ListActivityModel, insertMany, mustGetFromDB } from "../db/db";
+import { getActivityDocsForListUpdate } from "./addressLists";
+import { getStatus } from "../db/status";
 
 export const addAddressToSurvey = async (expressReq: Request, res: Response<AddAddressToSurveyRouteResponse>) => {
   try {
@@ -12,6 +14,8 @@ export const addAddressToSurvey = async (expressReq: Request, res: Response<AddA
     const listId = req.params.listId;
 
     const listDoc = await mustGetFromDB(AddressListModel, listId);
+
+    const activityDocs: ListActivityDoc<JSPrimitiveNumberType>[] = [];
 
     const editKey = reqBody.editKey;
     if (!listDoc.editKeys) {
@@ -43,7 +47,23 @@ export const addAddressToSurvey = async (expressReq: Request, res: Response<AddA
       }
     }
 
+    const alreadyOnList = listDoc.addresses.map(x => convertToCosmosAddress(x)).includes(convertToCosmosAddress(address));
+    if (alreadyOnList) {
+      return res.status(403).send({
+        error: `Address is already on this list.`,
+        errorMessage: "Address already on list. No duplicates allowed."
+      })
+    }
+
+
+
+    //TODO: Session?
     await AddressListModel.findOneAndUpdate({ _docId: listId }, { $push: { addresses: convertToCosmosAddress(address) } }).lean().exec();
+    const newDoc = await mustGetFromDB(AddressListModel, listId);
+
+    const status = await getStatus();
+    getActivityDocsForListUpdate(newDoc, listDoc, status, activityDocs);
+    await insertMany(ListActivityModel, activityDocs);
 
     return res.status(200).send({});
   } catch (e) {

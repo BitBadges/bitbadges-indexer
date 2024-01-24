@@ -1,5 +1,5 @@
-import { JSPrimitiveNumberType, Stringify } from "bitbadgesjs-proto";
-import { AddressListDoc, DeleteAddressListsRouteRequestBody, DeleteAddressListsRouteResponse, GetAddressListsRouteRequestBody, GetAddressListsRouteResponse, ListActivityDoc, NumberType, UpdateAddressListsRouteRequestBody, UpdateAddressListsRouteResponse, convertAddressListDoc, convertAddressListEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { AddressList, JSPrimitiveNumberType, Stringify } from "bitbadgesjs-proto";
+import { AddressListDoc, DeleteAddressListsRouteRequestBody, DeleteAddressListsRouteResponse, GetAddressListsRouteRequestBody, GetAddressListsRouteResponse, ListActivityDoc, NumberType, StatusDoc, UpdateAddressListsRouteRequestBody, UpdateAddressListsRouteResponse, convertAddressListDoc, convertAddressListEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";
@@ -41,6 +41,33 @@ export const deleteAddressLists = async (expressReq: Request, res: Response<Dele
   }
 }
 
+export function getActivityDocsForListUpdate(list: AddressList, existingDoc: AddressList, status: StatusDoc<JSPrimitiveNumberType>, activityDocs: ListActivityDoc<JSPrimitiveNumberType>[]) {
+
+  const newAddressesNotInOld = list.addresses.filter(x => !existingDoc.addresses.includes(x));
+  const oldAddressesNotInNew = existingDoc.addresses.filter(x => !list.addresses.includes(x));
+
+  if (newAddressesNotInOld.length > 0) {
+    activityDocs.push({
+      _docId: crypto.randomBytes(16).toString('hex'),
+      addresses: newAddressesNotInOld.map(x => convertToCosmosAddress(x)),
+      addedToList: true,
+      listId: list.listId,
+      timestamp: Date.now(),
+      block: status?.block.height ?? 0n,
+    })
+  }
+
+  if (oldAddressesNotInNew.length > 0) {
+    activityDocs.push({
+      _docId: crypto.randomBytes(16).toString('hex'),
+      addresses: oldAddressesNotInNew.map(x => convertToCosmosAddress(x)),
+      addedToList: false,
+      listId: list.listId,
+      timestamp: Date.now(),
+      block: status?.block.height ?? 0n,
+    })
+  }
+}
 
 export const updateAddressLists = async (expressReq: Request, res: Response<UpdateAddressListsRouteResponse<bigint>>) => {
   try {
@@ -57,6 +84,11 @@ export const updateAddressLists = async (expressReq: Request, res: Response<Upda
       const prefix = cosmosAddress + "_";
       if (!list.listId.startsWith(prefix)) {
         throw new Error("List ID must start with " + prefix);
+      }
+
+      const cosmosAddresses = list.addresses.map(x => convertToCosmosAddress(x));
+      if (cosmosAddresses.length !== new Set(cosmosAddresses).size) {
+        throw new Error("Duplicate addresses found in list");
       }
     }
 
@@ -91,34 +123,7 @@ export const updateAddressLists = async (expressReq: Request, res: Response<Upda
           lastUpdated: status.block.timestamp,
         })
 
-        //we really have three statuses: include, excluded, and deleted
-        if (existingDoc.whitelist !== list.whitelist) {
-          const newAddressesNotInOld = list.addresses.filter(x => !existingDoc.addresses.includes(x));
-          const oldAddressesNotInNew = existingDoc.addresses.filter(x => !list.addresses.includes(x));
-
-          if (newAddressesNotInOld.length > 0) {
-            activityDocs.push({
-              _docId: crypto.randomBytes(16).toString('hex'),
-              addresses: newAddressesNotInOld.map(x => convertToCosmosAddress(x)),
-              addedToList: true,
-              listId: list.listId,
-              timestamp: Date.now(),
-              block: status?.block.height ?? 0n,
-            })
-          }
-
-          if (oldAddressesNotInNew.length > 0) {
-            activityDocs.push({
-              _docId: crypto.randomBytes(16).toString('hex'),
-              addresses: oldAddressesNotInNew.map(x => convertToCosmosAddress(x)),
-              addedToList: false,
-              listId: list.listId,
-              timestamp: Date.now(),
-              block: status?.block.height ?? 0n,
-            })
-          }
-        }
-
+        getActivityDocsForListUpdate(list, existingDoc, status, activityDocs);
       } else {
         docs.push({
           ...list,
@@ -146,6 +151,7 @@ export const updateAddressLists = async (expressReq: Request, res: Response<Upda
       }
     }
 
+    //TODO: Session?
     await insertMany(AddressListModel, docs);
     await insertMany(ListActivityModel, activityDocs);
 
@@ -170,17 +176,20 @@ export const getAddressLists = async (req: Request, res: Response<GetAddressList
 
     const docs = await getAddressListsFromDB(listsToFetch, true);
 
-    const hasPrivateList = docs.find(x => x.private);
-    if (hasPrivateList) {
-      const authReq = req as AuthenticatedRequest<NumberType>;
+    for (const doc of docs) {
+      if (doc.private) {
+        if (doc.viewableWithLink) continue
 
-      if (!checkIfAuthenticated(authReq)) return returnUnauthorized(res);
+        const authReq = req as AuthenticatedRequest<NumberType>;
 
-      const cosmosAddress = authReq.session.cosmosAddress;
-      if (docs.some(x => x.private && x.createdBy !== cosmosAddress)) {
-        return res.status(401).send({
-          errorMessage: `Your signed in address ${authReq.session.address} does not have permission to view one or more of the requested address lists.`
-        })
+        if (!checkIfAuthenticated(authReq)) return returnUnauthorized(res);
+
+        const cosmosAddress = authReq.session.cosmosAddress;
+        if (docs.some(x => x.private && x.createdBy !== cosmosAddress)) {
+          return res.status(401).send({
+            errorMessage: `Your signed in address ${authReq.session.address} does not have permission to view one or more of the requested address lists.`
+          })
+        }
       }
     }
 

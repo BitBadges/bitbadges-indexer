@@ -5,7 +5,9 @@ import { BalanceModel, getFromDB } from "../db/db"
 import { getAddressListsFromDB } from "../routes/utils"
 import { AndGroup, OrGroup, OwnershipRequirements } from "blockin/dist/types/verify.types"
 
-export async function verifyBitBadgesAssets(bitbadgesAssets: AssetConditionGroup<bigint>, address: string, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+export async function verifyBitBadgesAssets(bitbadgesAssets: AssetConditionGroup<bigint> | undefined, address: string, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+  if (!bitbadgesAssets) return;
+  
   const andItem: AndGroup<bigint> = bitbadgesAssets as AndGroup<bigint>
   const orItem: OrGroup<bigint> = bitbadgesAssets as OrGroup<bigint>
   const normalItem: OwnershipRequirements<bigint> = bitbadgesAssets as OwnershipRequirements<bigint>

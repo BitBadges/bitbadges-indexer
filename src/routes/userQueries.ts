@@ -541,7 +541,9 @@ export async function executeCreatedListsQuery(cosmosAddress: string, filteredLi
   const res = await AddressListModel.find({
     listId: filteredLists ? { "$in": filteredLists } : { "$exists": true },
     createdBy: cosmosAddress,
-    private: false,
+    private: {
+      "$ne": true, //false or undefined
+    },
     ...paginationParams,
   }).sort({ createdBlock: oldestFirst ? 1 : -1 }).limit(25).lean().exec();
   //Could filter hidden here but they created it so they should be able to see it

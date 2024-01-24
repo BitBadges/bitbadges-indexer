@@ -51,7 +51,7 @@ export default class EthDriver implements IChainDriver<bigint> {
     }
   }
 
-  async verifyAssets(address: string, _resources: string[], assets: AssetConditionGroup<bigint>, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
+  async verifyAssets(address: string, _resources: string[], assets: AssetConditionGroup<bigint> | undefined, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
     await verifyBitBadgesAssets(assets, address, balancesSnapshot)
   }
 }
