@@ -3,7 +3,7 @@ import { OffChainBalancesMap, addBalances, convertToCosmosAddress, getBalancesFo
 import { AssetConditionGroup } from "blockin"
 import { BalanceModel, getFromDB } from "../db/db"
 import { getAddressListsFromDB } from "../routes/utils"
-import { AndGroup, OrGroup, OwnershipRequirements } from "blockin/dist/types/verify.types"
+import { AndGroup, OrGroup, OwnershipRequirements } from "blockin"
 
 export async function verifyBitBadgesAssets(bitbadgesAssets: AssetConditionGroup<bigint> | undefined, address: string, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
   if (!bitbadgesAssets) return;
