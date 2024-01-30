@@ -3,14 +3,19 @@ import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, SupportedCh
 import { AddressListModel, AirdropModel, CollectionModel, EthTxCountModel, getFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { OFFLINE_MODE } from "../indexer-vars";
-import { complianceDoc } from "../poll";
+import { complianceDoc, connectToRpc } from "../poll";
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../utils/ensResolvers";
+
 
 
 
 export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<NumberType>[], accountInfos: AccountInfoBase<NumberType>[], fetchName = true): Promise<BitBadgesUserInfo<NumberType>[]> => {
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
+  }
+
+  if (!client) {
+    await connectToRpc()
   }
 
   const promises = [];
@@ -84,7 +89,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
           console.log(e);
           //we dont want the whole indexer to go down if Infura is down
         }
-        
+
         await insertToDB(EthTxCountModel, {
           ...cachedEthTxCount,
           _docId: ethAddress,
