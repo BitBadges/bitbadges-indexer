@@ -187,7 +187,9 @@ app.use(expressSession({
   secret: process.env['SESSION_SECRET'] ? process.env['SESSION_SECRET'] : '',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: true, sameSite: 'none' }
+  cookie: {
+    secure: true, httpOnly: true,
+  }
 }));
 
 app.use(cookieParser());
