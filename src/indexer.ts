@@ -415,23 +415,23 @@ const init = async () => {
 
 
 const server = process.env.DISABLE_API === 'true' ? undefined :
-  https.createServer(
-    {
-      key: fs.readFileSync("server.key"),
-      cert: fs.readFileSync("server.cert"),
-    },
-    app
-  ).listen(port, () => {
+  // https.createServer(
+  //   {
+  //     key: fs.readFileSync("server.key"),
+  //     cert: fs.readFileSync("server.cert"),
+  //   },
+  //   app
+  // ).listen(port, () => {
+  //   init().catch(console.error).then(() => {
+  //     console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
+  //   })
+  // })
+
+  app.listen(port, () => {
     init().catch(console.error).then(() => {
       console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
     })
   })
-
-// app.listen(port, () => {
-//   init().catch(console.error).then(() => {
-//     console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
-//   })
-// })
 
 
 
