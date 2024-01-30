@@ -101,6 +101,8 @@ export const setNotificationPollerTimer = (newTimer: NodeJS.Timer) => {
 const upload = multer({ dest: 'uploads/' });
 const app: Express = express()
 const port = process.env.port ? Number(process.env.port) : 3001
+app.set('trust proxy', 1);
+
 
 app.use(cors({
   origin: true,
