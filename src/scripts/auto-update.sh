@@ -18,7 +18,6 @@ update_bitbadges_indexer() {
     git pull
     npm install
     npm run build
-    npm run indexer
     sudo systemctl start bitbadges-indexer
 }
 
