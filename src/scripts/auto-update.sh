@@ -18,6 +18,11 @@ update_bitbadges_indexer() {
     git pull
     npm install
     npm run build
+    #if --delete flag, run the setup script
+    if [ "$1" == "--delete" ]; then
+        npm run setup with-delete
+    fi
+
     sudo systemctl start bitbadges-indexer
 }
 
