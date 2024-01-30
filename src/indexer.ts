@@ -423,6 +423,11 @@ const server = process.env.DISABLE_API === 'true' ? undefined :
     })
   })
 
+if (!server) {
+  console.log('API server disabled');
+  init().catch(console.error);
+}
+
 const gracefullyShutdown = async () => {
   SHUTDOWN = true;
   server?.close(() => {
