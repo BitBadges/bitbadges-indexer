@@ -6,6 +6,7 @@ import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { client } from "../indexer";
 import { mustGetManyFromDB, ProtocolModel } from "../db/db";
+import { connectToRpc } from "../poll";
 
 export const getProtocols = async (expressReq: Request, res: Response<GetProtocolsRouteResponse>) => {
   try {
@@ -42,6 +43,10 @@ export const getCollectionForProtocol = async (expressReq: Request, res: Respons
     const address = reqBody.address;
     const cosmosAddress = convertToCosmosAddress(address);
 
+    if (!client) {
+      await connectToRpc()
+    }
+    
     const collectionId = await client.badgesQueryClient?.protocols.getCollectionIdForProtocol(name, cosmosAddress);
     if (!collectionId) {
       throw new Error('Collection not found');

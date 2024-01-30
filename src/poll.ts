@@ -55,6 +55,7 @@ export async function connectToRpc() {
       currRpcIdx = i;
       break;
     } catch (e) {
+      console.log(e);
       console.log(`Error connecting to chain client at ${rpcs[i]}. Trying new one....`)
     }
   }

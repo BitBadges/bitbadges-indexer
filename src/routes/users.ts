@@ -16,6 +16,7 @@ import { executeActivityQuery, executeAuthCodesQuery, executeClaimAlertsQuery, e
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from "./utils";
 import crypto from "crypto";
 import sgMail from '@sendgrid/mail';
+import { connectToRpc } from "../poll";
 
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
@@ -24,6 +25,10 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
   const addressesToFetchWithSequence = queries.filter(x => x.fetchOptions?.fetchSequence).map(x => x.address);
   const addressesToFetchWithoutSequence = queries.filter(x => !x.fetchOptions?.fetchSequence).map(x => x.address);
 
+  if (!client) {
+    await connectToRpc()
+  }
+  
   //Get from blockchain if requested, else get cached vals from DB
   const promises = [];
   for (const address of addressesToFetchWithSequence) {
