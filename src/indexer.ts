@@ -428,11 +428,11 @@ const server = process.env.DISABLE_API === 'true' ? undefined :
     })
   })
 
-app.listen(port, () => {
-  init().catch(console.error).then(() => {
-    console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
-  })
-})
+// app.listen(port, () => {
+//   init().catch(console.error).then(() => {
+//     console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
+//   })
+// })
 
 
 
