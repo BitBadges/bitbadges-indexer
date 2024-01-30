@@ -430,7 +430,7 @@ const server = process.env.DISABLE_API === 'true' ? undefined :
 //   })
 // })
 
-if (!server) {
+if (process.env.DISABLE_API === 'true') {
   console.log('API server disabled');
   init().catch(console.error);
 }
