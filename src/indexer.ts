@@ -7,12 +7,11 @@ import { config } from "dotenv"
 import express, { Express, Request, Response } from "express"
 import rateLimit from 'express-rate-limit'
 import expressSession from 'express-session'
-import fs from 'fs'
-import https from 'https'
 import mongoose from 'mongoose'
 import Moralis from 'moralis'
 import multer from 'multer'
 import responseTime from 'response-time'
+import { serializeError } from 'serialize-error'
 import { authorizeBlockinRequest, checkifSignedInHandler, genericBlockinVerifyHandler, getChallenge, removeBlockinSessionCookie, verifyBlockinAndGrantSessionCookie } from "./blockin/blockin_handlers"
 import { IndexerStargateClient } from "./chain-client/indexer_stargateclient"
 import { ApiKeyModel, ProfileModel, insertToDB, mustGetFromDB } from './db/db'
@@ -33,6 +32,7 @@ import { getFollowDetails } from './routes/follows'
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from "./routes/ipfs"
 import { fetchMetadataDirectly, } from "./routes/metadata"
 import { getMerkleChallengeCodeViaPassword } from "./routes/passwords"
+import { getCollectionForProtocol, getProtocols } from './routes/protocols'
 import { getRefreshStatus, refreshMetadata } from './routes/refresh'
 import { addReport } from './routes/reports'
 import { addReviewForCollection, addReviewForUser, deleteReview } from './routes/reviews'
@@ -40,8 +40,6 @@ import { filterBadgesInCollectionHandler, searchHandler } from "./routes/search"
 import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
-import { getCollectionForProtocol, getProtocols } from './routes/protocols'
-import { serializeError } from 'serialize-error'
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config()
@@ -411,17 +409,26 @@ const init = async () => {
 
 
 const server = process.env.DISABLE_API === 'true' ? undefined :
-  https.createServer(
-    {
-      key: fs.readFileSync("server.key"),
-      cert: fs.readFileSync("server.cert"),
-    },
-    app
-  ).listen(port, () => {
+  app.listen(port, () => {
     init().catch(console.error).then(() => {
       console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
     })
   })
+
+
+
+
+// https.createServer(
+//   {
+//     key: fs.readFileSync("server.key"),
+//     cert: fs.readFileSync("server.cert"),
+//   },
+//   app
+// ).listen(port, () => {
+//   init().catch(console.error).then(() => {
+//     console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
+//   })
+// })
 
 if (!server) {
   console.log('API server disabled');
