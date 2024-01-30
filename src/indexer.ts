@@ -41,6 +41,7 @@ import { getStatusHandler } from "./routes/status"
 import { addAddressToSurvey } from './routes/surveys'
 import { getAccount, getAccounts, updateAccountInfo } from "./routes/users"
 import https from 'https'
+import fs from 'fs'
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config()
@@ -418,8 +419,8 @@ const init = async () => {
 const server = process.env.DISABLE_API === 'true' ? undefined :
   https.createServer(
     {
-      // key: fs.readFileSync("server.key"),
-      // cert: fs.readFileSync("server.cert"),
+      key: fs.readFileSync("server.key"),
+      cert: fs.readFileSync("server.cert"),
     },
     app
   ).listen(port, () => {
