@@ -41,8 +41,9 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
       }
 
       //If we have a public key, we can determine the chain from the pub key type bc it has been previously set and used
+       // This doesn't always work for Cosmos because it could be Bitcoin or Cosmos
       let ethTxCount = 0;
-      if (cosmosAccountInfo.publicKey) {
+      if (cosmosAccountInfo.publicKey && cosmosAccountInfo.chain !== SupportedChain.COSMOS) {
         return {
           address: cosmosAccountInfo.chain === SupportedChain.ETH ? cosmosAccountInfo.ethAddress
             : cosmosAccountInfo.chain === SupportedChain.SOLANA ? solAddress
