@@ -1,4 +1,4 @@
-import { FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType } from "bitbadgesjs-utils";
+import { FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { fetchUriFromSource } from "../queue";
 import { FetchModel, getFromDB } from "../db/db";

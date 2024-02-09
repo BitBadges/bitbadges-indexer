@@ -1,10 +1,8 @@
 import { verifyADR36Amino } from '@keplr-wallet/cosmos';
 import axiosApi from 'axios';
-import { Stringify } from 'bitbadgesjs-proto';
-import { NumberType, OffChainBalancesMap, SupportedChain, getChainForAddress } from 'bitbadgesjs-utils';
+import { NumberType, OffChainBalancesMap, Stringify, SupportedChain, getChainForAddress } from 'bitbadgesjs-sdk';
 import { AssetConditionGroup, CreateAssetParams, IChainDriver, UniversalTxn, constructChallengeObjectFromString } from 'blockin';
 import { Buffer } from 'buffer';
-import { concat } from 'ethers/lib/utils';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
 
 export const axios = axiosApi.create({
@@ -73,18 +71,24 @@ export default class CosmosDriver implements IChainDriver<NumberType> {
     throw 'Not implemented';
     return new Uint8Array(0);
   }
-  async verifySignature(message: string, signature: string): Promise<void> {
+  async verifySignature(message: string, signature: string, publicKey?: string) {
+    if (!publicKey) {
+      throw 'Public key is required for Cosmos';
+    }
 
     const originalString = message;
     const originalAddress = constructChallengeObjectFromString(message, Stringify).address;
-    const originalPubKeyValue = signature.split(':')[0];
-    const originalSignature = signature.split(':')[1];
 
-    const signatureBuffer = Buffer.from(originalSignature, 'base64');
+    const signatureBuffer = Buffer.from(signature, 'base64');
     const uint8Signature = new Uint8Array(signatureBuffer); // Convert the buffer to an Uint8Array
-    const pubKeyValueBuffer = Buffer.from(originalPubKeyValue, 'base64'); // Decode the base64 encoded value
+
+    const pubKeyValueBuffer = Buffer.from(publicKey, 'base64'); // Decode the base64 encoded value
     const pubKeyUint8Array = new Uint8Array(pubKeyValueBuffer); // Convert the buffer to an Uint8Array
-    const signedChallenge = concat([pubKeyUint8Array, uint8Signature]); // Concatenate the Uint8Arrays
+
+    //concat the two Uint8Arrays //This is probably legacy code and can be removed
+    const signedChallenge = new Uint8Array(pubKeyUint8Array.length + uint8Signature.length);
+    signedChallenge.set(pubKeyUint8Array);
+    signedChallenge.set(uint8Signature, pubKeyUint8Array.length);
 
     const pubKeyBytes = signedChallenge.slice(0, 33);
     const signatureBytes = signedChallenge.slice(33);

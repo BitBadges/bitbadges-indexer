@@ -1,5 +1,5 @@
-import { MsgUniversalUpdateCollection } from "bitbadgesjs-proto"
-import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-utils"
+import { MsgUniversalUpdateCollection } from "bitbadgesjs-sdk"
+import { DocsCache, StatusDoc, addBalances } from "bitbadgesjs-sdk"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 import { handleApprovals } from "./approvalInfo"
 

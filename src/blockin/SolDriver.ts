@@ -1,5 +1,5 @@
-import { Stringify } from "bitbadgesjs-proto"
-import { OffChainBalancesMap } from "bitbadgesjs-utils"
+import { Stringify } from "bitbadgesjs-sdk"
+import { OffChainBalancesMap } from "bitbadgesjs-sdk"
 import { AssetConditionGroup, IChainDriver, constructChallengeObjectFromString } from "blockin"
 import bs58 from "bs58"
 import nacl from "tweetnacl"

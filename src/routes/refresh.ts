@@ -1,4 +1,4 @@
-import { BigIntify, DocsCache, NumberType, RefreshMetadataRouteResponse, RefreshStatusRouteResponse, convertCollectionDoc } from "bitbadgesjs-utils";
+import { BigIntify, DocsCache, NumberType, RefreshMetadataRouteResponse, RefreshStatusRouteResponse, convertCollectionDoc } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { flushCachedDocs } from "../db/cache";

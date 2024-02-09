@@ -1,5 +1,5 @@
-import { Stringify } from "bitbadgesjs-proto"
-import { OffChainBalancesMap } from "bitbadgesjs-utils"
+import { Stringify } from "bitbadgesjs-sdk"
+import { OffChainBalancesMap } from "bitbadgesjs-sdk"
 import { AssetConditionGroup, IChainDriver, constructChallengeObjectFromString } from "blockin"
 import { Buffer } from "buffer"
 import { recoverPersonalSignature } from "eth-sig-util"

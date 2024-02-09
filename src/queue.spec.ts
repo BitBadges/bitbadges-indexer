@@ -9,7 +9,7 @@ app.get = jest.fn();
 app.post = jest.fn();
 app.listen = jest.fn(() => app);
 
-import { OffChainBalancesMap, QueueDoc, convertToCosmosAddress } from 'bitbadgesjs-utils';
+import { OffChainBalancesMap, QueueDoc, convertToCosmosAddress } from 'bitbadgesjs-sdk';
 import { AddressListModel, BalanceModel, deleteMany, getFromDB, insertToDB } from './db/db';
 import { handleBalances } from './queue';
 import mongoose from 'mongoose';

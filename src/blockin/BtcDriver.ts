@@ -1,6 +1,6 @@
 import { Verifier } from "bip322-js"
-import { Stringify } from "bitbadgesjs-proto"
-import { OffChainBalancesMap, convertToCosmosAddress, } from "bitbadgesjs-utils"
+import { Stringify } from "bitbadgesjs-sdk"
+import { OffChainBalancesMap, convertToCosmosAddress, } from "bitbadgesjs-sdk"
 import { AssetConditionGroup, IChainDriver, constructChallengeObjectFromString } from "blockin"
 import { verifyBitBadgesAssets } from "./verifyBitBadgesAssets"
 

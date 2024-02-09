@@ -1,11 +1,11 @@
-import { AddressList, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-proto";
+import { AddressList, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-sdk";
 import {
   ApprovalInfoDetails, ApprovalTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection,
   CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody,
   GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody,
   GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, addBalance, batchUpdateBadgeMetadata, convertApprovalInfoDetails, convertApprovalTrackerDoc, convertBadgeMetadataDetails, convertBitBadgesCollection,
   convertComplianceDoc, convertMerkleChallengeDoc, convertMetadata, convertReviewDoc, convertTransferActivityDoc, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary
-} from "bitbadgesjs-utils";
+} from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { serializeError } from "serialize-error";

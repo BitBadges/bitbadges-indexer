@@ -1,5 +1,5 @@
-import { NumberType } from "bitbadgesjs-proto";
-import { AddReviewForCollectionRouteRequestBody, AddReviewForCollectionRouteResponse, AddReviewForUserRouteRequestBody, AddReviewForUserRouteResponse, DeleteReviewRouteResponse, ReviewDoc, convertToCosmosAddress, isAddressValid } from "bitbadgesjs-utils";
+import { NumberType } from "bitbadgesjs-sdk";
+import { AddReviewForCollectionRouteRequestBody, AddReviewForCollectionRouteResponse, AddReviewForUserRouteRequestBody, AddReviewForUserRouteResponse, DeleteReviewRouteResponse, ReviewDoc, convertToCosmosAddress, isAddressValid } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";

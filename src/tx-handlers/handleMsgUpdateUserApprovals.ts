@@ -1,5 +1,5 @@
-import { MsgUpdateUserApprovals } from "bitbadgesjs-proto"
-import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
+import { MsgUpdateUserApprovals } from "bitbadgesjs-sdk"
+import { DocsCache, StatusDoc } from "bitbadgesjs-sdk"
 import { fetchDocsForCacheIfEmpty } from "../db/cache"
 
 import { handleNewAccountByAddress } from "./handleNewAccount"

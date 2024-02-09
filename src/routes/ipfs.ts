@@ -1,4 +1,4 @@
-import { AddApprovalDetailsToOffChainStorageRouteRequestBody, AddApprovalDetailsToOffChainStorageRouteResponse, AddBalancesToOffChainStorageRouteRequestBody, AddBalancesToOffChainStorageRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-utils";
+import { AddApprovalDetailsToOffChainStorageRouteRequestBody, AddApprovalDetailsToOffChainStorageRouteResponse, AddBalancesToOffChainStorageRouteRequestBody, AddBalancesToOffChainStorageRouteResponse, AddMetadataToIpfsRouteRequestBody, AddMetadataToIpfsRouteResponse, BigIntify, NumberType, convertChallengeDetails, convertIPFSTotalsDoc } from "bitbadgesjs-sdk";
 import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";

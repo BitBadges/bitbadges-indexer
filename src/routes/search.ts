@@ -1,6 +1,6 @@
 
-import { JSPrimitiveNumberType, UintRange, convertBadgeMetadataTimeline, convertUintRange } from "bitbadgesjs-proto";
-import { AccountDoc, BigIntify, BitBadgesCollection, FilterBadgesInCollectionRequestBody, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertBitBadgesAddressList, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getBadgeIdsForMetadataId, getChainForAddress, getCurrentValueForTimeline, getFirstMatchForBadgeMetadata, getMaxBadgeIdForCollection, getMetadataIdsForUri, isAddressValid, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType, UintRange, convertBadgeMetadataTimeline, convertUintRange } from "bitbadgesjs-sdk";
+import { AccountDoc, BigIntify, BitBadgesCollection, FilterBadgesInCollectionRequestBody, GetSearchRouteRequestBody, GetSearchRouteResponse, MINT_ACCOUNT, NumberType, Stringify, SupportedChain, convertBitBadgesAddressList, convertBitBadgesCollection, convertBitBadgesUserInfo, convertToCosmosAddress, cosmosToBtc, cosmosToEth, getBadgeIdsForMetadataId, getChainForAddress, getCurrentValueForTimeline, getFirstMatchForBadgeMetadata, getMaxBadgeIdForCollection, getMetadataIdsForUri, isAddressValid, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AccountModel, AddressListModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel, getManyFromDB, mustGetFromDB } from "../db/db";
@@ -183,7 +183,31 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
     const addressListsResponseDocs = results[2];
 
 
-    const allAccounts: AccountDoc<JSPrimitiveNumberType>[] = [...accountsResponseDocs];
+    const allAccounts: (AccountDoc<JSPrimitiveNumberType> & { chain: SupportedChain })[] = accountsResponseDocs.map((doc) => {
+      //Can do more w/ guessing later (e.g. startsWiths and more)
+      const regex = new RegExp(`${searchValue}`, 'i');
+      let chain = SupportedChain.COSMOS;
+      if (searchValue.startsWith('0x')) {
+        chain = SupportedChain.ETH;
+      } else if (searchValue.startsWith('bc')) {
+        chain = SupportedChain.BTC;
+      } else if (searchValue.startsWith('cosm')) {
+        chain = SupportedChain.COSMOS;
+      } else if (regex.test(doc.ethAddress)) {
+        chain = SupportedChain.ETH;
+      } else if (regex.test(doc.btcAddress)) {
+        chain = SupportedChain.BTC;
+      } else if (regex.test(doc.cosmosAddress)) {
+        chain = SupportedChain.COSMOS;
+      } else if (regex.test(doc.solAddress)) {
+        chain = SupportedChain.SOLANA;
+      }
+
+      return {
+        ...doc,
+        chain
+      }
+    });
     if (isAddressValid(searchValue)
       && !accountsResponseDocs.find((account) => account.ethAddress === searchValue || account.cosmosAddress === searchValue || account.solAddress === searchValue || account.btcAddress === searchValue)) {
       const chain = getChainForAddress(searchValue);
@@ -198,6 +222,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         chain: getChainForAddress(searchValue),
         publicKey: '',
         accountNumber: '-1',
+        pubKeyType: '',
       });
     }
 
@@ -212,6 +237,7 @@ export const searchHandler = async (req: Request, res: Response<GetSearchRouteRe
         chain: getChainForAddress(resolvedEnsAddress),
         publicKey: '',
         accountNumber: '-1',
+        pubKeyType: '',
       });
     }
 

@@ -1,5 +1,5 @@
-import { NumberType } from "bitbadgesjs-proto";
-import { AccountDoc, AccountDocs, AddressListDoc, AddressListsDocs, ApprovalTrackerDoc, ApprovalTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, ListActivityDoc, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, ProtocolDoc, RefreshDoc, StatusDoc, UserProtocolCollectionsDoc, convertAccountDoc, convertAddressListDoc, convertApprovalTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertToCosmosAddress, convertUserProtocolCollectionsDoc } from "bitbadgesjs-utils";
+import { NumberType } from "bitbadgesjs-sdk";
+import { AccountDoc, AccountDocs, AddressListDoc, AddressListsDocs, ApprovalTrackerDoc, ApprovalTrackerDocs, BalanceDoc, BalanceDocs, BigIntify, CollectionDoc, CollectionDocs, DocsCache, ListActivityDoc, MerkleChallengeDoc, MerkleChallengeDocs, PasswordDoc, PasswordDocs, ProtocolDoc, RefreshDoc, StatusDoc, UserProtocolCollectionsDoc, convertAccountDoc, convertAddressListDoc, convertApprovalTrackerDoc, convertBalanceDoc, convertCollectionDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertToCosmosAddress, convertUserProtocolCollectionsDoc } from "bitbadgesjs-sdk";
 import crypto from 'crypto';
 import mongoose from "mongoose";
 import { serializeError } from "serialize-error";

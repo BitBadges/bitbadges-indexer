@@ -1,4 +1,4 @@
-import { StatusDoc } from "bitbadgesjs-utils";
+import { StatusDoc } from "bitbadgesjs-sdk";
 import { StatusModel, insertToDB, mustGetFromDB } from "./db";
 import mongoose from "mongoose";
 

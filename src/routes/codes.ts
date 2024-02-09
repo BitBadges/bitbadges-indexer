@@ -1,5 +1,5 @@
-import { JSPrimitiveNumberType, NumberType } from "bitbadgesjs-proto";
-import { CodesAndPasswords, GetAllCodesAndPasswordsRouteResponse, PasswordDoc } from "bitbadgesjs-utils";
+import { JSPrimitiveNumberType, NumberType } from "bitbadgesjs-sdk";
+import { CodesAndPasswords, GetAllCodesAndPasswordsRouteResponse, PasswordDoc } from "bitbadgesjs-sdk";
 import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";

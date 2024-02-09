@@ -1,5 +1,5 @@
-import { AddressList, NumberType, Stringify } from "bitbadgesjs-proto";
-import { GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, convertBalanceDoc } from "bitbadgesjs-utils";
+import { AddressList, NumberType, Stringify } from "bitbadgesjs-sdk";
+import { GetOwnersForBadgeRouteRequestBody, GetOwnersForBadgeRouteResponse, convertBalanceDoc } from "bitbadgesjs-sdk";
 import { Request, Response } from 'express';
 import { serializeError } from "serialize-error";
 import { BalanceModel, mustGetFromDB } from "../db/db";

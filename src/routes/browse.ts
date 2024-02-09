@@ -1,5 +1,5 @@
-import { BigIntify, UintRange, convertUintRange } from "bitbadgesjs-proto";
-import { GetBrowseCollectionsRouteResponse, NumberType, convertBitBadgesCollection, convertToCosmosAddress, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-utils";
+import { BigIntify, UintRange, convertUintRange } from "bitbadgesjs-sdk";
+import { GetBrowseCollectionsRouteResponse, NumberType, convertBitBadgesCollection, convertToCosmosAddress, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AddressListModel, BrowseModel, CollectionModel, ProfileModel, TransferActivityModel, mustGetFromDB } from "../db/db";

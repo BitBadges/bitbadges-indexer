@@ -1,7 +1,7 @@
 
 import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
-import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-proto";
-import { AccountDoc, AccountInfoBase, AddressListDoc, BitBadgesAddressList, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, ListActivityDoc, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertBitBadgesAddressList, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertListActivityDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-utils";
+import { BigIntify, JSPrimitiveNumberType, SupportedChain } from "bitbadgesjs-sdk";
+import { AccountDoc, AccountInfoBase, AddressListDoc, BitBadgesAddressList, AnnouncementDoc, BalanceDoc, BalanceDocWithDetails, BitBadgesUserInfo, BlockinAuthSignatureDoc, ClaimAlertDoc, GetAccountRouteRequestBody, GetAccountRouteResponse, GetAccountsRouteRequestBody, GetAccountsRouteResponse, ListActivityDoc, MINT_ACCOUNT, NumberType, PaginationInfo, ProfileDoc, ReviewDoc, Stringify, TransferActivityDoc, UpdateAccountInfoRouteRequestBody, UpdateAccountInfoRouteResponse, convertBitBadgesAddressList, convertBalanceDoc, convertBitBadgesUserInfo, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertListActivityDoc, convertProfileDoc, convertReviewDoc, convertToCosmosAddress, convertTransferActivityDoc, cosmosToBtc, cosmosToEth, getChainForAddress, isAddressValid } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import nano from "nano";
 import { serializeError } from "serialize-error";
@@ -21,14 +21,14 @@ import { connectToRpc } from "../poll";
 type AccountFetchOptions = GetAccountRouteRequestBody;
 
 async function getBatchAccountInformation(queries: { address: string, fetchOptions?: AccountFetchOptions }[]) {
-  const accountInfos: AccountInfoBase<JSPrimitiveNumberType>[] = [];
+  const accountInfos: (AccountInfoBase<JSPrimitiveNumberType> & { chain: SupportedChain })[] = [];
   const addressesToFetchWithSequence = queries.filter(x => x.fetchOptions?.fetchSequence).map(x => x.address);
   const addressesToFetchWithoutSequence = queries.filter(x => !x.fetchOptions?.fetchSequence).map(x => x.address);
 
   if (!client) {
     await connectToRpc()
   }
-  
+
   //Get from blockchain if requested, else get cached vals from DB
   const promises = [];
   for (const address of addressesToFetchWithSequence) {
@@ -54,6 +54,7 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
         accountInfos.push({
           ...doc,
           solAddress: getChainForAddress(address) === SupportedChain.SOLANA ? address : '',
+          chain: getChainForAddress(address),
         });
       } else {
         accountInfos.push({
@@ -61,9 +62,10 @@ async function getBatchAccountInformation(queries: { address: string, fetchOptio
           btcAddress: cosmosToBtc(convertToCosmosAddress(address)),
           solAddress: getChainForAddress(address) === SupportedChain.SOLANA ? address : '',
           ethAddress: cosmosToEth(convertToCosmosAddress(address)),
+          chain: getChainForAddress(address),
           sequence: 0,
           accountNumber: -1,
-          chain: getChainForAddress(address), //By default, if we do not have an account doc yet, we use the requested format
+          pubKeyType: '',
           publicKey: '',
         });
       }
@@ -95,10 +97,13 @@ async function getBatchProfileInformation(req: Request, queries: { address: stri
   }
 
   //Filter out private info if not authenticated user
-  const currAddress = (req.session as any).cosmosAddress;
-  for (const profileInfo of profileInfos) {
-    if (profileInfo._docId !== currAddress) {
-      profileInfo.notifications = undefined;
+
+  if (req.session) {
+    const currAddress = (req.session as any).cosmosAddress;
+    for (const profileInfo of profileInfos) {
+      if (profileInfo._docId !== currAddress) {
+        profileInfo.notifications = undefined;
+      }
     }
   }
 

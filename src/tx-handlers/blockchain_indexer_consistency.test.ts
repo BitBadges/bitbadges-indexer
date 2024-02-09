@@ -1,6 +1,6 @@
-import { convertBalance, convertUserIncomingApproval, convertUserOutgoingApproval, convertUserPermissions } from "bitbadgesjs-proto";
-import { BadgeCollection } from "bitbadgesjs-proto/dist/proto/badges/collections_pb";
-import { BigIntify, CollectionDoc, NumberType, convertCollectionDoc, convertStatusDoc } from "bitbadgesjs-utils";
+import { convertBalance, convertUserIncomingApproval, convertUserOutgoingApproval, convertUserPermissions } from "bitbadgesjs-sdk";
+import { BadgeCollection } from "bitbadgesjs-sdk/dist/proto/badges/collections_pb";
+import { BigIntify, CollectionDoc, NumberType, convertCollectionDoc, convertStatusDoc } from "bitbadgesjs-sdk";
 import mongoose from "mongoose";
 import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, CollectionModel, MerkleChallengeModel, StatusModel, getFromDB } from "../db/db";
 import { client } from "../indexer";

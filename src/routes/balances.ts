@@ -1,5 +1,5 @@
-import { AddressList, Balance, BigIntify, JSPrimitiveNumberType, UserPermissions, convertBalance, convertOffChainBalancesMetadataTimeline } from "bitbadgesjs-proto";
-import { BalanceDocWithDetails, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertToCosmosAddress, convertUserPermissionsWithDetails, getCurrentValueForTimeline } from "bitbadgesjs-utils";
+import { AddressList, Balance, BigIntify, JSPrimitiveNumberType, UserPermissions, convertBalance, convertOffChainBalancesMetadataTimeline } from "bitbadgesjs-sdk";
+import { BalanceDocWithDetails, GetBadgeBalanceByAddressRouteResponse, NumberType, Stringify, UserPermissionsWithDetails, convertBalanceDoc, convertCollectionDoc, convertToCosmosAddress, convertUserPermissionsWithDetails, getCurrentValueForTimeline } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { fetchUriFromSource } from "../queue";

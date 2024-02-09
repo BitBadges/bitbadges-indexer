@@ -1,5 +1,5 @@
-import { AmountTrackerIdDetails } from "bitbadgesjs-proto";
-import { ChallengeTrackerIdDetails, GetBadgeActivityRouteResponse, NumberType, Stringify, convertToCosmosAddress, convertTransferActivityDoc } from "bitbadgesjs-utils";
+import { AmountTrackerIdDetails } from "bitbadgesjs-sdk";
+import { ChallengeTrackerIdDetails, GetBadgeActivityRouteResponse, NumberType, Stringify, convertToCosmosAddress, convertTransferActivityDoc } from "bitbadgesjs-sdk";
 import { ApprovalTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel, getFromDB, mustGetFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import mongoose from "mongoose";

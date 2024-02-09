@@ -1,5 +1,5 @@
-import { MsgCreateCollection } from "bitbadgesjs-proto";
-import { DocsCache, StatusDoc } from "bitbadgesjs-utils";
+import { MsgCreateCollection } from "bitbadgesjs-sdk";
+import { DocsCache, StatusDoc } from "bitbadgesjs-sdk";
 import { handleMsgUniversalUpdateCollection } from "./handleMsgUniversalUpdateCollection";
 
 export const handleMsgCreateCollection = async (msg: MsgCreateCollection<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {

@@ -1,6 +1,6 @@
 
-import { NumberType } from "bitbadgesjs-proto";
-import { GetCollectionForProtocolRouteRequestBody, GetCollectionForProtocolRouteResponse, GetProtocolsRouteRequestBody, GetProtocolsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { NumberType } from "bitbadgesjs-sdk";
+import { GetCollectionForProtocolRouteRequestBody, GetCollectionForProtocolRouteResponse, GetProtocolsRouteRequestBody, GetProtocolsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";
@@ -46,15 +46,11 @@ export const getCollectionForProtocol = async (expressReq: Request, res: Respons
     if (!client) {
       await connectToRpc()
     }
-    
-    const collectionId = await client.badgesQueryClient?.protocols.getCollectionIdForProtocol(name, cosmosAddress);
-    if (!collectionId) {
-      throw new Error('Collection not found');
-    }
 
+    const collectionId = await client.badgesQueryClient?.protocols.getCollectionIdForProtocol(name, cosmosAddress);
 
     return res.status(200).send({
-      collectionId: collectionId
+      collectionId: collectionId || 0
     });
   } catch (e) {
     console.error(e);

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ErrorResponse } from 'bitbadgesjs-utils'
+import { ErrorResponse } from 'bitbadgesjs-sdk'
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import { Attribute } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"

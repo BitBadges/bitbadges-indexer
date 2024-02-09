@@ -1,4 +1,4 @@
-import { Metadata } from 'bitbadgesjs-utils';
+import { Metadata } from 'bitbadgesjs-sdk';
 import { addMetadataToIpfs, getFromIpfs } from './ipfs'; // Import your module and types
 
 describe('addMetadataToIpfs', () => {
@@ -42,7 +42,7 @@ describe('addMetadataToIpfs', () => {
 
   it('should work with no metadata', async () => {
     const result = await addMetadataToIpfs();
-    
+
     expect(result).toEqual({ allResults: [], badgeMetadataResults: [], collectionMetadataResult: undefined });
   }, 30000);
 

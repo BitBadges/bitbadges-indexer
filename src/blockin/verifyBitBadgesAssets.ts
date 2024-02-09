@@ -1,5 +1,5 @@
-import { Balance, BigIntify, UintRange, convertBalance, convertUintRange } from "bitbadgesjs-proto"
-import { OffChainBalancesMap, addBalances, convertToCosmosAddress, getBalancesForIds, isInAddressList } from "bitbadgesjs-utils"
+import { Balance, BigIntify, UintRange, convertBalance, convertUintRange } from "bitbadgesjs-sdk"
+import { OffChainBalancesMap, addBalances, convertToCosmosAddress, getBalancesForIds, isInAddressList } from "bitbadgesjs-sdk"
 import { AssetConditionGroup } from "blockin"
 import { BalanceModel, getFromDB } from "../db/db"
 import { getAddressListsFromDB } from "../routes/utils"
@@ -7,7 +7,7 @@ import { AndGroup, OrGroup, OwnershipRequirements } from "blockin"
 
 export async function verifyBitBadgesAssets(bitbadgesAssets: AssetConditionGroup<bigint> | undefined, address: string, balancesSnapshot?: OffChainBalancesMap<bigint>): Promise<any> {
   if (!bitbadgesAssets) return;
-  
+
   const andItem: AndGroup<bigint> = bitbadgesAssets as AndGroup<bigint>
   const orItem: OrGroup<bigint> = bitbadgesAssets as OrGroup<bigint>
   const normalItem: OwnershipRequirements<bigint> = bitbadgesAssets as OwnershipRequirements<bigint>

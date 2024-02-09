@@ -1,9 +1,9 @@
-import { GetStatusRouteResponse, NumberType, StatusDoc, convertStatusDoc } from "bitbadgesjs-utils";
+import { GetStatusRouteResponse, NumberType, StatusDoc, convertStatusDoc } from "bitbadgesjs-sdk";
 import { getStatus } from "../db/status";
 
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
-import { Stringify } from "bitbadgesjs-proto";
+import { Stringify } from "bitbadgesjs-sdk";
 
 
 export const getStatusHandler = async (req: Request, res: Response<GetStatusRouteResponse<NumberType>>) => {

@@ -1,6 +1,6 @@
 import axios from "axios";
-import { AddressList, JSPrimitiveNumberType, NumberType, convertBalance, deepCopy } from "bitbadgesjs-proto";
-import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-utils";
+import { AddressList, JSPrimitiveNumberType, NumberType, convertBalance, deepCopy } from "bitbadgesjs-sdk";
+import { BigIntify, BitBadgesCollection, CollectionDoc, DocsCache, FetchDoc, OffChainBalancesMap, QueueDoc, RefreshDoc, SupportedChain, TransferActivityDoc, convertBalanceDoc, convertFetchDoc, convertOffChainBalancesMap, convertQueueDoc, convertRefreshDoc, convertToCosmosAddress, getChainForAddress, getCurrentIdxForTimeline, getMaxMetadataId, getUrisForMetadataIds, isAddressValid, subtractBalances } from "bitbadgesjs-sdk";
 import crypto from 'crypto';
 import CryptoJS from "crypto-js";
 import Joi from "joi";

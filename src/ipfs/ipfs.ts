@@ -1,7 +1,7 @@
 import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import axios from 'axios';
-import { NumberType, deepCopy } from 'bitbadgesjs-proto';
-import { ApprovalInfoDetails, BadgeMetadataDetails, BigIntify, ChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata } from 'bitbadgesjs-utils';
+import { NumberType, deepCopy } from 'bitbadgesjs-sdk';
+import { ApprovalInfoDetails, BadgeMetadataDetails, BigIntify, ChallengeDetails, Metadata, OffChainBalancesMap, convertBadgeMetadataDetails, convertMetadata } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import last from 'it-last';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';

@@ -1,20 +1,20 @@
 import { createProtobufRpcClient, QueryClient } from "@cosmjs/stargate";
-import { cosmosToEth, cosmosToBtc } from "bitbadgesjs-utils";
-import * as account from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/auth_pb";
-import * as accountQuery from "bitbadgesjs-proto/dist/proto/cosmos/auth/v1beta1/query_pb";
-import * as bitbadgesQuery from "bitbadgesjs-proto/dist/proto/badges/query_pb";
-import * as protocolsQuery from "bitbadgesjs-proto/dist/proto/protocols/query_pb";
-import * as crypto from 'bitbadgesjs-proto/dist/proto/cosmos/crypto/ed25519/keys_pb';
-import * as secp256k1 from 'bitbadgesjs-proto/dist/proto/cosmos/crypto/secp256k1/keys_pb';
-import * as ethereum from 'bitbadgesjs-proto/dist/proto/ethereum/ethsecp256k1/keys_pb';
-import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-utils";
-import { BadgeCollection } from "bitbadgesjs-proto/dist/proto/badges/collections_pb";
-import { ApprovalTracker, UserBalanceStore } from "bitbadgesjs-proto/dist/proto/badges/transfers_pb";
-import { AddressList } from "bitbadgesjs-proto/dist/proto/badges/address_lists_pb";
-import { Protocol } from "bitbadgesjs-proto/dist/proto-types/protocols/types"
+import { cosmosToEth, cosmosToBtc } from "bitbadgesjs-sdk";
+import * as account from "bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/auth_pb";
+import * as accountQuery from "bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/query_pb";
+import * as bitbadgesQuery from "bitbadgesjs-sdk/dist/proto/badges/query_pb";
+import * as protocolsQuery from "bitbadgesjs-sdk/dist/proto/protocols/query_pb";
+import * as crypto from 'bitbadgesjs-sdk/dist/proto/cosmos/crypto/ed25519/keys_pb';
+import * as secp256k1 from 'bitbadgesjs-sdk/dist/proto/cosmos/crypto/secp256k1/keys_pb';
+import * as ethereum from 'bitbadgesjs-sdk/dist/proto/ethereum/ethsecp256k1/keys_pb';
+import { convertToCosmosAddress, getChainForAddress, SupportedChain } from "bitbadgesjs-sdk";
+import { BadgeCollection } from "bitbadgesjs-sdk/dist/proto/badges/collections_pb";
+import { ApprovalTracker, UserBalanceStore } from "bitbadgesjs-sdk/dist/proto/badges/transfers_pb";
+import { AddressList } from "bitbadgesjs-sdk/dist/proto/badges/address_lists_pb";
+import { Protocol } from "bitbadgesjs-sdk/dist/proto-types/protocols/types"
 
 /**
- * The chain will return a similar structure but with a pub_key object and account_number field (see CosmosAccountResponse from bitbadgesjs-utils)
+ * The chain will return a similar structure but with a pub_key object and account_number field (see CosmosAccountResponse from bitbadgesjs-sdk)
  * 
  * Here, we clean up the response to return a more conventional object for our purposes.
  */
@@ -22,6 +22,7 @@ export interface CleanedCosmosAccountInformation {
   publicKey: string
   sequence: string
   chain: SupportedChain
+  pubKeyType: string
   cosmosAddress: string
   ethAddress: string
   btcAddress: string
@@ -37,13 +38,17 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array, defaultAddress: stri
   const accountObj = account.BaseAccount.fromBinary(accountInfoValue);
   let pubKeyStr = '';
   let chain = getChainForAddress(defaultAddress);
+  let pubKeyType = '';
   if (accountObj.pubKey?.typeUrl) {
     if (accountObj.pubKey.typeUrl === '/ethereum.PubKey') {
       chain = SupportedChain.ETH
+      pubKeyType = 'ethsecp256k1'
     } else if (accountObj.pubKey.typeUrl === '/cosmos.crypto.secp256k1.PubKey') {
-      chain = SupportedChain.COSMOS
+      // chain = SupportedChain.COSMOS can be Cosmos or BTC so we default to whatever was requested
+      pubKeyType = 'secp256k1'
     } else if (accountObj.pubKey.typeUrl === '/cosmos.crypto.ed25519.PubKey') {
       chain = SupportedChain.SOLANA
+      pubKeyType = 'ed25519'
     }
   }
 
@@ -65,7 +70,7 @@ const getAccountInfoToReturn = (accountPromise: Uint8Array, defaultAddress: stri
     chain,
     ethAddress: accountObj.address ? cosmosToEth(accountObj.address) : '',
     btcAddress: accountObj.address ? cosmosToBtc(accountObj.address) : '',
-    // solAddress: '',
+    pubKeyType,
     cosmosAddress: accountObj.address ? convertToCosmosAddress(accountObj.address) : '',
   }
 }
@@ -146,6 +151,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
             btcAddress: cosmosToBtc(convertToCosmosAddress(address)),
             sequence: "0",
             accountNumber: "-1",
+            pubKeyType: '',
             cosmosAddress: convertToCosmosAddress(address),
             // solAddress: '',
             chain: getChainForAddress(address),

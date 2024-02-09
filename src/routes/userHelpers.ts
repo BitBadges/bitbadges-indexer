@@ -1,5 +1,5 @@
-import { NumberType } from "bitbadgesjs-proto";
-import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, SupportedChain, cosmosToBtc, cosmosToEth, isAddressValid } from "bitbadgesjs-utils";
+import { NumberType } from "bitbadgesjs-sdk";
+import { AccountInfoBase, BitBadgesUserInfo, CosmosCoin, ProfileDoc, SupportedChain, cosmosToBtc, cosmosToEth, isAddressValid } from "bitbadgesjs-sdk";
 import { AddressListModel, AirdropModel, CollectionModel, EthTxCountModel, getFromDB, insertToDB } from "../db/db";
 import { client } from "../indexer";
 import { OFFLINE_MODE } from "../indexer-vars";
@@ -7,9 +7,7 @@ import { complianceDoc, connectToRpc } from "../poll";
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from "../utils/ensResolvers";
 
 
-
-
-export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<NumberType>[], accountInfos: AccountInfoBase<NumberType>[], fetchName = true): Promise<BitBadgesUserInfo<NumberType>[]> => {
+export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<NumberType>[], accountInfos: (AccountInfoBase<NumberType> & { chain: SupportedChain })[], fetchName = true): Promise<BitBadgesUserInfo<NumberType>[]> => {
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
   }
@@ -24,7 +22,7 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
     const profileDoc = profileInfos[i];
     let isMint = accountInfos[i].cosmosAddress === 'Mint';
 
-    promises.push(isMint || OFFLINE_MODE || !fetchName || (cosmosAccountInfo.chain !== SupportedChain.ETH && cosmosAccountInfo.publicKey)
+    promises.push(isMint || OFFLINE_MODE || !fetchName || (cosmosAccountInfo.pubKeyType !== 'ethsecp256k1' && cosmosAccountInfo.publicKey)
       ? { resolvedName: '' } : getNameAndAvatar(cosmosAccountInfo.ethAddress, !!profileDoc.profilePicUrl));
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
     promises.push(isMint ? undefined : getFromDB(AirdropModel, cosmosAccountInfo.cosmosAddress));
@@ -40,15 +38,17 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
         }
       }
 
-      //If we have a public key, we can determine the chain from the pub key type bc it has been previously set and used
-       // This doesn't always work for Cosmos because it could be Bitcoin or Cosmos
+      // If we have a public key, we can determine the chain from the pub key type bc it has been previously set and used
+      // This doesn't always work for Cosmos because it could be Bitcoin or Cosmos with sec256k1
       let ethTxCount = 0;
-      if (cosmosAccountInfo.publicKey && cosmosAccountInfo.chain !== SupportedChain.COSMOS) {
+      if (cosmosAccountInfo.publicKey && cosmosAccountInfo.pubKeyType !== 'secp256k1') {
         return {
-          address: cosmosAccountInfo.chain === SupportedChain.ETH ? cosmosAccountInfo.ethAddress
-            : cosmosAccountInfo.chain === SupportedChain.SOLANA ? solAddress
+          address: cosmosAccountInfo.pubKeyType === 'ethsecp256k1' ? cosmosAccountInfo.ethAddress
+            : cosmosAccountInfo.pubKeyType === 'ed25519' ? solAddress
               : cosmosAccountInfo.cosmosAddress,
-          chain: cosmosAccountInfo.chain
+          chain: cosmosAccountInfo.pubKeyType === 'ethsecp256k1' ? SupportedChain.ETH
+            : cosmosAccountInfo.pubKeyType === 'ed25519' ? SupportedChain.SOLANA
+              : SupportedChain.COSMOS
         }
       }
 
@@ -70,7 +70,6 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
           chain: SupportedChain.SOLANA
         }
       } else if (profileDoc.latestSignedInChain && profileDoc.latestSignedInChain === SupportedChain.BTC) {
-
         return {
           address: cosmosToBtc(cosmosAddress),
           chain: SupportedChain.BTC
@@ -108,6 +107,8 @@ export const convertToBitBadgesUserInfo = async (profileInfos: ProfileDoc<Number
       } else if (accountInfos[i].chain === SupportedChain.BTC) {
         defaultedAddr = cosmosToBtc(cosmosAddress);
       }
+
+
       //Else, we check ETH txs and default to cosmos address if none
       //Should we support solana or something by default?
       return {

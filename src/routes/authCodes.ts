@@ -1,5 +1,4 @@
-import { NumberType, Stringify } from "bitbadgesjs-proto";
-import { CreateBlockinAuthCodeRouteRequestBody, CreateBlockinAuthCodeRouteResponse, DeleteBlockinAuthCodeRouteRequestBody, DeleteBlockinAuthCodeRouteResponse, GetBlockinAuthCodeRouteRequestBody, GetBlockinAuthCodeRouteResponse, convertToCosmosAddress, getChainForAddress, } from "bitbadgesjs-utils";
+import { CreateBlockinAuthCodeRouteRequestBody, CreateBlockinAuthCodeRouteResponse, DeleteBlockinAuthCodeRouteRequestBody, DeleteBlockinAuthCodeRouteResponse, GetBlockinAuthCodeRouteRequestBody, GetBlockinAuthCodeRouteResponse, NumberType, Stringify, convertToCosmosAddress } from "bitbadgesjs-sdk";
 import { constructChallengeObjectFromString, createChallenge } from "blockin";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
@@ -27,7 +26,6 @@ export const createAuthCode = async (expressReq: Request, res: Response<CreateBl
       {
         message: reqBody.message,
         signature: reqBody.signature,
-        chain: getChainForAddress(challengeParams.address),
         options: {
           skipTimestampVerification: true,
           skipAssetVerification: true
@@ -70,7 +68,6 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
         {
           message: createChallenge(params),
           signature: reqBody.signature,
-          chain: getChainForAddress(params.address),
           options: reqBody.options,
         }
       );
@@ -80,7 +77,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
           verificationResponse: {
             success: false,
             errorMessage: verificationResponse.message,
-            
+
           }
         });
       }

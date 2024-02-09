@@ -2,13 +2,12 @@ import { Secp256k1 } from '@cosmjs/crypto';
 import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 import { Account, SigningStargateClient, assertIsDeliverTxSuccess } from "@cosmjs/stargate";
 import axios from "axios";
-import { MessageGenerated, MsgUniversalUpdateCollection, SupportedChain, createTransactionPayload, createTxRawEIP712, signatureToWeb3Extension } from "bitbadgesjs-proto";
+import { MsgUniversalUpdateCollection, SupportedChain, TxContext, createTransactionPayload, createTxRawEthereum } from "bitbadgesjs-sdk";
 
-import { MsgTransferBadges, MsgCreateAddressLists as ProtoMsgCreateAddressLists, MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-proto/dist/proto/badges/tx_pb';
-import { MsgCreateProtocol as ProtoMsgCreateProtocol } from 'bitbadgesjs-proto/dist/proto/protocols/tx_pb';
+import { MsgTransferBadges, MsgCreateAddressLists as ProtoMsgCreateAddressLists, MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
+import { MsgCreateProtocol as ProtoMsgCreateProtocol } from 'bitbadgesjs-sdk/dist/proto/protocols/tx_pb';
 
-import { createProtoMsg } from 'bitbadgesjs-proto/dist/proto-types/base';
-import { BETANET_CHAIN_DETAILS, BroadcastMode, Numberify, convertToCosmosAddress, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-utils";
+import { BETANET_CHAIN_DETAILS, BroadcastMode, Numberify, convertToCosmosAddress, generateEndpointBroadcast, generatePostBodyBroadcast } from "bitbadgesjs-sdk";
 import crypto from 'crypto';
 import env from 'dotenv';
 import { ethers } from "ethers";
@@ -34,16 +33,18 @@ async function main() {
       pubkey: base64PubKey,
     };
 
-    const msgs: MessageGenerated[] = [];
-    msgs.push(...bootstrapLists().map(x => createProtoMsg(x)));
+    const msgs = [];
+    msgs.push(...bootstrapLists());
 
-    msgs.push(...bootstrapCollections().map(x => createProtoMsg(x)))
+    msgs.push(...bootstrapCollections());
 
-    msgs.push(...bootstrapProtocols().map(x => createProtoMsg(x)));
+    msgs.push(...bootstrapProtocols());
 
-    msgs.push(...bootstrapTransfers().map(x => createProtoMsg(x)));
+    msgs.push(...bootstrapTransfers());
 
-    const txn = createTransactionPayload({ chain, sender, memo: '', fee: { denom: 'badge', amount: '1', gas: '4000000' } }, msgs);
+    const txContext: TxContext = { chain, sender, memo: '', fee: { denom: 'badge', amount: '1', gas: '4000000' } };
+
+    const txn = createTransactionPayload(txContext, msgs);
     if (!txn.eipToSign) throw new Error("No eip to sign");
 
     let sig = await ethWallet._signTypedData(
@@ -52,15 +53,7 @@ async function main() {
       txn.eipToSign.message as any
     );
 
-    let txnExtension = signatureToWeb3Extension(chain, sender, sig)
-
-    // Create the txRaw
-    let rawTx = createTxRawEIP712(
-      txn.legacyAmino.body,
-      txn.legacyAmino.authInfo,
-      txnExtension,
-    )
-
+    const rawTx = createTxRawEthereum(txContext, txn, sig);
     const res = await broadcastTx(rawTx);
     console.log(res);
   } catch (e) {

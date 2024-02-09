@@ -1,13 +1,13 @@
 import {
   JSPrimitiveNumberType,
   NumberType,
-} from "bitbadgesjs-proto";
+} from "bitbadgesjs-sdk";
 import {
   Metadata,
   NumberifyIfPossible,
   OffChainBalancesMap,
   convertOffChainBalancesMap
-} from "bitbadgesjs-utils";
+} from "bitbadgesjs-sdk";
 
 interface ApprovalInfo {
   name?: string;

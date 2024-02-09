@@ -3,12 +3,12 @@ import { toHex } from "@cosmjs/encoding"
 import { DecodedTxRaw, decodeTxRaw } from "@cosmjs/proto-signing"
 import { Block, IndexedTx } from "@cosmjs/stargate"
 import sgMail from '@sendgrid/mail'
-import { Balance, JSPrimitiveNumberType, Transfer, convertBalance, convertFromProtoToMsgCreateAddressLists, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-proto"
-import * as tx from 'bitbadgesjs-proto/dist/proto/badges/tx_pb'
-import * as bank from 'bitbadgesjs-proto/dist/proto/cosmos/bank/v1beta1/tx_pb'
-import * as protocoltx from 'bitbadgesjs-proto/dist/proto/protocols/tx_pb'
-import * as solana from 'bitbadgesjs-proto/dist/proto/solana/web3_pb'
-import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, QueueDoc, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-utils"
+import { Balance, JSPrimitiveNumberType, Transfer, convertBalance, convertFromProtoToMsgCreateAddressLists, convertFromProtoToMsgCreateCollection, convertFromProtoToMsgDeleteCollection, convertFromProtoToMsgTransferBadges, convertFromProtoToMsgUniversalUpdateCollection, convertFromProtoToMsgUpdateCollection, convertFromProtoToMsgUpdateUserApprovals, convertTransfer } from "bitbadgesjs-sdk"
+import * as tx from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb'
+import * as bank from 'bitbadgesjs-sdk/dist/proto/cosmos/bank/v1beta1/tx_pb'
+import * as protocoltx from 'bitbadgesjs-sdk/dist/proto/protocols/tx_pb'
+import * as solana from 'bitbadgesjs-sdk/dist/proto/solana/web3_pb'
+import { BigIntify, CollectionDoc, ComplianceDoc, DocsCache, QueueDoc, StatusDoc, convertComplianceDoc, convertStatusDoc, convertToCosmosAddress } from "bitbadgesjs-sdk"
 import { Attribute, StringEvent } from "cosmjs-types/cosmos/base/abci/v1beta1/abci"
 import crypto from "crypto"
 import mongoose from "mongoose"

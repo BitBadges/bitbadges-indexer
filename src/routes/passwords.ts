@@ -1,4 +1,4 @@
-import { BigIntify, GetCodeForPasswordRouteResponse, NumberType, PasswordDoc, convertPasswordDoc } from "bitbadgesjs-utils";
+import { BigIntify, GetCodeForPasswordRouteResponse, NumberType, PasswordDoc, convertPasswordDoc } from "bitbadgesjs-sdk";
 import CryptoJS from "crypto-js";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";

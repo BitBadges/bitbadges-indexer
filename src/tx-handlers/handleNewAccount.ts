@@ -1,5 +1,5 @@
-import { BigIntify } from "bitbadgesjs-proto";
-import { DocsCache, SupportedChain, convertAccountDoc } from "bitbadgesjs-utils";
+import { BigIntify } from "bitbadgesjs-sdk";
+import { DocsCache, convertAccountDoc } from "bitbadgesjs-sdk";
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 import { client } from "../indexer";
 /**
@@ -26,7 +26,7 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
   if (_accountDoc && _accountDoc.accountNumber > 0n && _accountDoc.publicKey) {
     //if we have a valid solana address for the first time, we add it to the account doc
     //note that the chain checks this is the correct address (matches signer key)
-    if (_accountDoc.chain === SupportedChain.SOLANA && solanaAddress && !_accountDoc.solAddress) {
+    if (_accountDoc.pubKeyType === 'ed25519' && solanaAddress && !_accountDoc.solAddress) {
       _accountDoc.solAddress = solanaAddress
       docs.accounts[cosmosAddress] = _accountDoc
     }

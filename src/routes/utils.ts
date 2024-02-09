@@ -1,5 +1,5 @@
-import { AddressList, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserBalanceStore, UserIncomingApproval, UserOutgoingApproval } from "bitbadgesjs-proto";
-import { BitBadgesAddressList, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendSelfInitiatedIncomingApproval, appendSelfInitiatedOutgoingApproval, convertBitBadgesAddressList, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressList } from "bitbadgesjs-utils";
+import { AddressList, BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UserBalanceStore, UserIncomingApproval, UserOutgoingApproval } from "bitbadgesjs-sdk";
+import { BitBadgesAddressList, Metadata, UserIncomingApprovalWithDetails, UserOutgoingApprovalWithDetails, appendSelfInitiatedIncomingApproval, appendSelfInitiatedOutgoingApproval, convertBitBadgesAddressList, convertMetadata, convertUserIncomingApprovalWithDetails, convertUserOutgoingApprovalWithDetails, getReservedAddressList } from "bitbadgesjs-sdk";
 import { AddressListModel, FetchModel, getFromDB, mustGetManyFromDB } from "../db/db";
 import { complianceDoc } from "../poll";
 import { executeListsActivityQueryForList } from "./userQueries";

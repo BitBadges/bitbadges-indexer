@@ -1,5 +1,5 @@
-import { Balance } from "bitbadgesjs-proto";
-import { cosmosToEth } from "bitbadgesjs-utils";
+import { Balance } from "bitbadgesjs-sdk";
+import { cosmosToEth } from "bitbadgesjs-sdk";
 import Moralis from "moralis";
 import { serializeError } from "serialize-error";
 import { Request, Response } from "express";

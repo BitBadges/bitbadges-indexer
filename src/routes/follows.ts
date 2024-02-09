@@ -1,6 +1,6 @@
 
-import { NumberType, convertBalance } from "bitbadgesjs-proto";
-import { BalanceDoc, BigIntify, GetFollowDetailsRouteRequestBody, GetFollowDetailsRouteResponse, TransferActivityDoc, convertFollowDetailsDoc, getBalancesForId, removeUintRangesFromUintRanges } from "bitbadgesjs-utils";
+import { NumberType, convertBalance } from "bitbadgesjs-sdk";
+import { BalanceDoc, BigIntify, GetFollowDetailsRouteRequestBody, GetFollowDetailsRouteResponse, TransferActivityDoc, convertFollowDetailsDoc, getBalancesForId, removeUintRangesFromUintRanges } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest } from "../blockin/blockin_handlers";

@@ -1,7 +1,7 @@
 
 
-import { BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UintRange, convertBalance } from "bitbadgesjs-proto";
-import { BalanceDoc, BatchBadgeDetails, ProfileInfoBase, TransferActivityDoc, removeUintRangesFromUintRanges } from "bitbadgesjs-utils";
+import { BigIntify, JSPrimitiveNumberType, NumberType, Stringify, UintRange, convertBalance } from "bitbadgesjs-sdk";
+import { BalanceDoc, BatchBadgeDetails, ProfileInfoBase, TransferActivityDoc, removeUintRangesFromUintRanges } from "bitbadgesjs-sdk";
 import { AddressListModel, BalanceModel, BitBadgesDoc, BlockinAuthSignatureModel, ClaimAlertModel, CollectionModel, ListActivityModel, ReviewModel, TransferActivityModel } from "../db/db";
 import { complianceDoc } from "../poll";
 import { getPaginationInfoToReturn, getQueryParamsFromBookmark } from "./activityHelpers";

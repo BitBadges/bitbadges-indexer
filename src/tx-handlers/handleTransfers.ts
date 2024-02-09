@@ -1,5 +1,5 @@
-import { Transfer } from "bitbadgesjs-proto";
-import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, addBalances, getBlankBalance, subtractBalances } from "bitbadgesjs-utils";
+import { Transfer } from "bitbadgesjs-sdk";
+import { BalanceDoc, BitBadgesCollection, CollectionDoc, DocsCache, StatusDoc, addBalances, getBlankBalance, subtractBalances } from "bitbadgesjs-sdk";
 import { fetchDocsForCacheIfEmpty } from "../db/cache";
 
 export const handleTransfers = async (collection: CollectionDoc<bigint> | BitBadgesCollection<bigint>, transfers: Transfer<bigint>[], docs: DocsCache, status: StatusDoc<bigint>, creator: string, txHash?: string, fromEvent?: boolean) => {

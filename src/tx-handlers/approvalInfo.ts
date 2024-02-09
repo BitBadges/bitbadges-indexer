@@ -1,4 +1,4 @@
-import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertPasswordDoc, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertPasswordDoc, convertToCosmosAddress } from "bitbadgesjs-sdk";
 import { PasswordModel } from "../db/db";
 import { getApprovalInfoIdForQueueDb, pushApprovalInfoFetchToQueue } from "../queue";
 import { getLoadBalancerId } from "../utils/loadBalancer";

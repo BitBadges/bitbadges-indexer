@@ -1,5 +1,5 @@
-import { MsgDeleteCollection } from "bitbadgesjs-proto"
-import { DocsCache, StatusDoc } from "bitbadgesjs-utils"
+import { MsgDeleteCollection } from "bitbadgesjs-sdk"
+import { DocsCache, StatusDoc } from "bitbadgesjs-sdk"
 import { ApprovalTrackerModel, BalanceModel, CollectionModel, MerkleChallengeModel, deleteMany } from "../db/db"
 
 import { fetchDocsForCacheIfEmpty } from "../db/cache"

@@ -1,5 +1,5 @@
-import { AddressList, JSPrimitiveNumberType, Stringify } from "bitbadgesjs-proto";
-import { AddressListDoc, DeleteAddressListsRouteRequestBody, DeleteAddressListsRouteResponse, GetAddressListsRouteRequestBody, GetAddressListsRouteResponse, ListActivityDoc, NumberType, StatusDoc, UpdateAddressListsRouteRequestBody, UpdateAddressListsRouteResponse, convertAddressListDoc, convertAddressListEditKey, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { AddressList, JSPrimitiveNumberType, Stringify } from "bitbadgesjs-sdk";
+import { AddressListDoc, DeleteAddressListsRouteRequestBody, DeleteAddressListsRouteResponse, GetAddressListsRouteRequestBody, GetAddressListsRouteResponse, ListActivityDoc, NumberType, StatusDoc, UpdateAddressListsRouteRequestBody, UpdateAddressListsRouteResponse, convertAddressListDoc, convertAddressListEditKey, convertToCosmosAddress } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";

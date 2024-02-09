@@ -1,4 +1,4 @@
-import { AddAddressToSurveyRouteRequestBody, AddAddressToSurveyRouteResponse, JSPrimitiveNumberType, ListActivityDoc, NumberType, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { AddAddressToSurveyRouteRequestBody, AddAddressToSurveyRouteResponse, JSPrimitiveNumberType, ListActivityDoc, NumberType, convertToCosmosAddress } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfAuthenticated, returnUnauthorized } from "../blockin/blockin_handlers";

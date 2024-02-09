@@ -6,7 +6,7 @@ import { AuthenticatedRequest } from "../blockin/blockin_handlers";
 import { AirdropModel, getFromDB, insertToDB, mustGetFromDB } from "../db/db";
 import _ from "environment"
 import { serializeError } from "serialize-error";
-import { GetTokensFromFaucetRouteResponse, NumberType, OffChainBalancesMap } from "bitbadgesjs-utils";
+import { GetTokensFromFaucetRouteResponse, NumberType, OffChainBalancesMap } from "bitbadgesjs-sdk";
 import { refreshCollection } from "./refresh";
 import { s3 } from "../indexer-vars";
 import { DEV_MODE } from "../constants";

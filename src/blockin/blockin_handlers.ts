@@ -1,5 +1,5 @@
-import { BigIntify } from 'bitbadgesjs-proto';
-import { CheckSignInStatusResponse, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, NumberType, SignOutResponse, SupportedChain, VerifySignInRouteRequestBody, VerifySignInRouteResponse, convertCollectionDoc, convertToCosmosAddress, getChainForAddress, getCurrentValueForTimeline } from 'bitbadgesjs-utils';
+import { BigIntify } from 'bitbadgesjs-sdk';
+import { CheckSignInStatusResponse, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, NumberType, SignOutResponse, SupportedChain, VerifySignInRouteRequestBody, VerifySignInRouteResponse, convertCollectionDoc, convertToCosmosAddress, getChainForAddress, getCurrentValueForTimeline } from 'bitbadgesjs-sdk';
 import { ChallengeParams, constructChallengeObjectFromString, createChallenge, verifyChallenge } from 'blockin';
 import { NextFunction, Request, Response } from 'express';
 import { Session } from 'express-session';
@@ -139,12 +139,14 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
   const req = expressReq as AuthenticatedRequest<NumberType>;
   const body = req.body as VerifySignInRouteRequestBody;
 
-  const chainDriver = getChainDriver(body.chain);
 
   try {
     const generatedEIP4361ChallengeStr: string = body.message;
 
     const challenge: ChallengeParams<NumberType> = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
+
+    const chain = getChainForAddress(challenge.address);
+    const chainDriver = getChainDriver(chain);
     const verificationResponse = await verifyChallenge(
       chainDriver,
       body.message,
@@ -164,7 +166,8 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
             return Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
           }
         }
-      }
+      },
+      body.publicKey
     );
 
     if (!verificationResponse.success) {
@@ -180,11 +183,11 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     }
 
     const profileDoc = await getFromDB(ProfileModel, req.session.cosmosAddress);
-    if (!profileDoc || (profileDoc && profileDoc.latestSignedInChain !== body.chain)) {
+    if (!profileDoc || (profileDoc && profileDoc.latestSignedInChain !== chain)) {
       await insertToDB(ProfileModel, {
         ...profileDoc,
         _docId: req.session.cosmosAddress,
-        latestSignedInChain: body.chain,
+        latestSignedInChain: chain,
         solAddress: getChainForAddress(challenge.address) == SupportedChain.SOLANA ? challenge.address : profileDoc?.solAddress,
       });
     }
@@ -214,7 +217,8 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
       throw `You cannot use the beforeVerification option with this endpoint.Please run this verification logic yourself.`;
     }
 
-    const chainDriver = getChainDriver(body.chain);
+    const chain = getChainForAddress(constructChallengeObjectFromString(body.message, BigIntify).address);
+    const chainDriver = getChainDriver(chain);
 
     const verificationResponse = await verifyChallenge(
       chainDriver,
@@ -223,7 +227,8 @@ export async function genericBlockinVerify(params: VerifySignInRouteRequestBody)
       {
         ...body.options,
         beforeVerification: undefined,
-      }
+      },
+      body.publicKey
     );
 
     return verificationResponse;

@@ -1,5 +1,5 @@
-import { NumberType } from "bitbadgesjs-proto";
-import { ClaimAlertDoc, GetClaimAlertsForCollectionRouteRequestBody, GetClaimAlertsForCollectionRouteResponse, SendClaimAlertsRouteRequestBody, SendClaimAlertsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-utils";
+import { NumberType } from "bitbadgesjs-sdk";
+import { ClaimAlertDoc, GetClaimAlertsForCollectionRouteRequestBody, GetClaimAlertsForCollectionRouteResponse, SendClaimAlertsRouteRequestBody, SendClaimAlertsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-sdk";
 import { Request, Response } from "express";
 import { serializeError } from "serialize-error";
 import { AuthenticatedRequest, checkIfManager } from "../blockin/blockin_handlers";
