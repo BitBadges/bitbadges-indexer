@@ -122,6 +122,8 @@ export const checkAndCompleteClaim = async (
       claimId
     });
 
+    console.log(req.body);
+
     const claimBuilderDocResponse = await findInDB(ClaimBuilderModel, { query, limit: 1 });
     if (claimBuilderDocResponse.length === 0) {
       throw new Error('No password doc found');
@@ -168,7 +170,7 @@ export const checkAndCompleteClaim = async (
         context,
         Object.freeze(plugin.publicParams),
         Object.freeze(pluginInstance.decryptPrivateParams(plugin.privateParams)),
-        pluginInstance.metadata.stateless ? undefined : req.body[plugin.id],
+        req.body[plugin.id],
         pluginInstance.metadata.stateless ? undefined : claimBuilderDoc.state[plugin.id],
         pluginInstance.metadata.scoped ? undefined : Object.freeze(claimBuilderDoc.state),
         adminInfo

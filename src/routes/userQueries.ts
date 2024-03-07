@@ -259,8 +259,6 @@ export async function executeCollectedQuery(
 
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
   if (QUERY_TIME_MODE) console.timeEnd('executeCollectedQuery');
-  console.log('collectedRes', JSON.stringify(collectedRes, null, 2));
-  
   return collectedRes;
 }
 

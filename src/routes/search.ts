@@ -348,8 +348,6 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchRouteS
           }
         });
 
-    console.log(uris);
-    console.log(noAddressLists);
     const listsPromise = noAddressLists ? Promise.resolve([]) : findInDB(AddressListModel, { query: { uri: { $in: uris } }, limit: 10 });
 
     const fetchKeys = allAccounts.map((account) => account.cosmosAddress);
@@ -358,10 +356,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchRouteS
     const [_collectionsRes, _fetchRes, _listsRes] = await Promise.all([collectionsPromise, fetchPromise, listsPromise]);
     const collectionsRes = convertDocs(CollectionModel, _collectionsRes, BigIntify);
     const fetchRes = convertDocs(ProfileModel, _fetchRes, BigIntify);
-    console.log(_listsRes);
     const listsRes = convertDocs(AddressListModel, _listsRes, BigIntify);
-
-    console.log(listsRes);
 
     const profileDocs = [];
 

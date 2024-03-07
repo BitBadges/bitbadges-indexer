@@ -22,6 +22,7 @@ export const PasswordPluginDetails: BackendIntegrationPlugin<NumberType, 'passwo
   defaultState: {},
   validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
     const password = privateParams.password;
+
     if (!privateParams.password || !customBody?.password) {
       return { success: false, error: 'Invalid configuration' };
     }
