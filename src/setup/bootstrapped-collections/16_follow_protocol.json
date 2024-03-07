@@ -107,7 +107,7 @@
   "isArchivedTimeline": [],
   "defaultBalances": {
     "balances": [],
-    "incomingApprovals":  [],
+    "incomingApprovals": [],
     "outgoingApprovals": [],
     "userPermissions": {
       "canUpdateOutgoingApprovals": [],

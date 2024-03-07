@@ -1,40 +1,44 @@
-import { CreateBlockinAuthCodeRouteRequestBody, CreateBlockinAuthCodeRouteResponse, DeleteBlockinAuthCodeRouteRequestBody, DeleteBlockinAuthCodeRouteResponse, GetBlockinAuthCodeRouteRequestBody, GetBlockinAuthCodeRouteResponse, NumberType, Stringify, convertToCosmosAddress } from "bitbadgesjs-sdk";
-import { constructChallengeObjectFromString, createChallenge } from "blockin";
-import { Request, Response } from "express";
-import { serializeError } from "serialize-error";
-import { AuthenticatedRequest, genericBlockinVerify } from "../blockin/blockin_handlers";
-import { BlockinAuthSignatureModel, insertToDB, mustGetFromDB } from "../db/db";
+import {
+  Numberify,
+  convertToCosmosAddress,
+  type CreateBlockinAuthCodeRouteRequestBody,
+  type DeleteBlockinAuthCodeRouteRequestBody,
+  type ErrorResponse,
+  type GetBlockinAuthCodeRouteRequestBody,
+  type NumberType,
+  type iCreateBlockinAuthCodeRouteSuccessResponse,
+  type iDeleteBlockinAuthCodeRouteSuccessResponse,
+  type iGetBlockinAuthCodeRouteSuccessResponse
+} from 'bitbadgesjs-sdk';
+import { constructChallengeObjectFromString, createChallenge } from 'blockin';
+import { type Request, type Response } from 'express';
+import { serializeError } from 'serialize-error';
+import { genericBlockinVerify, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { insertToDB, mustGetFromDB } from '../db/db';
+import { BlockinAuthSignatureModel } from '../db/schemas';
 
-export const createAuthCode = async (expressReq: Request, res: Response<CreateBlockinAuthCodeRouteResponse>) => {
+export const createAuthCode = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iCreateBlockinAuthCodeRouteSuccessResponse | ErrorResponse>
+) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as CreateBlockinAuthCodeRouteRequestBody;
 
-    const challengeParams = constructChallengeObjectFromString(reqBody.message, Stringify);
-
-    if (!reqBody.signature) {
-      throw new Error("Signature is required.");
-    }
-
-    if (!reqBody.message) {
-      throw new Error("Message is required.");
-    }
-
-    //Really all we want here is to verify signature is valid
-    //Other stuff just needs to be valid at actual authentication time
-    const response = await genericBlockinVerify(
-      {
-        message: reqBody.message,
-        signature: reqBody.signature,
-        options: {
-          skipTimestampVerification: true,
-          skipAssetVerification: true
-        }
+    // Really all we want here is to verify signature is valid
+    // Other stuff just needs to be valid at actual authentication time
+    const challengeParams = constructChallengeObjectFromString<number>(reqBody.message, Numberify);
+    const response = await genericBlockinVerify({
+      message: reqBody.message,
+      signature: reqBody.signature,
+      // publicKey: reqBody.publicKey,
+      options: {
+        skipTimestampVerification: true,
+        skipAssetVerification: true
       }
-    );
+    });
 
     if (!response.success) {
-      throw "Signature was invalid: " + response.message;
+      throw new Error('Signature was invalid: ' + response.message);
     }
 
     await insertToDB(BlockinAuthSignatureModel, {
@@ -50,34 +54,30 @@ export const createAuthCode = async (expressReq: Request, res: Response<CreateBl
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error creating QR auth code. Please try again later."
-    })
+      errorMessage: 'Error creating QR auth code. Please try again later.'
+    });
   }
-}
+};
 
-export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinAuthCodeRouteResponse>) => {
+export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCodeRouteSuccessResponse | ErrorResponse>) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetBlockinAuthCodeRouteRequestBody;
 
-    //For now, we use the approach that if someone has the signature, they can see the message.
+    // For now, we use the approach that if someone has the signature, they can see the message.
     const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
     const params = doc.params;
     try {
-      const verificationResponse = await genericBlockinVerify(
-        {
-          message: createChallenge(params),
-          signature: reqBody.signature,
-          options: reqBody.options,
-        }
-      );
+      const verificationResponse = await genericBlockinVerify({
+        message: createChallenge(params),
+        signature: reqBody.signature,
+        options: reqBody.options
+      });
       if (!verificationResponse.success) {
         return res.status(200).send({
           message: createChallenge(params),
           verificationResponse: {
             success: false,
-            errorMessage: verificationResponse.message,
-
+            errorMessage: verificationResponse.message
           }
         });
       }
@@ -85,7 +85,7 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
       return res.status(200).send({
         message: createChallenge(params),
         verificationResponse: {
-          success: verificationResponse.success,
+          success: verificationResponse.success
         }
       });
     } catch (e) {
@@ -93,28 +93,29 @@ export const getAuthCode = async (expressReq: Request, res: Response<GetBlockinA
         message: createChallenge(params),
         verificationResponse: {
           success: false,
-          errorMessage: e.message,
+          errorMessage: e.message
         }
       });
     }
-
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error getting auth QR code. Please try again later."
-    })
+      errorMessage: 'Error getting auth QR code. Please try again later.'
+    });
   }
-}
+};
 
-export const deleteAuthCode = async (expressReq: Request, res: Response<DeleteBlockinAuthCodeRouteResponse>) => {
+export const deleteAuthCode = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iDeleteBlockinAuthCodeRouteSuccessResponse | ErrorResponse>
+) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as DeleteBlockinAuthCodeRouteRequestBody;
 
     const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
     if (doc.cosmosAddress !== req.session.cosmosAddress) {
-      throw new Error("You are not the owner of this auth code.");
+      throw new Error('You are not the owner of this auth code.');
     }
 
     await insertToDB(BlockinAuthSignatureModel, {
@@ -127,7 +128,7 @@ export const deleteAuthCode = async (expressReq: Request, res: Response<DeleteBl
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error deleting QR auth code. Please try again later."
-    })
+      errorMessage: 'Error deleting QR auth code. Please try again later.'
+    });
   }
-}
+};

@@ -1,34 +1,42 @@
-import axios from "axios";
-import { BroadcastTxRouteRequestBody, BroadcastTxRouteResponse, NumberType, SimulateTxRouteResponse, SupportedChain, generateEndpointBroadcast, isAddressValid } from "bitbadgesjs-sdk";
-import { Request, Response } from "express";
-import { serializeError } from "serialize-error";
-import { DEV_MODE } from "../constants";
-import { getAccountByAddress } from "./users";
+import axios from 'axios';
+import { type Request, type Response } from 'express';
+import { serializeError } from 'serialize-error';
+import { DEV_MODE } from '../constants';
+import { getAccountByAddress } from './users';
+import {
+  isAddressValid,
+  SupportedChain,
+  type iBroadcastTxRouteSuccessResponse,
+  type ErrorResponse,
+  type BroadcastTxRouteRequestBody,
+  type iSimulateTxRouteSuccessResponse
+} from 'bitbadgesjs-sdk';
+import { generateEndpointBroadcast } from 'bitbadgesjs-sdk/dist/node-rest-api/broadcast';
 
 // Cleans up the generated Cosmos SDK error messages into a more applicable format
 // Goal is for it to be human readable and understandable while also being informative
 async function tidyErrorMessage(originalMessage: string) {
-  const message = DEV_MODE ? originalMessage : originalMessage.split("[/")[0];
-  const words = message.split(" ");
-
+  const message = DEV_MODE ? originalMessage : originalMessage.split('[/')[0];
+  const words = message.split(' ');
 
   const newWords = [];
   for (const word of words) {
     const punctuation = word[word.length - 1];
     let wordWithoutPunctuation = word;
-    if (punctuation === "." || punctuation === "," || punctuation === "!" || punctuation === "?") {
+    if (punctuation === '.' || punctuation === ',' || punctuation === '!' || punctuation === '?') {
       wordWithoutPunctuation = word.slice(0, word.length - 1);
     }
 
-    if (wordWithoutPunctuation.startsWith("cosmos") && isAddressValid(wordWithoutPunctuation, SupportedChain.COSMOS)) {
+    if (wordWithoutPunctuation.startsWith('cosmos') && isAddressValid(wordWithoutPunctuation, SupportedChain.COSMOS)) {
       const blankExpressRequest: Request = {
         body: {},
         params: {},
-        query: {},
+        query: {}
       } as any;
 
       const account = await getAccountByAddress(blankExpressRequest, wordWithoutPunctuation);
       if (account) {
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         newWords.push((account.username || account.resolvedName || account.address) + punctuation);
       } else {
         newWords.push(word);
@@ -38,21 +46,18 @@ async function tidyErrorMessage(originalMessage: string) {
     }
   }
 
-  return newWords.join(" ")
+  return newWords.join(' ');
 }
 
-export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteResponse<NumberType>>) => {
+export const broadcastTx = async (req: Request, res: Response<iBroadcastTxRouteSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as BroadcastTxRouteRequestBody;
 
-    const initialRes = await axios.post(
-      `${process.env.API_URL}${generateEndpointBroadcast()}`,
-      reqBody,
-    ).catch((e) => {
-      if (e && e.response && e.response.data) {
-        return Promise.reject(e.response.data);
+    const initialRes = await axios.post(`${process.env.API_URL}${generateEndpointBroadcast()}`, reqBody).catch(async (e) => {
+      if (e?.response?.data) {
+        return await Promise.reject(e.response.data);
       }
-      return Promise.reject(e);
+      return await Promise.reject(e);
     });
     const txHash = initialRes.data.tx_response.txhash;
     const code = initialRes.data.tx_response.code;
@@ -60,14 +65,14 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
       throw new Error(`Error broadcasting transaction: Code ${code}: ${JSON.stringify(initialRes.data.tx_response, null, 2)}`);
     }
 
-    let fetchResponse = null
+    let fetchResponse = null;
     let numTries = 0;
     while (!fetchResponse) {
       try {
         const res = await axios.get(`${process.env.API_URL}/cosmos/tx/v1beta1/txs/${txHash}`);
         fetchResponse = res;
       } catch (e) {
-        //wait 1 sec
+        // wait 1 sec
         // console.log("Waiting 1 second for transaction to be included in block...");
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -95,23 +100,18 @@ export const broadcastTx = async (req: Request, res: Response<BroadcastTxRouteRe
         errorMessage: 'Error broadcasting transaction: ' + e.message
       });
     }
-
-
   }
-}
+};
 
-export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResponse<NumberType>>) => {
+export const simulateTx = async (req: Request, res: Response<iSimulateTxRouteSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as BroadcastTxRouteRequestBody;
 
-    const simulatePost = await axios.post(
-      `${process.env.API_URL}${"/cosmos/tx/v1beta1/simulate"}`,
-      reqBody,
-    ).catch((e) => {
-      if (e && e.response && e.response.data) {
-        return Promise.reject(e.response.data);
+    const simulatePost = await axios.post(`${process.env.API_URL}${'/cosmos/tx/v1beta1/simulate'}`, reqBody).catch(async (e) => {
+      if (e?.response?.data) {
+        return await Promise.reject(e.response.data);
       }
-      return Promise.reject(e);
+      return await Promise.reject(e);
     });
 
     return res.status(200).send(simulatePost.data);
@@ -132,4 +132,4 @@ export const simulateTx = async (req: Request, res: Response<SimulateTxRouteResp
       });
     }
   }
-}
+};

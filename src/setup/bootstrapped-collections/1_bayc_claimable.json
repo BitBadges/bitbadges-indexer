@@ -192,9 +192,7 @@
         "initiatedByListId": "Mint",
         "toList": {
           "listId": "Mint",
-          "addresses": [
-            "Mint"
-          ],
+          "addresses": ["Mint"],
           "whitelist": true,
           "uri": "",
           "customData": "",
@@ -202,9 +200,7 @@
         },
         "fromList": {
           "listId": "Mint",
-          "addresses": [
-            "Mint"
-          ],
+          "addresses": ["Mint"],
           "whitelist": true,
           "uri": "",
           "customData": "",
@@ -212,9 +208,7 @@
         },
         "initiatedByList": {
           "listId": "Mint",
-          "addresses": [
-            "Mint"
-          ],
+          "addresses": ["Mint"],
           "whitelist": true,
           "uri": "",
           "customData": "",
@@ -322,9 +316,7 @@
       "fromListId": "Mint",
       "fromList": {
         "listId": "Mint",
-        "addresses": [
-          "Mint"
-        ],
+        "addresses": ["Mint"],
         "whitelist": true,
         "uri": "",
         "customData": "",
@@ -451,9 +443,7 @@
       ],
       "toList": {
         "listId": "!Mint",
-        "addresses": [
-          "Mint"
-        ],
+        "addresses": ["Mint"],
         "whitelist": false,
         "uri": "",
         "customData": "",
@@ -461,9 +451,7 @@
       },
       "fromList": {
         "listId": "!Mint",
-        "addresses": [
-          "Mint"
-        ],
+        "addresses": ["Mint"],
         "whitelist": false,
         "uri": "",
         "customData": "",
@@ -471,9 +459,7 @@
       },
       "initiatedByList": {
         "listId": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
-        "addresses": [
-          "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x"
-        ],
+        "addresses": ["cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x"],
         "whitelist": true,
         "uri": "",
         "customData": "",

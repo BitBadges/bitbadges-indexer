@@ -1,17 +1,113 @@
-import { Balance, JSPrimitiveNumberType, NumberType, NumberifyIfPossible, UintRange, convertBalance } from 'bitbadgesjs-sdk';
-import { config } from "dotenv";
-import mongoose from 'mongoose';
-
-import { ListActivitySchema, AccountDoc, AccountSchema, ActivityDoc, AddressListDoc, AddressListSchema, AirdropDoc, AirdropSchema, AnnouncementDoc, AnnouncementSchema, ApprovalTrackerDoc, ApprovalTrackerSchema, BalanceDoc, BalanceSchema, BlockinAuthSignatureDoc, BlockinAuthSignatureSchema, ChallengeSchema, ClaimAlertDoc, ClaimAlertSchema, CollectionDoc, CollectionSchema, ComplianceDoc, ComplianceSchema, ErrorDoc, FetchDoc, FetchSchema, FollowDetailsDoc, FollowDetailsSchema, IPFSTotalsDoc, IPFSTotalsSchema, ListActivityDoc, MerkleChallengeDoc, PasswordDoc, PasswordSchema, ProfileDoc, ProfileSchema, ProtocolDoc, ProtocolSchema, QueueDoc, QueueSchema, RefreshDoc, RefreshSchema, ReviewDoc, ReviewSchema, StatusDoc, StatusSchema, TransferActivityDoc, TransferActivitySchema, UserProtocolCollectionsDoc, UserProtocolCollectionsSchema, convertAccountDoc, convertAddressListDoc, convertAirdropDoc, convertAnnouncementDoc, convertApprovalTrackerDoc, convertBalanceDoc, convertBlockinAuthSignatureDoc, convertClaimAlertDoc, convertCollectionDoc, convertComplianceDoc, convertFetchDoc, convertFollowDetailsDoc, convertIPFSTotalsDoc, convertMerkleChallengeDoc, convertPasswordDoc, convertProfileDoc, convertProtocolDoc, convertQueueDoc, convertRefreshDoc, convertReviewDoc, convertStatusDoc, convertTransferActivityDoc, convertUserProtocolCollectionsDoc, convertListActivityDoc } from 'bitbadgesjs-sdk';
+import {
+  AccountDoc,
+  AddressListDoc,
+  AirdropDoc,
+  ApprovalTrackerDoc,
+  BalanceDoc,
+  BigIntify,
+  BlockinAuthSignatureDoc,
+  ClaimAlertDoc,
+  CollectionDoc,
+  ComplianceDoc,
+  type ErrorDoc,
+  FetchDoc,
+  FollowDetailsDoc,
+  IPFSTotalsDoc,
+  type JSPrimitiveNumberType,
+  ListActivityDoc,
+  MerkleChallengeDoc,
+  type NumberType,
+  NumberifyIfPossible,
+  ClaimBuilderDoc,
+  ProfileDoc,
+  ProtocolDoc,
+  QueueDoc,
+  RefreshDoc,
+  ReviewDoc,
+  StatusDoc,
+  TransferActivityDoc,
+  UserProtocolCollectionsDoc,
+  type iAccountDoc,
+  type iAddressListDoc,
+  type iAirdropDoc,
+  type iApprovalTrackerDoc,
+  type iBalanceDoc,
+  type iBlockinAuthSignatureDoc,
+  type iClaimAlertDoc,
+  type iCollectionDoc,
+  type iComplianceDoc,
+  type iFetchDoc,
+  type iFollowDetailsDoc,
+  type iIPFSTotalsDoc,
+  type iListActivityDoc,
+  type iMerkleChallengeDoc,
+  type iClaimBuilderDoc,
+  type iProfileDoc,
+  type iProtocolDoc,
+  type iQueueDoc,
+  type iRefreshDoc,
+  type iReviewDoc,
+  type iStatusDoc,
+  type iTransferActivityDoc,
+  type iUserProtocolCollectionsDoc
+} from 'bitbadgesjs-sdk';
 import crypto from 'crypto-js';
+import { config } from 'dotenv';
+import mongoose from 'mongoose';
+import {
+  type ApiKeyDoc,
+  BrowseDoc,
+  type EthTxCountDoc,
+  type OffChainUrlDoc,
+  PageVisitsDoc,
+  type ReportDoc,
+  type iBrowseDoc,
+  type iPageVisitsDoc
+} from './docs';
+import {
+  AccountModel,
+  AddressListModel,
+  AirdropModel,
+  ApiKeyModel,
+  ApprovalTrackerModel,
+  BalanceModel,
+  type BitBadgesDoc,
+  BlockinAuthSignatureModel,
+  BrowseModel,
+  ClaimAlertModel,
+  CollectionModel,
+  ComplianceModel,
+  ErrorModel,
+  EthTxCountModel,
+  FetchModel,
+  FollowDetailsModel,
+  IPFSTotalsModel,
+  ListActivityModel,
+  MerkleChallengeModel,
+  OffChainUrlModel,
+  PageVisitsModel,
+  ClaimBuilderModel,
+  ProfileModel,
+  ProtocolModel,
+  QueueModel,
+  RefreshModel,
+  ReportModel,
+  ReviewModel,
+  StatusModel,
+  TransferActivityModel,
+  type TypedDocFromModel,
+  type TypedInterfaceFromModel,
+  UserProtocolCollectionsModel
+} from './schemas';
 
 const { SHA256 } = crypto;
-
 
 config();
 
 export let MONGO_CONNECTED = false;
-mongoose.connect(`${process.env.DB_URL}`);
+mongoose.connect(`${process.env.DB_URL}`).catch((e) => {
+  console.error('Error connecting to MongoDB:', e);
+});
 export const MongoDB = mongoose.connection;
 MongoDB.on('error', console.error.bind(console, 'MongoDB connection error:'));
 MongoDB.once('open', () => {
@@ -19,271 +115,111 @@ MongoDB.once('open', () => {
   console.log('Connected to MongoDB');
 });
 
-export interface PageVisitsDoc<T extends NumberType> {
-  _id: string;
-  _docId: string;
-  collectionId?: T;
-  listId?: string;
-  lastUpdated: number;
-  overallVisits: {
-    daily: T,
-    weekly: T,
-    monthly: T,
-    yearly: T,
-    allTime: T,
-  };
-  badgePageVisits?: {
-    daily: Balance<T>[],
-    weekly: Balance<T>[],
-    monthly: Balance<T>[],
-    yearly: Balance<T>[],
-    allTime: Balance<T>[],
-  };
-}
-
-export function convertPageVisitsDoc<T extends NumberType, U extends NumberType>(item: PageVisitsDoc<T>, convertFunction: (item: T) => U): PageVisitsDoc<U> {
-  return {
-    ...item,
-    collectionId: item.collectionId ? convertFunction(item.collectionId) : undefined,
-    overallVisits: {
-      daily: convertFunction(item.overallVisits.daily),
-      weekly: convertFunction(item.overallVisits.weekly),
-      monthly: convertFunction(item.overallVisits.monthly),
-      yearly: convertFunction(item.overallVisits.yearly),
-      allTime: convertFunction(item.overallVisits.allTime),
-    },
-    badgePageVisits: item.badgePageVisits ? {
-      daily: item.badgePageVisits.daily.map(x => convertBalance(x, convertFunction)),
-      weekly: item.badgePageVisits.weekly.map(x => convertBalance(x, convertFunction)),
-      monthly: item.badgePageVisits.monthly.map(x => convertBalance(x, convertFunction)),
-      yearly: item.badgePageVisits.yearly.map(x => convertBalance(x, convertFunction)),
-      allTime: item.badgePageVisits.allTime.map(x => convertBalance(x, convertFunction)),
-    } : undefined,
-  }
-}
-
-
-export interface BrowseDoc<T extends NumberType> {
-  _docId: string;
-  _id?: string;
-  collections: {
-    [category: string]: NumberType[];
-  };
-  addressLists: {
-    [category: string]: string[];
-  };
-  profiles: {
-    [category: string]: string[];
-  };
-  badges: {
-    [category: string]: {
-      badgeIds: UintRange<T>[];
-      collectionId: T;
-    }[];
-  };
-}
-
-export interface ApiKeyDoc {
-  _docId: string;
-  _id?: string
-  numRequests: number;
-  lastRequest: number;
-}
-
-export interface ReportDoc {
-  _docId: string;
-  _id?: string
-  collectionId?: number;
-  listId?: string;
-  addressOrUsername?: string;
-  reason: string;
-}
-
-export interface EthTxCountDoc {
-  _docId: string;
-  _id?: string
-  count: number;
-  lastFetched: number;
-}
-
-export interface OffChainUrlDoc {
-  _docId: string;
-  _id?: string
-  collectionId: number;
-}
-
-export type BitBadgesDoc<T extends NumberType> = TransferActivityDoc<T> | ReviewDoc<T> | AnnouncementDoc<T> | ActivityDoc<T> | ProfileDoc<T> | AccountDoc<T> | CollectionDoc<T> | StatusDoc<T> | PasswordDoc<T> | BalanceDoc<T> | MerkleChallengeDoc<T> | FetchDoc<T> | QueueDoc<T> | RefreshDoc<T> | IPFSTotalsDoc<T> | ErrorDoc | AirdropDoc<T> | ApprovalTrackerDoc<T> | AddressListDoc<T> | ApiKeyDoc | ClaimAlertDoc<T> | EthTxCountDoc | OffChainUrlDoc | ReportDoc | ComplianceDoc<T> | BlockinAuthSignatureDoc<T> | FollowDetailsDoc<T> | BrowseDoc<T> | ProtocolDoc<T> | UserProtocolCollectionsDoc<T> | ListActivityDoc<T> | PageVisitsDoc<T>
-
-//TODO: Better schemas?
-const Schema = mongoose.Schema;
-
-export const PageVisitsSchema = new Schema({
-  _docId: String,
-  collectionId: Number,
-  listId: String,
-  overallVisits: Schema.Types.Mixed,
-  badgePageVisits: Schema.Types.Mixed,
-});
-
-export const BrowseSchema = new Schema({
-  _docId: String,
-  collections: Schema.Types.Mixed,
-  addressLists: Schema.Types.Mixed,
-  profiles: Schema.Types.Mixed,
-  badges: Schema.Types.Mixed,
-});
-
-export const ApiKeySchema = new Schema({
-  _docId: String,
-  numRequests: Number,
-  lastRequest: Number,
-});
-
-export const ErrorSchema = new Schema({
-  error: Schema.Types.Mixed,
-  _docId: String,
-
-});
-
-export const OffChainUrlSchema = new Schema({
-  collectionId: Number,
-  _docId: String,
-});
-
-export const ReportSchema = new Schema({
-  _docId: String,
-  collectionId: Number,
-  listId: String,
-  addressOrUsername: String,
-  reason: String,
-});
-
-
-export const EthTxCountSchema = new Schema({
-  _docId: String,
-  count: Number,
-  lastFetched: Number,
-});
-
-export interface UsernameDoc {
-  _docId: string;
-  _id: string;
-}
-export const UsernameSchema = new Schema({
-  _docId: String,
-});
-
-//set minimize to false to avoid issues with empty objects
-PasswordSchema.set('minimize', false); //claimedUsers is {} by default
-
-export const BrowseModel = mongoose.model<BrowseDoc<JSPrimitiveNumberType>>('browse', BrowseSchema);
-export const ApiKeyModel = mongoose.model<ApiKeyDoc>('api-keys', ApiKeySchema);
-export const FetchModel = mongoose.model<FetchDoc<JSPrimitiveNumberType>>('fetches', FetchSchema);
-export const QueueModel = mongoose.model<QueueDoc<JSPrimitiveNumberType>>('queue', QueueSchema);
-export const RefreshModel = mongoose.model<RefreshDoc<JSPrimitiveNumberType>>('refreshes', RefreshSchema);
-export const StatusModel = mongoose.model<StatusDoc<JSPrimitiveNumberType>>('status', StatusSchema);
-export const AccountModel = mongoose.model<AccountDoc<JSPrimitiveNumberType>>('accounts', AccountSchema);
-export const CollectionModel = mongoose.model<CollectionDoc<JSPrimitiveNumberType>>('collections', CollectionSchema);
-export const BalanceModel = mongoose.model<BalanceDoc<JSPrimitiveNumberType>>('balances', BalanceSchema);
-export const MerkleChallengeModel = mongoose.model<MerkleChallengeDoc<JSPrimitiveNumberType>>('merkle-challenges', ChallengeSchema);
-export const PasswordModel = mongoose.model<PasswordDoc<JSPrimitiveNumberType>>('passwords', PasswordSchema);
-export const ProfileModel = mongoose.model<ProfileDoc<JSPrimitiveNumberType>>('profiles', ProfileSchema);
-export const TransferActivityModel = mongoose.model<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity', TransferActivitySchema);
-export const AnnouncementModel = mongoose.model<AnnouncementDoc<JSPrimitiveNumberType>>('announcements', AnnouncementSchema);
-export const ReviewModel = mongoose.model<ReviewDoc<JSPrimitiveNumberType>>('reviews', ReviewSchema);
-export const ErrorModel = mongoose.model<ErrorDoc>('errors', ErrorSchema);
-export const IPFSTotalsModel = mongoose.model<IPFSTotalsDoc<JSPrimitiveNumberType>>('ipfs-totals', IPFSTotalsSchema);
-export const AirdropModel = mongoose.model<AirdropDoc<JSPrimitiveNumberType>>('airdrop', AirdropSchema);
-export const AddressListModel = mongoose.model<AddressListDoc<JSPrimitiveNumberType>>('address-lists', AddressListSchema);
-export const ApprovalTrackerModel = mongoose.model<ApprovalTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers', ApprovalTrackerSchema);
-export const ClaimAlertModel = mongoose.model<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts', ClaimAlertSchema);
-export const EthTxCountModel = mongoose.model<EthTxCountDoc>('eth-tx-count', EthTxCountSchema);
-export const OffChainUrlModel = mongoose.model<OffChainUrlDoc>('off-chain-urls', OffChainUrlSchema);
-export const ReportModel = mongoose.model<ReportDoc>('reports', ReportSchema);
-export const ComplianceModel = mongoose.model<ComplianceDoc<JSPrimitiveNumberType>>('compliance', ComplianceSchema);
-export const BlockinAuthSignatureModel = mongoose.model<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>('auth-codes', BlockinAuthSignatureSchema);
-export const FollowDetailsModel = mongoose.model<FollowDetailsDoc<JSPrimitiveNumberType>>('follows', FollowDetailsSchema);
-export const UsernameModel = mongoose.model<UsernameDoc>('usernames', UsernameSchema);
-export const ProtocolModel = mongoose.model<ProtocolDoc<JSPrimitiveNumberType>>('protocols', ProtocolSchema);
-export const UserProtocolCollectionsModel = mongoose.model<UserProtocolCollectionsDoc<JSPrimitiveNumberType>>('user-collection-protocols', UserProtocolCollectionsSchema);
-export const ListActivityModel = mongoose.model<ListActivityDoc<JSPrimitiveNumberType>>('list-activity', ListActivitySchema);
-export const PageVisitsModel = mongoose.model<PageVisitsDoc<JSPrimitiveNumberType>>('page-visits', PageVisitsSchema);
-
-export async function getManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
+export async function getManyFromDB<T extends BitBadgesDoc<JSPrimitiveNumberType>, S extends TypedDocFromModel<T>>(
   model: mongoose.Model<T>,
   ids: string[],
   session?: mongoose.mongo.ClientSession
 ) {
-  const query = model.find({ _docId: { $in: ids } }).limit(ids.length).lean();
+  let res: Array<TypedInterfaceFromModel<T, JSPrimitiveNumberType>>;
   if (session) {
-    query.session(session);
+    res = (await model
+      .find({ _docId: { $in: ids } })
+      .limit(ids.length)
+      .lean()
+      .session(session)
+      .exec()) as unknown as Array<TypedInterfaceFromModel<T, JSPrimitiveNumberType>>;
+  } else {
+    res = (await model
+      .find({ _docId: { $in: ids } })
+      .limit(ids.length)
+      .lean()
+      .exec()) as unknown as Array<TypedInterfaceFromModel<T, JSPrimitiveNumberType>>;
   }
-  const res = await query.exec();
 
+  if (res.length === 0) {
+    return [];
+  }
 
-  return ids.map(id => res.find(x => x._docId === id)).map(x => {
-    if (!x) return undefined;
-    return {
-      ...x, _id: x._id ? x._id.toString() : undefined
-    } as T;
-  });
+  for (const doc of res) {
+    if (!doc) continue;
+    doc._id = doc._id ? doc._id.toString() : undefined;
+  }
+
+  const convertedDocs: Array<S | undefined> = [];
+  for (const id of ids) {
+    const doc = res.find((x) => x?._docId === id);
+    if (!doc) {
+      convertedDocs.push(undefined);
+      continue;
+    }
+
+    const convertedDoc = convertDocs(model, [doc], BigIntify);
+    convertedDocs.push(convertedDoc[0] as S);
+  }
+
+  return convertedDocs;
 }
 
-export async function mustGetManyFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
+export async function mustGetManyFromDB<T extends BitBadgesDoc<JSPrimitiveNumberType>, S extends TypedDocFromModel<T>>(
   model: mongoose.Model<T>,
   ids: string[],
   session?: mongoose.mongo.ClientSession
 ) {
   const res = await getManyFromDB(model, ids, session);
   for (const id of ids) {
-    if (!res.find(x => x?._docId === id)) {
-      throw `Error in mustGetManyFromDB(): Could not find doc w/ id ${id}`;
+    if (!res.find((x) => x?._docId === id)) {
+      throw new Error(`Error in mustGetManyFromDB(): Could not find doc w/ id ${id}`);
     }
   }
 
-  //no undefined
-  return res as T[];
+  return res as S[];
 }
 
-export async function getFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
+export async function getFromDB<T extends BitBadgesDoc<JSPrimitiveNumberType>, S extends TypedDocFromModel<T>>(
   model: mongoose.Model<T>,
   id: string,
   session?: mongoose.mongo.ClientSession
 ) {
-  const query = model.find({ _docId: id }).limit(1).lean();
+  let res;
   if (session) {
-    query.session(session);
+    res = await model.find({ _docId: id }).limit(1).lean().session(session).exec();
+  } else {
+    res = await model.find({ _docId: id }).limit(1).lean().exec();
   }
-  const res = await query.exec();
 
-  //if ID is not found, return undefined
-
-  return res.length > 0 ? {
-    ...res[0], _id: res[0]._id ? res[0]._id.toString() : undefined
-  } as T : undefined;
+  if (res.length > 0) {
+    const docRes = res[0] as unknown as TypedInterfaceFromModel<T, JSPrimitiveNumberType>;
+    docRes._id = docRes._id ? docRes._id.toString() : undefined;
+    const convertedDocs = convertDocs(model, [docRes], BigIntify);
+    return convertedDocs[0] as S;
+  } else {
+    return undefined;
+  }
 }
 
-export async function mustGetFromDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
+export async function mustGetFromDB<T extends BitBadgesDoc<JSPrimitiveNumberType>, S extends TypedDocFromModel<T>>(
   model: mongoose.Model<T>,
   id: string,
   session?: mongoose.mongo.ClientSession
-) {
-  const query = model.find({ _docId: id }).limit(1).lean();
+): Promise<S> {
+  let res;
   if (session) {
-    query.session(session);
+    res = await model.find({ _docId: id }).limit(1).lean().session(session).exec();
+  } else {
+    res = await model.find({ _docId: id }).limit(1).lean().exec();
   }
 
-  const res = await query.exec();
   if (res.length === 0) {
-    throw `Error in mustGetFromDB(): Could not find doc w/ id ${id}`;
+    throw new Error(`Error in mustGetFromDB(): Could not find doc w/ id ${id}`);
   }
 
-  return {
-    ...res[0], _id: res[0]._id ? res[0]._id.toString() : undefined
-  } as T;
+  const docRes = res[0] as unknown as TypedInterfaceFromModel<T, JSPrimitiveNumberType>;
+  docRes._id = docRes._id ? docRes._id.toString() : undefined;
+  const convertedDocs = convertDocs(model, [docRes], BigIntify);
+  return convertedDocs[0] as S;
 }
 
-export async function insertToDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>), U extends (BitBadgesDoc<NumberType>)>(
+export async function insertToDB<T extends BitBadgesDoc<JSPrimitiveNumberType>, U extends TypedInterfaceFromModel<T, NumberType>>(
   model: mongoose.Model<T>,
   doc: U,
   session?: mongoose.mongo.ClientSession
@@ -291,102 +227,107 @@ export async function insertToDB<T extends (BitBadgesDoc<JSPrimitiveNumberType>)
   await insertMany(model, [doc], session);
 }
 
-export async function insertMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>), U extends (BitBadgesDoc<NumberType>)>(
+export async function insertMany<T extends BitBadgesDoc<JSPrimitiveNumberType>, U extends TypedInterfaceFromModel<T, NumberType>>(
   model: mongoose.Model<T>,
   docs: U[],
   session?: mongoose.mongo.ClientSession
 ) {
   try {
-    const convertedDocs = await convertDocsToStoreInDb(model, docs);
+    const convertedDocs = convertDocs(model, docs, NumberifyIfPossible);
 
-    const docsToInsert = convertedDocs.map(x => {
+    const docsToInsert = convertedDocs.map((x) => {
       const hexHashString = SHA256(x._docId).toString();
-      //24 character limit
+
+      // 24 character limit
       const shortenedHexHashString = hexHashString.slice(0, 24);
-      return {
-        ...x,
-        _id: x._id ?? new mongoose.Types.ObjectId(shortenedHexHashString).toString() //We use a deterministic _id based on _docId which is going to be unique
-      }
+      x._id = x._id ?? new mongoose.Types.ObjectId(shortenedHexHashString).toString(); // We use a deterministic _id based on _docId which is going to be unique
+      return x;
     });
 
     // if (docsToInsert.length > 1000) console.time('insertMany');
-    const bulkOps = docsToInsert.map(doc => ({
+    const bulkOps = docsToInsert.map((doc) => ({
       updateOne: {
         filter: { _id: doc._id },
         update: doc,
-        upsert: true,
-      },
+        upsert: true
+      }
     }));
+
     await model.bulkWrite(bulkOps as any, { session });
 
     // if (docsToInsert.length > 1000) console.timeEnd('insertMany');
-
-
   } catch (e) {
     console.log(e);
     throw e;
   }
 }
 
-export async function deleteMany<T extends (BitBadgesDoc<JSPrimitiveNumberType>)>(
+export async function deleteMany<T extends BitBadgesDoc<JSPrimitiveNumberType>>(
   model: mongoose.Model<T>,
   ids: string[],
   session: mongoose.mongo.ClientSession | undefined = undefined
 ) {
-  try {
-    await model.deleteMany({ _docId: { $in: ids } }, { session });
-  } catch (e) {
-    throw e;
-  }
+  if (ids.length === 0) return;
+  await model.deleteMany({ _docId: { $in: ids } }, { session });
 }
 
-export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitiveNumberType>), U extends (BitBadgesDoc<NumberType>)>(
+export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U extends TypedInterfaceFromModel<T, NumberType>, V extends NumberType>(
   model: mongoose.Model<T>,
-  docs: U[]
+  docs: Array<U | undefined> | (U | undefined),
+  convertFunction: (val: NumberType) => V
 ) {
-  const convertedDocs: (BitBadgesDoc<JSPrimitiveNumberType>)[] = [];
+  docs = Array.isArray(docs) ? docs : [docs];
+
+  const convertedDocs: Array<BitBadgesDoc<V> | undefined> = [];
   for (const doc of docs) {
-    let convertedDoc = undefined;
+    if (!doc) {
+      convertedDocs.push(undefined);
+      continue;
+    }
+
+    let convertedDoc: BitBadgesDoc<V> | undefined;
+
+    // HACK: _id is "{}" when using .lean() so this just filters those ones out and makes them undefined.
+    doc._id = doc._id ? doc._id.toString() : undefined;
+
     if (model.modelName === StatusModel.modelName) {
-      convertedDoc = convertStatusDoc(doc as StatusDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new StatusDoc(doc as iStatusDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === AccountModel.modelName) {
-      convertedDoc = convertAccountDoc(doc as AccountDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new AccountDoc(doc as iAccountDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === CollectionModel.modelName) {
-      convertedDoc = convertCollectionDoc(doc as CollectionDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new CollectionDoc(doc as iCollectionDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === BalanceModel.modelName) {
-      convertedDoc = convertBalanceDoc(doc as BalanceDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new BalanceDoc(doc as iBalanceDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === MerkleChallengeModel.modelName) {
-      convertedDoc = convertMerkleChallengeDoc(doc as MerkleChallengeDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new MerkleChallengeDoc(doc as iMerkleChallengeDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === FetchModel.modelName) {
-      convertedDoc = convertFetchDoc(doc as FetchDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new FetchDoc(doc as iFetchDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === QueueModel.modelName) {
-      convertedDoc = convertQueueDoc(doc as QueueDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new QueueDoc(doc as iQueueDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === RefreshModel.modelName) {
-      convertedDoc = convertRefreshDoc(doc as RefreshDoc<NumberType>, NumberifyIfPossible);
-    } else if (model.modelName === PasswordModel.modelName) {
-      convertedDoc = convertPasswordDoc(doc as PasswordDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new RefreshDoc(doc as iRefreshDoc<NumberType>).convert(convertFunction);
+    } else if (model.modelName === ClaimBuilderModel.modelName) {
+      convertedDoc = new ClaimBuilderDoc(doc as iClaimBuilderDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ProfileModel.modelName) {
-      convertedDoc = convertProfileDoc(doc as ProfileDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new ProfileDoc(doc as iProfileDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === TransferActivityModel.modelName) {
-      convertedDoc = convertTransferActivityDoc(doc as TransferActivityDoc<NumberType>, NumberifyIfPossible);
-    } else if (model.modelName === AnnouncementModel.modelName) {
-      convertedDoc = convertAnnouncementDoc(doc as AnnouncementDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new TransferActivityDoc(doc as iTransferActivityDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ReviewModel.modelName) {
-      convertedDoc = convertReviewDoc(doc as ReviewDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new ReviewDoc(doc as iReviewDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ErrorModel.modelName) {
       convertedDoc = doc as ErrorDoc;
     } else if (model.modelName === IPFSTotalsModel.modelName) {
-      convertedDoc = convertIPFSTotalsDoc(doc as IPFSTotalsDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new IPFSTotalsDoc(doc as iIPFSTotalsDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === AirdropModel.modelName) {
-      convertedDoc = convertAirdropDoc(doc as AirdropDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new AirdropDoc(doc as iAirdropDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === AddressListModel.modelName) {
-      convertedDoc = convertAddressListDoc(doc as AddressListDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new AddressListDoc(doc as iAddressListDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ApprovalTrackerModel.modelName) {
-      convertedDoc = convertApprovalTrackerDoc(doc as ApprovalTrackerDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new ApprovalTrackerDoc(doc as iApprovalTrackerDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ApiKeyModel.modelName) {
       convertedDoc = doc as ApiKeyDoc;
     } else if (model.modelName === ClaimAlertModel.modelName) {
-      convertedDoc = convertClaimAlertDoc(doc as ClaimAlertDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new ClaimAlertDoc(doc as iClaimAlertDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === EthTxCountModel.modelName) {
       convertedDoc = doc as EthTxCountDoc;
     } else if (model.modelName === OffChainUrlModel.modelName) {
@@ -394,30 +335,29 @@ export async function convertDocsToStoreInDb<T extends (BitBadgesDoc<JSPrimitive
     } else if (model.modelName === ReportModel.modelName) {
       convertedDoc = doc as ReportDoc;
     } else if (model.modelName === ComplianceModel.modelName) {
-      convertedDoc = convertComplianceDoc(doc as ComplianceDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new ComplianceDoc(doc as iComplianceDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === BlockinAuthSignatureModel.modelName) {
-      convertedDoc = convertBlockinAuthSignatureDoc(doc as BlockinAuthSignatureDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new BlockinAuthSignatureDoc(doc as iBlockinAuthSignatureDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === FollowDetailsModel.modelName) {
-      convertedDoc = convertFollowDetailsDoc(doc as FollowDetailsDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new FollowDetailsDoc(doc as iFollowDetailsDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === BrowseModel.modelName) {
-      convertedDoc = doc as BrowseDoc<NumberType>;
+      convertedDoc = new BrowseDoc(doc as iBrowseDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ProtocolModel.modelName) {
-      convertedDoc = convertProtocolDoc(doc as ProtocolDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new ProtocolDoc(doc as iProtocolDoc);
     } else if (model.modelName === UserProtocolCollectionsModel.modelName) {
-      convertedDoc = convertUserProtocolCollectionsDoc(doc as UserProtocolCollectionsDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new UserProtocolCollectionsDoc(doc as iUserProtocolCollectionsDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ListActivityModel.modelName) {
-      convertedDoc = convertListActivityDoc(doc as ListActivityDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new ListActivityDoc(doc as iListActivityDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === PageVisitsModel.modelName) {
-      convertedDoc = convertPageVisitsDoc(doc as PageVisitsDoc<NumberType>, NumberifyIfPossible);
+      convertedDoc = new PageVisitsDoc(doc as iPageVisitsDoc<NumberType>).convert(convertFunction);
     }
 
-    const docToAdd = {
-      ...convertedDoc as BitBadgesDoc<JSPrimitiveNumberType>,
-      _id: convertedDoc?._id && typeof convertedDoc?._id === 'string' ? convertedDoc?._id : undefined //HACK: _id is "{}" when using .lean() so this just filters those ones out and makes them undefined.
-    }
-    convertedDocs.push(docToAdd);
+    if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);
+
+    // HACK: _id is "{}" when using .lean() so this just filters those ones out and makes them undefined.
+    convertedDoc._id = convertedDoc?._id && typeof convertedDoc?._id === 'string' ? convertedDoc?._id : undefined;
+    convertedDocs.push(convertedDoc);
   }
 
-  return convertedDocs;
+  return convertedDocs as Array<TypedDocFromModel<T, V>>;
 }
-

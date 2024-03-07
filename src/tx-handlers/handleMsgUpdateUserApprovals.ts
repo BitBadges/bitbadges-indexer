@@ -1,16 +1,19 @@
-import { MsgUpdateUserApprovals } from "bitbadgesjs-sdk"
-import { DocsCache, StatusDoc } from "bitbadgesjs-sdk"
-import { fetchDocsForCacheIfEmpty } from "../db/cache"
+import { type MsgUpdateUserApprovals, type StatusDoc, UpdateHistory, UserPermissions, BalanceDoc } from 'bitbadgesjs-sdk';
+import { fetchDocsForCacheIfEmpty } from '../db/cache';
 
-import { handleNewAccountByAddress } from "./handleNewAccount"
-import { recursivelyDeleteFalseProperties } from "./handleMsgUniversalUpdateCollection"
+import { handleNewAccountByAddress } from './handleNewAccount';
+import { recursivelyDeleteFalseProperties } from './handleMsgUniversalUpdateCollection';
+import { type DocsCache } from '../db/types';
 
-export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<bigint>, status: StatusDoc<bigint>, docs: DocsCache, txHash: string): Promise<void> => {
+export const handleMsgUpdateUserApprovals = async (
+  msg: MsgUpdateUserApprovals<bigint>,
+  status: StatusDoc<bigint>,
+  docs: DocsCache,
+  txHash: string
+): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
-  await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [
-    `${msg.collectionId}:${msg.creator}`,
-  ], [], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [`${msg.collectionId}:${msg.creator}`], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const collectionDoc = docs.collections[`${msg.collectionId}`];
@@ -18,7 +21,7 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
 
   let balancesDoc = docs.balances[`${msg.collectionId}:${msg.creator}`];
   if (!balancesDoc) {
-    balancesDoc = {
+    balancesDoc = new BalanceDoc<bigint>({
       _docId: `${msg.collectionId}:${msg.creator}`,
       balances: collectionDoc.defaultBalances.balances,
       cosmosAddress: msg.creator,
@@ -29,17 +32,18 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
       autoApproveSelfInitiatedIncomingTransfers: collectionDoc.defaultBalances.autoApproveSelfInitiatedIncomingTransfers,
       autoApproveSelfInitiatedOutgoingTransfers: collectionDoc.defaultBalances.autoApproveSelfInitiatedOutgoingTransfers,
       userPermissions: collectionDoc.defaultBalances.userPermissions,
-      updateHistory: [],
-    }
+      updateHistory: []
+    });
   }
-  if (!balancesDoc) throw new Error(`Balance ${msg.collectionId}:${msg.creator} does not exist`); //For TS
+  if (!balancesDoc) throw new Error(`Balance ${msg.collectionId}:${msg.creator} does not exist`); // For TS
 
-  balancesDoc.updateHistory.push({
-    block: status.block.height,
-    blockTimestamp: status.block.timestamp,
-    txHash: txHash,
-  });
-
+  balancesDoc.updateHistory.push(
+    new UpdateHistory({
+      block: status.block.height,
+      blockTimestamp: status.block.timestamp,
+      txHash
+    })
+  );
 
   if (msg.updateIncomingApprovals) {
     balancesDoc.incomingApprovals = msg.incomingApprovals ?? [];
@@ -50,15 +54,10 @@ export const handleMsgUpdateUserApprovals = async (msg: MsgUpdateUserApprovals<b
   }
 
   if (msg.updateUserPermissions) {
-    balancesDoc.userPermissions = msg.userPermissions ?? {
-      canUpdateIncomingApprovals: [],
-      canUpdateOutgoingApprovals: [],
-      canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
-      canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
-    }
+    balancesDoc.userPermissions = msg.userPermissions ?? UserPermissions.InitEmpty();
   }
 
   docs.balances[`${msg.collectionId}:${msg.creator}`] = balancesDoc;
 
   // console.log("BALANCES DOC", `${msg.collectionId}:${msg.creator}`, JSON.stringify(docs.balances[`${msg.collectionId}:${msg.creator}`], null, 2));
-}
+};

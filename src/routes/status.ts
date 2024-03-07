@@ -1,20 +1,17 @@
-import { GetStatusRouteResponse, NumberType, StatusDoc, convertStatusDoc } from "bitbadgesjs-sdk";
-import { getStatus } from "../db/status";
+import { type iGetStatusRouteSuccessResponse, type ErrorResponse, type NumberType } from 'bitbadgesjs-sdk';
+import { getStatus } from '../db/status';
 
-import { Request, Response } from "express";
-import { serializeError } from "serialize-error";
-import { Stringify } from "bitbadgesjs-sdk";
+import { type Request, type Response } from 'express';
+import { serializeError } from 'serialize-error';
 
-
-export const getStatusHandler = async (req: Request, res: Response<GetStatusRouteResponse<NumberType>>) => {
+export const getStatusHandler = async (req: Request, res: Response<iGetStatusRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const status = await getStatus();
-    const statusToReturn = convertStatusDoc(status, Stringify) as StatusDoc<string>;
-    return res.json({ status: statusToReturn });
+    return res.json({ status });
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "We encountered an error communicating with the database. We could not get its status."
+      errorMessage: 'We encountered an error communicating with the database. We could not get its status.'
     });
   }
 };

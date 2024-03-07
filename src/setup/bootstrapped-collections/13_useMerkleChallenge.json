@@ -105,9 +105,7 @@
       "fromListId": "Mint",
       "fromList": {
         "listId": "Mint",
-        "addresses": [
-          "Mint"
-        ],
+        "addresses": ["Mint"],
         "whitelist": true,
         "uri": "",
         "customData": "",

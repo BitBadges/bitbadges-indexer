@@ -1,74 +1,105 @@
-import { BigIntify } from 'bitbadgesjs-sdk';
-import { CheckSignInStatusResponse, ErrorResponse, GetSignInChallengeRouteRequestBody, GetSignInChallengeRouteResponse, NumberType, SignOutResponse, SupportedChain, VerifySignInRouteRequestBody, VerifySignInRouteResponse, convertCollectionDoc, convertToCosmosAddress, getChainForAddress, getCurrentValueForTimeline } from 'bitbadgesjs-sdk';
-import { ChallengeParams, constructChallengeObjectFromString, createChallenge, verifyChallenge } from 'blockin';
-import { NextFunction, Request, Response } from 'express';
-import { Session } from 'express-session';
+import {
+  BalanceArray,
+  BigIntify,
+  SignOutRequestBody,
+  SupportedChain,
+  convertToCosmosAddress,
+  getChainForAddress,
+  isAddressValid,
+  type ErrorResponse,
+  type GenericBlockinVerifyRouteRequestBody,
+  type GetSignInChallengeRouteRequestBody,
+  type NumberType,
+  type VerifySignInRouteRequestBody,
+  type iCheckSignInStatusRequestSuccessResponse,
+  type iGetSignInChallengeRouteSuccessResponse,
+  type iSignOutSuccessResponse,
+  type iVerifySignInRouteSuccessResponse
+} from 'bitbadgesjs-sdk';
+import { constructChallengeObjectFromString, createChallenge, verifyChallenge, type ChallengeParams } from 'blockin';
+import { type NextFunction, type Request, type Response } from 'express';
+import { type Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
-import { CollectionModel, ProfileModel, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { CollectionModel, ProfileModel } from '../db/schemas';
 import { getChainDriver } from './blockin';
 
 export interface BlockinSession<T extends NumberType> extends Session {
-  nonce: string | null;
-  blockin: string | null;
-  blockinParams: ChallengeParams<T> | null;
-  cosmosAddress: string | null;
-  address: string | null;
+  nonce?: string;
+  blockin?: string;
+  blockinParams?: ChallengeParams<T>;
+  cosmosAddress?: string;
+  address?: string;
+  discord?: {
+    id: string;
+    username: string;
+    discriminator: string;
+    access_token: string;
+  };
+  twitter?: {
+    id: string;
+    username: string;
+    access_token: string;
+    access_token_secret: string;
+  };
 }
 
-export interface BlockinSessionAuthenticated<T extends NumberType> extends BlockinSession<T> {
-  nonce: string;
-  blockin: string;
-  blockinParams: ChallengeParams<T>;
-  cosmosAddress: string;
-  address: string;
+export interface MaybeAuthenticatedRequest<T extends NumberType> extends Request {
+  session: BlockinSession<T>;
 }
 
 export interface AuthenticatedRequest<T extends NumberType> extends Request {
-  session: BlockinSessionAuthenticated<T>;
+  session: Required<BlockinSession<T>>;
 }
 
-export function checkIfAuthenticated(req: AuthenticatedRequest<NumberType>) {
-  return req.session.blockin && req.session.nonce && req.session.blockinParams && req.session.cosmosAddress && req.session.address && req.session.blockinParams.address === req.session.address;
+export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>) {
+  // Nonce should not be checked in case you are prompting a new sign-in (we generate and verify the new sign-in with req.sesssion.nonce)
+  return (
+    req.session.blockin &&
+    req.session.blockinParams &&
+    req.session.cosmosAddress &&
+    req.session.address &&
+    req.session.blockinParams.address === req.session.address
+  );
 }
 
-
-export async function checkIfManager(req: AuthenticatedRequest<NumberType>, collectionId: NumberType) {
+export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>, collectionId: NumberType) {
   if (!checkIfAuthenticated(req)) return false;
 
-  //Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now? 
-  //I don't think it is that big of a deal. 1) Important stuff is already on the blockchain and 2) they have to be a prev managewr
+  // Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
+  // I don't think it is that big of a deal. 1) Important stuff is already on the blockchain and 2) they have to be a prev manager
 
-  const collection = convertCollectionDoc(await mustGetFromDB(CollectionModel, BigInt(collectionId).toString()), BigIntify);
-  const manager = getCurrentValueForTimeline(collection.managerTimeline)?.manager;
-  if (manager && req.session.cosmosAddress && manager !== req.session.cosmosAddress) {
-    return false;
-  }
+  const collection = await mustGetFromDB(CollectionModel, collectionId.toString());
+  const manager = collection.getManager();
 
+  if (!manager) return false;
+  if (manager !== req.session.cosmosAddress) return false;
   return true;
 }
 
-export async function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: boolean = false) {
-  return res.status(401).json({ errorMessage: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : 'to access this feature'}.`, unauthorized: true });
+export function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: boolean = false) {
+  return res.status(401).json({
+    errorMessage: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : 'to access this feature'}.`,
+    unauthorized: true
+  });
 }
 
-const statement = `Sign this message only if prompted by a trusted party. The signature of this message can be used to authenticate you on BitBadges. By signing, you agree to the BitBadges privacy policy and terms of service.`;
-export async function getChallenge(expressReq: Request, res: Response<GetSignInChallengeRouteResponse<NumberType>>) {
+export const statement =
+  'Sign this message only if prompted by a trusted party. The signature of this message can be used to authenticate you on BitBadges. By signing, you agree to the BitBadges privacy policy and terms of service.';
+export async function getChallenge(
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response<iGetSignInChallengeRouteSuccessResponse<NumberType> | ErrorResponse>
+) {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetSignInChallengeRouteRequestBody;
 
-    // const chainDriver = getChainDriver(reqBody.chain);
-
-    const cosmosAddress = convertToCosmosAddress(reqBody.address);
-    if (!cosmosAddress) {
+    if (!isAddressValid(reqBody.address)) {
       return res.status(400).json({ errorMessage: 'Invalid address' });
     }
 
-    if (cosmosAddress !== req.session.cosmosAddress) {
-      req.session.nonce = generateNonce();
-      req.session.save();
-    }
+    req.session.nonce = generateNonce();
+    req.session.save();
 
     const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 168 * 2;
     if (isNaN(hours)) {
@@ -76,28 +107,23 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
     }
 
     // Get the current time
-    const now = new Date();
-    const twoWeeks = new Date(now.getTime() + hours * 60 * 60 * 1000);
-    const iso8601 = twoWeeks.toISOString();
+    const iso8601 = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 
     const challengeParams = {
       domain: 'https://bitbadges.io',
-      statement: statement,
+      statement,
       address: reqBody.address,
       uri: 'https://bitbadges.io',
-      nonce: req.session.nonce,
-
-      //Note these really do not matter since they can be selected on the frontend.
+      nonce: req.session.nonce ?? '',
       expirationDate: iso8601,
       notBefore: undefined,
       resources: [],
-      assets: [],
-    }
+      assets: []
+    };
 
-    const blockinMessage = createChallenge(challengeParams, reqBody.chain);
-
+    const blockinMessage = createChallenge(challengeParams);
     return res.status(200).json({
-      nonce: req.session.nonce,
+      nonce: req.session.nonce ?? '',
       params: challengeParams,
       message: blockinMessage
     });
@@ -110,66 +136,74 @@ export async function getChallenge(expressReq: Request, res: Response<GetSignInC
   }
 }
 
-export async function checkifSignedInHandler(expressReq: Request, res: Response<CheckSignInStatusResponse<NumberType>>) {
-  const req = expressReq as AuthenticatedRequest<NumberType>;
-  return res.status(200).send({ signedIn: !!checkIfAuthenticated(req), message: req.session.blockin });
+export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusRequestSuccessResponse>) {
+  return res.status(200).send({
+    signedIn: !!checkIfAuthenticated(req),
+    message: req.session.blockin ?? '',
+    discord: req.session.discord,
+    twitter: req.session.twitter
+  });
 }
 
-export async function removeBlockinSessionCookie(expressReq: Request, res: Response<SignOutResponse<NumberType>>) {
-  const req = expressReq as AuthenticatedRequest<NumberType>;
+export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSignOutSuccessResponse>) {
+  const body = req.body as SignOutRequestBody;
 
-  let session = req.session as BlockinSession<NumberType> | null;
-  if (session) {
-    session.blockin = null;
-    session.nonce = null;
-    session.blockinParams = null;
-    session.cosmosAddress = null;
-    session.address = null;
-    session = null;
-  } else {
-    session = null
+  const session = req.session;
+  if (body.signOutBlockin) {
+    session.address = undefined;
+    session.cosmosAddress = undefined;
+    session.blockin = undefined;
+    session.blockinParams = undefined;
+    session.nonce = undefined;
+    session.cookie.expires = new Date(Date.now() - 1000);
   }
-
+  if (body.signOutDiscord) {
+    session.discord = undefined;
+  }
+  if (body.signOutTwitter) {
+    session.twitter = undefined;
+  }
   req.session.save();
 
   return res.status(200).send({ errorMessage: 'Successfully removed session cookie!' });
 }
 
-export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
-  const req = expressReq as AuthenticatedRequest<NumberType>;
+export async function verifyBlockinAndGrantSessionCookie(
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response<iVerifySignInRouteSuccessResponse | ErrorResponse>
+) {
   const body = req.body as VerifySignInRouteRequestBody;
 
-
   try {
-    const generatedEIP4361ChallengeStr: string = body.message;
-
-    const challenge: ChallengeParams<NumberType> = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
-
+    const generatedEIP4361ChallengeStr = body.message;
+    const challenge = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const chain = getChainForAddress(challenge.address);
     const chainDriver = getChainDriver(chain);
     const verificationResponse = await verifyChallenge(
       chainDriver,
       body.message,
       body.signature,
-      body.options ?? {
+      {
         expectedChallengeParams: {
           domain: 'https://bitbadges.io',
           uri: 'https://bitbadges.io',
-          statement: statement,
+          statement
         },
         beforeVerification: async (challengeParams) => {
+          if (process.env.TEST_MODE === 'true') return;
+
           if (!req.session.nonce) {
-            return Promise.reject(new Error('No nonce found in session. Please try again.'));
+            await Promise.reject(new Error('No nonce found in session. Please try again.'));
+            return;
           }
 
           if (challengeParams.nonce !== req.session.nonce) {
-            return Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
+            await Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
           }
         }
       },
       body.publicKey
     );
-
     if (!verificationResponse.success) {
       return res.status(401).json({ success: false, errorMessage: `${verificationResponse.message} ` });
     }
@@ -181,64 +215,90 @@ export async function verifyBlockinAndGrantSessionCookie(expressReq: Request, re
     if (challenge.expirationDate) {
       req.session.cookie.expires = new Date(challenge.expirationDate);
     }
+    req.session.save();
 
+    // Set up a profile if first time or update details if necessary based on sign-in
+    // We add the latestSignedInChain and also if the user is signing in with Solana, we add the solAddress
     const profileDoc = await getFromDB(ProfileModel, req.session.cosmosAddress);
-    if (!profileDoc || (profileDoc && profileDoc.latestSignedInChain !== chain)) {
+    if (
+      !profileDoc ||
+      (profileDoc && profileDoc.latestSignedInChain !== chain) ||
+      (getChainForAddress(challenge.address) === SupportedChain.SOLANA && !profileDoc.solAddress)
+    ) {
       await insertToDB(ProfileModel, {
         ...profileDoc,
         _docId: req.session.cosmosAddress,
         latestSignedInChain: chain,
-        solAddress: getChainForAddress(challenge.address) == SupportedChain.SOLANA ? challenge.address : profileDoc?.solAddress,
+        solAddress: getChainForAddress(challenge.address) === SupportedChain.SOLANA ? challenge.address : profileDoc?.solAddress
       });
     }
-
-    req.session.save();
 
     return res.status(200).json({ success: true });
   } catch (err) {
     console.log(err);
-
     return res.status(401).json({ success: false, errorMessage: `${err.message} ` });
   }
 }
 
+export function authorizeBlockinRequest(req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) {
+  if (process.env.TEST_MODE === 'true') {
+    const mockSessionJson = req.header('x-mock-session');
+    if (mockSessionJson) {
+      const mockSession = JSON.parse(mockSessionJson);
+      req.session.address = mockSession.address;
+      req.session.cosmosAddress = mockSession.cosmosAddress;
+      req.session.blockin = mockSession.blockin;
+      req.session.blockinParams = mockSession.blockinParams;
+      req.session.nonce = mockSession.nonce;
+      req.session.save();
 
-export async function authorizeBlockinRequest(expressReq: Request, res: Response<ErrorResponse>, next: NextFunction) {
-  const req = expressReq as AuthenticatedRequest<NumberType>;
-
-  if (!checkIfAuthenticated(req)) return returnUnauthorized(res);
-  return next();
-}
-
-export async function genericBlockinVerify(params: VerifySignInRouteRequestBody) {
-  try {
-    const body = params;
-    if (body.options?.beforeVerification) {
-      throw `You cannot use the beforeVerification option with this endpoint.Please run this verification logic yourself.`;
+      next();
+      return;
     }
-
-    const chain = getChainForAddress(constructChallengeObjectFromString(body.message, BigIntify).address);
-    const chainDriver = getChainDriver(chain);
-
-    const verificationResponse = await verifyChallenge(
-      chainDriver,
-      body.message,
-      body.signature,
-      {
-        ...body.options,
-        beforeVerification: undefined,
-      },
-      body.publicKey
-    );
-
-    return verificationResponse;
-  } catch (err) {
-    throw new Error(err);
   }
+
+  if (checkIfAuthenticated(req)) {
+    next();
+    return;
+  }
+
+  return returnUnauthorized(res);
 }
 
-export async function genericBlockinVerifyHandler(expressReq: Request, res: Response<VerifySignInRouteResponse<NumberType>>) {
-  const req = expressReq as AuthenticatedRequest<NumberType>;
+export async function genericBlockinVerify(body: GenericBlockinVerifyRouteRequestBody) {
+  if (body.options?.beforeVerification) {
+    throw new Error('You cannot use the beforeVerification option over HTTP.');
+  }
+
+  if (body.options?.balancesSnapshot) {
+    for (const key in body.options.balancesSnapshot) {
+      for (const key2 in (body.options.balancesSnapshot as any)[key]) {
+        (body.options.balancesSnapshot as any)[key][key2] = BalanceArray.From((body.options.balancesSnapshot as any)[key][key2]);
+      }
+    }
+  }
+
+  const chain = getChainForAddress(constructChallengeObjectFromString(body.message, BigIntify).address);
+  const chainDriver = getChainDriver(chain);
+  const verificationResponse = await verifyChallenge(
+    chainDriver,
+    body.message,
+    body.signature,
+    {
+      ...body.options,
+      balancesSnapshot: body.options?.balancesSnapshot,
+      beforeVerification: undefined
+    },
+    body.publicKey
+  );
+
+  return verificationResponse;
+}
+
+export async function genericBlockinVerifyHandler(
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response<iVerifySignInRouteSuccessResponse | ErrorResponse>
+) {
   const body = req.body as VerifySignInRouteRequestBody;
 
   try {

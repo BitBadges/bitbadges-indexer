@@ -1,19 +1,26 @@
-import { BigIntify, UintRange, convertUintRange } from "bitbadgesjs-sdk";
-import { GetBrowseCollectionsRouteResponse, NumberType, convertBitBadgesCollection, convertToCosmosAddress, sortUintRangesAndMergeIfNecessary } from "bitbadgesjs-sdk";
-import { Request, Response } from "express";
-import { serializeError } from "serialize-error";
-import { AddressListModel, BrowseModel, CollectionModel, ProfileModel, TransferActivityModel, mustGetFromDB } from "../db/db";
-import { complianceDoc } from "../poll";
-import { CollectionQueryOptions, executeCollectionsQuery } from "./collections";
-import { getAccountByAddress } from "./users";
-import { getAddressListsFromDB } from "./utils";
-import { DEV_MODE } from "../constants";
+import {
+  type ErrorResponse,
+  type NumberType,
+  type UintRange,
+  UintRangeArray,
+  convertToCosmosAddress,
+  type iGetBrowseCollectionsRouteSuccessResponse
+} from 'bitbadgesjs-sdk';
+import { type Request, type Response } from 'express';
+import { serializeError } from 'serialize-error';
+import { DEV_MODE } from '../constants';
+import { complianceDoc } from '../poll';
+import { executeCollectionsQuery, type CollectionQueryOptions } from './collections';
+import { getAccountByAddress } from './users';
+import { getAddressListsFromDB } from './utils';
+import { mustGetFromDB } from '../db/db';
+import { BrowseModel, CollectionModel, TransferActivityModel, AddressListModel, ProfileModel } from '../db/schemas';
+import { findInDB } from '../db/queries';
 
-let cachedResult: GetBrowseCollectionsRouteResponse<NumberType> | undefined = undefined;
+let cachedResult: iGetBrowseCollectionsRouteSuccessResponse<NumberType> | ErrorResponse | undefined;
 let lastFetchTime = 0;
 
-
-export const getBrowseCollections = async (req: Request, res: Response<GetBrowseCollectionsRouteResponse<NumberType>>) => {
+export const getBrowseCollections = async (req: Request, res: Response<iGetBrowseCollectionsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     if (cachedResult && Date.now() - lastFetchTime < 1000 * 60 * 1 && !DEV_MODE) {
       return res.status(200).send(cachedResult);
@@ -21,168 +28,173 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
     const browseDoc = await mustGetFromDB(BrowseModel, 'browse');
 
     const collectionsToFetch = [];
-    for (const [_, value] of Object.entries(browseDoc.collections)) {
+    for (const [, value] of Object.entries(browseDoc.collections)) {
       collectionsToFetch.push(...value);
     }
 
-    for (const [_, value] of Object.entries(browseDoc.badges)) {
+    for (const [, value] of Object.entries(browseDoc.badges)) {
       for (const badge of value) {
         collectionsToFetch.push(badge.collectionId);
       }
     }
 
     const listsToFetch = [];
-    for (const [_, value] of Object.entries(browseDoc.addressLists)) {
+    for (const [, value] of Object.entries(browseDoc.addressLists)) {
       for (const listId of value) {
         listsToFetch.push(listId);
       }
     }
 
     const profilesToFetch = [];
-    for (const [_, value] of Object.entries(browseDoc.profiles)) {
+    for (const [, value] of Object.entries(browseDoc.profiles)) {
       profilesToFetch.push(...value);
     }
 
-
-
-    const [
-      browseDocCollections,
-      activity,
-      addressLists,
-      browseDocAddressLists,
-      browseDocProfiles,
-    ] = await Promise.all([
-      CollectionModel.find({ "collectionId": { "$in": browseDoc.collections.featured } }).lean().exec(),
-      TransferActivityModel.find({}).sort({ "timestamp": -1 }).limit(100).lean().exec(),
-      AddressListModel.find({ private: { "$ne": true } }).sort({ "createdBlock": -1 }).limit(100).lean().exec(),
-      AddressListModel.find({ "listId": { "$in": listsToFetch } }).lean().exec(),
-      ProfileModel.find({ "_docId": { "$in": profilesToFetch } }).lean().exec(),
+    const [browseDocCollections, activity, addressLists, browseDocAddressLists, browseDocProfiles] = await Promise.all([
+      findInDB(CollectionModel, { query: { collectionId: { $in: collectionsToFetch } } }),
+      findInDB(TransferActivityModel, { query: {}, sort: { timestamp: -1 }, limit: 100 }),
+      findInDB(AddressListModel, {
+        query: { private: { $ne: true } },
+        sort: { createdBlock: -1 },
+        limit: 100
+      }),
+      findInDB(AddressListModel, { query: { listId: { $in: listsToFetch } } }),
+      findInDB(ProfileModel, { query: { _docId: { $in: profilesToFetch } } })
     ]);
 
-    const allProfiles = profilesToFetch.map(x => {
-      const profile = browseDocProfiles.find(y => y._docId === x);
+    const allProfiles = profilesToFetch.map((x) => {
+      const profile = browseDocProfiles.find((y) => y._docId === x);
       if (profile) {
         return profile;
       } else {
         return {
-          _docId: convertToCosmosAddress(x),
-        }
+          _docId: convertToCosmosAddress(x)
+        };
       }
-    })
+    });
 
     const toFetch = [
-      //we also need to fetch metadata for the browse collections
-      ...Object.entries(browseDoc.badges).map(([_, value]) => {
-        return value.map(x => {
-          return {
-            collectionId: x.collectionId,
-            fetchTotalAndMintBalances: true,
-            handleAllAndAppendDefaults: true,
-            metadataToFetch: {
-              badgeIds: x.badgeIds,
-            },
-          }
+      // we also need to fetch metadata for the browse collections
+      ...Object.entries(browseDoc.badges)
+        .map(([, value]) => {
+          return value.map((x) => {
+            return {
+              collectionId: x.collectionId,
+              fetchTotalAndMintBalances: true,
+              handleAllAndAppendDefaults: true,
+              metadataToFetch: {
+                badgeIds: x.badgeIds
+              }
+            };
+          });
         })
-      }).flat(),
+        .flat(),
 
-      ...[
-        ...browseDocCollections,
-      ].map(doc => {
+      ...[...browseDocCollections].map((doc) => {
         return {
           collectionId: doc._docId,
           fetchTotalAndMintBalances: true,
           handleAllAndAppendDefaults: true,
           metadataToFetch: {
-            badgeIds: [{ start: 1n, end: 15n }],
-          },
-        }
+            badgeIds: [{ start: 1n, end: 15n }]
+          }
+        };
       })
-    ]
+    ];
 
     const condensedToFetch: CollectionQueryOptions[] = [];
     for (const fetch of toFetch) {
-      const matchingReq = condensedToFetch.find(x => BigInt(x.collectionId) === BigInt(fetch.collectionId));
+      const matchingReq = condensedToFetch.find((x) => BigInt(x.collectionId) === BigInt(fetch.collectionId));
       if (matchingReq) {
-        matchingReq.metadataToFetch = matchingReq.metadataToFetch || {
-          badgeIds: [],
+        matchingReq.metadataToFetch = matchingReq.metadataToFetch ?? {
+          badgeIds: new UintRangeArray()
         };
-        matchingReq.metadataToFetch.badgeIds = sortUintRangesAndMergeIfNecessary([...matchingReq.metadataToFetch.badgeIds as UintRange<bigint>[], ...fetch.metadataToFetch.badgeIds as UintRange<bigint>[]]
-          .map(x => convertUintRange(x, BigIntify))
-          , true);
+        const badgeIdsArr = UintRangeArray.From(matchingReq.metadataToFetch.badgeIds as Array<UintRange<bigint>>);
+        badgeIdsArr.push(...(fetch.metadataToFetch.badgeIds as Array<UintRange<bigint>>));
+        badgeIdsArr.sortAndMerge();
+        matchingReq.metadataToFetch.badgeIds = badgeIdsArr;
       } else {
         condensedToFetch.push(fetch);
       }
-
     }
-    const collections = await executeCollectionsQuery(req,
-      condensedToFetch
+    const collections = await executeCollectionsQuery(req, condensedToFetch);
+
+    const addressListsToReturn = await getAddressListsFromDB(
+      addressLists.map((x) => {
+        return {
+          listId: x._docId
+        };
+      }),
+      true
     );
-
-
-    let addressListsToReturn = await getAddressListsFromDB(addressLists.map(x => {
-      return {
-        listId: x._docId,
-      }
-    }), true);
 
     const promises = [];
     for (const profile of [...allProfiles]) {
-      promises.push(getAccountByAddress(req, profile._docId, {
-        viewsToFetch: [],
-      }));
+      promises.push(
+        getAccountByAddress(req, profile._docId, {
+          viewsToFetch: []
+        })
+      );
     }
 
     const allAccounts = await Promise.all(promises);
 
-    let result: GetBrowseCollectionsRouteResponse<NumberType> = {
+    const result: iGetBrowseCollectionsRouteSuccessResponse<NumberType> = {
       collections: {
-        //intitialize all keys w/ empty array to maintain order
-        ...Object.fromEntries(Object.entries(browseDoc.collections).map(([key, value]) => {
-          return [key, []];
-        })),
+        // intitialize all keys w/ empty array to maintain order
+        ...Object.fromEntries(
+          Object.entries(browseDoc.collections).map(([key]) => {
+            return [key, []];
+          })
+        )
 
         // 'featured': collections,
         // 'latest': latestCollections.map(x => collections.find(y => y.collectionId.toString() === x._docId.toString())).filter(x => x) as BitBadgesCollection<NumberType>[],
       },
-      activity: activity,
+      activity,
       addressLists: {
-        ...Object.fromEntries(Object.entries(browseDoc.addressLists).map(([key, value]) => {
-          return [key, []];
-        })),
+        ...Object.fromEntries(
+          Object.entries(browseDoc.addressLists).map(([key]) => {
+            return [key, []];
+          })
+        ),
 
-        'latest': addressListsToReturn,
+        latest: addressListsToReturn
       },
       profiles: {
-        ...Object.fromEntries(Object.entries(browseDoc.profiles).map(([key, value]) => {
-          return [key, []];
-        })),
+        ...Object.fromEntries(
+          Object.entries(browseDoc.profiles).map(([key]) => {
+            return [key, []];
+          })
+        )
       },
       badges: {
-        ...Object.fromEntries(Object.entries(browseDoc.badges).map(([key, value]) => {
-          return [key, []];
-        })),
+        ...Object.fromEntries(
+          Object.entries(browseDoc.badges).map(([key]) => {
+            return [key, []];
+          })
+        )
       }
-    }
+    };
 
     for (const [key, value] of Object.entries(browseDoc.badges)) {
       for (const badge of value) {
-        const collection = collections.find(x => x.collectionId.toString() === badge.collectionId.toString());
+        const collection = collections.find((x) => x.collectionId.toString() === badge.collectionId.toString());
         if (!collection) {
           continue;
         }
 
-
         result.badges[`${key}` as keyof typeof result.badges] = result.badges[`${key}` as keyof typeof result.badges] || [];
         result.badges[`${key}` as keyof typeof result.badges].push({
-          collection: convertBitBadgesCollection(collection, BigIntify),
-          badgeIds: badge.badgeIds,
-        })
+          collection,
+          badgeIds: badge.badgeIds
+        });
       }
     }
 
     for (const [key, value] of Object.entries(browseDoc.addressLists)) {
       for (const listId of value) {
-        const addressList = browseDocAddressLists.find(x => x.listId.toString() === listId.toString());
+        const addressList = browseDocAddressLists.find((x) => x.listId.toString() === listId.toString());
         if (!addressList) {
           continue;
         }
@@ -190,6 +202,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
         result.addressLists[`${key}` as keyof typeof result.addressLists].push({
           ...addressList,
           listsActivity: [],
+          editClaims: [],
           views: {}
         });
       }
@@ -197,7 +210,7 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     for (const [key, value] of Object.entries(browseDoc.profiles)) {
       for (const address of value) {
-        const account = allAccounts.find(x => x.cosmosAddress.toString() === convertToCosmosAddress(address).toString());
+        const account = allAccounts.find((x) => x.cosmosAddress.toString() === convertToCosmosAddress(address).toString());
         if (!account) {
           continue;
         }
@@ -208,37 +221,44 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
 
     for (const [key, value] of Object.entries(browseDoc.collections)) {
       for (const activity of value) {
-        const collection = collections.find(x => x.collectionId.toString() === activity.toString());
+        const collection = collections.find((x) => x.collectionId.toString() === activity.toString());
         if (!collection) {
           continue;
         }
         result.collections[`${key}` as keyof typeof result.collections] = result.collections[`${key}` as keyof typeof result.collections] || [];
-        result.collections[`${key}` as keyof typeof result.collections].push(convertBitBadgesCollection(collection, BigIntify));
+        result.collections[`${key}` as keyof typeof result.collections].push(collection);
       }
     }
 
-    //Make sure no reported stuff gets populated
+    // Make sure no reported stuff gets populated
     for (const [key, value] of Object.entries(result.collections)) {
-      result.collections[`${key}` as keyof typeof result.collections] = value.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
+      result.collections[`${key}` as keyof typeof result.collections] = value.filter(
+        (x) => complianceDoc?.badges.reported?.some((y) => y.collectionId === BigInt(x.collectionId)) !== true
+      );
     }
 
     for (const [key, value] of Object.entries(result.addressLists)) {
-      result.addressLists[`${key}` as keyof typeof result.addressLists] = value.filter(x => complianceDoc?.addressLists.reported?.some(y => y.listId === x.listId) !== true);
+      result.addressLists[`${key}` as keyof typeof result.addressLists] = value.filter(
+        (x) => complianceDoc?.addressLists.reported?.some((y) => y.listId === x.listId) !== true
+      );
     }
 
     for (const [key, value] of Object.entries(result.profiles)) {
-      result.profiles[`${key}` as keyof typeof result.profiles] = value.filter(x => complianceDoc?.accounts.reported?.some(y => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true);
+      result.profiles[`${key}` as keyof typeof result.profiles] = value.filter(
+        (x) => complianceDoc?.accounts.reported?.some((y) => y.cosmosAddress === convertToCosmosAddress(x.address)) !== true
+      );
     }
 
     for (const [key, value] of Object.entries(result.badges)) {
-      result.badges[`${key}` as keyof typeof result.badges] = value.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collection.collectionId)) !== true);
+      result.badges[`${key}` as keyof typeof result.badges] = value.filter(
+        (x) => complianceDoc?.badges.reported?.some((y) => y.collectionId === BigInt(x.collection.collectionId)) !== true
+      );
     }
 
-    result.activity = result.activity.filter(x => complianceDoc?.badges.reported?.some(y => y.collectionId === BigInt(x.collectionId)) !== true);
+    result.activity = result.activity.filter((x) => complianceDoc?.badges.reported?.some((y) => y.collectionId === BigInt(x.collectionId)) !== true);
 
     cachedResult = result;
     lastFetchTime = Date.now();
-
 
     return res.status(200).send(result);
   } catch (e) {
@@ -248,4 +268,4 @@ export const getBrowseCollections = async (req: Request, res: Response<GetBrowse
       errorMessage: 'Error getting collections'
     });
   }
-}
+};

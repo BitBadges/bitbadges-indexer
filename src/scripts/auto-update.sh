@@ -33,9 +33,9 @@ main() {
     echo "Nginx updated successfully."
 
     echo "Updating bitbadges-indexer service..."
-    update_bitbadges_indexer
+    update_bitbadges_indexer $1
     echo "bitbadges-indexer service updated successfully."
 }
 
 # Run the main function
-main
+main $1

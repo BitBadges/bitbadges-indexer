@@ -1,10 +1,73 @@
-import { config } from "dotenv";
-import { AccountModel, AddressListModel, AirdropModel, AnnouncementModel, ApiKeyModel, ApiKeySchema, ApprovalTrackerModel, BalanceModel, BlockinAuthSignatureModel, BrowseModel, BrowseSchema, ClaimAlertModel, CollectionModel, ComplianceModel, ErrorModel, ErrorSchema, EthTxCountModel, EthTxCountSchema, FetchModel, FollowDetailsModel, IPFSTotalsModel, ListActivityModel, MerkleChallengeModel, MongoDB, OffChainUrlModel, OffChainUrlSchema, PageVisitsModel, PageVisitsSchema, PasswordModel, ProfileModel, ProtocolModel, QueueModel, RefreshModel, ReportModel, ReportSchema, ReviewModel, StatusModel, TransferActivityModel, UserProtocolCollectionsModel, UsernameModel, UsernameSchema, insertToDB } from "./db/db";
-import { FetchSchema, QueueSchema, RefreshSchema, StatusSchema, AccountSchema, CollectionSchema, BalanceSchema, ChallengeSchema, PasswordSchema, ProfileSchema, TransferActivitySchema, AnnouncementSchema, ReviewSchema, IPFSTotalsSchema, AirdropSchema, AddressListSchema, ApprovalTrackerSchema, ClaimAlertSchema, ComplianceSchema, BlockinAuthSignatureSchema, FollowDetailsSchema, ProtocolSchema, UserProtocolCollectionsSchema, ListActivitySchema } from "bitbadgesjs-sdk";
+import { config } from 'dotenv';
+import {
+  FetchSchema,
+  QueueSchema,
+  RefreshSchema,
+  StatusSchema,
+  AccountSchema,
+  CollectionSchema,
+  BalanceSchema,
+  ChallengeSchema,
+  ClaimBuilderSchema,
+  ProfileSchema,
+  TransferActivitySchema,
+  ReviewSchema,
+  IPFSTotalsSchema,
+  AirdropSchema,
+  AddressListSchema,
+  ApprovalTrackerSchema,
+  ClaimAlertSchema,
+  ComplianceSchema,
+  BlockinAuthSignatureSchema,
+  FollowDetailsSchema,
+  ProtocolSchema,
+  UserProtocolCollectionsSchema,
+  ListActivitySchema,
+  AccountModel,
+  AddressListModel,
+  AirdropModel,
+  ApiKeyModel,
+  ApiKeySchema,
+  ApprovalTrackerModel,
+  BalanceModel,
+  BlockinAuthSignatureModel,
+  BrowseModel,
+  BrowseSchema,
+  ClaimAlertModel,
+  CollectionModel,
+  ComplianceModel,
+  ErrorModel,
+  ErrorSchema,
+  EthTxCountModel,
+  EthTxCountSchema,
+  FetchModel,
+  FollowDetailsModel,
+  IPFSTotalsModel,
+  ListActivityModel,
+  MerkleChallengeModel,
+  OffChainUrlModel,
+  OffChainUrlSchema,
+  PageVisitsModel,
+  PageVisitsSchema,
+  ClaimBuilderModel,
+  ProfileModel,
+  ProtocolModel,
+  QueueModel,
+  RefreshModel,
+  ReportModel,
+  ReportSchema,
+  ReviewModel,
+  StatusModel,
+  TransferActivityModel,
+  UserProtocolCollectionsModel,
+  UsernameModel,
+  UsernameSchema
+} from './db/schemas';
+import { MongoDB, insertToDB } from './db/db';
 
-config()
+config();
 
-export async function deleteDatabases() {
+export async function deleteDatabases(): Promise<void> {
   await MongoDB.dropCollection(UsernameModel.collection.name);
   await MongoDB.dropCollection(ApiKeyModel.collection.name);
   await MongoDB.dropCollection(FetchModel.collection.name);
@@ -15,10 +78,9 @@ export async function deleteDatabases() {
   await MongoDB.dropCollection(CollectionModel.collection.name);
   await MongoDB.dropCollection(BalanceModel.collection.name);
   await MongoDB.dropCollection(MerkleChallengeModel.collection.name);
-  await MongoDB.dropCollection(PasswordModel.collection.name);
+  await MongoDB.dropCollection(ClaimBuilderModel.collection.name);
   await MongoDB.dropCollection(ProfileModel.collection.name);
   await MongoDB.dropCollection(TransferActivityModel.collection.name);
-  await MongoDB.dropCollection(AnnouncementModel.collection.name);
   await MongoDB.dropCollection(ReviewModel.collection.name);
   await MongoDB.dropCollection(ErrorModel.collection.name);
   await MongoDB.dropCollection(IPFSTotalsModel.collection.name);
@@ -37,75 +99,75 @@ export async function deleteDatabases() {
   await MongoDB.dropCollection(ListActivityModel.collection.name);
   await MongoDB.dropCollection(PageVisitsModel.collection.name);
 }
-//new ObjectId
-export async function initStatus() {
 
-  if (process.env.BITBADGES_API_KEY === undefined) throw new Error("BITBADGES_API_KEY env var not set");
+// new ObjectId
+export async function initStatus(): Promise<void> {
+  if (process.env.BITBADGES_API_KEY === undefined) throw new Error('BITBADGES_API_KEY env var not set');
   await insertToDB(ApiKeyModel, {
-    "_docId": process.env.BITBADGES_API_KEY,
-  })
+    _docId: process.env.BITBADGES_API_KEY,
+    numRequests: 0,
+    lastRequest: 0
+  });
+
   await insertToDB(StatusModel, {
-    "_docId": "status",
-    "block": {
-      "height": "1",
-      "txIndex": "0",
-      "timestamp": 0
+    _docId: 'status',
+    block: {
+      height: '1',
+      txIndex: '0',
+      timestamp: 0
     },
-    "nextCollectionId": "1",
-    "gasPrice": 1,
-    "lastXGasAmounts": [
-      "1"
-    ],
-    "lastXGasLimits": [
-      "1"
-    ],
-  })
+    nextCollectionId: '1',
+    gasPrice: 1,
+    lastXGasAmounts: ['1'],
+    lastXGasLimits: ['1']
+  });
 
   await insertToDB(ComplianceModel, {
-    _docId: "compliance",
+    _docId: 'compliance',
     badges: {
       nsfw: [],
-      reported: [],
+      reported: []
     },
     addressLists: {
       nsfw: [],
-      reported: [],
+      reported: []
     },
     accounts: {
       nsfw: [],
-      reported: [],
-    },
-  })
+      reported: []
+    }
+  });
 
   await insertToDB(BrowseModel, {
-    _docId: "browse",
+    _docId: 'browse',
     collections: {
-      'featured': [1, 2, 16],
-      'earnable': [],
+      featured: [1, 2, 16],
+      earnable: []
     },
     profiles: {
-      'featured': ["cosmos1xv9tklw7d82sezh9haa573wufgy59vmwe6xxe5"],
+      featured: ['cosmos1xv9tklw7d82sezh9haa573wufgy59vmwe6xxe5']
     },
     addressLists: {},
     badges: {
-      'featured': [
-
+      featured: [
         {
           collectionId: 1,
           badgeIds: [{ start: 1n, end: 15n }]
-        }, {
+        },
+        {
           collectionId: 2,
           badgeIds: [{ start: 1n, end: 1n }]
-        }, {
+        },
+        {
           collectionId: 16,
           badgeIds: [{ start: 1n, end: 10n }]
-        }],
-      'earnable': [],
-    },
-  })
-
+        }
+      ],
+      earnable: []
+    }
+  });
 }
-export async function createIndexesAndViews() {
+export async function createIndexesAndViews(): Promise<void> {
   BrowseSchema.index({ _docId: 1 }, { unique: true });
   UsernameSchema.index({ _docId: 1 }, { unique: true });
   ApiKeySchema.index({ _docId: 1 }, { unique: true });
@@ -118,11 +180,10 @@ export async function createIndexesAndViews() {
   CollectionSchema.index({ collectionId: 1 }, { unique: true });
   BalanceSchema.index({ _docId: 1 }, { unique: true });
   ChallengeSchema.index({ _docId: 1 }, { unique: true });
-  PasswordSchema.index({ _docId: 1 }, { unique: true });
+  ClaimBuilderSchema.index({ _docId: 1 }, { unique: true });
   ProfileSchema.index({ _docId: 1 }, { unique: true });
   TransferActivitySchema.index({ _docId: 1 }, { unique: true });
   TransferActivitySchema.index({ timestamp: 1 });
-  AnnouncementSchema.index({ _docId: 1 }, { unique: true });
   ReviewSchema.index({ _docId: 1 }, { unique: true });
   ErrorSchema.index({ _docId: 1 }, { unique: true });
   IPFSTotalsSchema.index({ _docId: 1 }, { unique: true });
@@ -156,10 +217,9 @@ export async function createIndexesAndViews() {
   await CollectionModel.createIndexes();
   await BalanceModel.createIndexes();
   await MerkleChallengeModel.createIndexes();
-  await PasswordModel.createIndexes();
+  await ClaimBuilderModel.createIndexes();
   await ProfileModel.createIndexes();
   await TransferActivityModel.createIndexes();
-  await AnnouncementModel.createIndexes();
   await ReviewModel.createIndexes();
   await ErrorModel.createIndexes();
   await IPFSTotalsModel.createIndexes();
@@ -176,4 +236,3 @@ export async function createIndexesAndViews() {
   await ProtocolModel.createIndexes();
   await UserProtocolCollectionsModel.createIndexes();
 }
-

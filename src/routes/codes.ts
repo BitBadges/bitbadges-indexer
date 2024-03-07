@@ -1,43 +1,54 @@
-import { JSPrimitiveNumberType, NumberType } from "bitbadgesjs-sdk";
-import { CodesAndPasswords, GetAllCodesAndPasswordsRouteResponse, PasswordDoc } from "bitbadgesjs-sdk";
-import CryptoJS from "crypto-js";
-import { Request, Response } from "express";
-import { serializeError } from "serialize-error";
-import { AuthenticatedRequest, checkIfManager, returnUnauthorized } from "../blockin/blockin_handlers";
-import { PasswordModel } from "../db/db";
+import { type CodesAndPasswords, type ErrorResponse, type NumberType, type iGetAllCodesAndPasswordsRouteSuccessResponse } from 'bitbadgesjs-sdk';
+import { type Response } from 'express';
+import { serializeError } from 'serialize-error';
+import { getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { checkIfManager, returnUnauthorized, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { findInDB } from '../db/queries';
+import { ClaimBuilderModel } from '../db/schemas';
+import { getDecryptedActionCodes } from './claims';
 
-const { AES } = CryptoJS;
-
-
-export const getAllCodesAndPasswords = async (expressReq: Request, res: Response<GetAllCodesAndPasswordsRouteResponse<NumberType>>) => {
+export const getAllCodesAndPasswords = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iGetAllCodesAndPasswordsRouteSuccessResponse | ErrorResponse>
+) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
     const collectionId = Number(req.params.collectionId);
-
     const isManager = await checkIfManager(req, collectionId);
     if (!isManager) return returnUnauthorized(res, true);
 
     const codesAndPasswords: CodesAndPasswords[] = [];
-    const codesDocsArr: PasswordDoc<JSPrimitiveNumberType>[] = [];
+    const codesDocsArr = await findInDB(ClaimBuilderModel, {
+      query: { collectionId, manualDistribution: true },
+      limit: 200,
+      skip: 0
+    });
 
-    do {
-      const _codesDocsArr = await PasswordModel.find({
-        collectionId: collectionId
-      }).skip(codesDocsArr.length).limit(200).lean().exec();
+    if (codesDocsArr.length >= 200) {
+      return res.status(500).send({
+        error: 'Too many codes',
+        errorMessage: 'Too many codes to fetch at once. Please try again later.'
+      });
+    }
 
-      codesDocsArr.push(..._codesDocsArr as PasswordDoc<JSPrimitiveNumberType>[]);
-    } while (codesDocsArr.length % 200 === 0);
-
-
-    const docs = codesDocsArr.filter(doc => doc.docClaimedByCollection);
+    const docs = codesDocsArr.filter((doc) => doc.docClaimed);
+    const symKey = process.env.SYM_KEY;
+    if (!symKey) {
+      return res.status(500).send({
+        error: 'No symmetric key found',
+        errorMessage: 'Error getting codes. Please try again later.'
+      });
+    }
 
     for (const doc of docs) {
-      const challengeDetails = doc.challengeDetails;
+      const codes = getDecryptedActionCodes(doc); //Action codes, not the private params
+      const password = getPlugin('password').decryptPrivateParams(
+        getPluginParamsAndState('password', doc.plugins)?.privateParams ?? { password: '' }
+      ).password;
+
       codesAndPasswords.push({
         cid: doc.cid,
-        codes: challengeDetails?.leavesDetails.preimages ?
-          challengeDetails.leavesDetails.preimages.map(code => AES.decrypt(code, process.env.SYM_KEY).toString(CryptoJS.enc.Utf8)) : [],
-        password: challengeDetails?.password ? AES.decrypt(challengeDetails.password ?? '', process.env.SYM_KEY).toString(CryptoJS.enc.Utf8) : '',
+        codes: codes ?? [],
+        password: password
       });
     }
 
@@ -46,7 +57,7 @@ export const getAllCodesAndPasswords = async (expressReq: Request, res: Response
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error getting codes. Please try again later."
+      errorMessage: 'Error getting codes. Please try again later.'
     });
   }
-}
+};

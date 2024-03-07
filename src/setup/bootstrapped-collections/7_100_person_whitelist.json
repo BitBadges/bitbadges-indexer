@@ -198,9 +198,7 @@
       ],
       "toList": {
         "listId": "!Mint",
-        "addresses": [
-          "Mint"
-        ],
+        "addresses": ["Mint"],
         "whitelist": false,
         "uri": "",
         "customData": "",
@@ -208,9 +206,7 @@
       },
       "fromList": {
         "listId": "!Mint",
-        "addresses": [
-          "Mint"
-        ],
+        "addresses": ["Mint"],
         "whitelist": false,
         "uri": "",
         "customData": "",
@@ -218,9 +214,7 @@
       },
       "initiatedByList": {
         "listId": "!Mint",
-        "addresses": [
-          "Mint"
-        ],
+        "addresses": ["Mint"],
         "whitelist": false,
         "uri": "",
         "customData": "",

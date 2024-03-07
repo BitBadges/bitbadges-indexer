@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "passTypeIdentifier": "pass.com.bitbadges.io",
+  "serialNumber": "13fc2d1e-d378-45e6-bb5b-04555e13ac4e",
+  "teamIdentifier": "8UWQ486J94",
+  "relevantDate": "2023-08-03T03:20:00Z",
+  "organizationName": "BtBadges",
+  "description": "QR Code",
+  "foregroundColor": "rgb(255, 255, 255)",
+  "backgroundColor": "rgb(0, 0, 0)",
+  "barcodes": [
+    {
+      "format": "PKBarcodeFormatQR",
+      "message": "13fc2d1e-d378-45e6-bb5b-04555e13ac4e",
+      "messageEncoding": "iso-8859-1"
+    }
+  ],
+  "eventTicket": {
+    "headerFields": [],
+    "auxiliaryFields": [],
+    "primaryFields": [],
+    "backFields": []
+  }
+}

@@ -1,53 +1,121 @@
-import { AddressList, BadgeMetadata, JSPrimitiveNumberType, NumberType, UintRange, convertAmountTrackerIdDetails, convertBadgeMetadata, convertBadgeMetadataTimeline, convertCollectionMetadataTimeline, convertCustomDataTimeline, convertIsArchivedTimeline, convertManagerTimeline, convertOffChainBalancesMetadataTimeline, convertStandardsTimeline, convertUintRange } from "bitbadgesjs-sdk";
 import {
-  ApprovalInfoDetails, ApprovalTrackerDoc, BadgeMetadataDetails, BalanceDoc, BalanceDocWithDetails, BigIntify, BitBadgesCollection,
-  CollectionDoc, DefaultPlaceholderMetadata, GetAdditionalCollectionDetailsRequestBody, GetBadgeActivityRouteRequestBody,
-  GetBadgeActivityRouteResponse, GetCollectionBatchRouteRequestBody, GetCollectionBatchRouteResponse, GetCollectionByIdRouteRequestBody,
-  GetCollectionRouteResponse, GetMetadataForCollectionRequestBody, MerkleChallengeDoc, Metadata, MetadataFetchOptions, PaginationInfo, ReviewDoc, Stringify, TransferActivityDoc, addBalance, batchUpdateBadgeMetadata, convertApprovalInfoDetails, convertApprovalTrackerDoc, convertBadgeMetadataDetails, convertBitBadgesCollection,
-  convertComplianceDoc, convertMerkleChallengeDoc, convertMetadata, convertReviewDoc, convertTransferActivityDoc, getBadgeIdsForMetadataId, getCurrentValueForTimeline, getFullBadgeMetadataTimeline, getFullCollectionMetadataTimeline, getFullCustomDataTimeline, getFullIsArchivedTimeline, getFullManagerTimeline, getFullStandardsTimeline, getMetadataIdForBadgeId, getMetadataIdsForUri, getOffChainBalancesMetadataTimeline, getUrisForMetadataIds, removeUintRangesFromUintRanges, sortUintRangesAndMergeIfNecessary
-} from "bitbadgesjs-sdk";
-import { Request, Response } from "express";
-import mongoose from "mongoose";
-import { serializeError } from "serialize-error";
-import { CollectionModel, PageVisitsModel, convertPageVisitsDoc, getFromDB, insertToDB, mustGetManyFromDB } from "../db/db";
-import { complianceDoc } from "../poll";
-import { fetchUrisFromDbAndAddToQueueIfEmpty } from "../queue";
-import { executeApprovalTrackersByIdsQuery, executeBadgeActivityQuery, executeCollectionActivityQuery, executeCollectionApprovalTrackersQuery, executeCollectionBalancesQuery, executeCollectionMerkleChallengesQuery, executeCollectionReviewsQuery, executeMerkleChallengeByIdsQuery, fetchTotalAndUnmintedBalancesQuery } from "./activityHelpers";
-import { applyAddressListsToUserPermissions } from "./balances";
-import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from "./utils";
+  ApprovalInfoDetails,
+  ApprovalTrackerDoc,
+  BadgeMetadataDetails,
+  BalanceArray,
+  BalanceDocWithDetails,
+  BigIntify,
+  BitBadgesCollection,
+  ClaimBuilderDoc,
+  ClaimIntegrationPluginType,
+  CollectionApprovalWithDetails,
+  CollectionPermissionsWithDetails,
+  IntegrationPluginDetails,
+  MerkleChallengeDoc,
+  Metadata,
+  UintRangeArray,
+  UserBalanceStoreWithDetails,
+  UserIncomingApprovalWithDetails,
+  UserOutgoingApprovalWithDetails,
+  UserPermissionsWithDetails,
+  getBadgeIdsForMetadataId,
+  getFullBadgeMetadataTimeline,
+  getFullCollectionMetadataTimeline,
+  getFullCustomDataTimeline,
+  getFullIsArchivedTimeline,
+  getFullManagerTimeline,
+  getFullStandardsTimeline,
+  getMetadataIdForBadgeId,
+  getMetadataIdsForUri,
+  getOffChainBalancesMetadataTimeline,
+  getUrisForMetadataIds,
+  type BadgeMetadata,
+  type BalanceDoc,
+  type CollectionDoc,
+  type ErrorResponse,
+  type GetAdditionalCollectionDetailsRequestBody,
+  type GetBadgeActivityRouteRequestBody,
+  type GetCollectionBatchRouteRequestBody,
+  type GetMetadataForCollectionRequestBody,
+  type MetadataFetchOptions,
+  type NumberType,
+  type PaginationInfo,
+  type ReviewDoc,
+  type TransferActivityDoc,
+  type UintRange,
+  type iAddressList,
+  type iApprovalTrackerDoc,
+  type iGetBadgeActivityRouteSuccessResponse,
+  type iGetCollectionBatchRouteSuccessResponse,
+  type iMerkleChallengeDoc
+} from 'bitbadgesjs-sdk';
+import { type Request, type Response } from 'express';
+import mongoose from 'mongoose';
+import { serializeError } from 'serialize-error';
+import { getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { MaybeAuthenticatedRequest, checkIfAuthenticated, checkIfManager } from '../blockin/blockin_handlers';
+import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
+import { PageVisitsDoc } from '../db/docs';
+import { findInDB } from '../db/queries';
+import { ClaimBuilderModel, CollectionModel, PageVisitsModel } from '../db/schemas';
+import { complianceDoc } from '../poll';
+import { fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
+import {
+  executeApprovalTrackersByIdsQuery,
+  executeBadgeActivityQuery,
+  executeCollectionActivityQuery,
+  executeCollectionApprovalTrackersQuery,
+  executeCollectionBalancesQuery,
+  executeCollectionMerkleChallengesQuery,
+  executeCollectionReviewsQuery,
+  executeMerkleChallengeByIdsQuery,
+  fetchTotalAndUnmintedBalancesQuery
+} from './activityHelpers';
+import { applyAddressListsToUserPermissions } from './balances';
+import { ClaimDetails } from './claims';
+import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
+
+const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
 
 /**
  * The executeCollectionsQuery function is the main query function used to fetch all data for a collection in bulk.
- * 
+ *
  * collectionId - The collectionId of the collection to fetch
  * metadataToFetch: - Options for fetching metadata. Default we just fetch the collection metadata.
  *  - doNotFetchCollectionMetadata: If true, we do not fetch the collection metadata.
  *  - metadataIds: The metadataIds to fetch.
  *  - uris: The uris to fetch. Will throw an error if uri does not match any URI in the collection.
  *  - badgeIds: The badgeIds to fetch. Will throw an error if badgeId does not match any badgeId in the collection.
- * 
+ *
  * Bookmarks are used for pagination. If a bookmark is '', the query will start from the beginning. If a bookmark is undefined, the query will not fetch that data.
- * 
+ *
  * activityBookmark - The bookmark to start fetching activity from.
  * announcementsBookmark - The bookmark to start fetching announcements from.
  * reviewsBookmark - The bookmark to start fetching reviews from.
  * ownersBookmark - The bookmark to start fetching balances from.
  * claimsBookmark - The bookmark to start fetching claims from.
  */
-export type CollectionQueryOptions = ({ collectionId: NumberType } & GetMetadataForCollectionRequestBody & GetAdditionalCollectionDetailsRequestBody);
+export type CollectionQueryOptions = {
+  collectionId: NumberType;
+} & GetMetadataForCollectionRequestBody &
+  GetAdditionalCollectionDetailsRequestBody;
 
-export async function executeAdditionalCollectionQueries(req: Request, baseCollections: CollectionDoc<JSPrimitiveNumberType>[], collectionQueries: CollectionQueryOptions[]) {
+export async function executeAdditionalCollectionQueries(
+  req: Request,
+  baseCollections: Array<CollectionDoc<bigint>>,
+  collectionQueries: CollectionQueryOptions[]
+) {
   const promises = [];
-  const collectionResponses: BitBadgesCollection<JSPrimitiveNumberType>[] = [];
+  const collectionResponses: Array<BitBadgesCollection<bigint>> = [];
 
   const balanceResIdxs = [];
-  //Fetch metadata, activity, announcements, and reviews for each collection
+  // Fetch metadata, activity, announcements, and reviews for each collection
   for (const query of collectionQueries) {
     const collection = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
     if (!collection) throw new Error(`Collection ${query.collectionId} does not exist`);
 
-    const collectionUri = getCurrentValueForTimeline(collection.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify)))?.collectionMetadata.uri ?? '';
-    const badgeMetadata = getCurrentValueForTimeline(collection.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify)))?.badgeMetadata ?? [];
+    const collectionUri = collection.getCollectionMetadataTimelineValue()?.uri ?? '';
+    const badgeMetadata = collection.getBadgeMetadataTimelineValue();
 
     promises.push(getMetadata(collection.collectionId.toString(), collectionUri, badgeMetadata, query.metadataToFetch));
 
@@ -83,7 +151,7 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
 
     if (query.approvalTrackersToFetch?.length) {
-      promises.push(executeApprovalTrackersByIdsQuery(`${query.collectionId}`, query.approvalTrackersToFetch.map(x => convertAmountTrackerIdDetails(x, BigIntify))));
+      promises.push(executeApprovalTrackersByIdsQuery(`${query.collectionId}`, query.approvalTrackersToFetch));
     }
 
     if (query.fetchTotalAndMintBalances) {
@@ -92,10 +160,10 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
     }
   }
 
-  //Parse results and add to collectionResponses
+  // Parse results and add to collectionResponses
   const responses = await Promise.all(promises);
 
-  const addressListIdsToFetch: { collectionId: NumberType, listId: string }[] = [];
+  const addressListIdsToFetch: Array<{ collectionId: NumberType; listId: string }> = [];
   let currPromiseIdx = 0;
   for (const query of collectionQueries) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
@@ -103,86 +171,125 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
 
     for (const collectionApprovalVal of collectionRes.collectionApprovals) {
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: collectionApprovalVal.fromListId
+        collectionId: collectionRes.collectionId,
+        listId: collectionApprovalVal.fromListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: collectionApprovalVal.toListId
+        collectionId: collectionRes.collectionId,
+        listId: collectionApprovalVal.toListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: collectionApprovalVal.initiatedByListId
+        collectionId: collectionRes.collectionId,
+        listId: collectionApprovalVal.initiatedByListId
       });
     }
 
     for (const incomingPermission of collectionRes.defaultBalances.userPermissions.canUpdateIncomingApprovals) {
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: incomingPermission.fromListId
+        collectionId: collectionRes.collectionId,
+        listId: incomingPermission.fromListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: incomingPermission.initiatedByListId
+        collectionId: collectionRes.collectionId,
+        listId: incomingPermission.initiatedByListId
       });
     }
 
     for (const outgoingPermission of collectionRes.defaultBalances.userPermissions.canUpdateOutgoingApprovals) {
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: outgoingPermission.toListId
+        collectionId: collectionRes.collectionId,
+        listId: outgoingPermission.toListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: outgoingPermission.initiatedByListId
+        collectionId: collectionRes.collectionId,
+        listId: outgoingPermission.initiatedByListId
       });
     }
 
-
     for (const permission of collectionRes.collectionPermissions.canUpdateCollectionApprovals) {
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: permission.fromListId
+        collectionId: collectionRes.collectionId,
+        listId: permission.fromListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: permission.toListId
+        collectionId: collectionRes.collectionId,
+        listId: permission.toListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: permission.initiatedByListId
+        collectionId: collectionRes.collectionId,
+        listId: permission.initiatedByListId
       });
     }
 
     for (const transfer of collectionRes.defaultBalances.incomingApprovals) {
-
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: transfer.fromListId
+        collectionId: collectionRes.collectionId,
+        listId: transfer.fromListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
+        collectionId: collectionRes.collectionId,
+        listId: transfer.initiatedByListId
       });
-
     }
 
     for (const transfer of collectionRes.defaultBalances.outgoingApprovals) {
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: transfer.toListId
+        collectionId: collectionRes.collectionId,
+        listId: transfer.toListId
       });
       addressListIdsToFetch.push({
-        collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
+        collectionId: collectionRes.collectionId,
+        listId: transfer.initiatedByListId
       });
     }
 
     for (const idx of balanceResIdxs) {
-      const balanceRes = responses[idx] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+      const balanceRes = responses[idx] as {
+        docs: Array<BalanceDoc<bigint>>;
+        pagination: PaginationInfo;
+      };
       for (const balanceDoc of balanceRes.docs) {
         for (const transfer of balanceDoc.incomingApprovals) {
           addressListIdsToFetch.push({
-            collectionId: collectionRes.collectionId, listId: transfer.fromListId
+            collectionId: collectionRes.collectionId,
+            listId: transfer.fromListId
           });
           addressListIdsToFetch.push({
-            collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
+            collectionId: collectionRes.collectionId,
+            listId: transfer.initiatedByListId
           });
-
         }
 
         for (const transfer of balanceDoc.outgoingApprovals) {
           addressListIdsToFetch.push({
-            collectionId: collectionRes.collectionId, listId: transfer.toListId
+            collectionId: collectionRes.collectionId,
+            listId: transfer.toListId
           });
           addressListIdsToFetch.push({
-            collectionId: collectionRes.collectionId, listId: transfer.initiatedByListId
+            collectionId: collectionRes.collectionId,
+            listId: transfer.initiatedByListId
+          });
+        }
+
+        for (const transfer of balanceDoc.userPermissions.canUpdateIncomingApprovals) {
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId,
+            listId: transfer.fromListId
+          });
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId,
+            listId: transfer.initiatedByListId
+          });
+        }
+
+        for (const transfer of balanceDoc.userPermissions.canUpdateOutgoingApprovals) {
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId,
+            listId: transfer.toListId
+          });
+          addressListIdsToFetch.push({
+            collectionId: collectionRes.collectionId,
+            listId: transfer.initiatedByListId
           });
         }
       }
@@ -198,243 +305,294 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
       if (uri) urisToFetch.push(uri);
     }
 
-    if (urisToFetch.length) {
-      claimFetchesPromises.push(fetchUrisFromDbAndAddToQueueIfEmpty(
-        [...new Set(urisToFetch)].filter(x => x),
-        collectionId.toString())
+    if (urisToFetch.length > 0) {
+      claimFetchesPromises.push(
+        fetchUrisFromDbAndAddToQueueIfEmpty(
+          [...new Set(urisToFetch)].filter((x) => x),
+          collectionId.toString()
+        )
       );
     }
   }
 
   const addressListsPromise = getAddressListsFromDB(addressListIdsToFetch, false);
 
-  const [addressLists, claimFetches] = await Promise.all([
-    addressListsPromise,
-    Promise.all(claimFetchesPromises)
-  ]);
+  const [addressLists, claimFetches] = await Promise.all([addressListsPromise, Promise.all(claimFetchesPromises)]);
 
-  const badgeIdsFetched: UintRange<JSPrimitiveNumberType>[][] = [];
+  const badgeIdsFetched = new Array<UintRangeArray<bigint>>();
   for (const query of collectionQueries) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
     if (!collectionRes) continue;
 
-    const _complianceDoc = complianceDoc ? convertComplianceDoc(complianceDoc, Stringify) : undefined;
-    const isNSFW = _complianceDoc?.badges?.nsfw?.find(x => BigInt(x.collectionId) === BigInt(collectionRes.collectionId));
-    const isReported = _complianceDoc?.badges?.reported?.find(x => BigInt(x.collectionId) === BigInt(collectionRes.collectionId));
+    const isNSFW = complianceDoc?.badges?.nsfw?.find((x) => BigInt(x.collectionId) === BigInt(collectionRes.collectionId));
+    const isReported = complianceDoc?.badges?.reported?.find((x) => BigInt(x.collectionId) === BigInt(collectionRes.collectionId));
 
-    let collectionToReturn: BitBadgesCollection<JSPrimitiveNumberType> = {
+    const collectionToReturn = new BitBadgesCollection<bigint>({
       ...collectionRes,
-      nsfw: isNSFW,
-      reported: isReported,
-      collectionApprovals: collectionRes.collectionApprovals.map(x => {
-        return {
-          ...x,
-          fromList: addressLists.find((list) => list.listId === x.fromListId) as AddressList,
-          toList: addressLists.find((list) => list.listId === x.toListId) as AddressList,
-          initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
-        }
-      }),
-      defaultBalances: {
+      nsfw: isNSFW ? { ...isNSFW, reason: '' } : undefined,
+      reported: isReported ? { ...isReported, reason: '' } : undefined,
+      collectionApprovals: collectionRes.collectionApprovals.map(
+        (x) =>
+          new CollectionApprovalWithDetails({
+            ...x,
+            fromList: addressLists.find((list) => list.listId === x.fromListId) as iAddressList,
+            toList: addressLists.find((list) => list.listId === x.toListId) as iAddressList,
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList
+          })
+      ),
+      defaultBalances: new UserBalanceStoreWithDetails<bigint>({
         ...collectionRes.defaultBalances,
-        outgoingApprovals: collectionRes.defaultBalances.outgoingApprovals.map(x => {
+        outgoingApprovals: collectionRes.defaultBalances.outgoingApprovals.map((x) => {
           return {
             ...x,
-            toList: addressLists.find((list) => list.listId === x.toListId) as AddressList,
-            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
-          }
+            toList: addressLists.find((list) => list.listId === x.toListId) as iAddressList,
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList
+          };
         }),
-        incomingApprovals: collectionRes.defaultBalances.incomingApprovals.map(x => {
+        incomingApprovals: collectionRes.defaultBalances.incomingApprovals.map((x) => {
           return {
             ...x,
-            fromList: addressLists.find((list) => list.listId === x.fromListId) as AddressList,
-            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
-          }
+            fromList: addressLists.find((list) => list.listId === x.fromListId) as iAddressList,
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList
+          };
         }),
-        userPermissions: applyAddressListsToUserPermissions(collectionRes.defaultBalances.userPermissions, addressLists),
-      },
-
-
-      collectionPermissions: {
+        userPermissions: applyAddressListsToUserPermissions(collectionRes.defaultBalances.userPermissions, addressLists)
+      }),
+      collectionPermissions: new CollectionPermissionsWithDetails({
         ...collectionRes.collectionPermissions,
-        canUpdateCollectionApprovals: collectionRes.collectionPermissions.canUpdateCollectionApprovals.map(x => {
+        canUpdateCollectionApprovals: collectionRes.collectionPermissions.canUpdateCollectionApprovals.map((x) => {
           return {
             ...x,
-            fromList: addressLists.find((list) => list.listId === x.fromListId) as AddressList,
-            toList: addressLists.find((list) => list.listId === x.toListId) as AddressList,
-            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as AddressList,
-          }
+            fromList: addressLists.find((list) => list.listId === x.fromListId) as iAddressList,
+            toList: addressLists.find((list) => list.listId === x.toListId) as iAddressList,
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList
+          };
         })
-      },
+      }),
 
-      //Placeholders to be replaced later in function
+      // Placeholders to be replaced later in function
       activity: [],
-      announcements: [],
       reviews: [],
       owners: [],
       merkleChallenges: [],
       approvalTrackers: [],
 
       cachedBadgeMetadata: [],
-      views: {},
+      offChainClaims: [],
+      views: {}
+    });
+
+    const metadataRes = responses[currPromiseIdx++] as {
+      collectionMetadata: Metadata<bigint>;
+      badgeMetadata: Array<BadgeMetadataDetails<bigint>>;
     };
 
-
-    const metadataRes = responses[currPromiseIdx++] as { collectionMetadata: Metadata<JSPrimitiveNumberType>, badgeMetadata: BadgeMetadataDetails<JSPrimitiveNumberType>[] };
-    badgeIdsFetched.push(metadataRes.badgeMetadata.map(x => x.badgeIds).flat());
-    const getBalanceDocsWithDetails = (docs: BalanceDoc<JSPrimitiveNumberType>[]) => {
-      return docs.map((doc) => {
-        return {
-          ...doc,
-          incomingApprovals: doc.incomingApprovals.map(x => {
-            return {
-              ...x,
-              fromList: addressLists.find(z => z.listId === x.fromListId) as AddressList,
-              initiatedByList: addressLists.find(z => z.listId === x.initiatedByListId) as AddressList,
-            }
-          }),
-          outgoingApprovals: doc.outgoingApprovals.map(x => {
-            return {
-              ...x,
-              toList: addressLists.find(z => z.listId === x.toListId) as AddressList,
-              initiatedByList: addressLists.find(z => z.listId === x.initiatedByListId) as AddressList,
-            }
+    badgeIdsFetched.push(UintRangeArray.From(metadataRes.badgeMetadata.map((x) => x.badgeIds).flat()));
+    const getBalanceDocsWithDetails = (docs: Array<BalanceDoc<bigint>>) => {
+      return docs.map(
+        (doc) =>
+          new BalanceDocWithDetails<bigint>({
+            ...doc,
+            incomingApprovals: doc.incomingApprovals.map((x) => {
+              return new UserIncomingApprovalWithDetails({
+                ...x,
+                fromList: addressLists.find((z) => z.listId === x.fromListId) as iAddressList,
+                initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList
+              });
+            }),
+            outgoingApprovals: doc.outgoingApprovals.map((x) => {
+              return new UserOutgoingApprovalWithDetails({
+                ...x,
+                toList: addressLists.find((z) => z.listId === x.toListId) as iAddressList,
+                initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList
+              });
+            }),
+            userPermissions: new UserPermissionsWithDetails({
+              ...doc.userPermissions,
+              canUpdateIncomingApprovals: doc.userPermissions.canUpdateIncomingApprovals.map((x) => {
+                return {
+                  ...x,
+                  fromList: addressLists.find((z) => z.listId === x.fromListId) as iAddressList,
+                  initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList
+                };
+              }),
+              canUpdateOutgoingApprovals: doc.userPermissions.canUpdateOutgoingApprovals.map((x) => {
+                return {
+                  ...x,
+                  toList: addressLists.find((z) => z.listId === x.toListId) as iAddressList,
+                  initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList
+                };
+              })
+            })
           })
-        }
-      }) as BalanceDocWithDetails<JSPrimitiveNumberType>[];
-    }
+      );
+    };
 
     if (query.viewsToFetch?.length) {
       for (let j = 0; j < (query.viewsToFetch ?? [])?.length; j++) {
         const view = query.viewsToFetch[j];
-        const genericViewRes = responses[currPromiseIdx] as { docs: any[], pagination: PaginationInfo };
+        const genericViewRes = responses[currPromiseIdx] as {
+          docs: any[];
+          pagination: PaginationInfo;
+        };
         let type = 'Activity';
         if (view.viewType === 'transferActivity') {
-          const viewRes = responses[currPromiseIdx++] as { docs: TransferActivityDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
-          collectionToReturn.activity.push(...viewRes.docs.map(x => convertTransferActivityDoc(x, Stringify)));
+          const viewRes = responses[currPromiseIdx++] as {
+            docs: Array<TransferActivityDoc<bigint>>;
+            pagination: PaginationInfo;
+          };
+          collectionToReturn.activity.push(...viewRes.docs);
           type = 'Activity';
-        }
-        // else if (view.viewType === 'latestAnnouncements') {
-        //   const viewRes = responses[currPromiseIdx++] as { docs: any[], pagination: PaginationInfo };
-        //   collectionToReturn.announcements.push(...viewRes.docs.map(x => convertAnnouncementDoc(x, Stringify)));
-        //   type = 'Announcement';
-        // } 
-        else if (view.viewType === 'reviews') {
-          const viewRes = responses[currPromiseIdx++] as { docs: ReviewDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
-          collectionToReturn.reviews.push(...viewRes.docs.map(x => convertReviewDoc(x, Stringify)));
+        } else if (view.viewType === 'reviews') {
+          const viewRes = responses[currPromiseIdx++] as {
+            docs: Array<ReviewDoc<bigint>>;
+            pagination: PaginationInfo;
+          };
+          collectionToReturn.reviews.push(...viewRes.docs);
           type = 'Review';
         } else if (view.viewType === 'owners') {
-          const viewRes = responses[currPromiseIdx++] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+          const viewRes = responses[currPromiseIdx++] as {
+            docs: Array<BalanceDoc<bigint>>;
+            pagination: PaginationInfo;
+          };
           collectionToReturn.owners.push(...getBalanceDocsWithDetails(viewRes.docs));
           type = 'Balance';
         } else if (view.viewType === 'merkleChallenges') {
-          const viewRes = responses[currPromiseIdx++] as { docs: MerkleChallengeDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
-          collectionToReturn.merkleChallenges.push(...viewRes.docs.map(x => convertMerkleChallengeDoc(x, Stringify)));
+          const viewRes = responses[currPromiseIdx++] as {
+            docs: Array<MerkleChallengeDoc<bigint>>;
+            pagination: PaginationInfo;
+          };
+          collectionToReturn.merkleChallenges.push(...viewRes.docs);
           type = 'MerkleChallenge';
         } else if (view.viewType === 'approvalTrackers') {
-          const viewRes = responses[currPromiseIdx++] as { docs: ApprovalTrackerDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
-          collectionToReturn.approvalTrackers.push(...viewRes.docs.map(x => convertApprovalTrackerDoc(x, Stringify)));
+          const viewRes = responses[currPromiseIdx++] as {
+            docs: Array<ApprovalTrackerDoc<bigint>>;
+            pagination: PaginationInfo;
+          };
+          collectionToReturn.approvalTrackers.push(...viewRes.docs);
           type = 'ApprovalTracker';
         }
 
         collectionToReturn.views[view.viewId] = {
           ids: genericViewRes.docs.map((doc) => doc._docId),
-          type: type,
+          type,
           pagination: {
             bookmark: genericViewRes.pagination.bookmark || '',
             hasMore: genericViewRes.docs.length === 25
           }
-        }
+        };
       }
     }
 
     if (query.challengeTrackersToFetch?.length) {
-      const merkleChallengeRes = responses[currPromiseIdx++] as (MerkleChallengeDoc<JSPrimitiveNumberType>)[];
-      collectionToReturn.merkleChallenges.push(...merkleChallengeRes.map(x => convertMerkleChallengeDoc(x, Stringify)));
+      const merkleChallengeRes = responses[currPromiseIdx++] as Array<iMerkleChallengeDoc<bigint>>;
+      collectionToReturn.merkleChallenges.push(...merkleChallengeRes.map((x) => new MerkleChallengeDoc(x)));
     }
 
     if (query.approvalTrackersToFetch?.length) {
-      const approvalTrackerRes = responses[currPromiseIdx++] as (ApprovalTrackerDoc<JSPrimitiveNumberType>)[];
-      collectionToReturn.approvalTrackers.push(...approvalTrackerRes.map(x => convertApprovalTrackerDoc(x, Stringify)));
+      const approvalTrackerRes = responses[currPromiseIdx++] as Array<iApprovalTrackerDoc<bigint>>;
+      collectionToReturn.approvalTrackers.push(...approvalTrackerRes.map((x) => new ApprovalTrackerDoc(x)));
     }
 
     if (query.fetchTotalAndMintBalances) {
-      const mintAndTotalBalancesRes = responses[currPromiseIdx++] as { docs: BalanceDoc<JSPrimitiveNumberType>[], pagination: PaginationInfo };
+      const mintAndTotalBalancesRes = responses[currPromiseIdx++] as {
+        docs: Array<BalanceDoc<bigint>>;
+        pagination: PaginationInfo;
+      };
       collectionToReturn.owners.push(...getBalanceDocsWithDetails(mintAndTotalBalancesRes.docs));
     }
 
-    //Remove duplicates
-    collectionToReturn.activity = collectionToReturn.activity.filter((activity, index, self) => self.findIndex((t) => t._docId === activity._docId) === index);
-    collectionToReturn.announcements = collectionToReturn.announcements.filter((announcement, index, self) => self.findIndex((t) => t._docId === announcement._docId) === index);
-    collectionToReturn.reviews = collectionToReturn.reviews.filter((review, index, self) => self.findIndex((t) => t._docId === review._docId) === index);
+    // Remove duplicates
+    collectionToReturn.activity = collectionToReturn.activity.filter(
+      (activity, index, self) => self.findIndex((t) => t._docId === activity._docId) === index
+    );
+    collectionToReturn.reviews = collectionToReturn.reviews.filter(
+      (review, index, self) => self.findIndex((t) => t._docId === review._docId) === index
+    );
     collectionToReturn.owners = collectionToReturn.owners.filter((owner, index, self) => self.findIndex((t) => t._docId === owner._docId) === index);
-    collectionToReturn.merkleChallenges = collectionToReturn.merkleChallenges.filter((merkleChallenge, index, self) => self.findIndex((t) => t._docId === merkleChallenge._docId) === index);
-    collectionToReturn.approvalTrackers = collectionToReturn.approvalTrackers.filter((approvalTracker, index, self) => self.findIndex((t) => t._docId === approvalTracker._docId) === index);
-
+    collectionToReturn.merkleChallenges = collectionToReturn.merkleChallenges.filter(
+      (merkleChallenge, index, self) => self.findIndex((t) => t._docId === merkleChallenge._docId) === index
+    );
+    collectionToReturn.approvalTrackers = collectionToReturn.approvalTrackers.filter(
+      (approvalTracker, index, self) => self.findIndex((t) => t._docId === approvalTracker._docId) === index
+    );
 
     const appendedCollection = appendMetadataResToCollection(metadataRes, collectionToReturn);
     collectionToReturn.cachedBadgeMetadata = appendedCollection.cachedBadgeMetadata;
     collectionToReturn.cachedCollectionMetadata = appendedCollection.cachedCollectionMetadata;
     if (query.handleAllAndAppendDefaults) {
-      //Convert all timelines to handle all possible timeline time values
-      collectionToReturn.collectionMetadataTimeline = getFullCollectionMetadataTimeline(collectionToReturn.collectionMetadataTimeline.map(x => convertCollectionMetadataTimeline(x, BigIntify))).map(x => convertCollectionMetadataTimeline(x, Stringify));
+      // Convert all timelines to handle all possible timeline time values
+      collectionToReturn.collectionMetadataTimeline = getFullCollectionMetadataTimeline(collectionToReturn.collectionMetadataTimeline);
 
-      collectionToReturn.badgeMetadataTimeline = getFullBadgeMetadataTimeline(
-        collectionToReturn.badgeMetadataTimeline.map(x => convertBadgeMetadataTimeline(x, BigIntify))
-      ).map(x => convertBadgeMetadataTimeline(x, Stringify));
-      collectionToReturn.isArchivedTimeline = getFullIsArchivedTimeline(
-        collectionToReturn.isArchivedTimeline.map(x => convertIsArchivedTimeline(x, BigIntify))
-      ).map(x => convertIsArchivedTimeline(x, Stringify));
-      collectionToReturn.offChainBalancesMetadataTimeline = getOffChainBalancesMetadataTimeline(
-        collectionToReturn.offChainBalancesMetadataTimeline.map(x => convertOffChainBalancesMetadataTimeline(x, BigIntify))
-      ).map(x => convertOffChainBalancesMetadataTimeline(x, Stringify));
-      collectionToReturn.customDataTimeline = getFullCustomDataTimeline(
-        collectionToReturn.customDataTimeline.map(x => convertCustomDataTimeline(x, BigIntify))
-      ).map(x => convertCustomDataTimeline(x, Stringify));
-      collectionToReturn.standardsTimeline = getFullStandardsTimeline(
-        collectionToReturn.standardsTimeline.map(x => convertStandardsTimeline(x, BigIntify))
-      ).map(x => convertStandardsTimeline(x, Stringify));
-      collectionToReturn.managerTimeline = getFullManagerTimeline(
-        collectionToReturn.managerTimeline.map(x => convertManagerTimeline(x, BigIntify))
-      ).map(x => convertManagerTimeline(x, Stringify));
+      collectionToReturn.badgeMetadataTimeline = getFullBadgeMetadataTimeline(collectionToReturn.badgeMetadataTimeline);
+      collectionToReturn.isArchivedTimeline = getFullIsArchivedTimeline(collectionToReturn.isArchivedTimeline);
+      collectionToReturn.offChainBalancesMetadataTimeline = getOffChainBalancesMetadataTimeline(collectionToReturn.offChainBalancesMetadataTimeline);
+      collectionToReturn.customDataTimeline = getFullCustomDataTimeline(collectionToReturn.customDataTimeline);
+      collectionToReturn.standardsTimeline = getFullStandardsTimeline(collectionToReturn.standardsTimeline);
+      collectionToReturn.managerTimeline = getFullManagerTimeline(collectionToReturn.managerTimeline);
 
-      //Handle all possible values and only return first maches
+      // // Handle all possible values and only return first maches
       // collectionToReturn.collectionApprovals = getFirstMatchForCollectionApprovals(collectionToReturn.collectionApprovals.map(x => convertCollectionApprovalWithDetails(x, BigIntify)), true).map(x => convertCollectionApprovalWithDetails(x, Stringify));
 
-      collectionToReturn.owners = collectionToReturn.owners.map((balance) => {
-        return {
-          ...balance,
-          incomingApprovals: appendSelfInitiatedIncomingApprovalToApprovals(balance, addressLists, balance.cosmosAddress),
-          outgoingApprovals: appendSelfInitiatedOutgoingApprovalToApprovals(balance, addressLists, balance.cosmosAddress)
-        }
-      });
-
-
+      collectionToReturn.owners = collectionToReturn.owners.map(
+        (balance) =>
+          new BalanceDocWithDetails<bigint>({
+            ...balance,
+            incomingApprovals: appendSelfInitiatedIncomingApprovalToApprovals(balance, addressLists, balance.cosmosAddress),
+            outgoingApprovals: appendSelfInitiatedOutgoingApprovalToApprovals(balance, addressLists, balance.cosmosAddress),
+            userPermissions: applyAddressListsToUserPermissions(balance.userPermissions, addressLists)
+          })
+      );
     }
 
-    collectionResponses.push(convertBitBadgesCollection(collectionToReturn, Stringify));
+    //TODO: Parallelize this
+    //Perform off-chain claims query (on-chain oens are handled below with approval fetches)
+    if (collectionToReturn.balancesType !== 'Standard') {
+      const docs = await findInDB(ClaimBuilderModel, {
+        query: { collectionId: Number(collectionToReturn.collectionId), docClaimed: true }
+      });
+
+      const offChainClaims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionToReturn.collectionId);
+      collectionToReturn.offChainClaims = offChainClaims as Required<ClaimDetails<bigint>>[];
+    }
+
+    collectionResponses.push(collectionToReturn);
   }
 
-  //Append fetched approval details
+  // Append fetched approval details
   const pageVisitsPromises = [];
   const claimFetchesFlat = claimFetches.flat();
   for (let i = 0; i < collectionResponses.length; i++) {
     const collectionRes = collectionResponses[i];
+    const query = collectionQueries[i];
 
     for (let i = 0; i < collectionRes.collectionApprovals.length; i++) {
       const approval = collectionRes.collectionApprovals[i];
       if (approval.uri) {
         const claimFetch = claimFetchesFlat.find((fetch) => fetch.uri === approval.uri);
-        if (!claimFetch || !claimFetch.content) continue;
+        if (!claimFetch?.content) continue;
 
-        approval.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
+        let content = claimFetch.content as ApprovalInfoDetails<bigint>;
+
+        const docs = await findInDB(ClaimBuilderModel, {
+          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: approval.uri.split('/').pop() ?? '' }
+        });
+        if (docs.length > 0) {
+          const offChainClaims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionRes.collectionId);
+          content = new ApprovalInfoDetails({
+            ...content,
+            offChainClaims
+          });
+        }
+
+        approval.details = content as ApprovalInfoDetails<bigint>;
         if (approval.approvalCriteria?.merkleChallenge?.uri) {
-          approval.approvalCriteria.merkleChallenge.details = convertApprovalInfoDetails(claimFetch.content as ApprovalInfoDetails<JSPrimitiveNumberType>, Stringify);
+          approval.approvalCriteria.merkleChallenge.details = content as ApprovalInfoDetails<bigint>;
         }
       }
       collectionRes.collectionApprovals[i] = approval;
     }
     collectionResponses[i] = collectionRes;
-
 
     pageVisitsPromises.push(incrementPageVisits(collectionRes.collectionId, badgeIdsFetched[i]));
   }
@@ -444,14 +602,88 @@ export async function executeAdditionalCollectionQueries(req: Request, baseColle
   return collectionResponses;
 }
 
-async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange<JSPrimitiveNumberType>[]) {
-  //TODO: improve this bc it could run into lots of race conditions which is why we try catch
+export const getClaimDetailsForFrontend = async (
+  req: MaybeAuthenticatedRequest<NumberType>,
+  docs: Array<ClaimBuilderDoc<bigint>>,
+  fetchPrivate?: boolean,
+  collectionId?: NumberType,
+  listId?: string
+) => {
+  const claimDetails: Array<ClaimDetails<bigint>> = [];
+  for (const doc of docs) {
+    const decryptedPlugins = await getDecryptedPluginsAndPublicState(req, doc.plugins, doc.state, fetchPrivate, collectionId, listId);
+
+    claimDetails.push({
+      claimId: doc._docId,
+      balancesToSet: doc.action.balancesToSet,
+      plugins: decryptedPlugins,
+      manualDistribution: doc.manualDistribution
+    });
+  }
+
+  return claimDetails;
+};
+
+const getDecryptedPluginsAndPublicState = async (
+  req: MaybeAuthenticatedRequest<NumberType>,
+  plugins: IntegrationPluginDetails<ClaimIntegrationPluginType>[],
+  state: any,
+  includePrivateParams?: boolean,
+  collectionId?: NumberType,
+  listId?: string
+) => {
+  if (includePrivateParams) {
+    const auth = checkIfAuthenticated(req);
+    if (!auth) {
+      throw new Error('You must be authenticated to fetch private params');
+    }
+
+    if (!collectionId && !listId) {
+      throw new Error('You must provide either a collectionId or listId to fetch private params');
+    }
+
+    if (collectionId) {
+      const manager = await checkIfManager(req, collectionId ?? 0);
+      if (!manager) {
+        throw new Error('You must be a manager to fetch private params');
+      }
+    }
+
+    if (listId) {
+      const list = await getAddressListsFromDB([{ listId }], false);
+      if (list.length === 0) {
+        throw new Error('List not found');
+      }
+
+      if (list[0].createdBy !== req.session.cosmosAddress) {
+        throw new Error('You must be the owner of the list to fetch private params');
+      }
+    }
+  }
+
+  return plugins.map((x) => {
+    const pluginInstance = getPlugin(x.id);
+    const pluginDetails = getPluginParamsAndState(x.id, plugins);
+    if (!pluginDetails) {
+      throw new Error('Plugin details not found');
+    }
+
+    return {
+      id: pluginDetails.id,
+      publicParams: pluginDetails.publicParams,
+      privateParams: includePrivateParams ? pluginInstance.decryptPrivateParams(pluginDetails.privateParams) : {},
+      publicState: pluginInstance.getPublicState(state[x.id])
+    };
+  });
+};
+
+async function incrementPageVisits(collectionId: NumberType, badgeIds: Array<UintRange<bigint>>) {
+  // TODO: improve this bc it could run into lots of race conditions which is why we try catch
   try {
-    let _currPageVisits = await getFromDB(PageVisitsModel, `${collectionId}`);
-    let currPageVisits = _currPageVisits ? convertPageVisitsDoc(_currPageVisits, BigIntify) : undefined
+    let currPageVisits = await getFromDB(PageVisitsModel, `${collectionId}`);
     const badgeIdsToIncrement = badgeIds;
     if (!currPageVisits) {
-      currPageVisits = {
+      currPageVisits = new PageVisitsDoc({
         _id: new mongoose.Types.ObjectId().toString(),
         _docId: `${collectionId}`,
         collectionId: BigInt(collectionId),
@@ -461,24 +693,24 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
           daily: 0n,
           weekly: 0n,
           monthly: 0n,
-          yearly: 0n,
+          yearly: 0n
         },
         badgePageVisits: {
           allTime: [],
           daily: [],
           weekly: [],
           monthly: [],
-          yearly: [],
-        },
-      }
+          yearly: []
+        }
+      });
     }
 
-    //if was last updated yesterday, reset daily
+    // if was last updated yesterday, reset daily
     const yesterdayMidnight = new Date();
     yesterdayMidnight.setHours(0, 0, 0, 0);
     if (currPageVisits.lastUpdated < yesterdayMidnight.getTime()) {
       currPageVisits.overallVisits.daily = 0n;
-      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.daily = [];
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.daily = new BalanceArray();
     }
 
     const sundayMidnight = new Date();
@@ -486,7 +718,7 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
     sundayMidnight.setDate(sundayMidnight.getDate() - sundayMidnight.getDay());
     if (currPageVisits.lastUpdated < sundayMidnight.getTime()) {
       currPageVisits.overallVisits.weekly = 0n;
-      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.weekly = [];
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.weekly = new BalanceArray();
     }
 
     const firstOfMonth = new Date();
@@ -494,7 +726,7 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
     firstOfMonth.setDate(1);
     if (currPageVisits.lastUpdated < firstOfMonth.getTime()) {
       currPageVisits.overallVisits.monthly = 0n;
-      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.monthly = [];
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.monthly = new BalanceArray();
     }
 
     const firstOfYear = new Date();
@@ -502,7 +734,7 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
     firstOfYear.setMonth(0, 1);
     if (currPageVisits.lastUpdated < firstOfYear.getTime()) {
       currPageVisits.overallVisits.yearly = 0n;
-      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.yearly = [];
+      if (currPageVisits.badgePageVisits) currPageVisits.badgePageVisits.yearly = new BalanceArray();
     }
 
     currPageVisits.lastUpdated = Date.now();
@@ -514,49 +746,49 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: UintRange
     currPageVisits.overallVisits.yearly += 1n;
 
     if (currPageVisits.badgePageVisits) {
-      currPageVisits.badgePageVisits.allTime = addBalance(currPageVisits.badgePageVisits.allTime, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-      currPageVisits.badgePageVisits.daily = addBalance(currPageVisits.badgePageVisits.daily, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-      currPageVisits.badgePageVisits.weekly = addBalance(currPageVisits.badgePageVisits.weekly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-      currPageVisits.badgePageVisits.monthly = addBalance(currPageVisits.badgePageVisits.monthly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
-      currPageVisits.badgePageVisits.yearly = addBalance(currPageVisits.badgePageVisits.yearly, { amount: 1n, badgeIds: badgeIdsToIncrement.map(x => convertUintRange(x, BigIntify)), ownershipTimes: [{ start: 1n, end: BigInt("18446744073709551615") }] });
+      currPageVisits.badgePageVisits.allTime.addBalance({
+        amount: 1n,
+        badgeIds: badgeIdsToIncrement,
+        ownershipTimes: UintRangeArray.FullRanges()
+      });
+      currPageVisits.badgePageVisits.daily.addBalance({
+        amount: 1n,
+        badgeIds: badgeIdsToIncrement,
+        ownershipTimes: UintRangeArray.FullRanges()
+      });
+      currPageVisits.badgePageVisits.weekly.addBalance({
+        amount: 1n,
+        badgeIds: badgeIdsToIncrement,
+        ownershipTimes: UintRangeArray.FullRanges()
+      });
+      currPageVisits.badgePageVisits.monthly.addBalance({
+        amount: 1n,
+        badgeIds: badgeIdsToIncrement,
+        ownershipTimes: UintRangeArray.FullRanges()
+      });
+      currPageVisits.badgePageVisits.yearly.addBalance({
+        amount: 1n,
+        badgeIds: badgeIdsToIncrement,
+        ownershipTimes: UintRangeArray.FullRanges()
+      });
     }
 
-
-    await insertToDB(PageVisitsModel, convertPageVisitsDoc(currPageVisits, BigIntify));
+    await insertToDB(PageVisitsModel, currPageVisits);
   } catch (e) {
-    //bound to be write conflicts
+    // bound to be write conflicts
   }
 }
 
 export async function executeCollectionsQuery(req: Request, collectionQueries: CollectionQueryOptions[]) {
-  const baseCollections = await mustGetManyFromDB(CollectionModel, collectionQueries.map((query) => `${query.collectionId.toString()}`));
+  const baseCollections = await mustGetManyFromDB(
+    CollectionModel,
+    collectionQueries.map((query) => `${query.collectionId.toString()}`)
+  );
   const res = await executeAdditionalCollectionQueries(req, baseCollections, collectionQueries);
   return res;
 }
 
-export const getCollectionById = async (req: Request, res: Response<GetCollectionRouteResponse<NumberType>>) => {
-  try {
-    const reqBody = req.body as GetCollectionByIdRouteRequestBody;
-
-    const collectionsReponse = await executeCollectionsQuery(req, [{
-      collectionId: BigInt(req.params.collectionId),
-      metadataToFetch: reqBody.metadataToFetch,
-      viewsToFetch: reqBody.viewsToFetch,
-    }]);
-
-    return res.json({
-      collection: collectionsReponse[0],
-    });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      errorMessage: 'Error fetching collection. Please try again later.'
-    });
-  }
-}
-
-export const getBadgeActivity = async (req: Request, res: Response<GetBadgeActivityRouteResponse<NumberType>>) => {
+export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActivityRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as GetBadgeActivityRouteRequestBody;
     const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqBody.bookmark);
@@ -569,13 +801,14 @@ export const getBadgeActivity = async (req: Request, res: Response<GetBadgeActiv
       errorMessage: 'Error fetching badge activity'
     });
   }
-}
+};
 
-export const getCollections = async (req: Request, res: Response<GetCollectionBatchRouteResponse<NumberType>>) => {
+export const getCollections = async (req: Request, res: Response<iGetCollectionBatchRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     if (req.body.collectionsToFetch.length > 100) {
       return res.status(400).send({
-        errorMessage: 'For scalability purposes, we limit the number of collections that can be fetched at once to 250. Please design your application to fetch collections in batches of 250 or less.'
+        errorMessage:
+          'For scalability purposes, we limit the number of collections that can be fetched at once to 250. Please design your application to fetch collections in batches of 250 or less.'
       });
     }
 
@@ -590,15 +823,17 @@ export const getCollections = async (req: Request, res: Response<GetCollectionBa
     return res.status(500).send({
       error: serializeError(e),
       errorMessage: 'Error fetching collections. Please try again later.'
-    })
+    });
   }
-}
+};
 
-
-
-const getMetadata = async (collectionId: NumberType, collectionUri: string, _badgeUris: BadgeMetadata<NumberType>[], fetchOptions?: MetadataFetchOptions) => {
-  const badgeUris = _badgeUris.map((uri) => convertBadgeMetadata(uri, BigIntify));
-
+const getMetadata = async (
+  collectionId: NumberType,
+  collectionUri: string,
+  _badgeUris: Array<BadgeMetadata<bigint>>,
+  fetchOptions?: MetadataFetchOptions
+) => {
+  const badgeUris = _badgeUris.map((x) => x.clone());
   const doNotFetchCollectionMetadata = fetchOptions?.doNotFetchCollectionMetadata;
   const metadataIds = fetchOptions?.metadataIds ? fetchOptions.metadataIds : [];
   const urisToFetch = fetchOptions?.uris ? fetchOptions.uris : [];
@@ -633,11 +868,11 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
     const badgeIdCastedAsUintRange = badgeId as UintRange<NumberType>;
     const badgeIdCastedAsNumber = badgeId as NumberType;
     if (typeof badgeId === 'object' && badgeIdCastedAsUintRange.start && badgeIdCastedAsUintRange.end) {
-      let badgeIdsLeft = [convertUintRange(badgeIdCastedAsUintRange, BigIntify)]
+      let badgeIdsLeft = UintRangeArray.From([badgeIdCastedAsUintRange]).convert(BigIntify);
 
-      //Get URIs for each badgeID
+      // Get URIs for each badgeID
       while (badgeIdsLeft.length > 0) {
-        //Intuition: Start with the first singular badgeID -> fetch its metadata ID / URI -> if it shares with other badge IDs, we mark those handled as well
+        // Intuition: Start with the first singular badgeID -> fetch its metadata ID / URI -> if it shares with other badge IDs, we mark those handled as well
 
         const currBadgeUintRange = badgeIdsLeft[0];
 
@@ -648,9 +883,9 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
         uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
 
         const otherMatchingBadgeUintRanges = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
-        const [remaining,] = removeUintRangesFromUintRanges(otherMatchingBadgeUintRanges, badgeIdsLeft);
-        badgeIdsLeft = sortUintRangesAndMergeIfNecessary(remaining, true);
-
+        const [remaining] = badgeIdsLeft.getOverlapDetails(otherMatchingBadgeUintRanges);
+        badgeIdsLeft = remaining;
+        badgeIdsLeft.sortAndMerge();
       }
     } else {
       const metadataId = getMetadataIdForBadgeId(BigInt(badgeIdCastedAsNumber), badgeUris);
@@ -666,59 +901,70 @@ const getMetadata = async (collectionId: NumberType, collectionUri: string, _bad
   metadataIdsToFetch = [...new Set(metadataIdsToFetch)];
 
   if (uris.length > 250) {
-    throw new Error('For scalability, we limit the number of metadata URIs that can be fetched at once to 250. Please design your application to fetch metadata in batches of 250 or less.');
+    throw new Error(
+      'For scalability, we limit the number of metadata URIs that can be fetched at once to 250. Please design your application to fetch metadata in batches of 250 or less.'
+    );
   }
 
   const results = await fetchUrisFromDbAndAddToQueueIfEmpty(uris, collectionId.toString());
 
-  let collectionMetadata: Metadata<bigint> | undefined = undefined;
+  let collectionMetadata: Metadata<bigint> | undefined;
   if (!doNotFetchCollectionMetadata) {
     const collectionMetadataResult = results[0];
+    const collectionMetadataResultContent = results[0].content as Metadata<bigint>;
     if (collectionMetadataResult) {
-      collectionMetadata = {
-        ...convertMetadata(collectionMetadataResult.content ?? DefaultPlaceholderMetadata, BigIntify),
+      collectionMetadata = new Metadata({
+        ...(collectionMetadataResultContent ?? Metadata.DefaultPlaceholderMetadata()),
         _isUpdating: collectionMetadataResult.updating,
         fetchedAt: BigInt(collectionMetadataResult.fetchedAt),
         fetchedAtBlock: BigInt(collectionMetadataResult.fetchedAtBlock)
-      }
+      });
     }
   }
 
-  let badgeMetadata: BadgeMetadataDetails<bigint>[] = [];
-  const toUpdate = [];
+  let badgeMetadata: Array<BadgeMetadataDetails<bigint>> = [];
+  const toUpdate: Array<BadgeMetadataDetails<bigint>> = [];
   for (const metadataId of metadataIdsToFetch) {
     const uri = getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris)[0];
     const badgeIds = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
     const resultIdx = uris.indexOf(uri);
-    toUpdate.push({
-      metadataId: BigInt(metadataId),
-      uri,
-      badgeIds,
-      metadata: {
-        ...convertMetadata(results[resultIdx].content ?? DefaultPlaceholderMetadata, BigIntify),
-        _isUpdating: results[resultIdx].updating,
-        fetchedAt: BigInt(results[resultIdx].fetchedAt),
-        fetchedAtBlock: BigInt(results[resultIdx].fetchedAtBlock)
-      }
-    });
+    const result = results[resultIdx];
+    const badgeMetadataResultContent = result.content as Metadata<bigint>;
+    toUpdate.push(
+      new BadgeMetadataDetails({
+        metadataId: BigInt(metadataId),
+        uri,
+        badgeIds,
+        metadata: new Metadata({
+          ...(badgeMetadataResultContent ?? Metadata.DefaultPlaceholderMetadata()),
+          _isUpdating: result.updating,
+          fetchedAt: BigInt(result.fetchedAt),
+          fetchedAtBlock: BigInt(result.fetchedAtBlock)
+        })
+      })
+    );
   }
   badgeMetadata = batchUpdateBadgeMetadata(badgeMetadata, toUpdate);
 
   return {
-    collectionMetadata: collectionMetadata ? convertMetadata(collectionMetadata, Stringify) : undefined,
-    badgeMetadata: badgeMetadata ? badgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, Stringify)) : undefined
-  }
-}
+    collectionMetadata: collectionMetadata?.clone(),
+    badgeMetadata: badgeMetadata.map((x) => x.clone())
+  };
+};
 
-const appendMetadataResToCollection = (metadataRes: { collectionMetadata?: Metadata<JSPrimitiveNumberType>, badgeMetadata?: BadgeMetadataDetails<JSPrimitiveNumberType>[] }, collection: BitBadgesCollection<JSPrimitiveNumberType> | BitBadgesCollection<JSPrimitiveNumberType>) => {
+const appendMetadataResToCollection = (
+  metadataRes: {
+    collectionMetadata?: Metadata<bigint>;
+    badgeMetadata?: Array<BadgeMetadataDetails<bigint>>;
+  },
+  collection: BitBadgesCollection<bigint> | BitBadgesCollection<bigint>
+) => {
   // Kinda hacky and inefficient, but metadataRes is the newest metadata, so we just overwrite existing metadata, if exists with same key
   const isCollectionMetadataResEmpty = !metadataRes.collectionMetadata || Object.keys(metadataRes.collectionMetadata).length === 0;
   collection.cachedCollectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.cachedCollectionMetadata;
   if (metadataRes.badgeMetadata) {
-    let _badgeMetadata = collection.cachedBadgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, BigIntify));
-    _badgeMetadata = batchUpdateBadgeMetadata(_badgeMetadata, metadataRes.badgeMetadata.map((x) => convertBadgeMetadataDetails(x, BigIntify)));
-    collection.cachedBadgeMetadata = _badgeMetadata.map((metadata) => convertBadgeMetadataDetails(metadata, Stringify));
+    collection.cachedBadgeMetadata = batchUpdateBadgeMetadata(collection.cachedBadgeMetadata, metadataRes.badgeMetadata);
   }
 
   return collection;
-}
+};

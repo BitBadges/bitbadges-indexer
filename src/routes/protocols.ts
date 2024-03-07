@@ -1,42 +1,48 @@
+import {
+  type ErrorResponse,
+  convertToCosmosAddress,
+  type iGetCollectionForProtocolRouteSuccessResponse,
+  type iGetProtocolsRouteSuccessResponse,
+  type GetCollectionForProtocolRouteRequestBody,
+  type GetProtocolsRouteRequestBody,
+  type NumberType
+} from 'bitbadgesjs-sdk';
+import { type Request, type Response } from 'express';
+import { serializeError } from 'serialize-error';
+import { mustGetManyFromDB } from '../db/db';
+import { ProtocolModel } from '../db/schemas';
+import { client } from '../indexer';
+import { connectToRpc } from '../poll';
 
-import { NumberType } from "bitbadgesjs-sdk";
-import { GetCollectionForProtocolRouteRequestBody, GetCollectionForProtocolRouteResponse, GetProtocolsRouteRequestBody, GetProtocolsRouteResponse, convertToCosmosAddress } from "bitbadgesjs-sdk";
-import { Request, Response } from "express";
-import { serializeError } from "serialize-error";
-import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { client } from "../indexer";
-import { mustGetManyFromDB, ProtocolModel } from "../db/db";
-import { connectToRpc } from "../poll";
-
-export const getProtocols = async (expressReq: Request, res: Response<GetProtocolsRouteResponse>) => {
+export const getProtocols = async (req: Request, res: Response<iGetProtocolsRouteSuccessResponse | ErrorResponse>) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetProtocolsRouteRequestBody;
 
     const names = reqBody.names;
 
     if (names.length > 100) {
-      throw 'Cannot fetch more than 100 at a time.'
+      throw new Error('Cannot fetch more than 100 protocols at a time.');
     }
 
     const protocols = await mustGetManyFromDB(ProtocolModel, names);
 
     return res.status(200).send({
-      protocols: protocols
+      protocols
     });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error getting protocols"
+      errorMessage: 'Error getting protocols'
     });
   }
-}
+};
 
-
-export const getCollectionForProtocol = async (expressReq: Request, res: Response<GetCollectionForProtocolRouteResponse<NumberType>>) => {
+export const getCollectionForProtocol = async (
+  req: Request,
+  res: Response<iGetCollectionForProtocolRouteSuccessResponse<NumberType> | ErrorResponse>
+) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
     const reqBody = req.body as GetCollectionForProtocolRouteRequestBody;
 
     const name = reqBody.name;
@@ -44,23 +50,19 @@ export const getCollectionForProtocol = async (expressReq: Request, res: Respons
     const cosmosAddress = convertToCosmosAddress(address);
 
     if (!client) {
-      await connectToRpc()
+      await connectToRpc();
     }
 
     const collectionId = await client.badgesQueryClient?.protocols.getCollectionIdForProtocol(name, cosmosAddress);
 
     return res.status(200).send({
-      collectionId: collectionId || 0
+      collectionId: collectionId ?? 0n
     });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error getting follow details"
+      errorMessage: 'Error getting follow details'
     });
   }
-
-
-}
-
-
+};

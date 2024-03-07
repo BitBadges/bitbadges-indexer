@@ -8,6 +8,8 @@ test.env
 # Testing
 /coverage
 
+/cert
+
 # Created by https://www.gitignore.io/api/node,sass,windows,visualstudiocode
 
 ### Node ###
@@ -109,3 +111,4 @@ server.*
 
 # End of https://www.gitignore.io/api/node,sass,windows,visualstudiocode
 
+src/routes/cert/*

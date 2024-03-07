@@ -1,8 +1,6 @@
 {
   "listId": "off-chain_fdasfasdfa",
-  "addresses": [
-    "cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp"
-  ],
+  "addresses": ["cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp"],
   "whitelist": true,
   "uri": "ipfs://Qmf8xxN2fwXGgouue3qsJtN8ZRSsnoHxM9mGcynTPhh6Ub",
   "customData": ""

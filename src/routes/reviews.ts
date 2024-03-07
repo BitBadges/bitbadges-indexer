@@ -1,16 +1,25 @@
-import { NumberType } from "bitbadgesjs-sdk";
-import { AddReviewForCollectionRouteRequestBody, AddReviewForCollectionRouteResponse, AddReviewForUserRouteRequestBody, AddReviewForUserRouteResponse, DeleteReviewRouteResponse, ReviewDoc, convertToCosmosAddress, isAddressValid } from "bitbadgesjs-sdk";
-import { Request, Response } from "express";
-import { serializeError } from "serialize-error";
-import { AuthenticatedRequest } from "../blockin/blockin_handlers";
-import { ReviewModel, deleteMany, insertToDB, mustGetFromDB } from "../db/db";
-import { getStatus } from "../db/status";
-import { getAccountByUsername } from "./users";
+import {
+  type ErrorResponse,
+  ReviewDoc,
+  convertToCosmosAddress,
+  type iAddReviewForCollectionRouteSuccessResponse,
+  type iAddReviewForUserRouteSuccessResponse,
+  type iDeleteReviewRouteSuccessResponse,
+  isAddressValid,
+  type AddReviewForCollectionRouteRequestBody,
+  type AddReviewForUserRouteRequestBody,
+  type NumberType
+} from 'bitbadgesjs-sdk';
+import { type Response } from 'express';
+import { serializeError } from 'serialize-error';
+import { ReviewModel } from '../db/schemas';
+import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
+import { getStatus } from '../db/status';
+import { getAccountByUsername } from './users';
 
-export const deleteReview = async (expressReq: Request, res: Response<DeleteReviewRouteResponse<NumberType>>) => {
+export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteReviewRouteSuccessResponse | ErrorResponse>) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>;
-
     const reviewId = req.params.reviewId;
     const reviewDoc = await mustGetFromDB(ReviewModel, reviewId);
 
@@ -25,15 +34,17 @@ export const deleteReview = async (expressReq: Request, res: Response<DeleteRevi
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error deleting review. Please try again later."
-    })
+      errorMessage: 'Error deleting review. Please try again later.'
+    });
   }
-}
+};
 
-
-export const addReviewForCollection = async (expressReq: Request, res: Response<AddReviewForCollectionRouteResponse<NumberType>>) => {
+export const addReviewForCollection = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iAddReviewForCollectionRouteSuccessResponse | ErrorResponse>
+) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as AddReviewForCollectionRouteRequestBody;
+    const reqBody = req.body as AddReviewForCollectionRouteRequestBody;
 
     if (!reqBody.review || reqBody.review.length > 2048) {
       return res.status(400).send({ errorMessage: 'Review must be 1 to 2048 characters long.' });
@@ -48,20 +59,19 @@ export const addReviewForCollection = async (expressReq: Request, res: Response<
     const status = await getStatus();
 
     const { review } = req.body;
-    //number because nothng should overflow here
-    //random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
+    // number because nothng should overflow here
+    // random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
     const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
 
-    const activityDoc: ReviewDoc<number> = {
-
+    const activityDoc = new ReviewDoc({
       _docId: `collection-${collectionId}:${id}`,
       collectionId: Number(collectionId),
       stars: Number(stars),
-      review: review,
+      review,
       from: req.session.cosmosAddress,
       timestamp: Number(Date.now()),
       block: Number(status.block.height)
-    }
+    });
 
     await insertToDB(ReviewModel, activityDoc);
 
@@ -70,21 +80,21 @@ export const addReviewForCollection = async (expressReq: Request, res: Response<
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error adding review. Please try again later."
-    })
+      errorMessage: 'Error adding review. Please try again later.'
+    });
   }
-}
+};
 
-
-
-export const addReviewForUser = async (expressReq: Request, res: Response<AddReviewForUserRouteResponse<NumberType>>) => {
+export const addReviewForUser = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iAddReviewForUserRouteSuccessResponse | ErrorResponse>
+) => {
   try {
-    const req = expressReq as AuthenticatedRequest<NumberType>; const reqBody = req.body as AddReviewForUserRouteRequestBody;
+    const reqBody = req.body as AddReviewForUserRouteRequestBody;
 
     if (!reqBody.review || reqBody.review.length > 2048) {
       return res.status(400).send({ errorMessage: 'Review must be 1 to 2048 characters long.' });
     }
-
 
     const stars = Number(reqBody.stars);
     if (isNaN(stars) || stars < 0 || stars > 5) {
@@ -106,18 +116,18 @@ export const addReviewForUser = async (expressReq: Request, res: Response<AddRev
     const status = await getStatus();
 
     const { review } = req.body;
-    //random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
+    // random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
     const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
 
-    const activityDoc: ReviewDoc<NumberType> = {
+    const activityDoc = new ReviewDoc({
       _docId: `user-${cosmosAddress}:${id}`,
       reviewedAddress: cosmosAddress,
       stars: Number(stars),
-      review: review,
+      review,
       from: req.session.cosmosAddress,
       timestamp: Number(Date.now()),
       block: Number(status.block.height)
-    }
+    });
 
     await insertToDB(ReviewModel, activityDoc);
 
@@ -126,7 +136,7 @@ export const addReviewForUser = async (expressReq: Request, res: Response<AddRev
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: "Error adding announcement. Please try again later."
-    })
+      errorMessage: 'Error adding announcement. Please try again later.'
+    });
   }
-}
+};

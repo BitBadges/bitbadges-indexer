@@ -1,40 +1,31 @@
 {
-    "exclude": [
-        "node_modules",
-        "build",
-        "dist",
-        "scripts",
-        "acceptance-tests",
-        "webpack",
-        "test",
-        "jest",
-        "src/setupTests.ts"
-    ],
-    "compilerOptions": {
-        "esModuleInterop": true,
-        "baseUrl": ".",
-        "outDir": "build/dist",
-        "module": "ESNext",
-        "lib": ["es6", "dom"],
-        "sourceMap": true,
-        "allowJs": true,
-        "jsx": "react",
-        "moduleResolution": "node",
-        "target": "ESNext",
-        "rootDir": "src",
-        "forceConsistentCasingInFileNames": true,
-        "noImplicitReturns": true,
-        "noImplicitThis": true,
-        "noImplicitAny": true,
-        "strictNullChecks": true,
-        "noUnusedLocals": true,
-        "allowSyntheticDefaultImports": true,
-        "downlevelIteration": true,
-        "skipLibCheck": true,
-        
-    },
-    "ts-node": {
-        "esm": true,
-        "experimentalSpecifierResolution": "node",
-    }
+  "compilerOptions": {
+    "esModuleInterop": true,
+
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "outDir": "build/dist",
+    "module": "ESNext",
+    "lib": ["es6"],
+    "sourceMap": true,
+    "allowJs": true,
+    "jsx": "react",
+    "moduleResolution": "node",
+    "target": "ESNext",
+    "rootDir": "src",
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "allowSyntheticDefaultImports": true,
+    "downlevelIteration": true
+  },
+  "exclude": ["node_modules/**/*", "/**/*src.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "src/**/*.js", "src/**/*.jsx"],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
 }

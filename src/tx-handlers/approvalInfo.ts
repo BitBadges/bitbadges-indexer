@@ -1,14 +1,21 @@
-import { BigIntify, CollectionDoc, DocsCache, StatusDoc, convertPasswordDoc, convertToCosmosAddress } from "bitbadgesjs-sdk";
-import { PasswordModel } from "../db/db";
-import { getApprovalInfoIdForQueueDb, pushApprovalInfoFetchToQueue } from "../queue";
-import { getLoadBalancerId } from "../utils/loadBalancer";
+import { ClaimAlertDoc, ClaimBuilderDoc, convertToCosmosAddress, type CollectionDoc, type StatusDoc } from 'bitbadgesjs-sdk';
+import { deleteMany, mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
+import { ClaimBuilderModel, CollectionModel } from '../db/schemas';
+import { type DocsCache } from '../db/types';
+import { getFromIpfs } from '../ipfs/ipfs';
+import { getApprovalInfoIdForQueueDb, pushApprovalInfoFetchToQueue } from '../queue';
+import { getLoadBalancerId } from '../utils/loadBalancer';
 
-
-export const handleApprovals = async (docs: DocsCache, collectionDoc: CollectionDoc<bigint>, status: StatusDoc<bigint>) => {
-
+export const handleApprovals = async (
+  docs: DocsCache,
+  collectionDoc: CollectionDoc<bigint>,
+  status: StatusDoc<bigint>,
+  isCreateTx: boolean
+): Promise<void> => {
   try {
-    //Handle claim objects
-    //Note we only handle each unique URI once per collection, even if there is multiple claims with the same (thus you can't duplicate passwords for the same URI)
+    // Handle claim objects
+    // Note we only handle each unique URI once per collection, even if there is multiple claims with the same (thus you can't duplicate passwords for the same URI)
     const handledUris: string[] = [];
     let idx = 0;
     for (const approval of collectionDoc.collectionApprovals) {
@@ -18,53 +25,52 @@ export const handleApprovals = async (docs: DocsCache, collectionDoc: Collection
         if (!handledUris.includes(approval.uri)) {
           handledUris.push(approval.uri);
 
-          const entropy = status.block.height + "-" + status.block.txIndex;
+          const entropy = status.block.height + '-' + status.block.txIndex;
           const claimDocId = getApprovalInfoIdForQueueDb(entropy, collectionDoc.collectionId.toString(), approval.uri.toString());
 
           await pushApprovalInfoFetchToQueue(docs, collectionDoc, approval.uri, getLoadBalancerId(claimDocId), status.block.timestamp, entropy);
 
-
-          //The following is to handle if there are multiple claims using the same uri (and thus the same file contents)
-          //If the collection was created through our API, we previously made a document in PasswordModel with docClaimedByCollection = false and the correct passwords
-          //To prevent duplicates, we "claim" the document by setting docClaimedByCollection = true
-          //We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
+          // The following is to handle if there are multiple claims using the same uri (and thus the same file contents)
+          // If the collection was created through our API, we previously made a document in ClaimBuilderModel with docClaimed = false and the correct passwords
+          // To prevent duplicates, we "claim" the document by setting docClaimed = true
+          // We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
           if (approval.uri.startsWith('ipfs://')) {
             const cid = approval.uri.replace('ipfs://', '').split('/')[0];
 
             const docQuery = {
-              docClaimedByCollection: false,
-              cid: cid,
-              createdBy: collectionDoc.createdBy,
+              docClaimed: false,
+              cid,
+              createdBy: collectionDoc.createdBy
             };
 
-            const docResult = await PasswordModel.find(docQuery).lean().exec();
-            if (docResult.length) {
-              const doc = docResult[0];
+            const docResult = await findInDB(ClaimBuilderModel, { query: docQuery });
+            if (docResult.length > 0) {
+              const convertedDoc = docResult[0];
 
-              const convertedDoc = convertPasswordDoc(doc as any, BigIntify);
-
-              docs.passwordDocs[doc._docId] = {
+              docs.claimBuilderDocs[convertedDoc._docId] = new ClaimBuilderDoc({
                 ...convertedDoc,
-                docClaimedByCollection: true,
-                collectionId: collectionDoc.collectionId,
-                challengeDetails: convertedDoc.challengeDetails ? {
-                  ...convertedDoc.challengeDetails,
-                  currCode: convertedDoc.challengeDetails?.currCode ? BigInt(convertedDoc.challengeDetails.currCode) : 0n,
-                } : undefined,
-              }
+                docClaimed: true,
+                collectionId: collectionDoc.collectionId
+              });
 
               if (merkleChallenge?.useCreatorAddressAsLeaf) {
-                if (doc.challengeDetails?.leavesDetails.isHashed == false) {
-                  const addresses = doc.challengeDetails?.leavesDetails.leaves.map(leaf => convertToCosmosAddress(leaf));
+                const res = await getFromIpfs(cid);
+                const convertedDoc = JSON.parse(res.file);
+
+                if (convertedDoc.challengeDetails?.leavesDetails.isHashed === false) {
+                  const addresses = convertedDoc.challengeDetails?.leavesDetails.leaves.map((leaf: string) => convertToCosmosAddress(leaf));
+
                   const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
-                  docs.claimAlertsToAdd.push({
-                    _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
-                    timestamp: status.block.timestamp,
-                    block: status.block.height,
-                    collectionId: collectionDoc.collectionId,
-                    cosmosAddresses: addresses,
-                    message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`,
-                  });
+                  docs.claimAlertsToAdd.push(
+                    new ClaimAlertDoc({
+                      _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
+                      timestamp: status.block.timestamp,
+                      block: status.block.height,
+                      collectionId: collectionDoc.collectionId,
+                      cosmosAddresses: addresses,
+                      message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`
+                    })
+                  );
                   idx++;
                 }
               }
@@ -73,7 +79,21 @@ export const handleApprovals = async (docs: DocsCache, collectionDoc: Collection
         }
       }
     }
+
+    //For on-chain approvals with off-chain claim builders, we delete the claim builder docs that are no longer in the collectionApprovals
+    if (!isCreateTx) {
+      const oldDoc = await mustGetFromDB(CollectionModel, collectionDoc.collectionId.toString());
+      const oldCids: string[] = oldDoc.collectionApprovals.map((approval) => approval.uri?.split('/').pop()).filter((cid) => cid) as string[];
+      const newCids: string[] = collectionDoc.collectionApprovals.map((approval) => approval.uri?.split('/').pop()).filter((cid) => cid) as string[];
+      const docIdsToDelete = oldCids.filter((cid) => !newCids.includes(cid));
+      if (docIdsToDelete.length > 0) {
+        await deleteMany(
+          ClaimBuilderModel,
+          docIdsToDelete.map((id) => id)
+        );
+      }
+    }
   } catch (e) {
-    throw `Error in handleApprovals(): ${e}`
+    throw new Error(`Error in handleApprovals(): ${e}`);
   }
-}
+};

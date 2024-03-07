@@ -1,16 +1,21 @@
-import { FetchMetadataDirectlyRouteRequestBody, FetchMetadataDirectlyRouteResponse, NumberType } from "bitbadgesjs-sdk";
-import { Request, Response } from "express";
-import { fetchUriFromSource } from "../queue";
-import { FetchModel, getFromDB } from "../db/db";
+import {
+  type ErrorResponse,
+  type iFetchMetadataDirectlyRouteSuccessResponse,
+  type FetchMetadataDirectlyRouteRequestBody,
+  type NumberType
+} from 'bitbadgesjs-sdk';
+import { type Request, type Response } from 'express';
+import { fetchUriFromSource } from '../queue';
+import { getFromDB } from '../db/db';
+import { FetchModel } from '../db/schemas';
 
-
-export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMetadataDirectlyRouteResponse<NumberType>>) => {
+export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMetadataDirectlyRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as FetchMetadataDirectlyRouteRequestBody;
-    let uris = reqBody.uris;
+    const uris = reqBody.uris;
 
     if (uris.length > 100) {
-      throw new Error("You can only fetch up to 100 metadata at a time.");
+      throw new Error('You can only fetch up to 100 metadata at a time.');
     }
 
     const promises = [];
@@ -29,10 +34,10 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<FetchMet
       });
     }
 
-    const results = await Promise.all(promises.map(p => p()));
+    const results = await Promise.all(promises.map(async (p) => await p()));
 
     return res.status(200).send({ metadata: results });
   } catch (e) {
     return res.status(500).send({ errorMessage: e.message });
   }
-}
+};

@@ -1,25 +1,22 @@
-import { MongoDB } from "./db/db";
-import {
-  initStatus, createIndexesAndViews,
-  deleteDatabases
-} from "./setup-helpers"
+import { MongoDB } from './db/db';
+import { initStatus, createIndexesAndViews, deleteDatabases } from './setup-helpers';
 
-async function main() {
+async function main(): Promise<void> {
   try {
+    // npm run setup with-delete
     if (process.argv[2] === 'with-delete') {
       await deleteDatabases();
     }
 
-    // await createDatabases(); //If there is an error, we assume the database already exists and continue
     await initStatus();
     await createIndexesAndViews();
 
     await MongoDB.close();
 
-    // await bootstrapCollections();
+    // Run npm run bootstrap to init the bootstrapped collections
   } catch (e) {
     console.log(e);
   }
 }
 
-main()
+main().catch(console.error);

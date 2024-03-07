@@ -1,9 +1,9 @@
 {
-    "extends": "../tsconfig.json",
-    "compilerOptions": {
-        "target": "ESNext",
-        "isolatedModules": false,
-        "module": "ESNext",
-        "esModuleInterop": true,
-    }
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "isolatedModules": false,
+    "module": "ESNext",
+    "esModuleInterop": true
+  }
 }

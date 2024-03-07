@@ -1,10 +1,6 @@
-import { ethers } from "ethers";
+import { ethers } from 'ethers';
 
-export const provider = new ethers.providers.InfuraProvider(
-  'homestead',
-  process.env.INFURA_API_KEY
-);
-
+export const provider = new ethers.providers.InfuraProvider('homestead', process.env.INFURA_API_KEY);
 
 export async function getNameForAddress(address: string) {
   if (ethers.utils.isAddress(address)) {
@@ -34,7 +30,6 @@ export async function getEnsResolver(name: string) {
   }
 }
 
-
 export async function getEnsResolversForNames(names: string[]) {
   try {
     const promises = [];
@@ -49,10 +44,8 @@ export async function getEnsResolversForNames(names: string[]) {
   }
 }
 
-
 export async function getEnsDetails(resolver: ethers.providers.Resolver) {
   try {
-
     const ensAvatar = await resolver.getAvatar();
     // const twitter = await resolver.getText('com.twitter');
     // const github = await resolver.getText('com.github');
@@ -60,16 +53,15 @@ export async function getEnsDetails(resolver: ethers.providers.Resolver) {
     // const telegram = await resolver.getText('org.telegram');
 
     return {
-      avatar: ensAvatar ? ensAvatar.url : '',
+      avatar: ensAvatar ? ensAvatar.url : ''
       // twitter: twitter ? twitter : '',
       // github: github ? github : '',
       // discord: discord ? discord : '',
       // telegram: telegram ? telegram : '',
     };
   } catch (e) {
-
     return {
-      avatar: '',
+      avatar: ''
       // twitter: '',
       // github: '',
       // discord: '',
