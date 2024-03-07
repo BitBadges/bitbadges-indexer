@@ -20,7 +20,13 @@ update_bitbadges_indexer() {
     npm run build
     #if --delete flag, run the setup script
     if [ "$1" == "--delete" ]; then
-        npm run setup with-delete
+        read -p "Are you sure you want to delete existing data? This action cannot be undone. (yes/no): " confirm_delete
+        if [ "$confirm_delete" == "yes" ]; then
+            npm run setup with-delete
+        else
+            echo "Operation aborted."
+            exit 1
+        fi
     fi
 
     sudo systemctl start bitbadges-indexer
