@@ -17,13 +17,19 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
     if (publicParams.maxUses && priorState.currCode >= publicParams.maxUses) {
-      return { success: false, error: 'Max uses exceeded' };
+      return { success: false, error: 'Overall max uses exceeded' };
     }
+
+    const maxUsesPerAddress = publicParams.maxUsesPerAddress;
 
     const claimedUsers = priorState?.claimedUsers ? priorState.claimedUsers : {};
     const cosmosAddress = context.cosmosAddress;
-    if (claimedUsers[cosmosAddress] >= 0) {
-      return { success: false, error: 'Already claimed', data: { idx: claimedUsers[cosmosAddress] } };
+    const prevUsedIdxs = claimedUsers[cosmosAddress] ?? [];
+
+    if (maxUsesPerAddress) {
+      if (prevUsedIdxs.length >= maxUsesPerAddress) {
+        return { success: false, error: 'Exceeded max uses for this address', data: { prevUsed: claimedUsers[cosmosAddress] } };
+      }
     }
 
     return {
@@ -37,12 +43,11 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
         {
           $set: {
             [`state.numUses.claimedUsers.${cosmosAddress}`]: {
-              $subtract: ['$state.numUses.currCode', 1]
+              $concatArrays: [claimedUsers[cosmosAddress] ?? [], [{ $subtract: ['$state.numUses.currCode', 1] }]]
             }
           }
         }
-      ],
-      data: { idx: priorState.currCode }
+      ]
     };
   },
   getPublicState: (currState) => {

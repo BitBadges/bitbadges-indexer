@@ -122,8 +122,6 @@ export const checkAndCompleteClaim = async (
       claimId
     });
 
-    console.log(req.body);
-
     const claimBuilderDocResponse = await findInDB(ClaimBuilderModel, { query, limit: 1 });
     if (claimBuilderDocResponse.length === 0) {
       throw new Error('No password doc found');
@@ -180,11 +178,16 @@ export const checkAndCompleteClaim = async (
 
       //If we failed but have fetched a prior code, we return it
       if (plugin.id === 'numUses' && !result.success && actionType === ActionType.Code) {
-        const idx = result.data?.idx;
-        if (idx !== undefined) {
+        const prevUsedIdxs = result.data?.prevUsed;
+
+        if (prevUsedIdxs !== undefined) {
+          //TODO: We should handle this better instead of simply using most recent code
+          //What if they want to reuse a code from awhile ago?
           const codes = getDecryptedActionCodes(claimBuilderDoc);
+          const mostRecentIdx = prevUsedIdxs[prevUsedIdxs.length - 1];
           return res.status(200).send({
-            code: codes[idx]
+            prevCodes: prevUsedIdxs.map((idx: number) => codes[Number(idx)]),
+            code: codes[Number(mostRecentIdx)]
           });
         }
       } else if (!result.success) {
@@ -200,12 +203,24 @@ export const checkAndCompleteClaim = async (
       .filter((x) => x)
       .flat();
 
+    const prevFetchedSize = claimBuilderDoc.state.numUses.claimedUsers[context.cosmosAddress]?.length ?? 0;
+    let consistencyQuery: any = {
+      $size: prevFetchedSize
+    };
+    if (!prevFetchedSize) {
+      consistencyQuery = {
+        $exists: false
+      };
+    }
+
+
+    //TODO: Session w/ the action updates as well?
     // Find the doc, increment currCode, and add the given code idx to claimedUsers
     const newDoc = await ClaimBuilderModel.findOneAndUpdate(
       {
         ...query,
         _docId: claimBuilderDoc._docId,
-        [`state.numUses.claimedUsers.${context.cosmosAddress}`]: { $exists: false }
+        [`state.numUses.claimedUsers.${context.cosmosAddress}`]: consistencyQuery
       },
       setters,
       { new: true }
@@ -221,11 +236,13 @@ export const checkAndCompleteClaim = async (
       await performBalanceClaimAction(newDoc as ClaimBuilderDoc<NumberType>);
       return res.status(200).send();
     } else if (actionType === ActionType.Code) {
-      const numUsesIdx = newDoc.plugins.findIndex((plugin) => plugin.id === 'numUses');
-      const numUsesResult = results[numUsesIdx];
-      const currCodeIdx = numUsesResult.data?.idx;
-      const code = await distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, currCodeIdx);
-      return res.status(200).send({ code });
+      const currCodeIdx = newDoc.state.numUses.currCode - 1;
+      const code = distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, currCodeIdx);
+
+      const prevUsedCodes = newDoc.state.numUses.claimedUsers[context.cosmosAddress].filter((x: number) => x < currCodeIdx);
+      return res
+        .status(200)
+        .send({ prevCodes: prevUsedCodes.map((idx: number) => distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, idx)), code });
     } else if (actionType === ActionType.AddToList && claimBuilderDoc.action.listId) {
       await addToAddressListAction(newDoc as ClaimBuilderDoc<NumberType>, context.cosmosAddress);
       return res.status(200).send();
@@ -257,12 +274,6 @@ const addToAddressListAction = async (doc: ClaimBuilderDoc<NumberType>, cosmosAd
   const address = cosmosAddress;
 
   const activityDocs: Array<ListActivityDoc<bigint>> = [];
-
-  const alreadyOnList = listDoc.addresses.map((x) => convertToCosmosAddress(x)).includes(convertToCosmosAddress(address));
-  if (alreadyOnList) {
-    throw new Error('Address already on list');
-  }
-
   // TODO: Session?
   await AddressListModel.findOneAndUpdate({ _docId: listId }, { $push: { addresses: convertToCosmosAddress(address) } })
     .lean()
@@ -273,7 +284,7 @@ const addToAddressListAction = async (doc: ClaimBuilderDoc<NumberType>, cosmosAd
   await insertMany(ListActivityModel, activityDocs);
 };
 
-const distributeCodeAction = async (doc: ClaimBuilderDoc<NumberType>, currCodeIdx: NumberType) => {
+const distributeCodeAction = (doc: ClaimBuilderDoc<NumberType>, currCodeIdx: NumberType) => {
   const codes = getDecryptedActionCodes(doc);
   return codes[Number(currCodeIdx)];
 };
