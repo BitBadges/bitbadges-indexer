@@ -15,6 +15,7 @@ update_bitbadges_indexer() {
     rm ./server.key
     cp /etc/nginx/ssl/server.cert ./
     cp /etc/nginx/ssl/server.key ./
+    git reset --hard
     git pull
     npm install
     npm run build
