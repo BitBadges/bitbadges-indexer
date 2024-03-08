@@ -39,7 +39,7 @@ import { getBadgeBalanceByAddress } from './routes/balances';
 import { broadcastTx, simulateTx } from './routes/broadcast';
 import { getBrowseCollections } from './routes/browse';
 import { getClaimAlertsForCollection, sendClaimAlert } from './routes/claimAlerts';
-import { getAllCodesAndPasswords } from './routes/codes';
+import { checkAndCompleteClaim, getClaimsHandler } from './routes/claims';
 import { getBadgeActivity, getCollections } from './routes/collections';
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
 import { getTokensFromFaucet } from './routes/faucet';
@@ -47,7 +47,6 @@ import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from './routes/ipfs';
 import { fetchMetadataDirectly } from './routes/metadata';
 import { createPass } from './routes/pass';
-import { getClaimsHandler, checkAndCompleteClaim } from './routes/claims';
 import { getCollectionForProtocol, getProtocols } from './routes/protocols';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
@@ -341,7 +340,6 @@ app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity)
 app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata); // Write route
 app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus); // Write route
 
-app.post('/api/v0/collection/:collectionId/codes', authorizeBlockinRequest, getAllCodesAndPasswords);
 app.post('/api/v0/claims/:claimId/:cosmosAddress', checkAndCompleteClaim); // Write route
 app.post('/api/v0/claims', getClaimsHandler);
 app.post('/api/v0/collections/filter', filterBadgesInCollectionHandler);

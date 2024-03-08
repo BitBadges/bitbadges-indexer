@@ -21,9 +21,10 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<NumberType, 'white
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState) => {
     const targetUser = context.cosmosAddress;
+    const params = publicParams.list || publicParams.listId ? publicParams : privateParams;
 
-    if (publicParams.listId) {
-      const addressListRes = await getAddressListsFromDB([{ listId: publicParams.listId }], false);
+    if (params.listId) {
+      const addressListRes = await getAddressListsFromDB([{ listId: params.listId }], false);
       if (addressListRes.length === 0) {
         return { success: false, error: 'List not found' };
       }
@@ -34,8 +35,8 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<NumberType, 'white
       }
     }
 
-    if (publicParams.list) {
-      const addressList = new AddressList(publicParams.list);
+    if (params.list) {
+      const addressList = new AddressList(params.list);
       if (!addressList.checkAddress(context.cosmosAddress)) {
         return { success: false, error: 'User not in list of whitelisted users.' };
       }

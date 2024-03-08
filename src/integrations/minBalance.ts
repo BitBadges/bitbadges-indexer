@@ -9,7 +9,7 @@ export const MinBalancePluginDetails: BackendIntegrationPlugin<NumberType, 'grea
     description: 'A badge balance challenge',
     image: 'https://bitbadges.s3.amazonaws.com/greater_than_x_badge_balance.png',
     createdBy: 'BitBadges',
-    stateless: false,
+    stateless: true,
     scoped: true
   },
   defaultState: {},
