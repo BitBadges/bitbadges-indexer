@@ -28,7 +28,7 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
 
     if (maxUsesPerAddress) {
       if (prevUsedIdxs.length >= maxUsesPerAddress) {
-        return { success: false, error: 'Exceeded max uses for this address', data: { prevUsed: claimedUsers[cosmosAddress] } };
+        return { success: false, error: 'Exceeded max uses for this address' };
       }
     }
 

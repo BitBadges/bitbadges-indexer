@@ -145,6 +145,17 @@ export const checkAndCompleteClaim = async (
       }
     }
 
+    if (actionType === ActionType.Code && req.body.prevCodesOnly) {
+      const prevUsedIdxs = claimBuilderDoc.state.numUses.claimedUsers[context.cosmosAddress] ?? [];
+
+      if (prevUsedIdxs !== undefined) {
+        const codes = getDecryptedActionCodes(claimBuilderDoc);
+        return res.status(200).send({
+          prevCodes: prevUsedIdxs.map((idx: number) => codes[Number(idx)])
+        });
+      }
+    }
+
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
       const pluginInstance = getPlugin(plugin.id);
@@ -176,24 +187,10 @@ export const checkAndCompleteClaim = async (
 
       results.push(result);
 
-      //If we failed but have fetched a prior code, we return it
-      if (plugin.id === 'numUses' && !result.success && actionType === ActionType.Code) {
-        const prevUsedIdxs = result.data?.prevUsed;
-
-        if (prevUsedIdxs !== undefined) {
-          //TODO: We should handle this better instead of simply using most recent code
-          //What if they want to reuse a code from awhile ago?
-          const codes = getDecryptedActionCodes(claimBuilderDoc);
-          const mostRecentIdx = prevUsedIdxs[prevUsedIdxs.length - 1];
-          return res.status(200).send({
-            prevCodes: prevUsedIdxs.map((idx: number) => codes[Number(idx)]),
-            code: codes[Number(mostRecentIdx)]
-          });
-        }
-      } else if (!result.success) {
+      if (!result.success) {
         return res.status(400).send({
           error: result.error,
-          errorMessage: 'Error getting codes. One or more of the challenges were not satisfied. ' + result.error
+          errorMessage: 'One or more of the challenges were not satisfied. ' + result.error
         });
       }
     }
@@ -212,7 +209,6 @@ export const checkAndCompleteClaim = async (
         $exists: false
       };
     }
-
 
     //TODO: Session w/ the action updates as well?
     // Find the doc, increment currCode, and add the given code idx to claimedUsers
