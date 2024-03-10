@@ -26,6 +26,10 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter
       return { success: false, error: 'Invalid twitter details' };
     }
 
+    if (priorState[twitterInfo.id]) {
+      return { success: false, error: 'User already completed challenge' };
+    }
+
     if (params.users && params.users.length > 0) {
       const inList = params.users.some((user) => user === twitterInfo.username);
       if (!inList) {
@@ -72,6 +76,10 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<NumberType, 'discord
     const access_token = discordInfo.access_token;
     if (!discordInfo.id || !discordInfo.username) {
       return { success: false, error: 'Invalid discord ID' };
+    }
+
+    if (priorState[userId]) {
+      return { success: false, error: 'User already completed challenge' };
     }
 
     //Check if user ID is in list of whitelisted users (if applicable)

@@ -1,7 +1,9 @@
 import { NumberType } from 'bitbadgesjs-sdk';
 import CryptoJS from 'crypto-js';
 import { BackendIntegrationPlugin } from './types';
+import dotenv from 'dotenv';
 
+dotenv.config();
 const { AES, SHA256 } = CryptoJS;
 
 export const generateCodesFromSeed = (seedCode: string, numCodes: number): string[] => {
@@ -40,8 +42,8 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
   },
   decryptPrivateParams: (privateParams) => {
     return {
-      codes: privateParams.codes.map((code) => AES.decrypt(code, symKey).toString(CryptoJS.enc.Utf8)),
-      seedCode: AES.decrypt(privateParams.seedCode, symKey).toString(CryptoJS.enc.Utf8)
+      codes: (privateParams.codes ?? []).map((code) => AES.decrypt(code, symKey).toString(CryptoJS.enc.Utf8)),
+      seedCode: privateParams.seedCode ? AES.decrypt(privateParams.seedCode, symKey).toString(CryptoJS.enc.Utf8) : ''
     };
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {

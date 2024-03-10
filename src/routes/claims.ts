@@ -34,6 +34,7 @@ import { addBalancesToOffChainStorage } from '../ipfs/ipfs';
 import { getActivityDocsForListUpdate } from './addressLists';
 import { getClaimDetailsForFrontend } from './collections';
 import { refreshCollection } from './refresh';
+import { MustOwnPluginDetails } from '../integrations/mustOwnBadges';
 
 export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<NumberType, key> } = {
   codes: CodesPluginDetails,
@@ -44,7 +45,8 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   greaterThanXBADGEBalance: MinBalancePluginDetails,
   transferTimes: TransferTimesPluginDetails,
   requiresProofOfAddress: RequiresSignaturePluginDetails,
-  whitelist: WhitelistPluginDetails
+  whitelist: WhitelistPluginDetails,
+  mustOwnBadges: MustOwnPluginDetails
 };
 
 enum ActionType {
@@ -161,18 +163,46 @@ export const checkAndCompleteClaim = async (
       const pluginInstance = getPlugin(plugin.id);
 
       let adminInfo = {};
-      switch (plugin.id) {
-        case 'requiresProofOfAddress':
-          adminInfo = req.session;
-          break;
-        case 'discord':
-          adminInfo = req.session.discord;
-          break;
-        case 'twitter':
-          adminInfo = req.session.twitter;
-          break;
-        default:
-          break;
+      if (process.env.TEST_MODE === 'true') {
+        switch (plugin.id) {
+          case 'requiresProofOfAddress':
+            adminInfo = {
+              cosmosAddress: 'cosmos1tqg2v8h5y9a2t7n4q9f4p7f8d8t7n4q9f4p7f',
+              blockin: true
+            };
+            break;
+          case 'discord':
+            adminInfo = {
+              id: '123456789',
+              username: 'testuser',
+              discriminator: '',
+              access_token: ''
+            };
+            break;
+          case 'twitter':
+            adminInfo = {
+              id: '123456789',
+              username: 'testuser',
+              access_token: ''
+            };
+            break;
+          default:
+            break;
+        }
+      } else {
+        switch (plugin.id) {
+          case 'requiresProofOfAddress':
+            adminInfo = req.session;
+            break;
+          case 'discord':
+            adminInfo = req.session.discord;
+            break;
+          case 'twitter':
+            adminInfo = req.session.twitter;
+            break;
+          default:
+            break;
+        }
       }
 
       const result = await pluginInstance.validateFunction(
@@ -236,6 +266,7 @@ export const checkAndCompleteClaim = async (
       const code = distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, currCodeIdx);
 
       const prevUsedCodes = newDoc.state.numUses.claimedUsers[context.cosmosAddress].filter((x: number) => x < currCodeIdx);
+      console.log('prevUsedCodes', prevUsedCodes, code);
       return res
         .status(200)
         .send({ prevCodes: prevUsedCodes.map((idx: number) => distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, idx)), code });
@@ -260,6 +291,7 @@ export const getDecryptedActionCodes = (doc: ClaimBuilderDoc<NumberType>) => {
     codes: doc.action.codes ?? [],
     seedCode: doc.action.seedCode ?? ''
   });
+  console.log(decryptedInfo);
   const codes = decryptedInfo.seedCode ? generateCodesFromSeed(decryptedInfo.seedCode, maxUses) : decryptedInfo.codes;
   return codes;
 };

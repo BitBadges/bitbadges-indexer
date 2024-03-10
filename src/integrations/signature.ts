@@ -13,10 +13,6 @@ export const RequiresSignaturePluginDetails: BackendIntegrationPlugin<NumberType
   },
   defaultState: {},
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
-    if (process.env.TEST_MODE === 'true') {
-      return { success: true };
-    }
-    
     if (!adminInfo.cosmosAddress || !adminInfo.blockin) {
       return { success: false, error: 'Must be authenticated to claim' };
     }

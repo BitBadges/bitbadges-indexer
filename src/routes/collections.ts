@@ -11,6 +11,7 @@ import {
   CollectionApprovalWithDetails,
   CollectionPermissionsWithDetails,
   IntegrationPluginDetails,
+  IntegrationPluginParams,
   MerkleChallengeDoc,
   Metadata,
   UintRangeArray,
@@ -626,12 +627,12 @@ export const getClaimDetailsForFrontend = async (
 
 const getDecryptedPluginsAndPublicState = async (
   req: MaybeAuthenticatedRequest<NumberType>,
-  plugins: IntegrationPluginDetails<ClaimIntegrationPluginType>[],
+  plugins: IntegrationPluginParams<ClaimIntegrationPluginType>[],
   state: any,
   includePrivateParams?: boolean,
   collectionId?: NumberType,
   listId?: string
-) => {
+): Promise<IntegrationPluginDetails<ClaimIntegrationPluginType>[]> => {
   if (includePrivateParams) {
     const auth = checkIfAuthenticated(req);
     if (!auth) {

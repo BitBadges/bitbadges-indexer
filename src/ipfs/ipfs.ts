@@ -5,7 +5,7 @@ import {
   ChallengeDetails,
   ClaimIntegrationPluginType,
   FetchDoc,
-  IntegrationPluginDetails,
+  IntegrationPluginParams,
   type NumberType,
   type iBadgeMetadataDetails,
   type iChallengeDetails,
@@ -235,7 +235,7 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
   name: string,
   description: string,
   challengeDetails?: iChallengeDetails<T>,
-  plugins?: IntegrationPluginDetails<ClaimIntegrationPluginType>[]
+  plugins?: IntegrationPluginParams<ClaimIntegrationPluginType>[]
 ) => {
   const hasPassword = !!challengeDetails?.password && challengeDetails.password.length > 0;
 

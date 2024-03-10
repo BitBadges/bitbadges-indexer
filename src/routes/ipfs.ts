@@ -1,5 +1,6 @@
 import {
   ClaimBuilderDoc,
+  deepCopyPrimitives,
   type AddApprovalDetailsToOffChainStorageRouteRequestBody,
   type AddBalancesToOffChainStorageRouteRequestBody,
   type AddMetadataToIpfsRouteRequestBody,
@@ -99,12 +100,13 @@ export const addBalancesToOffChainStorageHandler = async (
       const query = { collectionId: Number(reqBody.collectionId), docClaimed: true, _docId: claim.claimId };
       const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1 });
       const existingDoc = existingDocRes.length > 0 ? existingDocRes[0] : undefined;
-      const plugins = encryptPlugins(claim.plugins ?? []);
+      const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
+      const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
 
       const state: Record<string, any> = {};
-      for (const plugin of plugins ?? []) {
+      for (const plugin of pluginsWithOptions ?? []) {
         state[plugin.id] = Plugins[plugin.id].defaultState;
-        if (existingDoc  && !plugin.resetState) {
+        if (existingDoc && !plugin.resetState) {
           state[plugin.id] = existingDoc.state[plugin.id];
         }
       }
@@ -118,7 +120,7 @@ export const addBalancesToOffChainStorageHandler = async (
             balancesToSet: claim.balancesToSet
           },
           state,
-          plugins: plugins ?? []
+          plugins: encryptedPlugins ?? []
         });
       } else {
         await insertToDB(
@@ -133,7 +135,7 @@ export const addBalancesToOffChainStorageHandler = async (
               balancesToSet: claim.balancesToSet
             },
             state,
-            plugins: plugins ?? []
+            plugins: encryptedPlugins ?? []
           })
         );
       }
@@ -226,10 +228,11 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       });
 
       const hasSeedCode = challengeDetails?.leavesDetails.seedCode;
-      const plugins = encryptPlugins(claim.plugins ?? []);
+      const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
+      const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
 
       const state: Record<string, any> = {};
-      for (const plugin of plugins ?? []) {
+      for (const plugin of pluginsWithOptions ?? []) {
         state[plugin.id] = Plugins[plugin.id].defaultState;
         // Note no existing doc state so we don't add it here
       }
@@ -248,7 +251,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
             codes: hasSeedCode ? undefined : encryptedAction.codes
           },
           state,
-          plugins: plugins ?? []
+          plugins: encryptedPlugins ?? []
         })
       );
     }

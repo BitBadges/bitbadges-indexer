@@ -150,9 +150,12 @@ export const updateAddressLists = async (
         const plugins = encryptPlugins(claim.plugins ?? []);
 
         const state: Record<string, any> = {};
-        for (const plugin of plugins ?? []) {
+        for (let i = 0; i < plugins.length; i++) {
+          const plugin = plugins[i];
+          const passedInPlugin = claim.plugins[i];
+
           state[plugin.id] = Plugins[plugin.id].defaultState;
-          if (claimDocs.length > 0 && !plugin.resetState) {
+          if (claimDocs.length > 0 && !passedInPlugin.resetState) {
             state[plugin.id] = claimDocs[0].state[plugin.id];
           }
         }

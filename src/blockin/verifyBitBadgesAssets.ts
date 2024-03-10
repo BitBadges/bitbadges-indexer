@@ -1,4 +1,4 @@
-import { AddressList, BalanceArray, convertToCosmosAddress, getBalancesForIds, type UintRange } from 'bitbadgesjs-sdk';
+import { AddressList, BalanceArray, UintRangeArray, convertToCosmosAddress, getBalancesForIds, type UintRange } from 'bitbadgesjs-sdk';
 import { type AndGroup, type AssetConditionGroup, type OrGroup, type OwnershipRequirements } from 'blockin';
 import { getFromDB } from '../db/db';
 import { BalanceModel } from '../db/schemas';
@@ -31,8 +31,17 @@ export async function verifyBitBadgesAssets(
 
     throw new Error('Address did not meet the asset ownership requirements.');
   } else {
-    const numToSatisfy = normalItem.options?.numMatchesForVerification ?? 0n;
+    let numToSatisfy = normalItem.options?.numMatchesForVerification ?? 0n;
     const mustSatisfyAll = !numToSatisfy;
+    if (!numToSatisfy) {
+      for (const asset of normalItem.assets) {
+        if (asset.collectionId === 'BitBadges Lists') {
+          numToSatisfy += BigInt(asset.assetIds.length);
+        } else {
+          numToSatisfy += UintRangeArray.From(asset.assetIds.map((x) => x as UintRange<bigint>)).size();
+        }
+      }
+    }
 
     let numSatisfied = 0n;
 
@@ -106,6 +115,9 @@ export async function verifyBitBadgesAssets(
           const list = res[i];
           const badgeId = BigInt(i + 1);
 
+          console.log(list);
+          console.log(address);
+
           if (!list) {
             throw new Error('Could not find list in DB');
           }
@@ -130,6 +142,9 @@ export async function verifyBitBadgesAssets(
             ]);
           }
         }
+
+        //Little hacky but the addBalances do not include zero balances but the getBalancesForIds does
+        balances = getBalancesForIds([{ start: 1n, end: BigInt(res.length) }], asset.ownershipTimes, balances);
       } else {
         balances = getBalancesForIds(
           asset.assetIds.map((x) => x as UintRange<bigint>),
@@ -181,7 +196,7 @@ export async function verifyBitBadgesAssets(
       }
     }
 
-    if (!mustSatisfyAll && numSatisfied < numToSatisfy) {
+    if (numSatisfied < numToSatisfy) {
       throw new Error(`Address ${address} did not meet the ownership requirements.`);
     }
   }

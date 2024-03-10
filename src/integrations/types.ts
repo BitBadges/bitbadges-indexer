@@ -1,10 +1,10 @@
 import {
   ClaimIntegrationPluginType,
-  NumberType,
-  ClaimIntegrationPublicParamsType,
   ClaimIntegrationPrivateParamsType,
+  ClaimIntegrationPublicParamsType,
   ClaimIntegrationPublicStateType,
-  IntegrationPluginDetails
+  IntegrationPluginParams,
+  NumberType
 } from 'bitbadgesjs-sdk';
 import { Plugins } from '../routes/claims';
 
@@ -53,15 +53,17 @@ export const getPlugin = <T extends ClaimIntegrationPluginType>(id: T): BackendI
 
 export const getPluginParamsAndState = <T extends ClaimIntegrationPluginType>(
   id: T,
-  detailsArr: IntegrationPluginDetails<ClaimIntegrationPluginType>[]
-): IntegrationPluginDetails<T> | undefined => {
+  detailsArr: IntegrationPluginParams<ClaimIntegrationPluginType>[]
+): IntegrationPluginParams<T> | undefined => {
   const plugin = detailsArr.find((details) => details.id === id);
   if (!plugin) return undefined;
 
-  return plugin as IntegrationPluginDetails<T>;
+  return plugin as IntegrationPluginParams<T>;
 };
 
-export const encryptPlugins = (plugins: IntegrationPluginDetails<ClaimIntegrationPluginType>[]) => {
+export const encryptPlugins = (
+  plugins: IntegrationPluginParams<ClaimIntegrationPluginType>[]
+): IntegrationPluginParams<ClaimIntegrationPluginType>[] => {
   const SYM_KEY = process.env.SYM_KEY;
   if (!SYM_KEY) {
     throw new Error('No symmetric key found');
@@ -75,7 +77,8 @@ export const encryptPlugins = (plugins: IntegrationPluginDetails<ClaimIntegratio
     }
 
     return {
-      ...pluginDetails,
+      id: x.id,
+      publicParams: x.publicParams,
       privateParams: pluginInstance.encryptPrivateParams(pluginDetails.privateParams)
     };
   });
