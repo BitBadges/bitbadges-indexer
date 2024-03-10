@@ -265,7 +265,7 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
   const files = [];
   files.push({
     path: '',
-    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: convertedDetails, plugins: convertedPlugins }))
+    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: convertedDetails }))
   });
 
   const result = await last(ipfsClient.addAll(files));
