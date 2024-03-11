@@ -319,22 +319,30 @@ const distributeCodeAction = (doc: ClaimBuilderDoc<NumberType>, currCodeIdx: Num
 
 const performBalanceClaimAction = async (doc: ClaimBuilderDoc<NumberType>) => {
   const collectionId = doc.collectionId.toString();
-  const entries = Object.entries(doc?.state.numUses.claimedUsers);
-  //Sort by claimedUsers value
-  entries.sort((a: any, b: any) => Number(a[1]) - Number(b[1]));
 
-  const users = entries.map((entry) => entry[0]);
+  const allClaimDocsForCollection = await findInDB(ClaimBuilderModel, { query: { collectionId: Number(collectionId), docClaimed: true } });
 
-  const balances = await createBalanceMapForOffChainBalances([
-    new TransferWithIncrements({
-      //claimedUsers
-      from: 'Mint',
-      toAddresses: users,
-      balances: doc.action.balancesToSet?.startBalances ?? [],
-      incrementBadgeIdsBy: doc.action.balancesToSet?.incrementBadgeIdsBy,
-      incrementOwnershipTimesBy: doc.action.balancesToSet?.incrementOwnershipTimesBy
-    })
-  ]);
+  const transfers: TransferWithIncrements<NumberType>[] = [];
+  for (const claimDoc of allClaimDocsForCollection) {
+    const entries = Object.entries(claimDoc?.state.numUses.claimedUsers);
+    //Sort by claimedUsers value
+    entries.sort((a: any, b: any) => Number(a[1]) - Number(b[1]));
+
+    const users = entries.map((entry) => entry[0]);
+
+    transfers.push(
+      new TransferWithIncrements({
+        //claimedUsers
+        from: 'Mint',
+        toAddresses: users,
+        balances: claimDoc.action.balancesToSet?.startBalances ?? [],
+        incrementBadgeIdsBy: claimDoc.action.balancesToSet?.incrementBadgeIdsBy,
+        incrementOwnershipTimesBy: claimDoc.action.balancesToSet?.incrementOwnershipTimesBy
+      })
+    );
+  }
+
+  const balances = await createBalanceMapForOffChainBalances(transfers);
 
   const collection = await getFromDB(CollectionModel, collectionId.toString());
   const currUriPath = collection?.offChainBalancesMetadataTimeline

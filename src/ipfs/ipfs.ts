@@ -3,9 +3,7 @@ import axios from 'axios';
 import {
   ApprovalInfoDetails,
   ChallengeDetails,
-  ClaimIntegrationPluginType,
   FetchDoc,
-  IntegrationPluginParams,
   type NumberType,
   type iBadgeMetadataDetails,
   type iChallengeDetails,
@@ -234,8 +232,7 @@ export const addMetadataToIpfs = async (
 export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
   name: string,
   description: string,
-  challengeDetails?: iChallengeDetails<T>,
-  plugins?: IntegrationPluginParams<ClaimIntegrationPluginType>[]
+  challengeDetails?: iChallengeDetails<T>
 ) => {
   const hasPassword = !!challengeDetails?.password && challengeDetails.password.length > 0;
 
@@ -254,14 +251,6 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
     });
   }
 
-  let convertedPlugins = plugins?.map((plugin) => {
-    return {
-      ...plugin,
-      privateParams: undefined,
-      publicState: undefined
-    };
-  });
-
   const files = [];
   files.push({
     path: '',
@@ -277,21 +266,7 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
     name,
     description,
     hasPassword,
-    challengeDetails: convertedDetails,
-    offChainClaims: convertedPlugins
-      ? [
-          {
-            claimId: result.cid.toString(),
-            plugins: convertedPlugins.map((plugin) => {
-              return {
-                ...plugin,
-                privateParams: {},
-                publicState: {}
-              };
-            })
-          }
-        ]
-      : undefined
+    challengeDetails: convertedDetails
   });
 
   await insertToDB(

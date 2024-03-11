@@ -193,7 +193,7 @@ export const handleMsgUniversalUpdateCollection = async (
     collection.isArchivedTimeline = msg.isArchivedTimeline ?? [];
   }
 
-  await handleApprovals(docs, collection, status, msg.collectionId === 0n)
+  await handleApprovals(docs, collection, status, msg.collectionId === 0n);
 
   docs.refreshes[collection.collectionId.toString()] = new RefreshDoc({
     _docId: collection.collectionId.toString(),
@@ -226,11 +226,14 @@ export const handleMsgUniversalUpdateCollection = async (
         });
       }
 
-      const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, { query: { cid: customData, docClaimed: false } });
-      for (const doc of existingClaimBuilderDocs) {
-        doc.collectionId = collection.collectionId;
-        doc.docClaimed = true;
-        await insertToDB(ClaimBuilderModel, doc);
+      //If we just claimed the customData or already claimed, we can claim all others with the balances
+      if (!existingDoc || BigInt(existingDoc.collectionId) == collection.collectionId) {
+        const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, { query: { cid: customData, docClaimed: false } });
+        for (const doc of existingClaimBuilderDocs) {
+          doc.collectionId = collection.collectionId;
+          doc.docClaimed = true;
+          await insertToDB(ClaimBuilderModel, doc);
+        }
       }
     }
   }

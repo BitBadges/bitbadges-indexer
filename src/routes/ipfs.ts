@@ -123,14 +123,25 @@ export const addBalancesToOffChainStorageHandler = async (
           plugins: encryptedPlugins ?? []
         });
       } else {
+        let cid = result?.uri?.split('/').pop() ?? '';
+        if (!result) {
+          const collection = await mustGetFromDB(CollectionModel, reqBody.collectionId.toString());
+          const customData = collection.offChainBalancesMetadataTimeline[0]?.offChainBalancesMetadata.customData;
+          cid = customData;
+        }
+
+        if (!cid) {
+          throw new Error('No CID found');
+        }
+
         await insertToDB(
           ClaimBuilderModel,
           new ClaimBuilderDoc({
-            _docId: BigInt(reqBody.collectionId) > 0 ? claim.claimId : result?.uri?.split('/').pop() ?? '',
+            _docId: claim.claimId,
             createdBy: req.session.cosmosAddress,
             collectionId: reqBody.collectionId.toString(),
             docClaimed: BigInt(reqBody.collectionId) > 0,
-            cid: BigInt(reqBody.collectionId) > 0 ? claim.claimId : result?.uri?.split('/').pop() ?? '',
+            cid: cid.toString(),
             action: {
               balancesToSet: claim.balancesToSet
             },
@@ -205,11 +216,10 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
     await checkIpfsTotals(req.session.cosmosAddress, size);
     const offChainClaims = reqBody.offChainClaims;
     if (offChainClaims && offChainClaims?.length > 1) {
-      throw new Error('Only one claim can be added at a time');
+      throw new Error('Only one claim can be added at a time for on-chain approvals');
     }
 
-    const reqBodyPlugins = encryptPlugins(offChainClaims?.[0].plugins ?? []);
-    const result = await addApprovalDetailsToOffChainStorage(reqBody.name, reqBody.description, challengeDetails, reqBodyPlugins);
+    const result = await addApprovalDetailsToOffChainStorage(reqBody.name, reqBody.description, challengeDetails);
     if (!result) {
       throw new Error('No IPFS result received');
     }
@@ -237,10 +247,14 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
         // Note no existing doc state so we don't add it here
       }
 
+      if (!claim.claimId) {
+        throw new Error('Invalid claim');
+      }
+
       await insertToDB(
         ClaimBuilderModel,
         new ClaimBuilderDoc({
-          _docId: cid.toString(),
+          _docId: claim.claimId,
           createdBy: req.session.cosmosAddress,
           collectionId: '-1',
           docClaimed: false,
