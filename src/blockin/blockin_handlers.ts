@@ -141,12 +141,12 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
     signedIn: !!checkIfAuthenticated(req),
     message: req.session.blockin ?? '',
     discord: {
-      id: req.session.discord?.id,
+      id: req.session.discord?.id ?? '',
       username: req.session.discord?.username ?? '',
       discriminator: req.session.discord?.discriminator ?? ''
     },
     twitter: {
-      id: req.session.twitter?.id,
+      id: req.session.twitter?.id ?? '',
       username: req.session.twitter?.username ?? ''
     }
   });
