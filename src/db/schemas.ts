@@ -146,7 +146,8 @@ export const ProfileSchema = new Schema<ProfileDoc<JSPrimitiveNumberType>>({
   username: String, // String type for username
   latestSignedInChain: String, // String type for latestSignedInChain
   solAddress: String, // String type for solAddress
-  notifications: Schema.Types.Mixed // Notification details
+  notifications: Schema.Types.Mixed, // Notification details
+  approvedSignInMethods: Schema.Types.Mixed // Sign in details
 });
 
 export const QueueSchema = new Schema<QueueDoc<JSPrimitiveNumberType>>({

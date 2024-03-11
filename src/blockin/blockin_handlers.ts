@@ -140,8 +140,15 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
   return res.status(200).send({
     signedIn: !!checkIfAuthenticated(req),
     message: req.session.blockin ?? '',
-    discord: req.session.discord,
-    twitter: req.session.twitter
+    discord: {
+      id: req.session.discord?.id,
+      username: req.session.discord?.username ?? '',
+      discriminator: req.session.discord?.discriminator ?? ''
+    },
+    twitter: {
+      id: req.session.twitter?.id,
+      username: req.session.twitter?.username ?? ''
+    }
   });
 }
 
@@ -179,10 +186,43 @@ export async function verifyBlockinAndGrantSessionCookie(
     const challenge = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const chain = getChainForAddress(challenge.address);
     const chainDriver = getChainDriver(chain);
+
+    const useWeb2SignIn = !body.signature;
+    if (useWeb2SignIn) {
+      const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(challenge.address));
+      const discordSignInMethod = profileDoc.approvedSignInMethods?.discord;
+
+      console.log('discordSignInMethod', discordSignInMethod, req.session.discord);
+
+      if (!discordSignInMethod || !req.session.discord) {
+        return res
+          .status(401)
+          .json({ success: false, errorMessage: 'You did not provide a valid signature and did not meet any of the other sign-in methods.' });
+      }
+
+      const { id, username, discriminator } = req.session.discord;
+
+      if (!id || !username || !discriminator) {
+        return res
+          .status(401)
+          .json({ success: false, errorMessage: 'You did not provide a valid signature and did not meet any of the other sign-in methods.' });
+      }
+
+      if (
+        discordSignInMethod.id !== id ||
+        discordSignInMethod.username !== username ||
+        (discordSignInMethod.discriminator && Number(discordSignInMethod.discriminator) !== Number(discriminator))
+      ) {
+        return res
+          .status(401)
+          .json({ success: false, errorMessage: 'You did not provide a valid signature and did not meet any of the other sign-in methods.' });
+      }
+    }
+
     const verificationResponse = await verifyChallenge(
       chainDriver,
       body.message,
-      body.signature,
+      body.signature ?? '',
       {
         expectedChallengeParams: {
           domain: 'https://bitbadges.io',
@@ -200,7 +240,8 @@ export async function verifyBlockinAndGrantSessionCookie(
           if (challengeParams.nonce !== req.session.nonce) {
             await Promise.reject(new Error(`Invalid nonce. Expected ${req.session.nonce}, got ${challengeParams.nonce}`));
           }
-        }
+        },
+        skipSignatureVerification: useWeb2SignIn
       },
       body.publicKey
     );

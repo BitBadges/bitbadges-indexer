@@ -161,6 +161,7 @@ async function getBatchProfileInformation(req: Request | undefined, queries: Arr
     for (const profileInfo of profileInfos) {
       if (profileInfo._docId !== currAddress) {
         profileInfo.notifications = undefined;
+        profileInfo.approvedSignInMethods = undefined;
       }
     }
   }
@@ -747,7 +748,8 @@ export const updateAccountInfo = async (
       watchlists: reqBody.watchlists ?? profileInfo.watchlists,
       hiddenLists: reqBody.hiddenLists ?? profileInfo.hiddenLists,
       profilePicUrl: profilePicUrl ?? profileInfo.profilePicUrl,
-      username: reqBody.username ?? profileInfo.username
+      username: reqBody.username ?? profileInfo.username,
+      approvedSignInMethods: reqBody.approvedSignInMethods ?? profileInfo.approvedSignInMethods
     });
 
     const profileSize = JSON.stringify(newProfileInfo).length;

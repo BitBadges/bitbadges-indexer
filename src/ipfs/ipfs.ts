@@ -234,15 +234,12 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
   description: string,
   challengeDetails?: iChallengeDetails<T>
 ) => {
-  const hasPassword = !!challengeDetails?.password && challengeDetails.password.length > 0;
-
   // Remove preimages and passwords from challengeDetails
   let convertedDetails: ChallengeDetails<T> | undefined;
 
   if (challengeDetails) {
     convertedDetails = new ChallengeDetails<T>({
       ...challengeDetails,
-      password: undefined,
       leavesDetails: {
         ...challengeDetails.leavesDetails,
         preimages: undefined,
@@ -265,7 +262,6 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
   const content = new ApprovalInfoDetails({
     name,
     description,
-    hasPassword,
     challengeDetails: convertedDetails
   });
 

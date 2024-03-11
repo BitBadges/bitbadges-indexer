@@ -35,7 +35,7 @@
     "axios": "^1.6.2",
     "bech32": "^2.0.0",
     "bip322-js": "^1.1.0",
-    "bitbadgesjs-sdk": "^0.1.81",
+    "bitbadgesjs-sdk": "^0.1.83",
     "blockin": "^1.2.110",
     "blockin-cosmos-driver": "^1.0.3",
     "bs58": "^5.0.0",

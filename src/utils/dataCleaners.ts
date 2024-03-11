@@ -12,7 +12,6 @@ import {
 interface ApprovalInfo {
   name?: string;
   description?: string;
-  hasPassword?: boolean;
   password?: string;
   challengeDetails?: any; // Update with the actual type if possible
 }
@@ -42,7 +41,6 @@ export function cleanApprovalInfo(res: any): ApprovalInfo {
   return {
     name: typeof res.name === 'string' ? res.name : '',
     description: typeof res.description === 'string' ? res.description : '',
-    hasPassword: typeof res.hasPassword === 'boolean' ? res.hasPassword : false,
     password: typeof res.password === 'string' ? res.password : undefined,
     challengeDetails: res.challengeDetails
   };
