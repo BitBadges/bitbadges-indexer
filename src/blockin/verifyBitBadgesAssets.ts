@@ -1,4 +1,4 @@
-import { AddressList, BalanceArray, UintRangeArray, convertToCosmosAddress, getBalancesForIds, type UintRange } from 'bitbadgesjs-sdk';
+import { AddressList, BalanceArray, BigIntify, UintRangeArray, convertToCosmosAddress, getBalancesForIds, type UintRange } from 'bitbadgesjs-sdk';
 import { type AndGroup, type AssetConditionGroup, type OrGroup, type OwnershipRequirements } from 'blockin';
 import { getFromDB } from '../db/db';
 import { BalanceModel } from '../db/schemas';
@@ -31,14 +31,16 @@ export async function verifyBitBadgesAssets(
 
     throw new Error('Address did not meet the asset ownership requirements.');
   } else {
-    let numToSatisfy = normalItem.options?.numMatchesForVerification ?? 0n;
+    let numToSatisfy = BigInt(normalItem.options?.numMatchesForVerification ?? 0n);
     const mustSatisfyAll = !numToSatisfy;
     if (!numToSatisfy) {
       for (const asset of normalItem.assets) {
         if (asset.collectionId === 'BitBadges Lists') {
           numToSatisfy += BigInt(asset.assetIds.length);
         } else {
-          numToSatisfy += UintRangeArray.From(asset.assetIds.map((x) => x as UintRange<bigint>)).size();
+          numToSatisfy += UintRangeArray.From(asset.assetIds.map((x) => x as UintRange<bigint>))
+            .convert(BigIntify)
+            .size();
         }
       }
     }

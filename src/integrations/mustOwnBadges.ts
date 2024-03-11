@@ -32,7 +32,6 @@ export const MustOwnPluginDetails: BackendIntegrationPlugin<NumberType, 'mustOwn
     }
 
     try {
-      console.log(context.cosmosAddress)
       await verifyBitBadgesAssets(ownershipRequirements, context.cosmosAddress);
       return { success: true };
     } catch (e) {
