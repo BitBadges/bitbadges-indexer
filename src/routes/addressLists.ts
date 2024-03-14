@@ -27,6 +27,7 @@ import { getStatus } from '../db/status';
 import { Plugins } from './claims';
 import { getClaimDetailsForFrontend } from './collections';
 import { getAddressListsFromDB } from './utils';
+import { assertPluginsUpdateIsValid } from './ipfs';
 
 export const deleteAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
@@ -174,6 +175,8 @@ export const updateAddressLists = async (
             plugins: plugins ?? []
           });
         } else {
+          assertPluginsUpdateIsValid(claimDocs[0].plugins, plugins);
+
           //Keep state if claim already exists
           claimBuilderDocs.push({
             ...claimDocs[0],

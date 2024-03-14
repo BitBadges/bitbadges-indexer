@@ -576,7 +576,7 @@ export async function executeAdditionalCollectionQueries(
         let content = claimFetch.content as ApprovalInfoDetails<bigint>;
 
         const docs = await findInDB(ClaimBuilderModel, {
-          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: approval.uri.split('/').pop() ?? '' }
+          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: approval.approvalId }
         });
         if (docs.length > 0) {
           const offChainClaims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionRes.collectionId);

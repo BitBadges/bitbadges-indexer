@@ -29,51 +29,51 @@ export const handleApprovals = async (
           const claimDocId = getApprovalInfoIdForQueueDb(entropy, collectionDoc.collectionId.toString(), approval.uri.toString());
 
           await pushApprovalInfoFetchToQueue(docs, collectionDoc, approval.uri, getLoadBalancerId(claimDocId), status.block.timestamp, entropy);
+        }
+      }
 
-          // The following is to handle if there are multiple claims using the same uri (and thus the same file contents)
-          // If the collection was created through our API, we previously made a document in ClaimBuilderModel with docClaimed = false and the correct passwords
-          // To prevent duplicates, we "claim" the document by setting docClaimed = true
-          // We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
-          if (approval.uri.startsWith('ipfs://')) {
-            const cid = approval.uri.replace('ipfs://', '').split('/')[0];
+      // The following is to handle if there are multiple claims using the same uri (and thus the same file contents)
+      // If the collection was created through our API, we previously made a document in ClaimBuilderModel with docClaimed = false and the correct passwords
+      // To prevent duplicates, we "claim" the document by setting docClaimed = true
+      // We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
+      if (approval.approvalId) {
+        const cid = approval.approvalId;
 
-            const docQuery = {
-              docClaimed: false,
-              cid,
-              createdBy: collectionDoc.createdBy
-            };
+        const docQuery = {
+          docClaimed: false,
+          cid,
+          createdBy: collectionDoc.createdBy
+        };
 
-            const docResult = await findInDB(ClaimBuilderModel, { query: docQuery });
-            if (docResult.length > 0) {
-              const convertedDoc = docResult[0];
+        const docResult = await findInDB(ClaimBuilderModel, { query: docQuery });
+        if (docResult.length > 0) {
+          const convertedDoc = docResult[0];
 
-              docs.claimBuilderDocs[convertedDoc._docId] = new ClaimBuilderDoc({
-                ...convertedDoc,
-                docClaimed: true,
-                collectionId: collectionDoc.collectionId
-              });
+          docs.claimBuilderDocs[convertedDoc._docId] = new ClaimBuilderDoc({
+            ...convertedDoc,
+            docClaimed: true,
+            collectionId: collectionDoc.collectionId
+          });
 
-              if (merkleChallenge?.useCreatorAddressAsLeaf) {
-                const res = await getFromIpfs(cid);
-                const convertedDoc = JSON.parse(res.file);
+          if (merkleChallenge?.useCreatorAddressAsLeaf) {
+            const res = await getFromIpfs(cid);
+            const convertedDoc = JSON.parse(res.file);
 
-                if (convertedDoc.challengeDetails?.leavesDetails.isHashed === false) {
-                  const addresses = convertedDoc.challengeDetails?.leavesDetails.leaves.map((leaf: string) => convertToCosmosAddress(leaf));
+            if (convertedDoc.challengeDetails?.leavesDetails.isHashed === false) {
+              const addresses = convertedDoc.challengeDetails?.leavesDetails.leaves.map((leaf: string) => convertToCosmosAddress(leaf));
 
-                  const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
-                  docs.claimAlertsToAdd.push(
-                    new ClaimAlertDoc({
-                      _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
-                      timestamp: status.block.timestamp,
-                      block: status.block.height,
-                      collectionId: collectionDoc.collectionId,
-                      cosmosAddresses: addresses,
-                      message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`
-                    })
-                  );
-                  idx++;
-                }
-              }
+              const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
+              docs.claimAlertsToAdd.push(
+                new ClaimAlertDoc({
+                  _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
+                  timestamp: status.block.timestamp,
+                  block: status.block.height,
+                  collectionId: collectionDoc.collectionId,
+                  cosmosAddresses: addresses,
+                  message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`
+                })
+              );
+              idx++;
             }
           }
         }
@@ -81,15 +81,18 @@ export const handleApprovals = async (
     }
 
     //For on-chain approvals with off-chain claim builders, we delete the claim builder docs that are no longer in the collectionApprovals
+    //TODO: Handle case where deleted then re-added?
     if (!isCreateTx) {
       const oldDoc = await mustGetFromDB(CollectionModel, collectionDoc.collectionId.toString());
-      const oldCids: string[] = oldDoc.collectionApprovals.map((approval) => approval.uri?.split('/').pop()).filter((cid) => cid) as string[];
-      const newCids: string[] = collectionDoc.collectionApprovals.map((approval) => approval.uri?.split('/').pop()).filter((cid) => cid) as string[];
+      const oldCids: string[] = oldDoc.collectionApprovals.map((approval) => approval.approvalId);
+      const newCids: string[] = collectionDoc.collectionApprovals.map((approval) => approval.approvalId);
       const docIdsToDelete = oldCids.filter((cid) => !newCids.includes(cid));
-      if (docIdsToDelete.length > 0) {
+
+      const docs = await findInDB(ClaimBuilderModel, { query: { cid: { $in: docIdsToDelete } } });
+      if (docs.length > 0) {
         await deleteMany(
           ClaimBuilderModel,
-          docIdsToDelete.map((id) => id)
+          docs.map((doc) => doc._docId)
         );
       }
     }

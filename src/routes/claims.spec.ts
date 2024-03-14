@@ -24,6 +24,7 @@ import { generateCodesFromSeed } from '../integrations/codes';
 import { getPlugin } from '../integrations/types';
 import { createExampleReqForAddress } from '../testutil/utils';
 import { findInDB } from '../db/queries';
+import { getDecryptedActionCodes } from './claims';
 
 dotenv.config();
 
@@ -57,12 +58,17 @@ const createClaimDoc = async (
   return doc;
 };
 
-const numUsesPlugin = (maxUses: number, maxUsesPerAddress: number): IntegrationPluginDetails<'numUses'> => {
+const numUsesPlugin = (
+  maxUses: number,
+  maxUsesPerAddress: number,
+  assignMethod: 'firstComeFirstServe' | 'codeIdx' = 'firstComeFirstServe'
+): IntegrationPluginDetails<'numUses'> => {
   return {
     id: 'numUses',
     publicParams: {
       maxUses,
-      maxUsesPerAddress
+      maxUsesPerAddress,
+      assignMethod
     },
     privateParams: {},
     publicState: getPlugin('numUses').getBlankPublicState()
@@ -233,7 +239,7 @@ describe('claims', () => {
     await Promise.all(promises);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
     expect(finalDoc.state.codes.usedCodes[codes[0]]).toBe(1);
   }, 30000);
 
@@ -258,7 +264,7 @@ describe('claims', () => {
       .send({ codes: { code: codes[1] } });
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should not exceed max uses per address', async () => {
@@ -282,7 +288,7 @@ describe('claims', () => {
       .send({ codes: { code: codes[1] } });
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
 
     const route2 = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(ethers.Wallet.createRandom().address));
     await request(app)
@@ -291,7 +297,7 @@ describe('claims', () => {
       .send({ codes: { code: codes[1] } });
 
     const finalDoc2 = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc2.state.numUses.currCode).toBe(2);
+    expect(finalDoc2.state.numUses.numUses).toBe(2);
   });
 
   it('should not track with no max uses per address', async () => {
@@ -315,7 +321,7 @@ describe('claims', () => {
       .send({ codes: { code: codes[1] } });
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(2);
+    expect(finalDoc.state.numUses.numUses).toBe(2);
   });
 
   it('should not exceed max uses with seed code', async () => {
@@ -337,7 +343,7 @@ describe('claims', () => {
     }
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(10);
+    expect(finalDoc.state.numUses.numUses).toBe(10);
 
     const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CheckAndCompleteClaimRouteRequestBody = {
@@ -349,7 +355,7 @@ describe('claims', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send(body);
-    expect(finalDoc.state.numUses.currCode).toBe(10);
+    expect(finalDoc.state.numUses.numUses).toBe(10);
   });
 
   it('should work with codes (not seedCode)', async () => {
@@ -385,7 +391,7 @@ describe('claims', () => {
     }
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(5);
+    expect(finalDoc.state.numUses.numUses).toBe(5);
   });
 
   it('should work with valid password', async () => {
@@ -405,7 +411,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should not work with invalid password', async () => {
@@ -424,7 +430,7 @@ describe('claims', () => {
       .send(body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(0);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
   it('should work within valid transfer times', async () => {
@@ -444,7 +450,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should not work outside valid transfer times', async () => {
@@ -466,7 +472,7 @@ describe('claims', () => {
       .send(body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(0);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
   it('should work with whitelist', async () => {
@@ -491,7 +497,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should not work with whitelist', async () => {
@@ -514,7 +520,7 @@ describe('claims', () => {
       .send(body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(0);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
   it('should work with listId whitelist', async () => {
@@ -531,7 +537,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should work with private lists', async () => {
@@ -548,7 +554,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should work with private listId whitelist', async () => {
@@ -565,7 +571,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should work with greaterThanXBADGEBalance', async () => {
@@ -581,7 +587,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should not work with greaterThanXBADGEBalance', async () => {
@@ -595,7 +601,7 @@ describe('claims', () => {
       .send(body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(0);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
   it('should add to address list action', async () => {
@@ -630,7 +636,7 @@ describe('claims', () => {
     console.log(res.body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, claimDoc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
 
     const addressList = await mustGetFromDB(AddressListModel, 'cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x_listfortesting');
     expect(addressList.addresses.includes(convertToCosmosAddress(wallet.address))).toBe(true);
@@ -649,7 +655,7 @@ describe('claims', () => {
       .send(body);
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
     expect(res.body.code).toBeTruthy();
   });
 
@@ -671,7 +677,7 @@ describe('claims', () => {
     console.log(res.body);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
     expect(finalDoc.state.discord['123456789']).toBe(1);
 
     await request(app)
@@ -681,7 +687,7 @@ describe('claims', () => {
     console.log(res.body);
 
     finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
     expect(finalDoc.state.discord['123456789']).toBe(1);
   });
 
@@ -703,7 +709,7 @@ describe('claims', () => {
     console.log(res.body);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
     expect(finalDoc.state.twitter['123456789']).toBe(1);
 
     await request(app)
@@ -713,7 +719,7 @@ describe('claims', () => {
     console.log(res.body);
 
     finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
     expect(finalDoc.state.twitter['123456789']).toBe(1);
   });
 
@@ -732,7 +738,7 @@ describe('claims', () => {
 
     //Cant just be a random request from any generic user (the wallet.address user in this case)
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(0);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
   it('should work with mustOwnBadges', async () => {
@@ -768,7 +774,7 @@ describe('claims', () => {
     console.log(res.body);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(0);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
   it('should work with mustOwnBadges - own x0', async () => {
@@ -804,7 +810,7 @@ describe('claims', () => {
     console.log(res.body);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should work with BitbAdges lists', async () => {
@@ -844,7 +850,7 @@ describe('claims', () => {
     console.log(res.body);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(1);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should fail when not on list', async () => {
@@ -891,7 +897,85 @@ describe('claims', () => {
     console.log(res.body);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.currCode).toBe(0);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
+  });
+
+  it('should work with codesIdx assignMethod', async () => {
+    const seedCode = crypto.randomBytes(32).toString('hex');
+    const codes = generateCodesFromSeed(seedCode, 10);
+    const doc = await createClaimDoc([numUsesPlugin(10, 0, 'codeIdx'), codesPlugin(10, seedCode)]);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {
+      codes: {
+        code: codes[1]
+      }
+    };
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+    const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
+
+    console.log(res.body);
+
+    const actionCodes = getDecryptedActionCodes(finalDoc);
+    const returnedCode = res.body.code;
+
+    console.log(returnedCode, actionCodes);
+    const idx = actionCodes.indexOf(returnedCode);
+    expect(idx).toBe(1);
+
+    const route2 = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body2: CheckAndCompleteClaimRouteRequestBody = {
+      codes: {
+        code: codes[1]
+      }
+    };
+
+    const res2 = await request(app)
+      .post(route2)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body2);
+    console.log(res2.body);
+
+    const finalDoc2 = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc2.state.numUses.numUses).toBe(1);
+
+    const route3 = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body3: CheckAndCompleteClaimRouteRequestBody = {
+      codes: {
+        code: codes[0]
+      }
+    };
+
+    const res3 = await request(app)
+      .post(route3)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body3);
+    console.log(res3.body);
+
+    const finalDoc3 = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc3.state.numUses.numUses).toBe(2);
+
+    const newWallet = ethers.Wallet.createRandom();
+
+    const route4 = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(newWallet.address));
+    const body4: CheckAndCompleteClaimRouteRequestBody = {
+      codes: {
+        code: codes[0]
+      }
+    };
+
+    const res4 = await request(app)
+      .post(route4)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body4);
+    console.log(res4.body);
+
+    const finalDoc4 = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc4.state.numUses.numUses).toBe(2);
   });
 
   //TODO: Off-chain assignment checks

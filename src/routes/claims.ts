@@ -1,14 +1,14 @@
 import {
+  BalanceArray,
   ClaimBuilderDoc,
   ClaimIntegrationPluginType,
   GetClaimsRouteRequestBody,
   IncrementedBalances,
   IntegrationPluginDetails,
   ListActivityDoc,
-  TransferWithIncrements,
   convertToCosmosAddress,
-  createBalanceMapForOffChainBalances,
   iGetClaimsRouteSuccessResponse,
+  iOffChainBalancesMap,
   mustConvertToCosmosAddress,
   type ErrorResponse,
   type NumberType,
@@ -16,9 +16,6 @@ import {
 } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { RequiresSignaturePluginDetails } from '../integrations/signature';
-import { TransferTimesPluginDetails } from '../integrations/transferTimes';
-import { WhitelistPluginDetails } from '../integrations/whitelist';
 import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
@@ -27,14 +24,17 @@ import { getStatus } from '../db/status';
 import { DiscordPluginDetails, TwitterPluginDetails } from '../integrations/auth';
 import { CodesPluginDetails, generateCodesFromSeed } from '../integrations/codes';
 import { MinBalancePluginDetails } from '../integrations/minBalance';
+import { MustOwnPluginDetails } from '../integrations/mustOwnBadges';
 import { NumUsesDetails } from '../integrations/numUses';
 import { PasswordPluginDetails } from '../integrations/passwords';
+import { RequiresSignaturePluginDetails } from '../integrations/signature';
+import { TransferTimesPluginDetails } from '../integrations/transferTimes';
 import { BackendIntegrationPlugin, ContextInfo, getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { WhitelistPluginDetails } from '../integrations/whitelist';
 import { addBalancesToOffChainStorage } from '../ipfs/ipfs';
 import { getActivityDocsForListUpdate } from './addressLists';
 import { getClaimDetailsForFrontend } from './collections';
 import { refreshCollection } from './refresh';
-import { MustOwnPluginDetails } from '../integrations/mustOwnBadges';
 
 export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<NumberType, key> } = {
   codes: CodesPluginDetails,
@@ -186,6 +186,12 @@ export const checkAndCompleteClaim = async (
               access_token: ''
             };
             break;
+          case 'codes': {
+            adminInfo = {
+              assignMethod: getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod
+            };
+            break;
+          }
           default:
             break;
         }
@@ -200,6 +206,12 @@ export const checkAndCompleteClaim = async (
           case 'twitter':
             adminInfo = req.session.twitter;
             break;
+          case 'codes': {
+            adminInfo = {
+              assignMethod: getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod
+            };
+            break;
+          }
           default:
             break;
         }
@@ -240,13 +252,24 @@ export const checkAndCompleteClaim = async (
       };
     }
 
+    let codeConsistencyQuery: any = {};
+    const assignMethod = getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod;
+    if (assignMethod === 'firstComeFirstServe') {
+      //Handled by the $size query
+    } else if (assignMethod === 'codeIdx') {
+      codeConsistencyQuery = {
+        [`state.codes.usedCodes.${req.body.codes.code}`]: { $exists: false }
+      };
+    }
+
     //TODO: Session w/ the action updates as well?
     // Find the doc, increment currCode, and add the given code idx to claimedUsers
     const newDoc = await ClaimBuilderModel.findOneAndUpdate(
       {
         ...query,
         _docId: claimBuilderDoc._docId,
-        [`state.numUses.claimedUsers.${context.cosmosAddress}`]: consistencyQuery
+        [`state.numUses.claimedUsers.${context.cosmosAddress}`]: consistencyQuery,
+        ...codeConsistencyQuery
       },
       setters,
       { new: true }
@@ -262,10 +285,10 @@ export const checkAndCompleteClaim = async (
       await performBalanceClaimAction(newDoc as ClaimBuilderDoc<NumberType>);
       return res.status(200).send();
     } else if (actionType === ActionType.Code) {
-      const currCodeIdx = newDoc.state.numUses.currCode - 1;
+      const currCodeIdx = newDoc.state.numUses.claimedUsers[context.cosmosAddress].pop();
       const code = distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, currCodeIdx);
+      const prevUsedCodes = newDoc.state.numUses.claimedUsers[context.cosmosAddress].slice(0, -1);
 
-      const prevUsedCodes = newDoc.state.numUses.claimedUsers[context.cosmosAddress].filter((x: number) => x < currCodeIdx);
       console.log('prevUsedCodes', prevUsedCodes, code);
       return res
         .status(200)
@@ -322,27 +345,28 @@ const performBalanceClaimAction = async (doc: ClaimBuilderDoc<NumberType>) => {
 
   const allClaimDocsForCollection = await findInDB(ClaimBuilderModel, { query: { collectionId: Number(collectionId), docClaimed: true } });
 
-  const transfers: TransferWithIncrements<NumberType>[] = [];
+  const balanceMap: iOffChainBalancesMap<NumberType> = {};
+
   for (const claimDoc of allClaimDocsForCollection) {
     const entries = Object.entries(claimDoc?.state.numUses.claimedUsers);
     //Sort by claimedUsers value
     entries.sort((a: any, b: any) => Number(a[1]) - Number(b[1]));
 
-    const users = entries.map((entry) => entry[0]);
+    for (const entry of entries) {
+      const currBalances = BalanceArray.From(balanceMap[entry[0]] ?? []);
+      const claimIdx = Number(entry[1]);
 
-    transfers.push(
-      new TransferWithIncrements({
-        //claimedUsers
-        from: 'Mint',
-        toAddresses: users,
-        balances: claimDoc.action.balancesToSet?.startBalances ?? [],
-        incrementBadgeIdsBy: claimDoc.action.balancesToSet?.incrementBadgeIdsBy,
-        incrementOwnershipTimesBy: claimDoc.action.balancesToSet?.incrementOwnershipTimesBy
-      })
-    );
+      const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.startBalances ?? []);
+      balancesToAdd.applyIncrements(
+        claimDoc.action.balancesToSet?.incrementBadgeIdsBy ?? 0n,
+        claimDoc.action.balancesToSet?.incrementOwnershipTimesBy ?? 0n,
+        BigInt(claimIdx)
+      );
+
+      currBalances.addBalances(balancesToAdd);
+      balanceMap[entry[0]] = currBalances;
+    }
   }
-
-  const balances = await createBalanceMapForOffChainBalances(transfers);
 
   const collection = await getFromDB(CollectionModel, collectionId.toString());
   const currUriPath = collection?.offChainBalancesMetadataTimeline
@@ -350,6 +374,6 @@ const performBalanceClaimAction = async (doc: ClaimBuilderDoc<NumberType>) => {
     ?.offChainBalancesMetadata.uri.split('/')
     .pop();
 
-  await addBalancesToOffChainStorage(balances, 'centralized', collectionId, currUriPath);
+  await addBalancesToOffChainStorage(balanceMap, 'centralized', collectionId, currUriPath);
   await refreshCollection(collectionId.toString(), true);
 };

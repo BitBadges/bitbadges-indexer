@@ -29,7 +29,7 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
     image: 'https://bitbadges.s3.amazonaws.com/codes.png',
     createdBy: 'BitBadges',
     stateless: false,
-    scoped: true
+    scoped: false
   },
   defaultState: {
     usedCodes: {}
@@ -46,7 +46,7 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
       seedCode: privateParams.seedCode ? AES.decrypt(privateParams.seedCode, symKey).toString(CryptoJS.enc.Utf8) : ''
     };
   },
-  validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
+  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
     if (!customBody?.code) {
       return { success: false, error: 'Invalid code' };
     }
@@ -66,9 +66,29 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
       return { success: false, error: 'Invalid code' };
     }
 
+    const codeIdx = codes.indexOf(customBody.code);
+    if (codeIdx === -1) {
+      return { success: false, error: 'Invalid code' };
+    }
+
+    const toSet: any = [{ $set: { [`state.codes.usedCodes.${customBody.code}`]: 1 } }];
+    const cosmosAddress = context.cosmosAddress;
+    const claimedUsers = globalState.numUses.claimedUsers;
+    const assignMethod = adminInfo.assignMethod;
+
+    if (assignMethod === 'codeIdx') {
+      toSet.push({
+        $set: {
+          [`state.numUses.claimedUsers.${cosmosAddress}`]: {
+            $concatArrays: [claimedUsers[cosmosAddress] ?? [], [codeIdx]]
+          }
+        }
+      });
+    }
+
     return {
       success: true,
-      toSet: [{ $set: { [`state.codes.usedCodes.${customBody.code}`]: 1 } }]
+      toSet
     };
   },
   getPublicState: (currState) => {

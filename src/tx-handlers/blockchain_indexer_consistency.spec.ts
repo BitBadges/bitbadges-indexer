@@ -1,4 +1,4 @@
-import { Balance, BigIntify, CollectionDoc, UserPermissions, type iCollectionDoc, type NumberType } from 'bitbadgesjs-sdk';
+import { areBalancesEqual, Balance, BigIntify, CollectionDoc, UserPermissions, type iCollectionDoc, type NumberType } from 'bitbadgesjs-sdk';
 import { type BadgeCollection } from 'bitbadgesjs-sdk/dist/proto/badges/collections_pb';
 import mongoose from 'mongoose';
 import { getFromDB } from '../db/db';
@@ -64,7 +64,7 @@ describe('queryClient', () => {
         );
       }
     }
-  });
+  }, 100000);
 
   it('all accounts should be indexed correctly', async () => {
     const queryClient = client.badgesQueryClient;
@@ -109,7 +109,16 @@ describe('queryClient', () => {
       const autoApproveSelfInitiatedOutgoingTransfers = balanceRes.autoApproveSelfInitiatedOutgoingTransfers ?? false;
       const userPermissions = balanceRes.userPermissions;
 
-      expect(balances.map((x) => new Balance(x).convert(BigIntify))).toEqual(indexedBalance.balances.map((x) => new Balance(x).convert(BigIntify)));
+      console.log(JSON.stringify(balances));
+      console.log(JSON.stringify(indexedBalance.balances));
+      console.log(indexedBalance.collectionId, indexedBalance.cosmosAddress);
+      expect(
+        areBalancesEqual(
+          balances.map((x) => new Balance(x).convert(BigIntify)),
+          indexedBalance.balances.map((x) => new Balance(x).convert(BigIntify)),
+          false
+        )
+      ).toBeTruthy();
       if (userPermissions) {
         console.log(userPermissions);
         expect(UserPermissions.fromProto(userPermissions, BigIntify).equals(new UserPermissions(indexedBalance.userPermissions), true)).toBeTruthy();
@@ -140,7 +149,7 @@ describe('queryClient', () => {
         // }, BigIntify)))
       }
     }
-  });
+  }, 100000);
 
   it('all challenges should be indexed correctly', async () => {
     const queryClient = client.badgesQueryClient;

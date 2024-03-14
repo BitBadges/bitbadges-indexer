@@ -5,7 +5,7 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
   id: 'numUses',
   defaultState: {
     claimedUsers: {},
-    currCode: 0
+    numUses: 0
   },
   metadata: {
     name: 'One Time Use',
@@ -16,7 +16,7 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
     scoped: true
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
-    if (publicParams.maxUses && priorState.currCode >= publicParams.maxUses) {
+    if (publicParams.maxUses && priorState.numUses >= publicParams.maxUses) {
       return { success: false, error: 'Overall max uses exceeded' };
     }
 
@@ -32,28 +32,45 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
       }
     }
 
-    return {
-      success: true,
-      toSet: [
-        {
-          $set: {
-            ['state.numUses.currCode']: { $add: ['$state.numUses.currCode', 1] }
-          }
-        },
-        {
-          $set: {
-            [`state.numUses.claimedUsers.${cosmosAddress}`]: {
-              $concatArrays: [claimedUsers[cosmosAddress] ?? [], [{ $subtract: ['$state.numUses.currCode', 1] }]]
+    const assignMethod = publicParams.assignMethod;
+    if (assignMethod === 'firstComeFirstServe' || !assignMethod) {
+      //defaults to this
+      return {
+        success: true,
+        toSet: [
+          {
+            $set: {
+              ['state.numUses.numUses']: { $add: ['$state.numUses.numUses', 1] }
+            }
+          },
+          {
+            $set: {
+              [`state.numUses.claimedUsers.${cosmosAddress}`]: {
+                $concatArrays: [claimedUsers[cosmosAddress] ?? [], [{ $subtract: ['$state.numUses.numUses', 1] }]]
+              }
             }
           }
-        }
-      ]
-    };
+        ]
+      };
+    } else if (assignMethod === 'codeIdx') {
+      return {
+        success: true,
+        toSet: [
+          {
+            $set: {
+              ['state.numUses.numUses']: { $add: ['$state.numUses.numUses', 1] }
+            }
+          }
+        ]
+      };
+    } else {
+      throw new Error('Invalid assignMethod');
+    }
   },
   getPublicState: (currState) => {
     return {
       claimedUsers: currState.claimedUsers,
-      numUses: currState.currCode
+      numUses: currState.numUses
     };
   },
   getBlankPublicState: () => {

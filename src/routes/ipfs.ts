@@ -1,5 +1,7 @@
 import {
   ClaimBuilderDoc,
+  ClaimIntegrationPluginType,
+  IntegrationPluginParams,
   deepCopyPrimitives,
   type AddApprovalDetailsToOffChainStorageRouteRequestBody,
   type AddBalancesToOffChainStorageRouteRequestBody,
@@ -10,14 +12,13 @@ import {
   type iAddBalancesToOffChainStorageRouteSuccessResponse,
   type iAddMetadataToIpfsRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
-import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { checkIfManager, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { deleteMany, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { ClaimBuilderModel, CollectionModel, IPFSTotalsModel } from '../db/schemas';
-import { encryptPlugins, getPlugin } from '../integrations/types';
+import { encryptPlugins, getPlugin, getPluginParamsAndState } from '../integrations/types';
 import { addApprovalDetailsToOffChainStorage, addBalancesToOffChainStorage, addMetadataToIpfs } from '../ipfs/ipfs';
 import { cleanBalanceMap } from '../utils/dataCleaners';
 import { Plugins } from './claims';
@@ -43,6 +44,27 @@ export const updateIpfsTotals = async (address: string, size: number, doNotInser
   }
 
   if (!doNotInsert) await insertToDB(IPFSTotalsModel, ipfsTotalsDoc);
+};
+
+export const assertPluginsUpdateIsValid = (
+  oldPlugins: IntegrationPluginParams<ClaimIntegrationPluginType>[],
+  newPlugins: IntegrationPluginParams<ClaimIntegrationPluginType>[]
+) => {
+  //cant change assignmethods
+
+  const oldNumUses = getPluginParamsAndState('numUses', oldPlugins);
+  const newNumUses = getPluginParamsAndState('numUses', newPlugins);
+
+  if (!oldNumUses || !newNumUses) {
+    throw new Error('numUses plugin is required');
+  }
+
+  //In practice, we could allow firstComeFirstServe -> codeIdx
+  //We could also allow codeIdx -> firstComeFirstServe if all codes are linear from 1 (no gaps)
+  //But, for simplicity, we will not allow this for now
+  if (oldNumUses && newNumUses && oldNumUses.publicParams.assignMethod !== newNumUses.publicParams.assignMethod) {
+    throw new Error('Cannot change assignMethod');
+  }
 };
 
 export const addBalancesToOffChainStorageHandler = async (
@@ -114,6 +136,8 @@ export const addBalancesToOffChainStorageHandler = async (
       //If we have the existing doc, we simply need to update the plugins and keep the state.
       //Else, we need to create a new doc with the plugins and the default state.
       if (existingDoc) {
+        assertPluginsUpdateIsValid(existingDoc.plugins, claim.plugins ?? []);
+
         await insertToDB(ClaimBuilderModel, {
           ...existingDoc,
           action: {
@@ -208,7 +232,6 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
 ) => {
   const reqBody = req.body as AddApprovalDetailsToOffChainStorageRouteRequestBody;
 
-  let cid = crypto.randomBytes(32).toString('hex');
   try {
     const challengeDetails = reqBody.challengeDetails;
 
@@ -224,8 +247,6 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       throw new Error('No IPFS result received');
     }
 
-    cid = result.cid.toString();
-
     //TODO: Note this does not support any updates or deletes to existing claims.
     // Within the frontend, we do not allow updates to approvals yet, so this is fine for now.
     // Will need to change this if we allow updates to approvals in the future.
@@ -237,6 +258,13 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
         seedCode: challengeDetails?.leavesDetails.seedCode ?? ''
       });
 
+      if (!claim.claimId) {
+        throw new Error('Invalid claim');
+      }
+
+      const query = { docClaimed: true, _docId: claim.claimId };
+      const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1 });
+      const existingDoc = existingDocRes.length > 0 ? existingDocRes[0] : undefined;
       const hasSeedCode = challengeDetails?.leavesDetails.seedCode;
       const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
       const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
@@ -244,35 +272,50 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       const state: Record<string, any> = {};
       for (const plugin of pluginsWithOptions ?? []) {
         state[plugin.id] = Plugins[plugin.id].defaultState;
-        // Note no existing doc state so we don't add it here
+        if (existingDoc && !plugin.resetState) {
+          state[plugin.id] = existingDoc.state[plugin.id];
+        }
+
+        if (plugin.id == 'numUses' && existingDoc && plugin.resetState) {
+          throw new Error('numUses plugin does not support resetState for approval claims');
+        }
       }
 
-      if (!claim.claimId) {
-        throw new Error('Invalid claim');
-      }
+      if (existingDoc) {
+        assertPluginsUpdateIsValid(existingDoc.plugins, claim.plugins ?? []);
 
-      await insertToDB(
-        ClaimBuilderModel,
-        new ClaimBuilderDoc({
-          _docId: claim.claimId,
-          createdBy: req.session.cosmosAddress,
-          collectionId: '-1',
-          docClaimed: false,
-          manualDistribution: claim.manualDistribution,
-          cid: cid.toString(),
-          action: {
-            seedCode: hasSeedCode ? encryptedAction.seedCode : undefined,
-            codes: hasSeedCode ? undefined : encryptedAction.codes
-          },
+        await insertToDB(ClaimBuilderModel, {
+          ...existingDoc,
+          //action cannot change
           state,
           plugins: encryptedPlugins ?? []
-        })
-      );
+        });
+      } else {
+        await insertToDB(
+          ClaimBuilderModel,
+          new ClaimBuilderDoc({
+            _docId: claim.claimId,
+            createdBy: req.session.cosmosAddress,
+            collectionId: '-1',
+            docClaimed: false,
+            manualDistribution: claim.manualDistribution,
+            cid: claim.claimId, //approvalId
+            action: {
+              seedCode: hasSeedCode ? encryptedAction.seedCode : undefined,
+              codes: hasSeedCode ? undefined : encryptedAction.codes
+            },
+            state,
+            plugins: encryptedPlugins ?? []
+          })
+        );
+      }
     }
+
+    //Deleted docs are handled in the poller
 
     await updateIpfsTotals(req.session.cosmosAddress, size);
 
-    return res.status(200).send({ result: { cid: cid.toString() } });
+    return res.status(200).send({ result: { cid: result.cid.toString() } });
   } catch (e) {
     console.log(e);
     return res.status(500).send({
