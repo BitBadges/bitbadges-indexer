@@ -19,10 +19,10 @@ import { serializeError } from 'serialize-error';
 import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { AddressListModel, ClaimBuilderModel, CollectionModel, ListActivityModel } from '../db/schemas';
+import { AddressListModel, ClaimBuilderModel, CollectionModel, ListActivityModel, ProfileModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { ApiPluginDetails } from '../integrations/api';
-import { DiscordPluginDetails, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from '../integrations/auth';
+import { DiscordPluginDetails, EmailPluginDetails, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from '../integrations/auth';
 import { CodesPluginDetails, generateCodesFromSeed } from '../integrations/codes';
 import { MustOwnPluginDetails } from '../integrations/mustOwnBadges';
 import { NumUsesDetails } from '../integrations/numUses';
@@ -48,7 +48,8 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   mustOwnBadges: MustOwnPluginDetails,
   api: ApiPluginDetails,
   github: GitHubPluginDetails,
-  google: GooglePluginDetails
+  google: GooglePluginDetails,
+  email: EmailPluginDetails
   // stripe: StripePluginDetails
 };
 
@@ -162,6 +163,19 @@ export const checkAndCompleteClaim = async (
       }
     }
 
+    //Pass in email only if previously set up and verified
+    let email = '';
+
+    const profileDoc = await mustGetFromDB(ProfileModel, cosmosAddress);
+    if (!profileDoc) {
+      throw new Error('No profile found');
+    }
+    if (profileDoc.notifications?.email) {
+      if (profileDoc.notifications.emailVerification?.verified) {
+        email = profileDoc.notifications.email;
+      }
+    }
+
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
       const pluginInstance = getPlugin(plugin.id);
@@ -186,6 +200,7 @@ export const checkAndCompleteClaim = async (
           case 'twitter':
           case 'github':
           case 'google':
+          case 'email':
             adminInfo = {
               username: 'testuser',
               id: '123456789'
@@ -201,6 +216,10 @@ export const checkAndCompleteClaim = async (
             break;
         }
       } else {
+       
+
+        
+
         switch (plugin.id) {
           case 'requiresProofOfAddress':
             adminInfo = req.session;
@@ -223,6 +242,12 @@ export const checkAndCompleteClaim = async (
           case 'google':
             adminInfo = req.session.google;
             break;
+          case 'email': 
+            adminInfo = {
+              username: email,
+              id: email
+            };
+            break;
           // case 'stripe':
           //   adminInfo = req.session.stripe;
           //   break;
@@ -244,7 +269,8 @@ export const checkAndCompleteClaim = async (
               google: {
                 username: req.session.google?.username,
                 id: req.session.google?.id
-              }
+              },
+              email: email
               // stripe: {
               //   username: req.session.stripe?.username,
               //   id: req.session.stripe?.id

@@ -177,7 +177,7 @@ export async function sendPushNotification(address: string, type: string, messag
     }> = [
       {
         to: profile.notifications.email,
-        from: 'mail@em2620.bitbadges.io',
+        from: 'info@mail.bitbadges.io',
         subject,
         text: message
       }

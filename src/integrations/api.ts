@@ -28,9 +28,11 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
         discord: apiCall.passDiscord ? adminInfo.discord : null,
         twitter: apiCall.passTwitter ? adminInfo.twitter : null,
         github: apiCall.passGithub ? adminInfo.github : null,
-        google: apiCall.passGoogle ? adminInfo.google : null
+        google: apiCall.passGoogle ? adminInfo.google : null,
+        email: apiCall.passEmail ? adminInfo.email : null,
         // stripe: apiCall.passStripe ? adminInfo.stripe : null
       };
+
 
       try {
         //TODO: timeout and handle correctly?

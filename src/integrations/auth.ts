@@ -20,7 +20,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, twitterInfo) => {
-    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo);
+    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, 'twitter');
   },
   getPublicState: () => {
     return {};
@@ -30,7 +30,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter
   }
 };
 
-type OauthType = 'twitter' | 'discord' | 'github' | 'google'; // | 'stripe';
+type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email'; // | 'stripe';
 
 export const GenericOauthValidateFunction = async <P extends OauthType>(
   publicParams: ClaimIntegrationPublicParamsType<P>,
@@ -38,7 +38,8 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
   customBody?: ClaimIntegrationCustomBodyType<P>,
   priorState?: any,
   globalState?: any,
-  oauthInfo?: any
+  oauthInfo?: any,
+  pluginId?: string
 ) => {
   const params = publicParams.users?.length ? publicParams : privateParams;
 
@@ -52,6 +53,13 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
     return { success: false, error: 'Invalid details. Could not get user.' };
   }
 
+  if (oauthInfo.id.includes('[dot]')) {
+    return { success: false, error: 'Invalid reserved sequence in ID ([dot])' };
+  }
+
+  //Handle "." in oauthInfo.id
+  oauthInfo.id = oauthInfo.id.replace(/\./g, '[dot]');
+
   if (priorState[oauthInfo.id] && maxUsesPerUser > 0 && priorState[oauthInfo.id] >= maxUsesPerUser) {
     return { success: false, error: 'User already exceeded max uses' };
   }
@@ -63,7 +71,8 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
     }
   }
 
-  return { success: true, toSet: [{ $set: { [`state.${oauthInfo.id}`]: 1 } }] };
+  
+  return { success: true, toSet: [{ $set: { [`state.${pluginId}.${oauthInfo.id}`]: 1 } }] };
 };
 
 export const GooglePluginDetails: BackendIntegrationPlugin<NumberType, 'google'> = {
@@ -84,7 +93,35 @@ export const GooglePluginDetails: BackendIntegrationPlugin<NumberType, 'google'>
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, googleInfo) => {
-    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo);
+    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, 'google');
+  },
+  getPublicState: () => {
+    return {};
+  },
+  getBlankPublicState() {
+    return {};
+  }
+};
+
+export const EmailPluginDetails: BackendIntegrationPlugin<NumberType, 'email'> = {
+  id: 'email',
+  metadata: {
+    name: 'Email',
+    description: 'Gate claims by email.',
+    image: 'https://bitbadges.s3.amazonaws.com/email.png',
+    createdBy: 'BitBadges',
+    stateless: false,
+    scoped: true
+  },
+  defaultState: {},
+  encryptPrivateParams: (privateParams) => {
+    return privateParams;
+  },
+  decryptPrivateParams: (privateParams) => {
+    return privateParams;
+  },
+  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
+    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, 'email');
   },
   getPublicState: () => {
     return {};
@@ -112,7 +149,7 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<NumberType, 'github'>
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, githubInfo) => {
-    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo);
+    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, 'github');
   },
   getPublicState: () => {
     return {};

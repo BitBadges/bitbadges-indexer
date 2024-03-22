@@ -583,7 +583,7 @@ app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, async (req: Request, res:
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error verfiying email'
+      errorMessage:  e.message
     });
   }
 });

@@ -5467,6 +5467,30 @@ components:
           additionalProperties: false
           description: Signed in with Twitter username?
           type: object
+        github:
+          properties:
+            id:
+              type: string
+            username:
+              type: string
+          required:
+            - id
+            - username
+          additionalProperties: false
+          description: Signed in with Github?
+          type: object
+        google:
+          properties:
+            id:
+              type: string
+            username:
+              type: string
+          required:
+            - id
+            - username
+          additionalProperties: false
+          description: Signed in with Google?
+          type: object
       required:
         - signedIn
         - message
@@ -5480,10 +5504,16 @@ components:
           type: boolean
         signOutBlockin:
           type: boolean
+        signOutGoogle:
+          type: boolean
+        signOutGithub:
+          type: boolean
       required:
         - signOutDiscord
         - signOutTwitter
         - signOutBlockin
+        - signOutGoogle
+        - signOutGithub
       additionalProperties: false
       type: object
     iSignOutSuccessResponse:
