@@ -211,8 +211,9 @@ export const handleMsgUniversalUpdateCollection = async (
   const customData = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.customData;
   const uri = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.uri;
 
-  const toClaimIndexed = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/') && customData === uri.split('/').pop();
-  const toClaimNonIndexed = uri.startsWith('https://api.bitbadges.io/placeholder/{address}') && customData;
+  const toClaimIndexed =
+    uri && uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/') && customData === uri.split('/').pop();
+  const toClaimNonIndexed = uri && uri.startsWith('https://api.bitbadges.io/placeholder/{address}') && customData;
 
   if (toClaimIndexed || toClaimNonIndexed) {
     const existingDoc = await getFromDB(OffChainUrlModel, customData);

@@ -25,7 +25,7 @@ import env from 'dotenv';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
-import { broadcastTx, removeEIP712Domain } from './testutil/broadcastUtils';
+import { broadcastTx } from './testutil/broadcastUtils';
 
 env.config();
 
@@ -61,11 +61,10 @@ async function main() {
       memo: '',
       fee: { denom: 'badge', amount: '1', gas: '4000000' }
     };
-
     const txn = createTransactionPayload(txContext, msgs);
     if (!txn.eipToSign) throw new Error('No eip to sign');
 
-    const sig = await ethWallet._signTypedData(txn.eipToSign.domain, removeEIP712Domain(txn.eipToSign.types), txn.eipToSign.message);
+    const sig = await ethWallet.signMessage(txn.jsonToSign);
 
     const rawTx = createTxBroadcastBody(txContext, txn, sig);
     const res = await broadcastTx(rawTx);
