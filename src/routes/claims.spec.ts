@@ -136,22 +136,23 @@ const whitelistPlugin = (privateMode: boolean, list?: iAddressList, listId?: str
   };
 };
 
-const greaterThanXBADGEBalancePlugin = (greaterThan: number): IntegrationPluginDetails<'greaterThanXBADGEBalance'> => {
-  return {
-    id: 'greaterThanXBADGEBalance',
-    publicParams: {
-      minBalance: greaterThan
-    },
-    privateParams: {},
-    publicState: {},
-    resetState: true
-  };
-};
+// const greaterThanXBADGEBalancePlugin = (greaterThan: number): IntegrationPluginDetails<'greaterThanXBADGEBalance'> => {
+//   return {
+//     id: 'greaterThanXBADGEBalance',
+//     publicParams: {
+//       minBalance: greaterThan
+//     },
+//     privateParams: {},
+//     publicState: {},
+//     resetState: true
+//   };
+// };
 
 const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'discord'> => {
   return {
     id: 'discord',
     publicParams: {
+      hasPrivateList: false,
       users: usernames
     },
     privateParams: {},
@@ -164,6 +165,7 @@ const twitterPlugin = (usernames: string[]): IntegrationPluginDetails<'twitter'>
   return {
     id: 'twitter',
     publicParams: {
+      hasPrivateList: false,
       users: usernames
     },
     privateParams: {},
@@ -574,35 +576,35 @@ describe('claims', () => {
     expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
-  it('should work with greaterThanXBADGEBalance', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(0)]);
-    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CheckAndCompleteClaimRouteRequestBody = {};
+  // it('should work with greaterThanXBADGEBalance', async () => {
+  //   const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(0)]);
+  //   const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+  //   const body: CheckAndCompleteClaimRouteRequestBody = {};
 
-    const res = await request(app)
-      .post(route)
-      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(body);
+  //   const res = await request(app)
+  //     .post(route)
+  //     .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+  //     .send(body);
 
-    console.log(res.body);
+  //   console.log(res.body);
 
-    const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.numUses).toBe(1);
-  });
+  //   const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+  //   expect(finalDoc.state.numUses.numUses).toBe(1);
+  // });
 
-  it('should not work with greaterThanXBADGEBalance', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(1000)]);
-    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CheckAndCompleteClaimRouteRequestBody = {};
+  // it('should not work with greaterThanXBADGEBalance', async () => {
+  //   const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(1000)]);
+  //   const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+  //   const body: CheckAndCompleteClaimRouteRequestBody = {};
 
-    await request(app)
-      .post(route)
-      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(body);
+  //   await request(app)
+  //     .post(route)
+  //     .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+  //     .send(body);
 
-    const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(finalDoc.state.numUses.numUses).toBe(0);
-  });
+  //   const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+  //   expect(finalDoc.state.numUses.numUses).toBe(0);
+  // });
 
   it('should add to address list action', async () => {
     const existingDoc = await getFromDB(AddressListModel, 'cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x_listfortesting');

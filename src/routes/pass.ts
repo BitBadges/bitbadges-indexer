@@ -2,10 +2,9 @@ import { BigIntify } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString } from 'blockin';
 import { type Request, type Response } from 'express';
 import fs from 'fs';
-import pkg from 'passkit-generator';
+import { PKPass } from 'passkit-generator';
 import path from 'path';
 
-const { PKPass } = pkg;
 const certDirectory = path.resolve(process.cwd(), 'cert');
 const wwdr = fs.readFileSync(path.join(certDirectory, 'wwdr.pem'));
 const signerCert = fs.readFileSync(path.join(certDirectory, 'signerCert.pem'));

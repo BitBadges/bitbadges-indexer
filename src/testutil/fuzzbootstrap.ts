@@ -12,13 +12,16 @@ import {
   type TxContext
 } from 'bitbadgesjs-sdk';
 
-import { MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection } from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
+import {
+  MsgTransferBadges as ProtoMsgTransferBadges,
+  MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection
+} from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
 
 import crypto from 'crypto';
 import env from 'dotenv';
 import { ethers } from 'ethers';
-import { broadcastTx, removeEIP712Domain } from './broadcastUtils';
 import { serializeError } from 'serialize-error';
+import { broadcastTx, removeEIP712Domain } from './broadcastUtils';
 
 env.config();
 
@@ -30,6 +33,8 @@ const fromMnemonic = process.env.FAUCET_MNEMONIC ?? '';
 //     creator: convertToCosmosAddress(ethWallet.address)
 //   });
 // };
+
+//TODO: All other msg types
 
 const randomAddress = () => {
   const randomNum = Math.floor(Math.random() * 50);
@@ -53,25 +58,25 @@ const randomBalance = () => {
   };
 };
 
-// const randomMsgTransferBadges = () => {
-//   return new MsgTransferBadges({
-//     creator: convertToCosmosAddress(ethWallet.address),
-//     collectionId: Math.floor(Math.random() * 1000).toString(),
-//     transfers: [
-//       {
-//         from: randomAddress(),
-//         toAddresses: [convertToCosmosAddress(ethWallet.address)],
-//         balances: [
-//           {
-//             amount: Math.floor(Math.random() * 100).toString(),
-//             badgeIds: randomUintRangeArray(),
-//             ownershipTimes: randomUintRangeArray()
-//           }
-//         ]
-//       }
-//     ]
-//   });
-// };
+const randomMsgTransferBadges = (collectionId: string) => {
+  return new ProtoMsgTransferBadges({
+    creator: convertToCosmosAddress(ethWallet.address),
+    collectionId: collectionId,
+    transfers: [
+      {
+        from: randomAddress(),
+        toAddresses: [convertToCosmosAddress(ethWallet.address)],
+        balances: [
+          {
+            amount: Math.floor(Math.random() * 100).toString(),
+            badgeIds: randomUintRangeArray(),
+            ownershipTimes: randomUintRangeArray()
+          }
+        ]
+      }
+    ]
+  });
+};
 
 const randomStringTimeline = (key: string, isArr?: boolean, isAddress?: boolean) => {
   return [
@@ -129,7 +134,7 @@ const randomMsgCreateCollection = (newCollection?: boolean) => {
     creator: convertToCosmosAddress(ethWallet.address),
     collectionId: newCollection ? '0' : Math.floor(Math.random() * 1000).toString(),
     balancesType: balancesType,
-    badgesToCreate: Array.from({ length: 1000 }, randomBalance),
+    badgesToCreate: Array.from({ length: 10 }, randomBalance),
     updateCollectionPermissions: newCollection ? true : Math.random() < 0.5,
     updateManagerTimeline: newCollection ? true : Math.random() < 0.5,
     updateCollectionMetadataTimeline: newCollection ? true : Math.random() < 0.5,
@@ -169,14 +174,29 @@ const randomMsgCreateCollection = (newCollection?: boolean) => {
     customDataTimeline: randomStringTimeline('customData'),
     standardsTimeline: randomStringTimeline('standards', true),
     isArchivedTimeline: randomBoolTimeline('isArchived'),
-    collectionApprovals: [],
+    collectionApprovals:
+      balancesType === 'Standard'
+        ? [
+            {
+              approvalId: crypto.randomBytes(32).toString('hex'),
+              challengeTrackerId: crypto.randomBytes(32).toString('hex'),
+              amountTrackerId: crypto.randomBytes(32).toString('hex'),
+              fromListId: 'All',
+              toListId: 'All',
+              initiatedByListId: 'All',
+              badgeIds: randomUintRangeArray(),
+              transferTimes: randomUintRangeArray(),
+              ownershipTimes: randomUintRangeArray()
+            }
+          ]
+        : [],
     collectionMetadataTimeline: randomMetadataTimeline('collectionMetadata'),
     badgeMetadataTimeline: randomBadgeMetadataTimeline('badgeMetadata'),
     offChainBalancesMetadataTimeline: balancesType === 'Standard' ? [] : randomMetadataTimeline('offChainBalancesMetadata')
   });
 };
 
-const NUM_RUNS = 1;
+const NUM_RUNS = 1000;
 
 async function main() {
   try {
@@ -194,33 +214,21 @@ async function main() {
       };
 
       const msgs = [];
-
-      msgs.push(randomMsgCreateCollection(true));
-      console.log(JSON.stringify(msgs[0].toJsonString()).length);
-      // msgs.push(randomMsgCreateCollection());
-      // msgs.push(randomMsgTransferBadges());
-      // msgs.push(randomMsgDeleteCollection());
-
-      // if (randomMsgCreateCollection && randomMsgTransferBadges && randomMsgDeleteCollection) {
-
-      // }
-      // console.log('msgs');
-      // console.log(JSON.stringify(msgs));
-      // if (i == 0) {
-      //   break;
-      // }
+      if (i % 2 === 0) {
+        msgs.push(randomMsgCreateCollection(true));
+      } else {
+        msgs.push(randomMsgTransferBadges(Math.floor(Math.random() * 50).toString()));
+      }
 
       const txContext: TxContext = {
         chain,
         sender,
         memo: '',
-        fee: { denom: 'badge', amount: '1', gas: '800000' }
+        fee: { denom: 'badge', amount: '1', gas: '11800000' }
       };
 
       const txn = createTransactionPayload(txContext, msgs);
       if (!txn.eipToSign) throw new Error('No eip to sign');
-
-      console.log(JSON.stringify(txn.eipToSign));
 
       const sig = await ethWallet._signTypedData(txn.eipToSign.domain, removeEIP712Domain(txn.eipToSign.types), txn.eipToSign.message);
 

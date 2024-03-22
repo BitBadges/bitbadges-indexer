@@ -43,6 +43,20 @@ export interface BlockinSession<T extends NumberType> extends Session {
     access_token: string;
     access_token_secret: string;
   };
+  // stripe?: {
+  //   id: string;
+  //   username: string;
+  // };
+
+  github?: {
+    id: string;
+    username: string;
+  };
+
+  google?: {
+    id: string;
+    username: string;
+  };
 }
 
 export interface MaybeAuthenticatedRequest<T extends NumberType> extends Request {
@@ -148,6 +162,18 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
     twitter: {
       id: req.session.twitter?.id ?? '',
       username: req.session.twitter?.username ?? ''
+    },
+    // stripe: {
+    //   id: req.session.stripe?.id ?? '',
+    //   username: req.session.stripe?.username ?? ''
+    // }
+    github: {
+      id: req.session.github?.id ?? '',
+      username: req.session.github?.username ?? ''
+    },
+    google: {
+      id: req.session.google?.id ?? '',
+      username: req.session.google?.username ?? ''
     }
   });
 }
@@ -164,12 +190,27 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     session.nonce = undefined;
     session.cookie.expires = new Date(Date.now() - 1000);
   }
+  
   if (body.signOutDiscord) {
     session.discord = undefined;
   }
+
   if (body.signOutTwitter) {
     session.twitter = undefined;
   }
+
+  // if (body.signOutStripe) {
+  //   session.stripe = undefined;
+  // }
+
+  if (body.signOutGithub) {
+    session.github = undefined;
+  }
+
+  if (body.signOutGoogle) {
+    session.google = undefined;
+  }
+
   req.session.save();
 
   return res.status(200).send({ errorMessage: 'Successfully removed session cookie!' });

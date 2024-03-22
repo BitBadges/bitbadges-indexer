@@ -205,35 +205,33 @@ export const handleMsgUniversalUpdateCollection = async (
     status.nextCollectionId++;
   }
 
-  // TODO: handle in docs cache
-  if (
-    collection.offChainBalancesMetadataTimeline.length > 0 &&
-    collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.startsWith(
-      'https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/'
-    )
-  ) {
-    const uri = collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri;
-    const customData = collection.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.customData;
-    if (customData && uri.split('/').pop() === customData) {
-      // BitBadges hosted on DigitalOcean
-      // First collection to use the unique code will be the "owner" collection. Determined via on-chain order. Simply first to use a unique string
-      // If there is an existing doc, we do not need to do anything. This also protects against other collections simply using the balances URL of another collection (allowed but they won't be able to edit)
-      const existingDoc = await getFromDB(OffChainUrlModel, customData);
-      if (!existingDoc) {
-        await insertToDB(OffChainUrlModel, {
-          _docId: customData,
-          collectionId: Number(collection.collectionId)
-        });
-      }
 
-      //If we just claimed the customData or already claimed, we can claim all others with the balances
-      if (!existingDoc || BigInt(existingDoc.collectionId) == collection.collectionId) {
-        const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, { query: { cid: customData, docClaimed: false } });
-        for (const doc of existingClaimBuilderDocs) {
-          doc.collectionId = collection.collectionId;
-          doc.docClaimed = true;
-          await insertToDB(ClaimBuilderModel, doc);
-        }
+  //For off-chain URLs, we use a claiming method to avoid data races between indexer and blockchain
+  //The ultimate decider is the first on the blockchain
+
+  const customData = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.customData;
+  const uri = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.uri;
+
+
+  const toClaimIndexed = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/') &&    customData === uri.split('/').pop();
+  const toClaimNonIndexed = uri.startsWith('https://api.bitbadges.io/placeholder/{address}') && customData;
+
+  if (toClaimIndexed || toClaimNonIndexed) {
+    const existingDoc = await getFromDB(OffChainUrlModel, customData);
+    if (!existingDoc) {
+      await insertToDB(OffChainUrlModel, {
+        _docId: customData,
+        collectionId: Number(collection.collectionId)
+      });
+    }
+
+    //If we just claimed the customData or already claimed, we can claim all others with the balances
+    if (!existingDoc || BigInt(existingDoc.collectionId) == collection.collectionId) {
+      const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, { query: { cid: customData, docClaimed: false } });
+      for (const doc of existingClaimBuilderDocs) {
+        doc.collectionId = collection.collectionId;
+        doc.docClaimed = true;
+        await insertToDB(ClaimBuilderModel, doc);
       }
     }
   }

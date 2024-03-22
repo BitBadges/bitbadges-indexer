@@ -1,4 +1,4 @@
-import { type ChallengeParams, createChallenge } from 'blockin';
+import { ChallengeParams, createChallenge } from 'blockin';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import app, { server } from '../indexer';
@@ -7,9 +7,12 @@ import { BitBadgesApiRoutes, BlockinChallengeParams, GetSignInChallengeRouteSucc
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { MongoDB } from '../db/db';
-import { type BlockinSession, type MaybeAuthenticatedRequest, checkIfAuthenticated, statement } from './blockin_handlers';
+import { connectToRpc } from '../poll';
 import { createExampleReqForAddress } from '../testutil/utils';
+import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
+import { statement, MaybeAuthenticatedRequest, BlockinSession, checkIfAuthenticated } from './blockin_handlers';
 
+connectToRpc();
 dotenv.config();
 
 const challengeParams: ChallengeParams<bigint> = {
@@ -42,13 +45,25 @@ describe('checkIfAuthenticated function', () => {
     process.env.DISABLE_NOTIFICATION_POLLER = 'true';
     process.env.TEST_MODE = 'true';
 
-    while (!MongoDB.readyState) {}
+    console.log('Waiting for MongoDB to be ready');
+
+    
+
+    while (!MongoDB.readyState) {
+      console.log('Waiting for MongoDB to be ready');
+    }
+
+    console.log('MongoDB is ready');
   });
 
   afterAll(async () => {
     await mongoose.disconnect().catch(console.error);
     // shut down server
     server?.close();
+  });
+
+  beforeEach(async () => {
+    await connectToRpc();
   });
 
   test('responds to /', async () => {
@@ -703,5 +718,160 @@ describe('checkIfAuthenticated function', () => {
       .send({ message: challenge, signature });
     console.log(challengeRes.body);
     expect(challengeRes.statusCode).toBe(401);
+  });
+
+  it('should work with Ethereum assets', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const session = createExampleReqForAddress(ethWallet.address);
+    if (!session.session.blockinParams) throw new Error('No blockinParams found in session');
+    const params = new BlockinChallengeParams<bigint>({
+      ...session.session.blockinParams,
+      assetOwnershipRequirements: {
+        assets: [
+          {
+            chain: 'Ethereum',
+            collectionId: '0xc0cb81c1f89ab0873653f67eea42652f13cd8416',
+            assetIds: ['4531'],
+            ownershipTimes: [],
+            mustOwnAmounts: { start: 0n, end: 0n }
+          }
+        ]
+      }
+    });
+
+    const challenge = createChallenge(params);
+    const messageToSign = challenge;
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    console.log("testing");
+
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GenericVerifyRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: challenge, signature });
+
+    expect(challengeRes.statusCode).toBe(200);
+  });
+
+  it('should work with Ethereum assets', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const session = createExampleReqForAddress(ethWallet.address);
+    if (!session.session.blockinParams) throw new Error('No blockinParams found in session');
+    const params = new BlockinChallengeParams<bigint>({
+      ...session.session.blockinParams,
+      assetOwnershipRequirements: {
+        assets: [
+          {
+            chain: 'Ethereum',
+            collectionId: '0xc0cb81c1f89ab0873653f67eea42652f13cd8416',
+            assetIds: ['4531'],
+            ownershipTimes: [],
+            mustOwnAmounts: { start: 1n, end: 1n }
+          }
+        ]
+      }
+    });
+
+    const challenge = createChallenge(params);
+    const messageToSign = challenge;
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    console.log("testing");
+
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GenericVerifyRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: challenge, signature });
+
+    expect(challengeRes.statusCode).toBe(401);
+  
+  });
+
+  it('should work with valid Ethereum NFT ', async () => {
+    await verifyBitBadgesAssets({
+      $and: [
+        {
+          assets: [
+            {
+              chain: 'Ethereum',
+              collectionId: '0xc0cb81c1f89ab0873653f67eea42652f13cd8416',
+              assetIds: ['4531'],
+              ownershipTimes: [],
+              mustOwnAmounts: { start: 1n, end: 1n }
+            }
+          ]
+        },
+      ]
+    }, 
+      "cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu"
+    );
+
+    try {
+      await verifyBitBadgesAssets({
+        $and: [
+          {
+            assets: [
+              {
+                chain: 'Ethereum',
+                collectionId: '0xc0cb81c1f89ab0873653f67eea42652f13cd8416',
+                assetIds: ['4531'],
+                ownershipTimes: [],
+                mustOwnAmounts: { start: 0n, end: 0n }
+              }
+            ]
+          },
+        ]
+      }, 
+        "0xe00dD9D317573f7B4868D8f2578C65544B153A27"
+      );
+
+      fail("Should not have been able to verify");
+    } catch (e) {
+      console.log(e);
+    }
+  });
+
+  it('should work with valid Polygon asset', async () => {
+    await verifyBitBadgesAssets({
+      $and: [
+        {
+          assets: [
+            {
+              chain: 'Polygon',
+              collectionId: '0x9a7f0b7d4b6c1c3f3b6d4e6d5b6e6d5b6e6d5b6e',
+              assetIds: ['1'],
+              ownershipTimes: [],
+              mustOwnAmounts: { start: 0n, end: 0n }
+            }
+          ]
+        },
+      ]
+    }, 
+      "cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu"
+    );
+
+    try {
+      await verifyBitBadgesAssets({
+        $and: [
+          {
+            assets: [
+              {
+                chain: 'Polygon',
+                collectionId: '0x9a7f0b7d4b6c1c3f3b6d4e6d5b6e6d5b6e6d5b6e',
+                assetIds: ['1'],
+                ownershipTimes: [],
+                mustOwnAmounts: { start: 1n, end: 1n }
+              }
+            ]
+          },
+        ]
+      }, 
+        "0xe00dD9D317573f7B4868D8f2578C65544B153A27"
+      );
+
+      fail("Should not have been able to verify");
+    } catch (e) {
+      console.log(e);
+    }
   });
 });

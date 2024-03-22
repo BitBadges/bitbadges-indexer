@@ -21,9 +21,9 @@ import { getFromDB, insertMany, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, CollectionModel, ListActivityModel } from '../db/schemas';
 import { getStatus } from '../db/status';
-import { DiscordPluginDetails, TwitterPluginDetails } from '../integrations/auth';
+import { ApiPluginDetails } from '../integrations/api';
+import { DiscordPluginDetails, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from '../integrations/auth';
 import { CodesPluginDetails, generateCodesFromSeed } from '../integrations/codes';
-import { MinBalancePluginDetails } from '../integrations/minBalance';
 import { MustOwnPluginDetails } from '../integrations/mustOwnBadges';
 import { NumUsesDetails } from '../integrations/numUses';
 import { PasswordPluginDetails } from '../integrations/passwords';
@@ -42,17 +42,21 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   discord: DiscordPluginDetails,
   password: PasswordPluginDetails,
   numUses: NumUsesDetails,
-  greaterThanXBADGEBalance: MinBalancePluginDetails,
   transferTimes: TransferTimesPluginDetails,
   requiresProofOfAddress: RequiresSignaturePluginDetails,
   whitelist: WhitelistPluginDetails,
-  mustOwnBadges: MustOwnPluginDetails
+  mustOwnBadges: MustOwnPluginDetails,
+  api: ApiPluginDetails,
+  github: GitHubPluginDetails,
+  google: GooglePluginDetails
+  // stripe: StripePluginDetails
 };
 
 enum ActionType {
   Code = 'Code',
   SetBalance = 'SetBalance',
-  AddToList = 'AddToList'
+  AddToList = 'AddToList',
+  ClaimNumbers = 'ClaimNumbers'
 }
 
 export interface ClaimDetails<T extends NumberType> {
@@ -134,17 +138,17 @@ export const checkAndCompleteClaim = async (
       throw new Error('This claim is for manual distribution only. BitBadges does not handle any distribution for this claim.');
     }
 
-    let actionType = ActionType.Code;
-    if (claimBuilderDoc.action.balancesToSet) {
+    let actionType = ActionType.ClaimNumbers;
+    if (claimBuilderDoc.action.codes?.length || claimBuilderDoc.action.seedCode) {
+      actionType = ActionType.Code;
+    } else if (claimBuilderDoc.action.balancesToSet) {
       actionType = ActionType.SetBalance;
     } else if (claimBuilderDoc.action.listId) {
       actionType = ActionType.AddToList;
     }
 
-    if (actionType === ActionType.Code || actionType === ActionType.SetBalance || actionType === ActionType.AddToList) {
-      if (!claimBuilderDoc.plugins.find((plugin) => plugin.id === 'numUses')) {
-        throw new Error('No numUses plugin found');
-      }
+    if (!claimBuilderDoc.plugins.find((plugin) => plugin.id === 'numUses')) {
+      throw new Error('No numUses plugin found');
     }
 
     if (actionType === ActionType.Code && req.body.prevCodesOnly) {
@@ -171,27 +175,28 @@ export const checkAndCompleteClaim = async (
               blockin: true
             };
             break;
-          case 'discord':
-            adminInfo = {
-              id: '123456789',
-              username: 'testuser',
-              discriminator: '',
-              access_token: ''
-            };
-            break;
-          case 'twitter':
-            adminInfo = {
-              id: '123456789',
-              username: 'testuser',
-              access_token: ''
-            };
-            break;
+         
           case 'codes': {
             adminInfo = {
               assignMethod: getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod
             };
             break;
           }
+          case 'discord':
+          case 'twitter':
+          case 'github':
+          case 'google':
+            adminInfo = {
+              username: 'testuser',
+              id: '123456789'
+            };
+            break;
+
+          // case 'stripe':
+          //   adminInfo = {
+          //     username: 'testuser'
+          //   };
+          //   break;
           default:
             break;
         }
@@ -212,6 +217,42 @@ export const checkAndCompleteClaim = async (
             };
             break;
           }
+          case 'github':
+            adminInfo = req.session.github;
+            break;
+          case 'google':
+            adminInfo = req.session.google;
+            break;
+          // case 'stripe':
+          //   adminInfo = req.session.stripe;
+          //   break;
+          case 'api': {
+            adminInfo = {
+              discord: {
+                username: req.session.discord?.username,
+                id: req.session.discord?.id,
+                discriminator: req.session.discord?.discriminator
+              },
+              twitter: {
+                username: req.session.twitter?.username,
+                id: req.session.twitter?.id
+              },
+              github: {
+                username: req.session.github?.username,
+                id: req.session.github?.id
+              },
+              google: {
+                username: req.session.google?.username,
+                id: req.session.google?.id
+              }
+              // stripe: {
+              //   username: req.session.stripe?.username,
+              //   id: req.session.stripe?.id
+              // }
+            };
+            break;
+          }
+
           default:
             break;
         }
@@ -289,12 +330,13 @@ export const checkAndCompleteClaim = async (
       const code = distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, currCodeIdx);
       const prevUsedCodes = newDoc.state.numUses.claimedUsers[context.cosmosAddress].slice(0, -1);
 
-      console.log('prevUsedCodes', prevUsedCodes, code);
       return res
         .status(200)
         .send({ prevCodes: prevUsedCodes.map((idx: number) => distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, idx)), code });
     } else if (actionType === ActionType.AddToList && claimBuilderDoc.action.listId) {
       await addToAddressListAction(newDoc as ClaimBuilderDoc<NumberType>, context.cosmosAddress);
+      return res.status(200).send();
+    } else if (actionType === ActionType.ClaimNumbers) {
       return res.status(200).send();
     }
 
@@ -314,7 +356,6 @@ export const getDecryptedActionCodes = (doc: ClaimBuilderDoc<NumberType>) => {
     codes: doc.action.codes ?? [],
     seedCode: doc.action.seedCode ?? ''
   });
-  console.log(decryptedInfo);
   const codes = decryptedInfo.seedCode ? generateCodesFromSeed(decryptedInfo.seedCode, maxUses) : decryptedInfo.codes;
   return codes;
 };

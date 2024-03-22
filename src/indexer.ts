@@ -15,6 +15,9 @@ import multer from 'multer';
 import passport from 'passport';
 import passportDiscord from 'passport-discord';
 import passportTwitter from 'passport-twitter';
+import passportGithub from 'passport-github';
+import passportGoogle from 'passport-google-oauth20';
+// import passportStripe from 'passport-stripe';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
 import {
@@ -57,8 +60,29 @@ import { getAccounts, updateAccountInfo } from './routes/users';
 
 const TwitterStrategy = passportTwitter.Strategy;
 const DiscordStrategy = passportDiscord.Strategy;
+const GitHubStrategy = passportGithub.Strategy;
+const GoogleStrategy = passportGoogle.Strategy;
+// const StripeStrategy = passportStripe.Strategy;
 
 var scopes = ['identify', 'guilds', 'guilds.members.read'];
+
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+      callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/google/callback' : 'https://api.bitbadges.io/auth/google/callback'
+    },
+    function (accessToken, refreshToken, profile, cb) {
+      console.log(profile);
+      const user = {
+        id: profile.id,
+        username: profile.emails ? profile.emails[0].value : ''
+      };
+      return cb(null, user);
+    }
+  )
+);
 
 passport.use(
   new DiscordStrategy(
@@ -100,6 +124,42 @@ passport.use(
     }
   )
 );
+
+passport.use(
+  new GitHubStrategy(
+    {
+      clientID: process.env.GITHUB_CLIENT_ID ?? '',
+      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
+      callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/github/callback' : 'https://api.bitbadges.io/auth/github/callback'
+    },
+    function (accessToken, refreshToken, profile, cb) {
+      const user = {
+        id: profile.id,
+        username: profile.username
+      };
+
+      return cb(null, user);
+    }
+  )
+);
+
+// passport.use(
+//   new StripeStrategy(
+//     {
+//       clientID: process.env.STRIPE_ID,
+//       clientSecret: process.env.STRIPE_SECRET,
+//       callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/stripe/callback' : 'https://api.bitbadges.io/auth/stripe/callback'
+//     },
+//     function (_: any, __: any, stripe_properties: any, cb: any) {
+//       const user = {
+//         username: stripe_properties.stripe_user_id,
+//         id: stripe_properties.stripe_user_id
+//       };
+
+//       return cb(null, user);
+//     }
+//   )
+// );
 
 passport.serializeUser(function (user, cb) {
   process.nextTick(function () {
@@ -184,7 +244,13 @@ app.use(async (req, res, next) => {
   if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io')) {
     next();
     return;
-  } else if (req.path.startsWith('/auth/discord') || req.path.startsWith('/auth/twitter')) {
+  } else if (
+    req.path.startsWith('/auth/discord') ||
+    req.path.startsWith('/auth/twitter') ||
+    req.path.startsWith('/auth/github') ||
+    req.path.startsWith('/auth/stripe') ||
+    req.path.startsWith('/auth/google')
+  ) {
     next();
     return;
   } else {
@@ -324,6 +390,63 @@ const twitterCallbackHandler = (req: Request, res: Response, next: Function) => 
 
 app.get('/auth/twitter', passport.authenticate('twitter', { session: false }));
 app.get('/auth/twitter/callback', twitterCallbackHandler);
+
+// const stripeCallbackHandler = (req: Request, res: Response, next: Function) => {
+//   passport.authenticate('stripe', function (err: Error, user: any) {
+//     if (err) {
+//       return next(err);
+//     }
+//     if (!user) {
+//       return res.status(401).send('Unauthorized. No user found.');
+//     }
+
+//     (req.session as BlockinSession<bigint>).stripe = user;
+//     req.session.save();
+
+//     return res.status(200).send('Logged in. Please proceed back to the app.');
+//   })(req, res, next);
+// };
+
+// app.get('/auth/stripe', passport.authenticate('stripe', { session: false }));
+// app.get('/auth/stripe/callback', stripeCallbackHandler);
+
+const githubCallbackHandler = (req: Request, res: Response, next: Function) => {
+  passport.authenticate('github', function (err: Error, user: any) {
+    if (err) {
+      return next(err);
+    }
+    if (!user) {
+      return res.status(401).send('Unauthorized. No user found.');
+    }
+
+    (req.session as BlockinSession<bigint>).github = user;
+    req.session.save();
+
+    return res.status(200).send('Logged in. Please proceed back to the app.');
+  })(req, res, next);
+};
+
+app.get('/auth/github', passport.authenticate('github', { session: false }));
+app.get('/auth/github/callback', githubCallbackHandler);
+
+const googleCallbackHandler = (req: Request, res: Response, next: Function) => {
+  passport.authenticate('google', function (err: Error, user: any) {
+    if (err) {
+      return next(err);
+    }
+    if (!user) {
+      return res.status(401).send('Unauthorized. No user found.');
+    }
+
+    (req.session as BlockinSession<bigint>).google = user;
+    req.session.save();
+
+    return res.status(200).send('Logged in. Please proceed back to the app.');
+  })(req, res, next);
+};
+
+app.get('/auth/google', passport.authenticate('google', { session: false, scope: ['profile', 'email'] }));
+app.get('/auth/google/callback', googleCallbackHandler);
 
 // Reports
 app.post('/api/v0/report', authorizeBlockinRequest, addReport);

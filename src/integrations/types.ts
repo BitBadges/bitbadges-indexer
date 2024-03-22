@@ -26,7 +26,9 @@ export type ClaimIntegrationCustomBodyType<T extends ClaimIntegrationPluginType>
   ? { password: string }
   : T extends 'codes'
     ? { code: string }
-    : {};
+    : T extends 'api'
+      ? object[]
+      : {};
 
 export interface BackendIntegrationPlugin<T extends NumberType, P extends ClaimIntegrationPluginType> {
   id: P;

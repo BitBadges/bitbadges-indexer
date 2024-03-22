@@ -136,11 +136,11 @@ export async function executeAdditionalCollectionQueries(
           promises.push(executeCollectionBalancesQuery(`${query.collectionId}`, bookmark, oldestFirst));
           balanceResIdxs.push(promises.length - 1);
         }
-      } else if (view.viewType === 'merkleChallenges') {
+      } else if (view.viewType === 'challengeTrackers') {
         if (bookmark !== undefined) {
           promises.push(executeCollectionMerkleChallengesQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
-      } else if (view.viewType === 'approvalTrackers') {
+      } else if (view.viewType === 'amountTrackers') {
         if (bookmark !== undefined) {
           promises.push(executeCollectionApprovalTrackersQuery(`${query.collectionId}`, bookmark, oldestFirst));
         }
@@ -458,14 +458,14 @@ export async function executeAdditionalCollectionQueries(
           };
           collectionToReturn.owners.push(...getBalanceDocsWithDetails(viewRes.docs));
           type = 'Balance';
-        } else if (view.viewType === 'merkleChallenges') {
+        } else if (view.viewType === 'challengeTrackers') {
           const viewRes = responses[currPromiseIdx++] as {
             docs: Array<MerkleChallengeDoc<bigint>>;
             pagination: PaginationInfo;
           };
           collectionToReturn.merkleChallenges.push(...viewRes.docs);
           type = 'MerkleChallenge';
-        } else if (view.viewType === 'approvalTrackers') {
+        } else if (view.viewType === 'amountTrackers') {
           const viewRes = responses[currPromiseIdx++] as {
             docs: Array<ApprovalTrackerDoc<bigint>>;
             pagination: PaginationInfo;
@@ -587,9 +587,6 @@ export async function executeAdditionalCollectionQueries(
         }
 
         approval.details = content as ApprovalInfoDetails<bigint>;
-        if (approval.approvalCriteria?.merkleChallenge?.uri) {
-          approval.approvalCriteria.merkleChallenge.details = content as ApprovalInfoDetails<bigint>;
-        }
       }
       collectionRes.collectionApprovals[i] = approval;
     }

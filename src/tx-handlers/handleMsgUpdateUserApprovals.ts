@@ -58,6 +58,4 @@ export const handleMsgUpdateUserApprovals = async (
   }
 
   docs.balances[`${msg.collectionId}:${msg.creator}`] = balancesDoc;
-
-  // console.log("BALANCES DOC", `${msg.collectionId}:${msg.creator}`, JSON.stringify(docs.balances[`${msg.collectionId}:${msg.creator}`], null, 2));
 };

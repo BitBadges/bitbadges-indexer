@@ -30,7 +30,7 @@ export const createAuthCode = async (
     const response = await genericBlockinVerify({
       message: reqBody.message,
       signature: reqBody.signature,
-      // publicKey: reqBody.publicKey,
+      publicKey: reqBody.publicKey,
       options: {
         skipTimestampVerification: true,
         skipAssetVerification: true
@@ -75,6 +75,7 @@ export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCod
       if (!verificationResponse.success) {
         return res.status(200).send({
           message: createChallenge(params),
+          params: params,
           verificationResponse: {
             success: false,
             errorMessage: verificationResponse.message
@@ -84,12 +85,14 @@ export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCod
 
       return res.status(200).send({
         message: createChallenge(params),
+        params: params,
         verificationResponse: {
           success: verificationResponse.success
         }
       });
     } catch (e) {
       return res.status(200).send({
+        params: params,
         message: createChallenge(params),
         verificationResponse: {
           success: false,

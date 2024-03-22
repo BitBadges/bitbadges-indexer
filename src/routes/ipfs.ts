@@ -115,7 +115,7 @@ export const addBalancesToOffChainStorageHandler = async (
         throw new Error('You must upload the balances to IPFS before adding plugins');
       }
 
-      if (!claim.claimId || !claim.balancesToSet) {
+      if (!claim.claimId) {
         throw new Error('Invalid claim');
       }
 
@@ -246,10 +246,6 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
     if (!result) {
       throw new Error('No IPFS result received');
     }
-
-    //TODO: Note this does not support any updates or deletes to existing claims.
-    // Within the frontend, we do not allow updates to approvals yet, so this is fine for now.
-    // Will need to change this if we allow updates to approvals in the future.
 
     //We handle deletes of old claims in the poller
     for (const claim of offChainClaims ?? []) {

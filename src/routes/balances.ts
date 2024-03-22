@@ -5,7 +5,8 @@ import {
   type iAddressList,
   type iGetBadgeBalanceByAddressRouteSuccessResponse,
   type iUserPermissions,
-  type NumberType
+  type NumberType,
+  UintRangeArray
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -13,8 +14,10 @@ import { fetchUriFromSource } from '../queue';
 import { cleanBalanceArray } from '../utils/dataCleaners';
 import { getBalancesForEthFirstTx } from './ethFirstTx';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
-import { BalanceModel, CollectionModel } from '../db/schemas';
+import { BalanceModel, ClaimBuilderModel, CollectionModel } from '../db/schemas';
 import { mustGetFromDB, getFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
+import { getPlugin, getPluginParamsAndState } from '../integrations/types';
 
 export function mustFind<T>(arr: T[], callbackFunc: (x: T) => boolean) {
   const found = arr.find(callbackFunc);
@@ -73,6 +76,60 @@ export const getBadgeBalanceByAddress = async (
       if (uriToFetch === 'https://api.bitbadges.io/api/v0/ethFirstTx/' + cosmosAddress) {
         // Hardcoded to fetch locally instead of from source GET
         balancesRes = await getBalancesForEthFirstTx(cosmosAddress);
+      } else if (uriToFetch === 'https://api.bitbadges.io/placeholder/{address}') {
+        const claimDoc = await findInDB(ClaimBuilderModel, { query: { collectionId: Number(req.params.collectionId) }, limit: 1 });
+        if (claimDoc.length === 0) {
+          throw new Error('No claim found');
+        }
+
+        const apiDetails = getPluginParamsAndState('api', claimDoc[0].plugins);
+        if (!apiDetails) {
+          throw new Error('No API details found');
+        }
+
+        const claim = claimDoc[0];
+        const apiCalls = apiDetails.publicParams?.apiCalls;
+        if (!apiCalls) {
+          throw new Error('No API calls found');
+        }
+
+        const allBadges = await mustGetFromDB(BalanceModel, `${req.params.collectionId}:Total`);
+        const allBadgesBalances = allBadges.balances.getAllBadgeIds();
+
+        const apiRes = await getPlugin('api').validateFunction(
+          {
+            cosmosAddress: cosmosAddress,
+            claimId: claim._docId
+          },
+          apiDetails.publicParams,
+          apiDetails.privateParams
+          //Everything else is N/A to non-indexed
+        );
+
+        return res.status(200).send({
+          _docId: req.params.collectionId + ':' + cosmosAddress,
+          collectionId: req.params.collectionId,
+          cosmosAddress: req.params.cosmosAddress,
+          balances: [
+            {
+              amount: apiRes.success ? 1 : 0,
+              badgeIds: allBadgesBalances,
+              ownershipTimes: UintRangeArray.FullRanges()
+            }
+          ],
+          incomingApprovals: [],
+          outgoingApprovals: [],
+          autoApproveSelfInitiatedOutgoingTransfers: false,
+          autoApproveSelfInitiatedIncomingTransfers: false,
+          userPermissions: {
+            canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+            canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+            canUpdateIncomingApprovals: [],
+            canUpdateOutgoingApprovals: []
+          },
+          onChain: false,
+          updateHistory: []
+        });
       } else {
         const res = await fetchUriFromSource(uriToFetch);
         balancesRes = res?.balances;
