@@ -14,10 +14,11 @@ import Moralis from 'moralis';
 import multer from 'multer';
 import passport from 'passport';
 import passportDiscord from 'passport-discord';
-import passportTwitter from 'passport-twitter';
 import passportGithub from 'passport-github';
 import passportGoogle from 'passport-google-oauth20';
 // import passportStripe from 'passport-stripe';
+import OAuthPkg from 'oauth';
+import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
 import {
@@ -58,7 +59,8 @@ import { filterBadgesInCollectionHandler, searchHandler } from './routes/search'
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
 
-const TwitterStrategy = passportTwitter.Strategy;
+const OAuth = OAuthPkg.OAuth;
+
 const DiscordStrategy = passportDiscord.Strategy;
 const GitHubStrategy = passportGithub.Strategy;
 const GoogleStrategy = passportGoogle.Strategy;
@@ -100,26 +102,6 @@ passport.use(
         discriminator: profile.discriminator,
         access_token: accessToken
       };
-      return cb(null, user);
-    }
-  )
-);
-
-passport.use(
-  new TwitterStrategy(
-    {
-      consumerKey: process.env.TWITTER_CONSUMER_KEY ?? '',
-      consumerSecret: process.env.TWITTER_CONSUMER_SECRET ?? '',
-      callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/twitter/callback' : 'https://api.bitbadges.io/auth/twitter/callback'
-    },
-    function (token, tokenSecret, profile, cb) {
-      const user = {
-        id: profile.id,
-        username: profile.username,
-        access_token: token,
-        access_token_secret: tokenSecret
-      };
-
       return cb(null, user);
     }
   )
@@ -372,24 +354,94 @@ const discordCallbackHandler = (req: Request, res: Response, next: Function) => 
 app.get('/auth/discord', passport.authenticate('discord', { session: false }));
 app.get('/auth/discord/callback', discordCallbackHandler);
 
-const twitterCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('twitter', function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
-
-    (req.session as BlockinSession<bigint>).twitter = user;
-    req.session.save();
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
-  })(req, res, next);
+const twitterConfig = {
+  consumerKey: process.env.TWITTER_CONSUMER_KEY || '',
+  consumerSecret: process.env.TWITTER_CONSUMER_SECRET || '',
+  callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/twitter/callback' : 'https://api.bitbadges.io/auth/twitter/callback'
 };
 
-app.get('/auth/twitter', passport.authenticate('twitter', { session: false }));
-app.get('/auth/twitter/callback', twitterCallbackHandler);
+const oauthRequestTokenUrl = 'https://api.twitter.com/oauth/request_token';
+const twitterOauth = new OAuth(
+  oauthRequestTokenUrl,
+  'https://api.twitter.com/oauth/access_token',
+  twitterConfig.consumerKey,
+  twitterConfig.consumerSecret,
+  '1.0A',
+  twitterConfig.callbackURL,
+  'HMAC-SHA1'
+);
+
+// Twitter authentication route
+app.get('/auth/twitter', (_req, res) => {
+  try {
+    return twitterOauth.getOAuthRequestToken((error, oauthToken, oauthTokenSecret) => {
+      if (error) {
+        console.error('Error getting OAuth request token:', error);
+        return res.status(500).send('Error getting OAuth request token');
+      } else {
+        // Redirect the user to Twitter authentication page
+        return res.redirect(`https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`);
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
+
+// Twitter callback route
+app.get('/auth/twitter/callback', async (req, res) => {
+  try {
+    const oauthAccessTokenUrl = 'https://api.twitter.com/oauth/access_token';
+    const oauthVerifier = req.query.oauth_verifier;
+
+    const oauthParams = {
+      oauth_consumer_key: twitterConfig.consumerKey,
+      oauth_token: req.query.oauth_token,
+      oauth_verifier: oauthVerifier
+    };
+
+    const oauthRes = await axios.post(oauthAccessTokenUrl, null, {
+      params: oauthParams
+    });
+
+    const data = querystring.parse(oauthRes.data);
+
+    const accessToken = data.oauth_token as string;
+    const accessTokenSecret = data.oauth_token_secret as string;
+
+    // Get user's Twitter profile
+    const userProfileUrl = 'https://api.twitter.com/1.1/account/verify_credentials.json';
+    return twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, (error, data) => {
+      if (error) {
+        console.error('Error getting Twitter profile:', error);
+        return res.status(500).send('Error getting Twitter profile');
+      } else {
+        const profile = JSON.parse(data as any);
+        const user = {
+          id: profile.id_str,
+          username: profile.screen_name,
+          access_token: accessToken,
+          access_token_secret: accessTokenSecret
+        };
+
+        (req.session as BlockinSession<bigint>).twitter = user;
+        req.session.save();
+
+        return res.status(200).send('Logged in. Please proceed back to the app.');
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
 
 // const stripeCallbackHandler = (req: Request, res: Response, next: Function) => {
 //   passport.authenticate('stripe', function (err: Error, user: any) {
@@ -583,7 +635,7 @@ app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, async (req: Request, res:
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage:  e.message
+      errorMessage: e.message
     });
   }
 });
