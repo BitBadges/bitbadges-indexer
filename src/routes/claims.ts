@@ -175,7 +175,7 @@ export const checkAndCompleteClaim = async (
               blockin: true
             };
             break;
-         
+
           case 'codes': {
             adminInfo = {
               assignMethod: getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod

@@ -190,7 +190,7 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     session.nonce = undefined;
     session.cookie.expires = new Date(Date.now() - 1000);
   }
-  
+
   if (body.signOutDiscord) {
     session.discord = undefined;
   }

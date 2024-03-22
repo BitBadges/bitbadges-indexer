@@ -255,8 +255,6 @@ export async function executeCollectedQuery(
     return viewDocs;
   };
 
-
-
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
   if (QUERY_TIME_MODE) console.timeEnd('executeCollectedQuery');
   return collectedRes;

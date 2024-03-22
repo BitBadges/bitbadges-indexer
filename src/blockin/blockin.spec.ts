@@ -47,8 +47,6 @@ describe('checkIfAuthenticated function', () => {
 
     console.log('Waiting for MongoDB to be ready');
 
-    
-
     while (!MongoDB.readyState) {
       console.log('Waiting for MongoDB to be ready');
     }
@@ -743,7 +741,7 @@ describe('checkIfAuthenticated function', () => {
     const messageToSign = challenge;
     const signature = await ethWallet.signMessage(messageToSign);
 
-    console.log("testing");
+    console.log('testing');
 
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GenericVerifyRoute())
@@ -776,7 +774,7 @@ describe('checkIfAuthenticated function', () => {
     const messageToSign = challenge;
     const signature = await ethWallet.signMessage(messageToSign);
 
-    console.log("testing");
+    console.log('testing');
 
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GenericVerifyRoute())
@@ -784,30 +782,11 @@ describe('checkIfAuthenticated function', () => {
       .send({ message: challenge, signature });
 
     expect(challengeRes.statusCode).toBe(401);
-  
   });
 
   it('should work with valid Ethereum NFT ', async () => {
-    await verifyBitBadgesAssets({
-      $and: [
-        {
-          assets: [
-            {
-              chain: 'Ethereum',
-              collectionId: '0xc0cb81c1f89ab0873653f67eea42652f13cd8416',
-              assetIds: ['4531'],
-              ownershipTimes: [],
-              mustOwnAmounts: { start: 1n, end: 1n }
-            }
-          ]
-        },
-      ]
-    }, 
-      "cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu"
-    );
-
-    try {
-      await verifyBitBadgesAssets({
+    await verifyBitBadgesAssets(
+      {
         $and: [
           {
             assets: [
@@ -816,42 +795,44 @@ describe('checkIfAuthenticated function', () => {
                 collectionId: '0xc0cb81c1f89ab0873653f67eea42652f13cd8416',
                 assetIds: ['4531'],
                 ownershipTimes: [],
-                mustOwnAmounts: { start: 0n, end: 0n }
+                mustOwnAmounts: { start: 1n, end: 1n }
               }
             ]
-          },
+          }
         ]
-      }, 
-        "0xe00dD9D317573f7B4868D8f2578C65544B153A27"
+      },
+      'cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu'
+    );
+
+    try {
+      await verifyBitBadgesAssets(
+        {
+          $and: [
+            {
+              assets: [
+                {
+                  chain: 'Ethereum',
+                  collectionId: '0xc0cb81c1f89ab0873653f67eea42652f13cd8416',
+                  assetIds: ['4531'],
+                  ownershipTimes: [],
+                  mustOwnAmounts: { start: 0n, end: 0n }
+                }
+              ]
+            }
+          ]
+        },
+        '0xe00dD9D317573f7B4868D8f2578C65544B153A27'
       );
 
-      fail("Should not have been able to verify");
+      fail('Should not have been able to verify');
     } catch (e) {
       console.log(e);
     }
   });
 
   it('should work with valid Polygon asset', async () => {
-    await verifyBitBadgesAssets({
-      $and: [
-        {
-          assets: [
-            {
-              chain: 'Polygon',
-              collectionId: '0x9a7f0b7d4b6c1c3f3b6d4e6d5b6e6d5b6e6d5b6e',
-              assetIds: ['1'],
-              ownershipTimes: [],
-              mustOwnAmounts: { start: 0n, end: 0n }
-            }
-          ]
-        },
-      ]
-    }, 
-      "cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu"
-    );
-
-    try {
-      await verifyBitBadgesAssets({
+    await verifyBitBadgesAssets(
+      {
         $and: [
           {
             assets: [
@@ -860,16 +841,36 @@ describe('checkIfAuthenticated function', () => {
                 collectionId: '0x9a7f0b7d4b6c1c3f3b6d4e6d5b6e6d5b6e6d5b6e',
                 assetIds: ['1'],
                 ownershipTimes: [],
-                mustOwnAmounts: { start: 1n, end: 1n }
+                mustOwnAmounts: { start: 0n, end: 0n }
               }
             ]
-          },
+          }
         ]
-      }, 
-        "0xe00dD9D317573f7B4868D8f2578C65544B153A27"
+      },
+      'cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu'
+    );
+
+    try {
+      await verifyBitBadgesAssets(
+        {
+          $and: [
+            {
+              assets: [
+                {
+                  chain: 'Polygon',
+                  collectionId: '0x9a7f0b7d4b6c1c3f3b6d4e6d5b6e6d5b6e6d5b6e',
+                  assetIds: ['1'],
+                  ownershipTimes: [],
+                  mustOwnAmounts: { start: 1n, end: 1n }
+                }
+              ]
+            }
+          ]
+        },
+        '0xe00dD9D317573f7B4868D8f2578C65544B153A27'
       );
 
-      fail("Should not have been able to verify");
+      fail('Should not have been able to verify');
     } catch (e) {
       console.log(e);
     }

@@ -43,10 +43,9 @@ export async function verifyBitBadgesAssets(
   } else {
     const supportedChains = ['BitBadges', 'Ethereum', 'Polygon'];
     const evmChains = ['Ethereum', 'Polygon'];
-    
+
     //Validate basic checks
     for (const asset of normalItem.assets) {
-      
       //Validate BitBadges Lists
       if (asset.collectionId === 'BitBadges Lists') {
         if (asset.mustOwnAmounts && !(asset.mustOwnAmounts.start === 1n || asset.mustOwnAmounts.start === 0n)) {
@@ -112,7 +111,8 @@ export async function verifyBitBadgesAssets(
       for (const asset of normalItem.assets) {
         if (asset.collectionId === 'BitBadges Lists' || asset.chain !== 'BitBadges') {
           numToSatisfy += BigInt(asset.assetIds.length); // string[]
-        } else { //UintRange[]
+        } else {
+          //UintRange[]
           numToSatisfy += UintRangeArray.From(asset.assetIds.map((x) => x as UintRange<bigint>))
             .convert(BigIntify)
             .size();
@@ -136,7 +136,6 @@ export async function verifyBitBadgesAssets(
         };
         const assetsForAddress = (await Moralis.EvmApi.nft.getWalletNFTs(options)).result;
 
-        
         //little hacky but makes it compatible with UintRange interface
         //Each assetId is imply mapped to a numeric badge ID
         for (let i = 0; i < asset.assetIds.length; i++) {
@@ -146,7 +145,7 @@ export async function verifyBitBadgesAssets(
             (elem) => elem.tokenAddress.toJSON() === asset.collectionId && elem.tokenId.toString() === assetId
           );
           const amount = requestedAsset?.amount ? BigInt(requestedAsset?.amount) : BigInt(0);
-          
+
           balances.addBalance({
             amount,
             badgeIds: [{ start: badgeId, end: badgeId }],
@@ -185,14 +184,13 @@ export async function verifyBitBadgesAssets(
       } else {
         let docBalances = new BalanceArray<bigint>();
         if (!balancesSnapshot) {
-            const balanceDoc = await getFromDB(BalanceModel, `${asset.collectionId}:${convertToCosmosAddress(address)}`);
+          const balanceDoc = await getFromDB(BalanceModel, `${asset.collectionId}:${convertToCosmosAddress(address)}`);
 
-            if (!balanceDoc) {
-              docBalances = new BalanceArray<bigint>();
-            } else {
-              docBalances = balanceDoc.balances.clone();
-            }
-          
+          if (!balanceDoc) {
+            docBalances = new BalanceArray<bigint>();
+          } else {
+            docBalances = balanceDoc.balances.clone();
+          }
         } else {
           const collectionId = asset.collectionId.toString();
           const cosmosAddress = convertToCosmosAddress(address);

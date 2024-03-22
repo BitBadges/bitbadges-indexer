@@ -205,15 +205,13 @@ export const handleMsgUniversalUpdateCollection = async (
     status.nextCollectionId++;
   }
 
-
   //For off-chain URLs, we use a claiming method to avoid data races between indexer and blockchain
   //The ultimate decider is the first on the blockchain
 
   const customData = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.customData;
   const uri = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.uri;
 
-
-  const toClaimIndexed = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/') &&    customData === uri.split('/').pop();
+  const toClaimIndexed = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/') && customData === uri.split('/').pop();
   const toClaimNonIndexed = uri.startsWith('https://api.bitbadges.io/placeholder/{address}') && customData;
 
   if (toClaimIndexed || toClaimNonIndexed) {
