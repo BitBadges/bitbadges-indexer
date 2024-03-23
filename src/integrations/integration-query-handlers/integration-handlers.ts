@@ -6,6 +6,8 @@ export const handleIntegrationQuery = async (body: any) => {
     await handleGithubContributionsQuery(body);
   } else if (body.__type === 'min-badge') {
     await handleMinBadgeQuery(body);
+  } else if (body.__type === 'discord-server') {
+    await handleDiscordServerQuery(body);
   } else {
     throw new Error('Invalid integration query type');
   }
@@ -39,5 +41,35 @@ const handleMinBadgeQuery = async (body: { cosmosAddress: string; minBalance: nu
     return;
   } else {
     throw new Error('Insufficient balance');
+  }
+};
+
+const handleDiscordServerQuery = async (body: {
+  serverId: string;
+  discord: { id: string; username: string; discriminator: string; access_token: string };
+}) => {
+  const { serverId, discord: discordInfo } = body;
+  
+  const userId = discordInfo.id;
+  const guildId = serverId;
+  const access_token = discordInfo.access_token;
+  if (!discordInfo.id || !discordInfo.username || !access_token) {
+    throw new Error('Invalid discord user details');
+  }
+
+  if (!guildId) {
+    throw new Error('Server ID not provided');
+  }
+
+  if (guildId) {
+    // Use the access token to fetch user information
+    const userResponse = await axios.get('https://discord.com/api/users/@me/guilds/' + guildId + '/member', {
+      headers: {
+        Authorization: `Bearer ${access_token}`
+      }
+    });
+    if (!(userResponse.data && userResponse.data.user.id === userId)) {
+      throw new Error('User not in server');
+    }
   }
 };

@@ -891,8 +891,43 @@ paths:
   /addressList/update:
     post:
       operationId: updateAddressLists
-      summary: Update or create address lists
-      description: Updates or creates address lists stored by BitBadges centralized servers.
+      summary: Update address lists
+      description: Updatess address lists stored by BitBadges centralized servers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAddressListsRouteRequestBody'
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iUpdateAddressListsRouteSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      parameters:
+        - name: x-api-key
+          in: header
+          description: BitBadges API Key for authentication
+          required: true
+          schema:
+            type: string
+      security:
+        - apiKey: [] # This specifies that an API key is required for authentication
+        - userIsOwner: []
+        - userSignedIn: []
+  /addressList/create:
+    post:
+      operationId: createAddressLists
+      summary: Creates address lists
+      description: Creates address lists stored by BitBadges centralized servers.
       requestBody:
         required: true
         content:

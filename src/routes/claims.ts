@@ -253,23 +253,10 @@ export const checkAndCompleteClaim = async (
           //   break;
           case 'api': {
             adminInfo = {
-              discord: {
-                username: req.session.discord?.username,
-                id: req.session.discord?.id,
-                discriminator: req.session.discord?.discriminator
-              },
-              twitter: {
-                username: req.session.twitter?.username,
-                id: req.session.twitter?.id
-              },
-              github: {
-                username: req.session.github?.username,
-                id: req.session.github?.id
-              },
-              google: {
-                username: req.session.google?.username,
-                id: req.session.google?.id
-              },
+              discord: req.session.discord,
+              twitter: req.session.twitter,
+              github: req.session.github,
+              google: req.session.google,
               email: email
               // stripe: {
               //   username: req.session.stripe?.username,

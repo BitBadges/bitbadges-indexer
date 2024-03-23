@@ -36,7 +36,7 @@ import { findInDB } from './db/queries';
 import { ApiKeyModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE, TIME_MODE } from './indexer-vars';
 import { poll, pollNotifications, pollUris } from './poll';
-import { deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
+import { deleteAddressLists, getAddressLists, updateAddressLists, createAddressLists } from './routes/addressLists';
 import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes';
 import { getOwnersForBadge } from './routes/badges';
 import { getBadgeBalanceByAddress } from './routes/balances';
@@ -566,6 +566,7 @@ app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
 
 // Address Lists
 app.post('/api/v0/addressLists', getAddressLists);
+app.post('/api/v0/addressLists/create', authorizeBlockinRequest, createAddressLists);
 app.post('/api/v0/addressLists/update', authorizeBlockinRequest, updateAddressLists);
 app.post('/api/v0/addressLists/delete', authorizeBlockinRequest, deleteAddressLists);
 

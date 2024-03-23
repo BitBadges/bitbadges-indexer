@@ -29,10 +29,9 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
         twitter: apiCall.passTwitter ? adminInfo.twitter : null,
         github: apiCall.passGithub ? adminInfo.github : null,
         google: apiCall.passGoogle ? adminInfo.google : null,
-        email: apiCall.passEmail ? adminInfo.email : null,
+        email: apiCall.passEmail ? adminInfo.email : null
         // stripe: apiCall.passStripe ? adminInfo.stripe : null
       };
-
 
       try {
         //TODO: timeout and handle correctly?
@@ -42,7 +41,15 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
             ...body
           });
         } else {
-          await axios.post(apiCall.uri, body);
+          await axios.post(apiCall.uri, {
+            ...body,
+            //Don't send access tokens and other sensitive info
+            discord: { id: adminInfo.discord.id, username: adminInfo.discord.username, discriminator: adminInfo.discord.discriminator },
+            twitter: { id: adminInfo.twitter.id, username: adminInfo.twitter.username },
+            github: { id: adminInfo.github.id, username: adminInfo.github.username },
+            google: { id: adminInfo.google.id, username: adminInfo.google.username },
+            // stripe: { id: adminInfo.stripe.id, username: adminInfo.stripe.username }
+          });
         }
       } catch (e) {
         return { success: false, error: e.message };

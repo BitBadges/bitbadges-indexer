@@ -59,7 +59,7 @@ async function main() {
       chain,
       sender,
       memo: '',
-      fee: { denom: 'badge', amount: '1', gas: '4000000' }
+      fee: { denom: 'badge', amount: '1', gas: '40000000' }
     };
     const txn = createTransactionPayload(txContext, msgs);
     if (!txn.eipToSign) throw new Error('No eip to sign');

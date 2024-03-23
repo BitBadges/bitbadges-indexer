@@ -112,10 +112,19 @@ export function getActivityDocsForListUpdate(
   }
 }
 
-export const updateAddressLists = async (
+export const createAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
   res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>
 ) => {
+  return handleAddressListsUpdateAndCreate(req, res, true);
+};
+
+const handleAddressListsUpdateAndCreate = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>,
+  isCreation?: boolean
+) => {
+  const isUpdate = !isCreation;
   try {
     const reqBody = req.body as UpdateAddressListsRouteRequestBody<JSPrimitiveNumberType>;
     const lists = reqBody.addressLists;
@@ -145,6 +154,13 @@ export const updateAddressLists = async (
     const claimDocsToDelete: string[] = [];
     for (const list of lists) {
       const existingDoc = await getFromDB(AddressListModel, list.listId);
+      if (isCreation && existingDoc) {
+        throw new Error('List with ID ' + list.listId + ' already exists.');
+      }
+
+      if (isUpdate && !existingDoc) {
+        throw new Error('List with ID ' + list.listId + ' does not exist.');
+      }
 
       for (const claim of list.editClaims) {
         const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': list.listId, _docId: claim.claimId }, limit: 1 });
@@ -268,6 +284,13 @@ export const updateAddressLists = async (
       errorMessage: 'Error creating address lists. Please try again later.'
     });
   }
+};
+
+export const updateAddressLists = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>
+) => {
+  return handleAddressListsUpdateAndCreate(req, res);
 };
 
 export const getAddressLists = async (req: Request, res: Response<iGetAddressListsRouteSuccessResponse<NumberType> | ErrorResponse>) => {

@@ -21,7 +21,7 @@ import crypto from 'crypto';
 import env from 'dotenv';
 import { ethers } from 'ethers';
 import { serializeError } from 'serialize-error';
-import { broadcastTx, removeEIP712Domain } from './broadcastUtils';
+import { broadcastTx } from './broadcastUtils';
 
 env.config();
 
@@ -134,7 +134,7 @@ const randomMsgCreateCollection = (newCollection?: boolean) => {
     creator: convertToCosmosAddress(ethWallet.address),
     collectionId: newCollection ? '0' : Math.floor(Math.random() * 1000).toString(),
     balancesType: balancesType,
-    badgesToCreate: Array.from({ length: 10 }, randomBalance),
+    badgesToCreate: Array.from({ length: 25 }, randomBalance),
     updateCollectionPermissions: newCollection ? true : Math.random() < 0.5,
     updateManagerTimeline: newCollection ? true : Math.random() < 0.5,
     updateCollectionMetadataTimeline: newCollection ? true : Math.random() < 0.5,
@@ -224,13 +224,13 @@ async function main() {
         chain,
         sender,
         memo: '',
-        fee: { denom: 'badge', amount: '1', gas: '11800000' }
+        fee: { denom: 'badge', amount: '1', gas: '40000000' }
       };
 
       const txn = createTransactionPayload(txContext, msgs);
       if (!txn.eipToSign) throw new Error('No eip to sign');
 
-      const sig = await ethWallet._signTypedData(txn.eipToSign.domain, removeEIP712Domain(txn.eipToSign.types), txn.eipToSign.message);
+      const sig = await ethWallet.signMessage(txn.jsonToSign);
 
       const rawTx = createTxBroadcastBody(txContext, txn, sig);
       try {
