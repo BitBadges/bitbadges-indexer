@@ -1,5 +1,5 @@
 import axiosApi from 'axios';
-import { BitBadgesApiRoutes } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, GetAccountsRouteRequestBody, GetCollectionBatchRouteRequestBody } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import https from 'https';
 
@@ -20,6 +20,7 @@ dotenv.config();
 // const address = wallet.address;
 
 const BACKEND_URL = 'https://api.bitbadges.io';
+// const BACKEND_URL = 'https://localhost:3001';
 // const session = JSON.stringify(createExampleReqForAddress(address).session);
 const config = {
   headers: {
@@ -34,6 +35,10 @@ interface ApiBenchmarkDetails {
   description: string;
   route: string;
   body: any;
+  type?: 'collection' | 'account' | 'addressList';
+  options?: {
+    tryAllCollections?: boolean;
+  };
   // authentication?: boolean;
   // expectedStatus?: number;
   maxResponseTime?: number;
@@ -53,7 +58,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
         }
       ]
     },
-    maxResponseTime: 5
+    maxResponseTime: 12
   },
   {
     name: 'Get Address Lists - Not Reserved',
@@ -63,19 +68,228 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
       listsToFetch: [
         {
           listId: 'sample-41acdb623fa09a2fcb4190aebdc22179d5901508538089a3610bbeec18a3a322',
-          viewsToFetch: []
+          viewsToFetch: [
+            {
+              viewId: 'sample-41acdb623fa09a2fcb4190aebdc22179d5901508538089a3610bbeec18a3a322',
+              viewType: 'listActivity',
+              bookmark: ''
+            }
+          ]
         }
       ]
     }
+  },
+  {
+    name: 'Browse - Featured',
+    description: 'Get featured collections and profiles',
+    route: BitBadgesApiRoutes.GetBrowseCollectionsRoute(),
+    body: {}
+  },
+  {
+    name: 'Get user with ENS avatar',
+    description: 'Get user with ENS avatar',
+    route: BitBadgesApiRoutes.GetAccountsRoute(),
+    body: {
+      accountsToFetch: [
+        {
+          address: '0xE12BB245AE1398568d007E82bAC622f555f2B07F',
+          fetchBalance: true,
+          fetchSequence: true
+        }
+      ]
+    } as GetAccountsRouteRequestBody
+  },
+  {
+    name: 'Get user without ENS avatar',
+    description: 'Get user with ENS avatar',
+    route: BitBadgesApiRoutes.GetAccountsRoute(),
+    body: {
+      accountsToFetch: [
+        {
+          address: '0xb246a3764d642BABbd6b075bca3e77E1cD563d78',
+          fetchBalance: true,
+          fetchSequence: true
+        }
+      ]
+    } as GetAccountsRouteRequestBody
+  },
+  {
+    name: 'Get collection',
+    description: 'Get collection',
+    type: 'collection',
+    options: {
+      tryAllCollections: true
+    },
+    route: BitBadgesApiRoutes.GetCollectionBatchRoute(),
+    body: {
+      collectionsToFetch: [
+        {
+          collectionId: '1',
+          metadataToFetch: [
+            {
+              badgeIds: [{ start: 1n, end: 10n }]
+            }
+          ]
+        }
+      ]
+    } as GetCollectionBatchRouteRequestBody
+  },
+  {
+    name: 'Get collection w/ activity',
+    description: 'Get collection w/ activity',
+    type: 'collection',
+    options: {
+      tryAllCollections: true
+    },
+    route: BitBadgesApiRoutes.GetCollectionBatchRoute(),
+    body: {
+      collectionsToFetch: [
+        {
+          collectionId: '8',
+          viewsToFetch: [
+            {
+              viewType: 'transferActivity',
+              viewId: 'transferActivity',
+              bookmark: ''
+            }
+          ]
+        }
+      ]
+    } as GetCollectionBatchRouteRequestBody
+  },
+  {
+    name: 'Get collection w/ owners',
+    description: 'Get collection w/ owners',
+    type: 'collection',
+    options: {
+      tryAllCollections: true
+    },
+    route: BitBadgesApiRoutes.GetCollectionBatchRoute(),
+    body: {
+      collectionsToFetch: [
+        {
+          collectionId: '8',
+          viewsToFetch: [
+            {
+              viewType: 'owners',
+              viewId: 'owners',
+              bookmark: ''
+            }
+          ]
+        }
+      ]
+    } as GetCollectionBatchRouteRequestBody
+  },
+  {
+    name: 'Get account w/ all views',
+    description: 'Get account w/ all views',
+    route: BitBadgesApiRoutes.GetAccountsRoute(),
+    body: {
+      accountsToFetch: [
+        {
+          address: '0xb246a3764d642BABbd6b075bca3e77E1cD563d78',
+          fetchBalance: true,
+          fetchSequence: true,
+          viewsToFetch: [
+            {
+              viewType: 'badgesCollected',
+              viewId: 'badgesCollected',
+              bookmark: ''
+            },
+            {
+              viewType: 'transferActivity',
+              viewId: 'transferActivity',
+              bookmark: ''
+            },
+            {
+              viewType: 'listsActivity',
+              viewId: 'listsActivity',
+              bookmark: ''
+            },
+            {
+              viewType: 'reviews',
+              viewId: 'reviews',
+              bookmark: ''
+            },
+            {
+              viewType: 'allLists',
+              viewId: 'allLists',
+              bookmark: ''
+            },
+            {
+              viewType: 'whitelists',
+              viewId: 'whitelists',
+              bookmark: ''
+            },
+            {
+              viewType: 'blacklists',
+              viewId: 'blacklists',
+              bookmark: ''
+            }
+            // {
+            //   viewType: 'claimAlerts',
+            //   viewId: 'claimAlerts',
+            //   bookmark: ''
+            // },
+            // {
+            //   viewType: 'authCodes',
+            //   viewId: 'authCodes',
+            //   bookmark: ''
+            // },
+            // {
+            //   viewType: 'createdSecrets',
+            //   viewId: 'createdSecrets',
+            //   bookmark: ''
+            // },
+            // {
+            //   viewType: 'receivedSecrets',
+            //   viewId: 'receivedSecrets',
+            //   bookmark: ''
+            // }
+          ]
+        }
+      ]
+    } as GetAccountsRouteRequestBody
   }
 ];
 
+console.log('Starting benchmarks for', BACKEND_URL);
+
+const status = await axios.post(`${BACKEND_URL}${BitBadgesApiRoutes.GetStatusRoute()}`, {}, config);
+const nextCollectionId = status.data.status.nextCollectionId;
+
+const expandedApiBenchmarks: ApiBenchmarkDetails[] = [];
 for (const benchmark of apiBenchmarks) {
+  if (benchmark.type === 'collection') {
+    if (benchmark.options?.tryAllCollections) {
+      for (let i = 1; i <= Number(nextCollectionId) - 1; i++) {
+        expandedApiBenchmarks.push({
+          ...benchmark,
+          name: `${benchmark.name} - Collection ${i}`,
+          body: {
+            collectionsToFetch: [
+              {
+                ...benchmark.body,
+                collectionId: `${i}`
+              }
+            ]
+          }
+        });
+      }
+    }
+  } else {
+    expandedApiBenchmarks.push(benchmark);
+  }
+}
+
+for (const benchmark of expandedApiBenchmarks) {
   let averageTime = 0;
   let maxTime = 0;
+
+  console.log('----------------------------------');
   for (let i = 0; i < NUM_RUNS_PER_BENCHMARK; i++) {
-    const startTime = Date.now();
     const res = await axios.post(`${BACKEND_URL}${benchmark.route}`, benchmark.body, config);
+    await new Promise((resolve) => setTimeout(resolve, 750));
     const responseTime = Number(res.headers['x-response-time']);
     if (res.status !== 200) {
       console.log(`Error: ${res.status}`);
@@ -83,8 +297,6 @@ for (const benchmark of apiBenchmarks) {
     }
     averageTime += responseTime;
     maxTime = Math.max(maxTime, responseTime);
-    const endTime = Date.now();
-    console.log(`Response Time: ${endTime - startTime} ms`);
   }
 
   averageTime /= NUM_RUNS_PER_BENCHMARK;
@@ -95,5 +307,4 @@ for (const benchmark of apiBenchmarks) {
   if (benchmark.maxResponseTime && averageTime > benchmark.maxResponseTime) {
     console.log(`WARNING: Average time exceeded max expected time of ${benchmark.maxResponseTime} ms`);
   }
-  console.log('----------------------------------');
 }

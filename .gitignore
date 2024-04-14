@@ -112,3 +112,5 @@ server.*
 # End of https://www.gitignore.io/api/node,sass,windows,visualstudiocode
 
 src/routes/cert/*
+
+/benchmarks/outputs/*

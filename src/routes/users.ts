@@ -127,7 +127,7 @@ async function getBatchAccountInformation(queries: Array<{ address: string; fetc
           pubKeyType: '',
           publicKey: ''
         });
-      } 
+      }
     }
   }
 
@@ -278,6 +278,7 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsRouteS
         });
       }
     }
+
     const accountInfos = await getBatchAccountInformation(allQueries);
     const profileInfos = await getBatchProfileInformation(req, allQueries);
 

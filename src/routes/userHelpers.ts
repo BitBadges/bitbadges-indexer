@@ -248,6 +248,7 @@ export async function getNameAndAvatar(address: string, skipAvatarFetch?: boolea
     }
 
     const ensName = await getNameForAddress(address);
+
     let details: { avatar?: string } = {};
     if (ensName && !skipAvatarFetch) {
       const resolver = await getEnsResolver(ensName);

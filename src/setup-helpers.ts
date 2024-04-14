@@ -184,6 +184,9 @@ export async function createIndexesAndViews(): Promise<void> {
   CollectionSchema.index({ _docId: 1 }, { unique: true });
   CollectionSchema.index({ collectionId: 1 }, { unique: true });
   BalanceSchema.index({ _docId: 1 }, { unique: true });
+  BalanceSchema.index({ collectionId: 1 });
+  BalanceSchema.index({ cosmosAddress: 1 });
+
   ChallengeSchema.index({ _docId: 1 }, { unique: true });
   ClaimBuilderSchema.index({ _docId: 1 }, { unique: true });
   ProfileSchema.index({ _docId: 1 }, { unique: true });
