@@ -64,7 +64,7 @@ describe('get address lists', () => {
           whitelist: true,
           uri: '',
           customData: '',
-          editClaims: []
+          claims: []
         }
       ]
     };
@@ -106,7 +106,7 @@ describe('get address lists', () => {
           whitelist: true,
           uri: '',
           customData: '',
-          editClaims: []
+          claims: []
         }
       ]
     };

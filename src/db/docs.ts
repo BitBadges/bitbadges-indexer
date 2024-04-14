@@ -124,6 +124,7 @@ export interface ReportDoc {
   _id?: string;
   collectionId?: number;
   listId?: string;
+  mapId?: string;
   addressOrUsername?: string;
   reason: string;
 }

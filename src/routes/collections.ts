@@ -6,6 +6,7 @@ import {
   BalanceDocWithDetails,
   BigIntify,
   BitBadgesCollection,
+  ChallengeDetails,
   ClaimBuilderDoc,
   ClaimIntegrationPluginType,
   CollectionApprovalWithDetails,
@@ -53,12 +54,12 @@ import {
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
-import { getPlugin, getPluginParamsAndState } from '../integrations/types';
 import { MaybeAuthenticatedRequest, checkIfAuthenticated, checkIfManager } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
 import { PageVisitsDoc } from '../db/docs';
 import { findInDB } from '../db/queries';
-import { ClaimBuilderModel, CollectionModel, PageVisitsModel } from '../db/schemas';
+import { ClaimBuilderModel, CollectionModel, MapModel, PageVisitsModel } from '../db/schemas';
+import { getPlugin, getPluginParamsAndState } from '../integrations/types';
 import { complianceDoc } from '../poll';
 import { fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import {
@@ -306,6 +307,11 @@ export async function executeAdditionalCollectionQueries(
       if (uri) urisToFetch.push(uri);
     }
 
+    for (const merkleChallenge of collectionRes.collectionApprovals.flatMap((x) => x.approvalCriteria?.merkleChallenges ?? [])) {
+      const uri = merkleChallenge.uri;
+      if (uri) urisToFetch.push(uri);
+    }
+
     if (urisToFetch.length > 0) {
       claimFetchesPromises.push(
         fetchUrisFromDbAndAddToQueueIfEmpty(
@@ -338,7 +344,22 @@ export async function executeAdditionalCollectionQueries(
             ...x,
             fromList: addressLists.find((list) => list.listId === x.fromListId) as iAddressList,
             toList: addressLists.find((list) => list.listId === x.toListId) as iAddressList,
-            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList,
+            approvalCriteria: {
+              ...x.approvalCriteria,
+              merkleChallenges:
+                x.approvalCriteria?.merkleChallenges?.map((y) => {
+                  return {
+                    ...y,
+                    challengeInfoDetails: {
+                      challengeDetails: {
+                        leaves: [],
+                        isHashed: false
+                      }
+                    }
+                  };
+                }) ?? []
+            }
           })
       ),
       defaultBalances: new UserBalanceStoreWithDetails<bigint>({
@@ -347,14 +368,44 @@ export async function executeAdditionalCollectionQueries(
           return {
             ...x,
             toList: addressLists.find((list) => list.listId === x.toListId) as iAddressList,
-            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList,
+            approvalCriteria: {
+              ...x.approvalCriteria,
+              merkleChallenges:
+                x.approvalCriteria?.merkleChallenges?.map((y) => {
+                  return {
+                    ...y,
+                    challengeInfoDetails: {
+                      challengeDetails: {
+                        leaves: [],
+                        isHashed: false
+                      }
+                    }
+                  };
+                }) ?? []
+            }
           };
         }),
         incomingApprovals: collectionRes.defaultBalances.incomingApprovals.map((x) => {
           return {
             ...x,
             fromList: addressLists.find((list) => list.listId === x.fromListId) as iAddressList,
-            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList
+            initiatedByList: addressLists.find((list) => list.listId === x.initiatedByListId) as iAddressList,
+            approvalCriteria: {
+              ...x.approvalCriteria,
+              merkleChallenges:
+                x.approvalCriteria?.merkleChallenges?.map((y) => {
+                  return {
+                    ...y,
+                    challengeInfoDetails: {
+                      challengeDetails: {
+                        leaves: [],
+                        isHashed: false
+                      }
+                    }
+                  };
+                }) ?? []
+            }
           };
         }),
         userPermissions: applyAddressListsToUserPermissions(collectionRes.defaultBalances.userPermissions, addressLists)
@@ -379,7 +430,7 @@ export async function executeAdditionalCollectionQueries(
       approvalTrackers: [],
 
       cachedBadgeMetadata: [],
-      offChainClaims: [],
+      claims: [],
       views: {}
     });
 
@@ -398,14 +449,44 @@ export async function executeAdditionalCollectionQueries(
               return new UserIncomingApprovalWithDetails({
                 ...x,
                 fromList: addressLists.find((z) => z.listId === x.fromListId) as iAddressList,
-                initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList
+                initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList,
+                approvalCriteria: {
+                  ...x.approvalCriteria,
+                  merkleChallenges:
+                    x.approvalCriteria?.merkleChallenges?.map((y) => {
+                      return {
+                        ...y,
+                        challengeInfoDetails: {
+                          challengeDetails: {
+                            leaves: [],
+                            isHashed: false
+                          }
+                        }
+                      };
+                    }) ?? []
+                }
               });
             }),
             outgoingApprovals: doc.outgoingApprovals.map((x) => {
               return new UserOutgoingApprovalWithDetails({
                 ...x,
                 toList: addressLists.find((z) => z.listId === x.toListId) as iAddressList,
-                initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList
+                initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList,
+                approvalCriteria: {
+                  ...x.approvalCriteria,
+                  merkleChallenges:
+                    x.approvalCriteria?.merkleChallenges?.map((y) => {
+                      return {
+                        ...y,
+                        challengeInfoDetails: {
+                          challengeDetails: {
+                            leaves: [],
+                            isHashed: false
+                          }
+                        }
+                      };
+                    }) ?? []
+                }
               });
             }),
             userPermissions: new UserPermissionsWithDetails({
@@ -547,14 +628,19 @@ export async function executeAdditionalCollectionQueries(
     }
 
     //TODO: Parallelize this
-    //Perform off-chain claims query (on-chain oens are handled below with approval fetches)
+    //Perform off-chain claims query (on-chain ones are handled below with approval fetches)
     if (collectionToReturn.balancesType !== 'Standard') {
       const docs = await findInDB(ClaimBuilderModel, {
         query: { collectionId: Number(collectionToReturn.collectionId), docClaimed: true }
       });
 
-      const offChainClaims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionToReturn.collectionId);
-      collectionToReturn.offChainClaims = offChainClaims as Required<ClaimDetails<bigint>>[];
+      const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionToReturn.collectionId);
+      collectionToReturn.claims = claims as Required<ClaimDetails<bigint>>[];
+    }
+
+    const reservedMap = await getFromDB(MapModel, `${collectionToReturn.collectionId}`);
+    if (reservedMap) {
+      collectionToReturn.reservedMap = reservedMap;
     }
 
     collectionResponses.push(collectionToReturn);
@@ -569,25 +655,34 @@ export async function executeAdditionalCollectionQueries(
 
     for (let i = 0; i < collectionRes.collectionApprovals.length; i++) {
       const approval = collectionRes.collectionApprovals[i];
+
+      let content = undefined;
+
       if (approval.uri) {
         const claimFetch = claimFetchesFlat.find((fetch) => fetch.uri === approval.uri);
         if (!claimFetch?.content) continue;
 
-        let content = claimFetch.content as ApprovalInfoDetails<bigint>;
-
-        const docs = await findInDB(ClaimBuilderModel, {
-          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: approval.approvalId }
-        });
-        if (docs.length > 0) {
-          const offChainClaims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionRes.collectionId);
-          content = new ApprovalInfoDetails({
-            ...content,
-            offChainClaims
-          });
-        }
-
+        content = claimFetch.content as ApprovalInfoDetails<bigint>;
         approval.details = content as ApprovalInfoDetails<bigint>;
       }
+
+      for (const merkleChallenge of approval.approvalCriteria?.merkleChallenges ?? []) {
+        const claimFetch = claimFetchesFlat.find((fetch) => fetch.uri === merkleChallenge.uri);
+        if (!claimFetch?.content) continue;
+
+        merkleChallenge.challengeInfoDetails.challengeDetails = claimFetch.content as ChallengeDetails<bigint>;
+        const challengeTrackerId = merkleChallenge.challengeTrackerId;
+        const docs = await findInDB(ClaimBuilderModel, {
+          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: challengeTrackerId }
+        });
+        if (docs.length > 0) {
+          const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionRes.collectionId);
+
+          console.log('claims', claims);
+          merkleChallenge.challengeInfoDetails.claim = claims[0];
+        }
+      }
+
       collectionRes.collectionApprovals[i] = approval;
     }
     collectionResponses[i] = collectionRes;
@@ -820,7 +915,7 @@ export const getCollections = async (req: Request, res: Response<iGetCollectionB
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching collections. Please try again later.'
+      errorMessage: 'Error fetching collections.'
     });
   }
 };

@@ -13,9 +13,11 @@ import {
 import { constructChallengeObjectFromString, createChallenge } from 'blockin';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { genericBlockinVerify, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { checkIfAuthenticated, genericBlockinVerify, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { insertToDB, mustGetFromDB } from '../db/db';
 import { BlockinAuthSignatureModel } from '../db/schemas';
+import crypto from 'crypto';
+import { verifySecretsProof } from './offChainSecrets';
 
 export const createAuthCode = async (
   req: AuthenticatedRequest<NumberType>,
@@ -23,6 +25,18 @@ export const createAuthCode = async (
 ) => {
   try {
     const reqBody = req.body as CreateBlockinAuthCodeRouteRequestBody;
+
+    for (const proof of reqBody.secretsProofs || []) {
+      if (process.env.TEST_MODE === 'true') {
+        continue;
+      }
+
+      if (!checkIfAuthenticated(req)) {
+        throw new Error('You must be authenticated to create a code w/ a secrets proof.');
+      }
+
+      await verifySecretsProof(req.session.address, proof, true);
+    }
 
     // Really all we want here is to verify signature is valid
     // Other stuff just needs to be valid at actual authentication time
@@ -41,41 +55,50 @@ export const createAuthCode = async (
       throw new Error('Signature was invalid: ' + response.message);
     }
 
+    const uniqueId = crypto.randomBytes(32).toString('hex');
+
     await insertToDB(BlockinAuthSignatureModel, {
-      _docId: reqBody.signature,
+      _docId: uniqueId,
       ...reqBody,
+      publicKey: reqBody.publicKey ?? '',
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
       params: challengeParams,
-      createdAt: Date.now()
+      signature: reqBody.signature,
+      createdAt: Date.now(),
+      secretsProofs: reqBody.secretsProofs || []
     });
 
-    return res.status(200).send({ success: true });
+    return res.status(200).send({ id: uniqueId });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error creating QR auth code. Please try again later.'
+      errorMessage: 'Error creating QR auth code.'
     });
   }
 };
 
-export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCodeRouteSuccessResponse | ErrorResponse>) => {
+export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCodeRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as GetBlockinAuthCodeRouteRequestBody;
 
     // For now, we use the approach that if someone has the signature, they can see the message.
-    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
+    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.id);
     const params = doc.params;
     try {
       const verificationResponse = await genericBlockinVerify({
         message: createChallenge(params),
-        signature: reqBody.signature,
+        signature: doc.signature,
+        publicKey: doc.publicKey,
         options: reqBody.options
       });
       if (!verificationResponse.success) {
         return res.status(200).send({
+          secretsProofs: doc.secretsProofs,
+          signature: doc.signature,
           message: createChallenge(params),
           params: params,
+          cosmosAddress: convertToCosmosAddress(params.address),
           verificationResponse: {
             success: false,
             errorMessage: verificationResponse.message
@@ -84,8 +107,11 @@ export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCod
       }
 
       return res.status(200).send({
+        secretsProofs: doc.secretsProofs,
         message: createChallenge(params),
         params: params,
+        signature: doc.signature,
+        cosmosAddress: convertToCosmosAddress(params.address),
         verificationResponse: {
           success: verificationResponse.success
         }
@@ -93,7 +119,10 @@ export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCod
     } catch (e) {
       return res.status(200).send({
         params: params,
+        secretsProofs: doc.secretsProofs,
+        signature: doc.signature,
         message: createChallenge(params),
+        cosmosAddress: convertToCosmosAddress(params.address),
         verificationResponse: {
           success: false,
           errorMessage: e.message
@@ -104,7 +133,7 @@ export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCod
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting auth QR code. Please try again later.'
+      errorMessage: 'Error getting auth QR code.'
     });
   }
 };
@@ -116,7 +145,7 @@ export const deleteAuthCode = async (
   try {
     const reqBody = req.body as DeleteBlockinAuthCodeRouteRequestBody;
 
-    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.signature);
+    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.id);
     if (doc.cosmosAddress !== req.session.cosmosAddress) {
       throw new Error('You are not the owner of this auth code.');
     }
@@ -131,7 +160,7 @@ export const deleteAuthCode = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting QR auth code. Please try again later.'
+      errorMessage: 'Error deleting QR auth code.'
     });
   }
 };

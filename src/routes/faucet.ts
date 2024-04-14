@@ -149,7 +149,7 @@ export const getTokensFromFaucet = async (
   } catch (e) {
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error sending airdrop tokens. Please try again later.'
+      errorMessage: 'Error sending airdrop tokens.'
     });
   }
 };

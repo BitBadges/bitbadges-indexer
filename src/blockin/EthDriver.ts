@@ -1,9 +1,8 @@
-import { type BalanceArray, Stringify } from 'bitbadgesjs-sdk';
-import { constructChallengeObjectFromString, type AssetConditionGroup, type IChainDriver } from 'blockin';
-import { Buffer } from 'buffer';
+import { type BalanceArray } from 'bitbadgesjs-sdk';
+import { type AssetConditionGroup, type IChainDriver } from 'blockin';
 import { recoverPersonalSignature } from 'eth-sig-util';
 import { ethers } from 'ethers';
-import { TextDecoder, TextEncoder } from 'node:util';
+import { TextDecoder } from 'node:util';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
 
 /**
@@ -29,19 +28,13 @@ export default class EthDriver implements IChainDriver<bigint> {
     return ethers.utils.isAddress(address);
   }
 
-  async verifySignature(message: string, signature: string) {
-    const originalChallengeToUint8Array = new TextEncoder().encode(message);
-    const signedChallenge = new Uint8Array(Buffer.from(signature, 'utf8'));
-    const originalAddress = constructChallengeObjectFromString(message, Stringify).address;
-
-    const original = new TextDecoder().decode(originalChallengeToUint8Array);
-    const signed = new TextDecoder().decode(signedChallenge);
+  async verifySignature(address: string, message: string, signature: string) {
     const recoveredAddr = recoverPersonalSignature({
-      data: original,
-      sig: signed
+      data: message,
+      sig: signature
     });
-    if (recoveredAddr.toLowerCase() !== originalAddress.toLowerCase()) {
-      throw new Error(`Signature Invalid: Expected ${originalAddress} but got ${recoveredAddr}`);
+    if (recoveredAddr.toLowerCase() !== address.toLowerCase()) {
+      throw new Error(`Signature Invalid: Expected ${address} but got ${recoveredAddr}`);
     }
   }
 

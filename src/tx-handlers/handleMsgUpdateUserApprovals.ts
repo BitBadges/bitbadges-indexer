@@ -13,7 +13,7 @@ export const handleMsgUpdateUserApprovals = async (
 ): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
-  await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [`${msg.collectionId}:${msg.creator}`], [], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [], [msg.collectionId], [`${msg.collectionId}:${msg.creator}`], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   const collectionDoc = docs.collections[`${msg.collectionId}`];
@@ -41,7 +41,8 @@ export const handleMsgUpdateUserApprovals = async (
     new UpdateHistory({
       block: status.block.height,
       blockTimestamp: status.block.timestamp,
-      txHash
+      txHash,
+      timestamp: 0n
     })
   );
 

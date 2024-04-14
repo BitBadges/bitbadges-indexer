@@ -1,73 +1,78 @@
 import { config } from 'dotenv';
+import { MongoDB, insertToDB } from './db/db';
 import {
-  FetchSchema,
-  QueueSchema,
-  RefreshSchema,
-  StatusSchema,
-  AccountSchema,
-  CollectionSchema,
-  BalanceSchema,
-  ChallengeSchema,
-  ClaimBuilderSchema,
-  ProfileSchema,
-  TransferActivitySchema,
-  ReviewSchema,
-  IPFSTotalsSchema,
-  AirdropSchema,
-  AddressListSchema,
-  ApprovalTrackerSchema,
-  ClaimAlertSchema,
-  ComplianceSchema,
-  BlockinAuthSignatureSchema,
-  FollowDetailsSchema,
-  ProtocolSchema,
-  UserProtocolCollectionsSchema,
-  ListActivitySchema,
   AccountModel,
+  AccountSchema,
   AddressListModel,
+  AddressListSchema,
   AirdropModel,
+  AirdropSchema,
   ApiKeyModel,
   ApiKeySchema,
   ApprovalTrackerModel,
+  ApprovalTrackerSchema,
   BalanceModel,
+  BalanceSchema,
   BlockinAuthSignatureModel,
+  BlockinAuthSignatureSchema,
   BrowseModel,
   BrowseSchema,
+  ChallengeSchema,
   ClaimAlertModel,
+  ClaimAlertSchema,
+  ClaimBuilderModel,
+  ClaimBuilderSchema,
   CollectionModel,
+  CollectionSchema,
   ComplianceModel,
+  ComplianceSchema,
   ErrorModel,
   ErrorSchema,
   EthTxCountModel,
   EthTxCountSchema,
+  ExternalCallKeysModel,
+  ExternalCallKeysSchema,
   FetchModel,
+  FetchSchema,
   FollowDetailsModel,
+  FollowDetailsSchema,
   IPFSTotalsModel,
+  IPFSTotalsSchema,
   ListActivityModel,
+  ListActivitySchema,
+  MapModel,
+  MapSchema,
   MerkleChallengeModel,
+  OffChainSecretsModel,
+  OffChainSecretsSchema,
   OffChainUrlModel,
   OffChainUrlSchema,
   PageVisitsModel,
   PageVisitsSchema,
-  ClaimBuilderModel,
   ProfileModel,
-  ProtocolModel,
+  ProfileSchema,
   QueueModel,
+  QueueSchema,
   RefreshModel,
+  RefreshSchema,
   ReportModel,
   ReportSchema,
   ReviewModel,
+  ReviewSchema,
   StatusModel,
+  StatusSchema,
   TransferActivityModel,
-  UserProtocolCollectionsModel,
+  TransferActivitySchema,
   UsernameModel,
   UsernameSchema
 } from './db/schemas';
-import { MongoDB, insertToDB } from './db/db';
 
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(BrowseModel.collection.name);
+  await MongoDB.dropCollection(MapModel.collection.name);
+  await MongoDB.dropCollection(ExternalCallKeysModel.collection.name);
   await MongoDB.dropCollection(UsernameModel.collection.name);
   await MongoDB.dropCollection(ApiKeyModel.collection.name);
   await MongoDB.dropCollection(FetchModel.collection.name);
@@ -94,10 +99,9 @@ export async function deleteDatabases(): Promise<void> {
   await MongoDB.dropCollection(ComplianceModel.collection.name);
   await MongoDB.dropCollection(BlockinAuthSignatureModel.collection.name);
   await MongoDB.dropCollection(FollowDetailsModel.collection.name);
-  await MongoDB.dropCollection(ProtocolModel.collection.name);
-  await MongoDB.dropCollection(UserProtocolCollectionsModel.collection.name);
   await MongoDB.dropCollection(ListActivityModel.collection.name);
   await MongoDB.dropCollection(PageVisitsModel.collection.name);
+  await MongoDB.dropCollection(OffChainSecretsModel.collection.name);
 }
 
 // new ObjectId
@@ -168,6 +172,7 @@ export async function initStatus(): Promise<void> {
   });
 }
 export async function createIndexesAndViews(): Promise<void> {
+  MapSchema.index({ _docId: 1 }, { unique: true });
   BrowseSchema.index({ _docId: 1 }, { unique: true });
   UsernameSchema.index({ _docId: 1 }, { unique: true });
   ApiKeySchema.index({ _docId: 1 }, { unique: true });
@@ -198,12 +203,15 @@ export async function createIndexesAndViews(): Promise<void> {
   ComplianceSchema.index({ _docId: 1 }, { unique: true });
   BlockinAuthSignatureSchema.index({ _docId: 1 }, { unique: true });
   FollowDetailsSchema.index({ _docId: 1 }, { unique: true });
-  ProtocolSchema.index({ _docId: 1 }, { unique: true });
-  UserProtocolCollectionsSchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ timestamp: 1 });
   PageVisitsSchema.index({ _docId: 1 }, { unique: true });
+  ExternalCallKeysSchema.index({ _docId: 1 }, { unique: true });
+  OffChainSecretsSchema.index({ _docId: 1 }, { unique: true });
 
+  await MapModel.createIndexes();
+  await OffChainSecretsModel.createIndexes();
+  await ExternalCallKeysModel.createIndexes();
   await PageVisitsModel.createIndexes();
   await ListActivityModel.createIndexes();
   await BrowseModel.createIndexes();
@@ -233,6 +241,4 @@ export async function createIndexesAndViews(): Promise<void> {
   await ComplianceModel.createIndexes();
   await BlockinAuthSignatureModel.createIndexes();
   await FollowDetailsModel.createIndexes();
-  await ProtocolModel.createIndexes();
-  await UserProtocolCollectionsModel.createIndexes();
 }

@@ -78,7 +78,7 @@ export const broadcastTx = async (req: Request, res: Response<iBroadcastTxRouteS
 
         numTries++;
         if (numTries > 30) {
-          throw new Error('Transaction not included in block after 30 seconds. Please try again later.');
+          throw new Error('Transaction not included in block after 30 seconds.');
         }
       }
     }

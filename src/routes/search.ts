@@ -131,7 +131,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
     console.error(e);
     return res.status(500).json({
       error: serializeError(e),
-      message: `Error filtering badges in collection ${req.body.collectionId}. Please try again later.`
+      message: `Error filtering badges in collection ${req.body.collectionId}.`
     });
   }
 };

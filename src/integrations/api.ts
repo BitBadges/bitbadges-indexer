@@ -3,6 +3,9 @@ import { NumberType } from 'bitbadgesjs-sdk';
 import axios from 'axios';
 import { BackendIntegrationPlugin } from './types';
 import { handleIntegrationQuery } from './integration-query-handlers/integration-handlers';
+import { getFromDB, insertToDB } from '../db/db';
+import { ExternalCallKeysModel } from '../db/schemas';
+import crypto from 'crypto';
 
 export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
   id: 'api',
@@ -30,25 +33,62 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
         github: apiCall.passGithub ? adminInfo.github : null,
         google: apiCall.passGoogle ? adminInfo.google : null,
         email: apiCall.passEmail ? adminInfo.email : null
-        // stripe: apiCall.passStripe ? adminInfo.stripe : null
       };
 
       try {
         //TODO: timeout and handle correctly?
         if (apiCall.uri.startsWith('https://api.bitbadges.io/api/v0/integrations/query')) {
           await handleIntegrationQuery({
-            __type: apiCall.uri.split('/').pop(),
-            ...body
+            ...body,
+            __type: apiCall.uri.split('/').pop()
           });
         } else {
+          console.log('Calling API:', apiCall.uri);
+
+          let keysDoc = await getFromDB(ExternalCallKeysModel, apiCall.uri);
+          if (!keysDoc) {
+            await insertToDB(ExternalCallKeysModel, { _docId: apiCall.uri, keys: [] });
+          }
+
+          const randomKey = crypto.randomBytes(32).toString('hex');
+          await ExternalCallKeysModel.findOneAndUpdate(
+            { _docId: apiCall.uri },
+            {
+              $push: {
+                keys: {
+                  key: randomKey,
+                  timestamp: Date.now()
+                }
+              }
+            }
+          );
+
+          const authBodyDetails: any = {};
+          if (adminInfo.discord) {
+            authBodyDetails.discord = {
+              id: adminInfo.discord.id,
+              username: adminInfo.discord.username,
+              discriminator: adminInfo.discord.discriminator
+            };
+          }
+          if (adminInfo.twitter) {
+            authBodyDetails.twitter = { id: adminInfo.twitter.id, username: adminInfo.twitter.username };
+          }
+          if (adminInfo.github) {
+            authBodyDetails.github = { id: adminInfo.github.id, username: adminInfo.github.username };
+          }
+          if (adminInfo.google) {
+            authBodyDetails.google = { id: adminInfo.google.id, username: adminInfo.google.username };
+          }
+          if (adminInfo.email) {
+            authBodyDetails.email = adminInfo.email;
+          }
+
           await axios.post(apiCall.uri, {
             ...body,
+            __key: randomKey,
             //Don't send access tokens and other sensitive info
-            discord: { id: adminInfo.discord.id, username: adminInfo.discord.username, discriminator: adminInfo.discord.discriminator },
-            twitter: { id: adminInfo.twitter.id, username: adminInfo.twitter.username },
-            github: { id: adminInfo.github.id, username: adminInfo.github.username },
-            google: { id: adminInfo.google.id, username: adminInfo.google.username },
-            // stripe: { id: adminInfo.stripe.id, username: adminInfo.stripe.username }
+            ...authBodyDetails
           });
         }
       } catch (e) {

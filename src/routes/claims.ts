@@ -50,7 +50,6 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   github: GitHubPluginDetails,
   google: GooglePluginDetails,
   email: EmailPluginDetails
-  // stripe: StripePluginDetails
 };
 
 enum ActionType {
@@ -164,15 +163,21 @@ export const checkAndCompleteClaim = async (
     }
 
     //Pass in email only if previously set up and verified
+    //Must be logged in
     let email = '';
-
-    const profileDoc = await mustGetFromDB(ProfileModel, cosmosAddress);
-    if (!profileDoc) {
-      throw new Error('No profile found');
-    }
-    if (profileDoc.notifications?.email) {
-      if (profileDoc.notifications.emailVerification?.verified) {
-        email = profileDoc.notifications.email;
+    if (req.session.cosmosAddress) {
+      const profileDoc = await mustGetFromDB(ProfileModel, req.session.cosmosAddress);
+      if (!profileDoc) {
+        throw new Error('No profile found');
+      }
+      if (profileDoc.notifications?.email) {
+        if (profileDoc.notifications.emailVerification?.verified) {
+          email = profileDoc.notifications.email;
+        }
+      }
+    } else {
+      if (getPluginParamsAndState('api', claimBuilderDoc.plugins)?.publicParams.apiCalls?.find((x) => x.passEmail)) {
+        throw new Error('Email required but user is not logged in to BitBadges');
       }
     }
 
@@ -206,20 +211,10 @@ export const checkAndCompleteClaim = async (
               id: '123456789'
             };
             break;
-
-          // case 'stripe':
-          //   adminInfo = {
-          //     username: 'testuser'
-          //   };
-          //   break;
           default:
             break;
         }
       } else {
-       
-
-        
-
         switch (plugin.id) {
           case 'requiresProofOfAddress':
             adminInfo = req.session;
@@ -242,15 +237,12 @@ export const checkAndCompleteClaim = async (
           case 'google':
             adminInfo = req.session.google;
             break;
-          case 'email': 
+          case 'email':
             adminInfo = {
               username: email,
               id: email
             };
             break;
-          // case 'stripe':
-          //   adminInfo = req.session.stripe;
-          //   break;
           case 'api': {
             adminInfo = {
               discord: req.session.discord,
@@ -258,10 +250,6 @@ export const checkAndCompleteClaim = async (
               github: req.session.github,
               google: req.session.google,
               email: email
-              // stripe: {
-              //   username: req.session.stripe?.username,
-              //   id: req.session.stripe?.id
-              // }
             };
             break;
           }
@@ -311,8 +299,32 @@ export const checkAndCompleteClaim = async (
     if (assignMethod === 'firstComeFirstServe') {
       //Handled by the $size query
     } else if (assignMethod === 'codeIdx') {
+      const params = getPluginParamsAndState('codes', claimBuilderDoc.plugins);
+      const privateParams = getPlugin('codes').decryptPrivateParams(params?.privateParams ?? { codes: [], seedCode: '' });
+      const maxUses = getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.maxUses ?? 0;
+      if (!privateParams) {
+        throw new Error('No private params found');
+      }
+
+      const seedCode = privateParams.seedCode;
+      const codes = privateParams.seedCode ? generateCodesFromSeed(seedCode, maxUses) : privateParams.codes;
+      if ((codes.length == 0 && !seedCode) || codes.length !== maxUses) {
+        throw new Error('Invalid configuration');
+      }
+
+      const codeToCheck = req.body.codes.code;
+      console.log(codes, codeToCheck);
+      if (!codes.includes(codeToCheck)) {
+        throw new Error('invalid code');
+      }
+
+      const codeIdx = codes.indexOf(codeToCheck);
+      if (codeIdx === -1) {
+        throw new Error('invalid code');
+      }
+
       codeConsistencyQuery = {
-        [`state.codes.usedCodes.${req.body.codes.code}`]: { $exists: false }
+        [`state.codes.usedCodeIndices.${codeIdx}`]: { $exists: false }
       };
     }
 

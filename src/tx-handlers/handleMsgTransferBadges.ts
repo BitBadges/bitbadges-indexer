@@ -18,7 +18,7 @@ export const handleMsgTransferBadges = async (
 
   const collectionIdString = `${msg.collectionId}`;
 
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   // Safe to cast because MsgTransferBadge can only be called if the collection exists

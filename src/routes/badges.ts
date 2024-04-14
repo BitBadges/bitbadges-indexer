@@ -103,14 +103,44 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
             return {
               ...y,
               fromList: addressLists.find((list) => list.listId === y.fromListId) as iAddressList,
-              initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList
+              initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList,
+              approvalCriteria: {
+                ...y.approvalCriteria,
+                merkleChallenges:
+                  y.approvalCriteria?.merkleChallenges?.map((y) => {
+                    return {
+                      ...y,
+                      challengeInfoDetails: {
+                        challengeDetails: {
+                          leaves: [],
+                          isHashed: false
+                        }
+                      }
+                    };
+                  }) ?? []
+              }
             };
           }),
           outgoingApprovals: balance.outgoingApprovals.map((y) => {
             return {
               ...y,
               toList: addressLists.find((list) => list.listId === y.toListId) as iAddressList,
-              initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList
+              initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList,
+              approvalCriteria: {
+                ...y.approvalCriteria,
+                merkleChallenges:
+                  y.approvalCriteria?.merkleChallenges?.map((y) => {
+                    return {
+                      ...y,
+                      challengeInfoDetails: {
+                        challengeDetails: {
+                          leaves: [],
+                          isHashed: false
+                        }
+                      }
+                    };
+                  }) ?? []
+              }
             };
           }),
           userPermissions: applyAddressListsToUserPermissions(balance.userPermissions, addressLists)
@@ -125,7 +155,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching owners for collection. Please try again later.'
+      errorMessage: 'Error fetching owners for collection.'
     });
   }
 };

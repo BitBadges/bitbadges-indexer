@@ -1,16 +1,23 @@
 import { createProtobufRpcClient, type QueryClient } from '@cosmjs/stargate';
-import { convertToEthAddress, convertToBtcAddress, convertToCosmosAddress, getChainForAddress, SupportedChain, Protocol } from 'bitbadgesjs-sdk';
+import {
+  convertToEthAddress,
+  convertToBtcAddress,
+  convertToCosmosAddress,
+  getChainForAddress,
+  SupportedChain,
+  ValueStore
+} from 'bitbadgesjs-sdk';
 import * as account from 'bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/auth_pb';
 import * as accountQuery from 'bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/query_pb';
 import * as bitbadgesQuery from 'bitbadgesjs-sdk/dist/proto/badges/query_pb';
-import * as protocolsQuery from 'bitbadgesjs-sdk/dist/proto/protocols/query_pb';
+import * as mapsQuery from 'bitbadgesjs-sdk/dist/proto/maps/query_pb';
+import * as proto from 'bitbadgesjs-sdk/dist/proto/';
 import * as crypto from 'bitbadgesjs-sdk/dist/proto/cosmos/crypto/ed25519/keys_pb';
 import * as secp256k1 from 'bitbadgesjs-sdk/dist/proto/cosmos/crypto/secp256k1/keys_pb';
 import * as ethereum from 'bitbadgesjs-sdk/dist/proto/ethereum/ethsecp256k1/keys_pb';
 import { type BadgeCollection } from 'bitbadgesjs-sdk/dist/proto/badges/collections_pb';
 import { type ApprovalTracker, type UserBalanceStore } from 'bitbadgesjs-sdk/dist/proto/badges/transfers_pb';
 import { type AddressList } from 'bitbadgesjs-sdk/dist/proto/badges/address_lists_pb';
-
 /**
  * The chain will return a similar structure but with a pub_key object and account_number field (see CosmosAccountResponse from bitbadgesjs-sdk)
  *
@@ -83,6 +90,7 @@ export interface BadgesExtension {
     readonly getApprovalTracker: (
       collectionId: string,
       approvalLevel: string,
+      approvalId: string,
       approverAddress: string,
       amountTrackerId: string,
       trackerType: string,
@@ -90,6 +98,7 @@ export interface BadgesExtension {
     ) => Promise<ApprovalTracker | undefined>;
     readonly getChallengeTracker: (
       collectionId: string,
+      approvalId: string,
       approvalLevel: string,
       approverAddress: string,
       challengeTrackerId: string,
@@ -97,9 +106,9 @@ export interface BadgesExtension {
     ) => Promise<string | undefined>;
   };
 
-  readonly protocols: {
-    readonly getProtocol: (name: string) => Promise<Protocol>;
-    readonly getCollectionIdForProtocol: (name: string, address: string) => Promise<bigint | undefined>;
+  readonly maps: {
+    readonly getMap: (mapId: string) => Promise<proto.maps.Map | undefined>;
+    readonly getMapValue: (mapId: string, key: string) => Promise<ValueStore | undefined>;
   };
 }
 
@@ -107,26 +116,23 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
   const rpc = createProtobufRpcClient(base);
 
   return {
-    protocols: {
-      getProtocol: async (name: string): Promise<Protocol> => {
-        const protocolData = new protocolsQuery.QueryGetProtocolRequest({ name }).toBinary();
-        const protocolPromise = await rpc.request('protocols.Query', 'GetProtocol', protocolData);
+    maps: {
+      getMap: async (mapId: string): Promise<proto.maps.Map | undefined> => {
+        const mapData = new mapsQuery.QueryGetMapRequest({ mapId }).toBinary();
+        const mapPromise = await rpc.request('maps.Query', 'Map', mapData);
 
-        const protocol = protocolsQuery.QueryGetProtocolResponse.fromBinary(protocolPromise).protocol;
-        if (!protocol) throw new Error('Protocol not found');
-
-        return new Protocol(protocol);
+        const map = mapsQuery.QueryGetMapResponse.fromBinary(mapPromise).map;
+        return map;
       },
 
-      getCollectionIdForProtocol: async (name: string, address: string): Promise<bigint | undefined> => {
-        const collectionForProtocolData = new protocolsQuery.QueryGetCollectionIdForProtocolRequest({ name, address }).toBinary();
-        const collectionForProtocolPromise = await rpc.request('protocols.Query', 'GetCollectionIdForProtocol', collectionForProtocolData);
+      getMapValue: async (mapId: string, key: string): Promise<ValueStore | undefined> => {
+        const mapValueData = new mapsQuery.QueryGetMapValueRequest({ mapId, key }).toBinary();
+        const mapValuePromise = await rpc.request('maps.Query', 'MapValue', mapValueData);
 
-        const id = protocolsQuery.QueryGetCollectionIdForProtocolResponse.fromBinary(collectionForProtocolPromise).collectionId;
-        return id ? BigInt(id) : undefined;
+        const res = mapsQuery.QueryGetMapValueResponse.fromBinary(mapValuePromise).value;
+        return res ? new ValueStore({ ...res }) : undefined;
       }
     },
-
     badges: {
       getAccountInfo: async (address: string): Promise<CleanedCosmosAccountInformation> => {
         const cosmosAddress = convertToCosmosAddress(address);
@@ -184,6 +190,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
       getApprovalTracker: async (
         collectionId: string,
+        approvalId: string,
         approvalLevel: string,
         approverAddress: string,
         amountTrackerId: string,
@@ -192,6 +199,7 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
       ) => {
         const approvalTrackerData = new bitbadgesQuery.QueryGetApprovalTrackerRequest({
           collectionId: collectionId ?? '',
+          approvalId: approvalId ?? '',
           approvalLevel: approvalLevel ?? '',
           approverAddress: approverAddress ?? '',
           amountTrackerId: amountTrackerId ?? '',
@@ -208,12 +216,14 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
         approvalLevel: string,
         approverAddress: string,
         challengeTrackerId: string,
+        approvalId: string,
         leafIndex: string
       ) => {
         const challengeTrackerData = new bitbadgesQuery.QueryGetChallengeTrackerRequest({
           collectionId,
           approvalLevel,
           approverAddress,
+          approvalId,
           challengeTrackerId,
           leafIndex
         }).toBinary();

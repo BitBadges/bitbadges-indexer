@@ -3,12 +3,12 @@ import { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
 import { SigningStargateClient, assertIsDeliverTxSuccess } from '@cosmjs/stargate';
 import {
   BETANET_CHAIN_DETAILS,
+  MsgCreateMap,
   Numberify,
   SupportedChain,
   convertToCosmosAddress,
   createTransactionPayload,
   createTxBroadcastBody,
-  type MsgCreateProtocol,
   type MsgUniversalUpdateCollection,
   type TxContext
 } from 'bitbadgesjs-sdk';
@@ -18,7 +18,8 @@ import {
   MsgCreateAddressLists as ProtoMsgCreateAddressLists,
   MsgUniversalUpdateCollection as ProtoMsgUniversalUpdateCollection
 } from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
-import { MsgCreateProtocol as ProtoMsgCreateProtocol } from 'bitbadgesjs-sdk/dist/proto/protocols/tx_pb';
+
+import { MsgCreateMap as ProtoMsgCreateMap } from 'bitbadgesjs-sdk/dist/proto/maps/tx_pb';
 
 import crypto from 'crypto';
 import env from 'dotenv';
@@ -168,8 +169,8 @@ export function bootstrapProtocols() {
   // Call the function to get and parse .json files from the subdirectory
   getAndParseJsonFiles(subdirectoryPath, jsonObjects, jsonFileNames);
 
-  const msgs = jsonObjects.map((jsonObject: MsgCreateProtocol) => {
-    return new ProtoMsgCreateProtocol({
+  const msgs = jsonObjects.map((jsonObject: MsgCreateMap<string>) => {
+    return new ProtoMsgCreateMap({
       ...jsonObject,
       creator: convertToCosmosAddress(ethWallet.address)
     });

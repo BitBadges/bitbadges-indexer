@@ -7,7 +7,9 @@ import {
   ApprovalTrackerDoc,
   BalanceArray,
   BigIntify,
+  MapDoc,
   MerkleChallengeDoc,
+  MerkleProof,
   MsgCreateAddressLists,
   MsgCreateCollection,
   MsgDeleteCollection,
@@ -15,34 +17,39 @@ import {
   MsgUniversalUpdateCollection,
   MsgUpdateCollection,
   MsgUpdateUserApprovals,
-  ProtocolDoc,
+  NumberType,
   QueueDoc,
   Transfer,
-  UserProtocolCollectionsDoc,
+  UintRangeArray,
+  UpdateHistory,
+  ZkProofSolution,
   convertToCosmosAddress,
-  type iBalance,
   type ComplianceDoc,
   type StatusDoc,
-  MerkleProof
+  type iBalance,
+  AddressListDoc
 } from 'bitbadgesjs-sdk';
 import * as tx from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
 import * as bank from 'bitbadgesjs-sdk/dist/proto/cosmos/bank/v1beta1/tx_pb';
-import * as protocoltx from 'bitbadgesjs-sdk/dist/proto/protocols/tx_pb';
+import * as maps from 'bitbadgesjs-sdk/dist/proto/maps/tx_pb';
 import * as solana from 'bitbadgesjs-sdk/dist/proto/solana/web3_pb';
+import { ValueStore } from 'bitbadgesjs-sdk/dist/transactions/messages/bitbadges/maps';
 import { type Attribute, type StringEvent } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
 import { IndexerStargateClient } from './chain-client/indexer_stargateclient';
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from './db/cache';
-import { MongoDB, deleteMany, getFromDB, insertMany, insertToDB, mustGetFromDB } from './db/db';
+import { MongoDB, deleteMany, getFromDB, getManyFromDB, insertMany, insertToDB, mustGetFromDB } from './db/db';
+import { findInDB } from './db/queries';
 import {
+  AddressListModel,
   ClaimAlertModel,
   ComplianceModel,
   ErrorModel,
   ListActivityModel,
+  MapModel,
   ProfileModel,
-  ProtocolModel,
   QueueModel,
   StatusModel,
   TransferActivityModel
@@ -51,8 +58,7 @@ import { getStatus } from './db/status';
 import { type DocsCache } from './db/types';
 import { SHUTDOWN, client, setClient, setNotificationPollerTimer, setTimer, setUriPollerTimer } from './indexer';
 import { TIME_MODE } from './indexer-vars';
-import { handleQueueItems } from './queue';
-import { initializeFollowProtocol, unsetFollowCollection } from './routes/follows';
+import { getMapIdForQueueDb, handleQueueItems, pushMapFetchToQueue } from './queue';
 import { handleMsgCreateAddressLists } from './tx-handlers/handleMsgCreateAddressLists';
 import { handleMsgCreateCollection } from './tx-handlers/handleMsgCreateCollection';
 import { handleMsgDeleteCollection } from './tx-handlers/handleMsgDeleteCollection';
@@ -62,7 +68,9 @@ import { handleMsgUpdateCollection } from './tx-handlers/handleMsgUpdateCollecti
 import { handleMsgUpdateUserApprovals } from './tx-handlers/handleMsgUpdateUserApprovals';
 import { handleNewAccountByAddress } from './tx-handlers/handleNewAccount';
 import { handleTransfers } from './tx-handlers/handleTransfers';
-import { findInDB } from './db/queries';
+import { getLoadBalancerId } from './utils/loadBalancer';
+import { unsetFollowCollection, initializeFollowProtocol } from './routes/follows';
+import { PushNotificationEmailHTML } from './routes/users';
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000;
 const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000;
@@ -137,7 +145,6 @@ enum NotificationType {
   ClaimAlert = 'claimAlert'
 }
 
-const BETANET = true;
 export async function sendPushNotification(address: string, type: string, message: string, docId: string, queueDoc?: QueueDoc<bigint>) {
   try {
     const profile = await getFromDB(ProfileModel, address);
@@ -145,19 +152,23 @@ export async function sendPushNotification(address: string, type: string, messag
 
     if (!profile.notifications?.email) return;
     if (!profile.notifications?.emailVerification?.verified) return;
-    if (BETANET) return;
-    // const antiPhishingCode = profile.notifications.emailVerification.antiPhishingCode;
+
+    const antiPhishingCode = profile.notifications.emailVerification.antiPhishingCode;
+    if (!antiPhishingCode) return;
+
+    const token = profile.notifications.emailVerification.token;
+    if (!token) return;
 
     let subject = '';
     switch (type) {
       case NotificationType.TransferActivity:
-        subject = 'You have received badges';
+        subject = 'BitBadges Notification - Transfer Activity';
         break;
       case NotificationType.List:
-        subject = 'You have been added to a list';
+        subject = 'BitBadges Notification - List Activity';
         break;
       case NotificationType.ClaimAlert:
-        subject = 'You are able to claim BitBadges';
+        subject = 'BitBadges Notification - Claim Alert';
         break;
     }
 
@@ -173,13 +184,13 @@ export async function sendPushNotification(address: string, type: string, messag
       to: string;
       from: string;
       subject: string;
-      text: string;
+      html: string;
     }> = [
       {
         to: profile.notifications.email,
         from: 'info@mail.bitbadges.io',
         subject,
-        text: message
+        html: PushNotificationEmailHTML(message, antiPhishingCode, token)
       }
     ];
 
@@ -254,19 +265,33 @@ export const pollNotifications = async () => {
         await sendPushNotification(address, NotificationType.TransferActivity, message, activityDoc._docId);
       }
     }
+
     await insertMany(
       TransferActivityModel,
       transferActivityRes.map((x) => ({ ...x, _notificationsHandled: true }))
     );
 
+    const listIds = [...new Set(listsActivityRes.map((x) => x.listId))];
+    let lists: AddressListDoc<bigint>[] = [];
+    if (listIds.length > 0) {
+      const listDocs = await getManyFromDB(AddressListModel, listIds);
+      lists = listDocs.filter((x) => x).filter((x) => !x?.private) as AddressListDoc<bigint>[];
+    }
+
     for (const activityDoc of listsActivityRes) {
       const addresses = activityDoc.addresses;
       const message = `You have been added to the list: ${activityDoc.listId}`;
+
+      //Don't send notifications for private lists
+      if (!lists.map((x) => x.listId).includes(activityDoc.listId)) {
+        continue;
+      }
 
       for (const address of addresses ?? []) {
         await sendPushNotification(address, NotificationType.List, message, activityDoc._docId);
       }
     }
+
     await insertMany(
       ListActivityModel,
       listsActivityRes.map((x) => ({ ...x, _notificationsHandled: true }))
@@ -359,8 +384,7 @@ export const poll = async () => {
         approvalTrackers: {},
         balances: {},
         claimBuilderDocs: {},
-        protocols: {},
-        userProtocolCollections: {}
+        maps: {}
       };
 
       const session = await MongoDB.startSession();
@@ -460,6 +484,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
   if (getAttributeValueByKey(event.attributes, 'amountTrackerId')) {
     const amountTrackerId = getAttributeValueByKey(event.attributes, 'amountTrackerId') ?? '';
     const approverAddress = getAttributeValueByKey(event.attributes, 'approverAddress') ?? '';
+    const approvalId = getAttributeValueByKey(event.attributes, 'approvalId') ?? '';
     const collectionId = getAttributeValueByKey(event.attributes, 'collectionId') ?? '';
     const approvalLevel =
       (getAttributeValueByKey(event.attributes, 'approvalLevel') as 'collection' | 'incoming' | 'outgoing' | '' | undefined) ?? '';
@@ -468,13 +493,14 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const amountsJsonStr = getAttributeValueByKey(event.attributes, 'amounts') ?? '';
     const numTransfersJsonStr = getAttributeValueByKey(event.attributes, 'numTransfers') ?? '';
 
-    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${amountTrackerId}-${trackerType}-${approvedAddress}`;
+    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${amountTrackerId}-${trackerType}-${approvedAddress}`;
     const amounts = JSON.parse(amountsJsonStr && amountsJsonStr !== 'null' ? amountsJsonStr : '[]') as Array<iBalance<string>>;
     const numTransfers = numTransfersJsonStr && numTransfersJsonStr !== 'null' ? BigIntify(JSON.parse(numTransfersJsonStr)) : 0n;
 
     docs.approvalTrackers[docId] = new ApprovalTrackerDoc({
       _docId: docId,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
+      approvalId: approvalId || '',
       approvalLevel: approvalLevel || '',
       approverAddress: approverAddress || '',
       amountTrackerId: amountTrackerId || '',
@@ -485,15 +511,16 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     });
   }
 
-  if (getAttributeValueByKey(event.attributes, 'challengeId')) {
-    const challengeId = getAttributeValueByKey(event.attributes, 'challengeId') ?? '';
+  if (getAttributeValueByKey(event.attributes, 'challengeTrackerId')) {
+    const challengeTrackerId = getAttributeValueByKey(event.attributes, 'challengeTrackerId') ?? '';
+    const approvalId = getAttributeValueByKey(event.attributes, 'approvalId') ?? '';
     const approverAddress = getAttributeValueByKey(event.attributes, 'approverAddress') ?? '';
     const collectionId = getAttributeValueByKey(event.attributes, 'collectionId') ?? '';
     const challengeLevel =
       (getAttributeValueByKey(event.attributes, 'challengeLevel') as 'collection' | 'incoming' | 'outgoing' | '' | undefined) ?? '';
     const leafIndex = getAttributeValueByKey(event.attributes, 'leafIndex') ?? '';
 
-    const docId = `${collectionId}:${challengeLevel}-${approverAddress}-${challengeId}`;
+    const docId = `${collectionId}:${challengeLevel}-${approverAddress}-${approvalId}-${challengeTrackerId}`;
     const currDoc = docs.merkleChallenges[docId];
     const newLeafIndices = currDoc ? currDoc.usedLeafIndices : [];
     newLeafIndices.push(BigIntify(leafIndex || 0n));
@@ -501,7 +528,8 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     docs.merkleChallenges[docId] = new MerkleChallengeDoc({
       _docId: docId,
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
-      challengeId: challengeId || '',
+      challengeTrackerId: challengeTrackerId || '',
+      approvalId: approvalId || '',
       challengeLevel: challengeLevel || ('' as 'collection' | 'incoming' | 'outgoing' | ''),
       approverAddress: approverAddress || '',
       usedLeafIndices: newLeafIndices
@@ -533,9 +561,17 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
       });
     }
 
+    if (parsedTransfer.zkProofSolutions) {
+      parsedTransfer.zkProofSolutions = parsedTransfer.zkProofSolutions.map((proof: ZkProofSolution) => {
+        proof.publicInputs = proof.publicInputs || '';
+        proof.proof = proof.proof || '';
+        return proof;
+      });
+    }
+
     const transfer = new Transfer(parsedTransfer).convert(BigIntify);
     if (!collectionId || !transfer) throw new Error(`Missing collectionId or transfer in event: ${JSON.stringify(event)}`);
-    await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [], [BigInt(collectionId)], [], [], [], [], [], []);
     const collectionDoc = docs.collections[collectionId];
     if (!collectionDoc) throw new Error(`Missing collection doc for collectionId ${collectionId}`);
 
@@ -633,73 +669,164 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     const value = message.value;
 
     switch (typeUrl) {
-      case '/protocols.MsgCreateProtocol': {
-        const newProtocolMsg = protocoltx.MsgCreateProtocol.fromBinary(value);
+      case '/maps.MsgCreateMap': {
+        const newMapMsg = maps.MsgCreateMap.fromBinary(value);
 
-        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [newProtocolMsg.name], []);
+        console.log('newMapMsg', newMapMsg);
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [newMapMsg.mapId]);
 
-        docs.protocols[newProtocolMsg.name] = new ProtocolDoc({
-          _docId: newProtocolMsg.name,
-          ...newProtocolMsg,
-          createdBy: newProtocolMsg.creator
-        });
+        docs.maps[newMapMsg.mapId] = new MapDoc<NumberType>({
+          _docId: newMapMsg.mapId,
+          values: {},
+          ...newMapMsg,
+          updateCriteria: newMapMsg.updateCriteria || {
+            managerOnly: false,
+            collectionId: 0n,
+            creatorOnly: false,
+            firstComeFirstServe: false
+          },
+          valueOptions: newMapMsg.valueOptions || {
+            noDuplicates: false,
+            expectAddress: false,
+            expectBoolean: false,
+            expectUint: false,
+            expectUri: false,
+            permanentOnceSet: false
+          },
+          permissions: newMapMsg.permissions || {
+            canDeleteMap: [],
+            canUpdateManager: [],
+            canUpdateMetadata: []
+          },
+          metadataTimeline: newMapMsg.metadataTimeline.map((x) => {
+            return {
+              metadata: x.metadata ?? { uri: '', customData: '' },
+              timelineTimes: x.timelineTimes
+            };
+          }),
+          updateHistory: [
+            {
+              block: status.block.height,
+              txHash: indexed.hash,
+              blockTimestamp: status.block.timestamp,
+              timestamp: 0n
+            }
+          ]
+        }).convert(BigIntify);
+
+        const uri = newMapMsg.metadataTimeline.find((x) => UintRangeArray.From(x.timelineTimes).searchIfExists(BigInt(Date.now())))?.metadata?.uri;
+        if (uri) {
+          const entropy = `${status.block.height}:${indexed.hash}:${newMapMsg.mapId}`;
+
+          await pushMapFetchToQueue(
+            docs,
+            newMapMsg.mapId,
+            uri,
+            getLoadBalancerId(getMapIdForQueueDb(entropy, newMapMsg.mapId.toString(), uri.toString())),
+            status.block.timestamp,
+            entropy
+          );
+        }
         break;
       }
-      case '/protocols.MsgUpdateProtocol': {
-        const updateProtocolMsg = protocoltx.MsgUpdateProtocol.fromBinary(value);
-        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [updateProtocolMsg.name], []);
-        docs.protocols[updateProtocolMsg.name] = new ProtocolDoc({
-          ...docs.protocols[updateProtocolMsg.name],
-          _docId: updateProtocolMsg.name,
+      case '/maps.MsgUpdateMap': {
+        const updateMapMsg = maps.MsgUpdateMap.fromBinary(value);
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [updateMapMsg.mapId]);
 
-          createdBy: updateProtocolMsg.creator,
-          ...updateProtocolMsg
-        });
-        break;
-      }
-      case '/protocols.MsgDeleteProtocol': {
-        const deleteProtocolMsg = protocoltx.MsgDeleteProtocol.fromBinary(value);
-        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [deleteProtocolMsg.name], []);
-        delete docs.protocols[deleteProtocolMsg.name];
-        await deleteMany(ProtocolModel, [deleteProtocolMsg.name], session);
-        break;
-      }
-      case '/protocols.MsgSetCollectionForProtocol': {
-        const setCollectionForProtocolMsg = protocoltx.MsgSetCollectionForProtocol.fromBinary(value);
-
-        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [], [setCollectionForProtocolMsg.creator]);
-
-        let collectionIdToSet = setCollectionForProtocolMsg.collectionId;
-        if (BigInt(setCollectionForProtocolMsg.collectionId) === 0n) {
-          const prevCollectionId = status.nextCollectionId - 1n;
-          collectionIdToSet = prevCollectionId.toString();
+        let doc = docs.maps[updateMapMsg.mapId];
+        if (!doc) {
+          throw new Error(`Map ${updateMapMsg.mapId} does not exist`);
         }
 
-        docs.userProtocolCollections[setCollectionForProtocolMsg.creator] = new UserProtocolCollectionsDoc({
-          _docId: setCollectionForProtocolMsg.creator,
-          protocols: {
-            ...docs.userProtocolCollections[setCollectionForProtocolMsg.creator]?.protocols,
-            [setCollectionForProtocolMsg.name]: BigInt(collectionIdToSet)
+        const tempDoc = new MapDoc<NumberType>({
+          ...doc,
+          ...updateMapMsg,
+          permissions: updateMapMsg.permissions || {
+            canDeleteMap: [],
+            canUpdateManager: [],
+            canUpdateMetadata: []
+          },
+          metadataTimeline: updateMapMsg.metadataTimeline.map((x) => {
+            return {
+              metadata: x.metadata ?? { uri: '', customData: '' },
+              timelineTimes: x.timelineTimes
+            };
+          })
+        }).convert(BigIntify);
+
+        if (updateMapMsg.updateManagerTimeline) {
+          doc.managerTimeline = tempDoc.managerTimeline;
+        }
+
+        if (updateMapMsg.updateMetadataTimeline) {
+          doc.metadataTimeline = tempDoc.metadataTimeline;
+          const uri = updateMapMsg.metadataTimeline.find((x) => UintRangeArray.From(x.timelineTimes).searchIfExists(BigInt(Date.now())))?.metadata
+            ?.uri;
+          if (uri) {
+            const entropy = `${status.block.height}:${indexed.hash}:${updateMapMsg.mapId}`;
+
+            await pushMapFetchToQueue(
+              docs,
+              updateMapMsg.mapId,
+              uri,
+              getLoadBalancerId(getMapIdForQueueDb(entropy, updateMapMsg.mapId.toString(), uri.toString())),
+              status.block.timestamp,
+              entropy
+            );
           }
-        });
+        }
+
+        if (updateMapMsg.updatePermissions) {
+          doc.permissions = tempDoc.permissions;
+        }
+
+        doc.updateHistory.push(
+          new UpdateHistory({
+            block: status.block.height,
+            txHash: indexed.hash,
+            blockTimestamp: status.block.timestamp,
+            timestamp: 0n
+          })
+        );
+
+        docs.maps[updateMapMsg.mapId] = doc;
+        break;
+      }
+      case '/maps.MsgDeleteMap': {
+        const deleteMapMsg = maps.MsgDeleteMap.fromBinary(value);
+
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [deleteMapMsg.mapId]);
+
+        delete docs.maps[deleteMapMsg.mapId];
+        await deleteMany(MapModel, [deleteMapMsg.mapId], session);
+        break;
+      }
+      case '/maps.MsgSetValue': {
+        const setValueMsg = maps.MsgSetValue.fromBinary(value);
+        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [setValueMsg.mapId]);
+
+        let finalSetValue = setValueMsg.value;
+        if (setValueMsg.options?.useMostRecentCollectionId) {
+          finalSetValue = (status.nextCollectionId - 1n).toString();
+        }
 
         // TODO: Should we only allow initializations to empty collections?
-        if (setCollectionForProtocolMsg.name === 'BitBadges Follow Protocol') {
-          await unsetFollowCollection(setCollectionForProtocolMsg.creator);
-          await initializeFollowProtocol(setCollectionForProtocolMsg.creator, BigInt(collectionIdToSet));
+        if (setValueMsg.mapId === 'BitBadges Follow Protocol' && finalSetValue) {
+          await unsetFollowCollection(setValueMsg.creator);
+          await initializeFollowProtocol(setValueMsg.creator, BigInt(finalSetValue));
+        } else {
+          await unsetFollowCollection(setValueMsg.creator);
         }
-        break;
-      }
-      case '/protocols.MsgUnsetCollectionForProtocol': {
-        const unsetCollectionForProtocolMsg = protocoltx.MsgUnsetCollectionForProtocol.fromBinary(value);
-        await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [], [unsetCollectionForProtocolMsg.creator]);
-        delete docs.userProtocolCollections[unsetCollectionForProtocolMsg.creator]?.protocols[unsetCollectionForProtocolMsg.name];
 
-        if (unsetCollectionForProtocolMsg.name === 'BitBadges Follow Protocol') {
-          await unsetFollowCollection(unsetCollectionForProtocolMsg.creator);
+        let doc = docs.maps[setValueMsg.mapId];
+        if (!doc) {
+          throw new Error(`Map ${setValueMsg.mapId} does not exist`);
         }
+
+        doc.values[setValueMsg.key] = new ValueStore({ key: setValueMsg.key, value: finalSetValue, lastSetBy: setValueMsg.creator });
         break;
       }
+
       case '/badges.MsgTransferBadges': {
         const transferMsg = MsgTransferBadges.fromProto(tx.MsgTransferBadges.fromBinary(value), BigIntify);
         await handleMsgTransferBadges(transferMsg, status, docs, indexed.hash);
@@ -713,8 +840,6 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
       case '/badges.MsgCreateAddressLists': {
         const newAddressListsMsg = MsgCreateAddressLists.fromProto(tx.MsgCreateAddressLists.fromBinary(value));
         await handleMsgCreateAddressLists(newAddressListsMsg, status, docs, indexed.hash);
-        // Don't need to track, we have created at and address lists on-chain are permanent and immutable
-        // msg = newAddressListsMsg;
         break;
       }
       case '/badges.MsgUniversalUpdateCollection': {
@@ -743,8 +868,6 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const toAddress = newMsgSend.toAddress;
         if (fromAddress) await handleNewAccountByAddress(fromAddress, docs);
         if (toAddress) await handleNewAccountByAddress(toAddress, docs);
-        // Don't need to track MsgSends
-        // msg = newMsgSend;
         break;
       }
       default: {

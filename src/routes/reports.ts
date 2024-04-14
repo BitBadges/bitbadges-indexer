@@ -13,6 +13,7 @@ export const addReport = async (req: Request, res: Response<EmptyResponseClass |
       _docId: new mongoose.Types.ObjectId().toString(),
       collectionId: report.collectionId,
       listId: report.listId,
+      mapId: report.mapId,
       addressOrUsername: report.addressOrUsername,
       reason: report.reason
     };

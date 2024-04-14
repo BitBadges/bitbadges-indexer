@@ -43,17 +43,17 @@ export interface BlockinSession<T extends NumberType> extends Session {
     access_token: string;
     access_token_secret: string;
   };
-  // stripe?: {
-  //   id: string;
-  //   username: string;
-  // };
-
   github?: {
     id: string;
     username: string;
   };
 
   google?: {
+    id: string;
+    username: string;
+  };
+
+  reddit?: {
     id: string;
     username: string;
   };
@@ -145,7 +145,7 @@ export async function getChallenge(
     console.error(err);
     return res.status(500).json({
       error: serializeError(err),
-      errorMessage: 'Error creating challenge. Please try again later.'
+      errorMessage: 'Error creating challenge.'
     });
   }
 }
@@ -163,10 +163,6 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
       id: req.session.twitter?.id ?? '',
       username: req.session.twitter?.username ?? ''
     },
-    // stripe: {
-    //   id: req.session.stripe?.id ?? '',
-    //   username: req.session.stripe?.username ?? ''
-    // }
     github: {
       id: req.session.github?.id ?? '',
       username: req.session.github?.username ?? ''
@@ -198,10 +194,6 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
   if (body.signOutTwitter) {
     session.twitter = undefined;
   }
-
-  // if (body.signOutStripe) {
-  //   session.stripe = undefined;
-  // }
 
   if (body.signOutGithub) {
     session.github = undefined;
@@ -309,6 +301,7 @@ export async function verifyBlockinAndGrantSessionCookie(
     ) {
       await insertToDB(ProfileModel, {
         ...profileDoc,
+        createdAt: profileDoc?.createdAt ?? Date.now(),
         _docId: req.session.cosmosAddress,
         latestSignedInChain: chain,
         solAddress: getChainForAddress(challenge.address) === SupportedChain.SOLANA ? challenge.address : profileDoc?.solAddress

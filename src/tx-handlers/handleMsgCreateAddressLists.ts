@@ -12,7 +12,7 @@ export const handleMsgCreateAddressLists = async (
   docs: DocsCache,
   txHash: string
 ): Promise<void> => {
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], [], [], []); // Note we don't fetch list here because if tx was successful, it is a new list with unique ID
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], [], []); // Note we don't fetch list here because if tx was successful, it is a new list with unique ID
   await handleNewAccountByAddress(msg.creator, docs);
 
   const entropy = status.block.height.toString() + '-' + status.block.txIndex.toString();
@@ -37,7 +37,8 @@ export const handleMsgCreateAddressLists = async (
         {
           block: status.block.height,
           blockTimestamp: status.block.timestamp,
-          txHash
+          txHash,
+          timestamp: 0n
         }
       ]
     });

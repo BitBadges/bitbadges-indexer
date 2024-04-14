@@ -7,9 +7,10 @@ import {
   type CosmosCoin,
   type NumberType,
   convertToEthAddress,
-  convertToBtcAddress
+  convertToBtcAddress,
+  MapDoc
 } from 'bitbadgesjs-sdk';
-import { AddressListModel, AirdropModel, CollectionModel, EthTxCountModel } from '../db/schemas';
+import { AddressListModel, AirdropModel, CollectionModel, EthTxCountModel, MapModel } from '../db/schemas';
 import { getFromDB, insertToDB } from '../db/db';
 import { client } from '../indexer';
 import { OFFLINE_MODE } from '../indexer-vars';
@@ -172,6 +173,8 @@ export const convertToBitBadgesUserInfo = async (
             return undefined;
           }
     );
+
+    promises.push(getFromDB(MapModel, cosmosAccountInfo.cosmosAddress));
   }
 
   const results = await Promise.all(
@@ -186,15 +189,16 @@ export const convertToBitBadgesUserInfo = async (
 
   const resultsToReturn: Array<BitBadgesUserInfo<NumberType>> = [];
 
-  for (let i = 0; i < results.length; i += 5) {
-    const profileInfo = profileInfos[i / 5];
-    const accountInfo = accountInfos[i / 5];
+  for (let i = 0; i < results.length; i += 6) {
+    const profileInfo = profileInfos[i / 6];
+    const accountInfo = accountInfos[i / 6];
 
     const nameAndAvatarRes = results[i] as { resolvedName: string; avatar: string };
     const balanceInfo = results[i + 1] as CosmosCoin<NumberType>;
     const airdropInfo = results[i + 2] as { _docId: string; airdropped: boolean } | undefined;
     const chainResolve = results[i + 3] as { address: string; chain: SupportedChain } | undefined;
     const aliasResolve = results[i + 4] as { listId?: string; collectionId?: string } | undefined;
+    const reservedMap = results[i + 5] as MapDoc<bigint> | undefined;
 
     const isNSFW = complianceDoc?.accounts.nsfw.find((x) => x.cosmosAddress === accountInfo.cosmosAddress);
     const isReported = complianceDoc?.accounts.reported.find((x) => x.cosmosAddress === accountInfo.cosmosAddress);
@@ -222,11 +226,13 @@ export const convertToBitBadgesUserInfo = async (
       reviews: [],
       merkleChallenges: [],
       claimAlerts: [],
+      secrets: [],
       approvalTrackers: [],
       authCodes: [],
       views: {},
       nsfw: isNSFW,
-      reported: isReported
+      reported: isReported,
+      reservedMap
     });
 
     resultsToReturn.push(result);

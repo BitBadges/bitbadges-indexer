@@ -14,7 +14,7 @@ export const handleMsgDeleteCollection = async (
   docs: DocsCache,
   session: mongoose.ClientSession
 ): Promise<void> => {
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   // Safe to cast because MsgDeleteCollection can only be called if the collection exists

@@ -1,4 +1,4 @@
-openapi: '3.0.2'
+openapi: '3.1.0'
 info:
   title: BitBadges API
   version: '0.1'
@@ -1268,48 +1268,120 @@ paths:
           $ref: '#/components/responses/InternalServerErrorResponse'
       security:
         - apiKey: []
-  /getProtocol:
+  /maps:
     post:
-      operationId: getProtocol
-      summary: Get protocol details by name
-      description: Get protocol details by name.
+      operationId: getMaps
+      summary: Get maps
+      description: Gets maps for a collection.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetProtocolsRouteRequestBody'
+              $ref: '#/components/schemas/GetMapsRouteRequestBody'
       responses:
         '200':
           description: Success response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/iGetProtocolsRouteSuccessResponse'
+                $ref: '#/components/schemas/iGetMapsRouteSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequestResponse'
         '500':
           $ref: '#/components/responses/InternalServerErrorResponse'
       security:
         - apiKey: []
-  /getCollectionForProtocol:
+  /secret:
     post:
-      operationId: getCollectionForProtocol
-      summary: Get the collection ID set by a user for a protocol
-      description: Get the collection ID set by a user for a protocol.
+      operationId: getSecret
+      summary: Get secret
+      description: Gets a secret for a collection.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetCollectionForProtocolRouteRequestBody'
+              $ref: '#/components/schemas/GetSecretRouteRequestBody'
       responses:
         '200':
           description: Success response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/iGetCollectionForProtocolRouteSuccessResponse'
+                $ref: '#/components/schemas/iGetSecretRouteSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      security:
+        - apiKey: []
+  /secret/create:
+    post:
+      operationId: createSecret
+      summary: Create secret
+      description: Creates a secret for a collection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSecretRouteRequestBody'
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iCreateSecretRouteSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      security:
+        - apiKey: []
+  /secret/update:
+    post:
+      operationId: updateSecret
+      summary: Update secret
+      description: Updates a secret for a collection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSecretRouteRequestBody'
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iUpdateSecretRouteSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      security:
+        - apiKey: []
+  /secret/delete:
+    post:
+      operationId: deleteSecret
+      summary: Delete secret
+      description: Deletes a secret for a collection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteSecretRouteRequestBody'
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iDeleteSecretRouteSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequestResponse'
         '500':
@@ -1469,64 +1541,118 @@ components:
       scheme: cookie
       description: User must be signed in and have owner permissions.
   schemas:
-    ErrorResponse:
-      type: object
-      required:
-        - errorMessage
-      properties:
-        error:
-          type: object
-          description: Serialized error object for debugging purposes. Technical users can use this to debug issues.
-        errorMessage:
-          type: string
-          description: UX-friendly error message that can be displayed to the user. Always present if error.
-        unauthorized:
-          type: boolean
-          description: Authentication error. Present if the user is not authenticated.
     NumberType:
       anyOf:
         - type: string
         - type: number
       example: '1'
       description: String numbers are always returned to avoid precision loss. You may pass in request bodies as numbers or strings. See SDK docs for NumberType conversions.
-    BlockinChallengeParams:
+    # -------------------------------------------------------------COPIED FROM JS SCRIPT-------------------------------------------------------------
+    SupportedChain:
+      enum:
+        - Bitcoin
+        - Ethereum
+        - Cosmos
+        - Solana
+        - Unknown
+      type: string
+    AssetDetails:
+      properties:
+        chain:
+          type: string
+        collectionId:
+          $ref: '#components/schemas/NumberType'
+        assetIds:
+          items:
+            anyOf:
+              - type: string
+              - $ref: '#/components/schemas/iUintRange'
+          type: array
+        ownershipTimes:
+          items:
+            $ref: '#/components/schemas/iUintRange'
+          type: array
+        mustOwnAmounts:
+          $ref: '#/components/schemas/iUintRange'
+        additionalCriteria:
+          type: string
+      required:
+        - chain
+        - collectionId
+        - assetIds
+        - ownershipTimes
+        - mustOwnAmounts
+      additionalProperties: false
+      type: object
+    AndGroup:
+      properties:
+        $and:
+          items:
+            $ref: '#/components/schemas/AssetConditionGroup'
+          type: array
+      required:
+        - $and
+      additionalProperties: false
+      type: object
+    OrGroup:
+      properties:
+        $or:
+          items:
+            $ref: '#/components/schemas/AssetConditionGroup'
+          type: array
+      required:
+        - $or
+      additionalProperties: false
+      type: object
+    AssetConditionGroup:
+      anyOf:
+        - $ref: '#/components/schemas/AndGroup'
+        - $ref: '#/components/schemas/OrGroup'
+        - $ref: '#/components/schemas/OwnershipRequirements'
+    OwnershipRequirements:
+      properties:
+        assets:
+          items:
+            $ref: '#/components/schemas/AssetDetails'
+          type: array
+        options:
+          properties:
+            numMatchesForVerification:
+              $ref: '#components/schemas/NumberType'
+          additionalProperties: false
+          type: object
+      required:
+        - assets
+      additionalProperties: false
+      type: object
+    ChallengeParams:
       properties:
         domain:
-          description: The domain of the challenge.
           type: string
         statement:
-          description: The statement of the challenge.
           type: string
         address:
-          description: The address of the challenge.
           type: string
         uri:
-          description: The URI of the challenge.
           type: string
         nonce:
-          description: The nonce of the challenge.
           type: string
         version:
-          description: The version of the challenge.
           type: string
         chainId:
-          description: The chain ID of the challenge.
           type: string
         issuedAt:
-          description: The issued at time of the challenge.
           type: string
         expirationDate:
-          description: The expiration date of the challenge.
           type: string
         notBefore:
-          description: The not before time of the challenge.
           type: string
         resources:
           items:
             type: string
           type: array
         assetOwnershipRequirements:
-          description: The asset ownership requirements of the challenge.
+          $ref: '#/components/schemas/AssetConditionGroup'
       required:
         - domain
         - statement
@@ -1535,44 +1661,69 @@ components:
         - nonce
       additionalProperties: false
       type: object
-
     VerifyChallengeOptions:
       properties:
         expectedChallengeParams:
-          $ref: '#/components/schemas/BlockinChallengeParams'
-          description: Optionally define the expected details to check. If the challenge was edited and the details do not match, the challenge will fail verification.
-        beforeVerification:
+          properties:
+            domain:
+              type: string
+            statement:
+              type: string
+            address:
+              type: string
+            uri:
+              type: string
+            nonce:
+              type: string
+            version:
+              type: string
+            chainId:
+              type: string
+            issuedAt:
+              type: string
+            expirationDate:
+              type: string
+            notBefore:
+              type: string
+            resources:
+              items:
+                type: string
+              type: array
+            assetOwnershipRequirements:
+              $ref: '#/components/schemas/AssetConditionGroup'
+          additionalProperties: false
           description: >-
-            Optional function to call before verification. This is useful to
-            verify the challenge is valid before proceeding with verification. Note
-            you can use expectedChallengeParams to verify values equal as expected.
-            This function is useful if you need to implement custom logic other than
-            strict equality). For example, assert that only one of assets A, B, or C
-            are defined and not all three.
-          type: string
+            Optionally define the expected details to check. If the challenge
+            was edited and the details
+
+            do not match, the challenge will fail verification.
+          type: object
         balancesSnapshot:
           description: >-
-            For verification of assets, instead of dynamically fetching the assets,
-            you can specify a snapshot of the assets. This is useful if you have a
-            snapshot, balances will not change, or you are verifying in an offline
-            manner.
+            For verification of assets, instead of dynamically fetching the
+            assets, you can specify a snapshot of the assets.
+
+
+            This is useful if you have a snapshot, balances will not change, or
+            you are verifying in an offline manner.
           type: object
         skipTimestampVerification:
           description: >-
-            If true, we do not check timestamps (expirationDate / notBefore). This
-            is useful if you are verifying a challenge that is expected to be
-            verified at a future time.
+            If true, we do not check timestamps (expirationDate / notBefore).
+            This is useful if you are verifying a challenge that is expected to
+            be verified at a future time.
           type: boolean
         skipAssetVerification:
           description: >-
             If true, we do not check asset ownership. This is useful if you are
-            verifying a challenge that is expected to be verified at a future time.
+            verifying a challenge that is expected to be verified at a future
+            time.
           type: boolean
         earliestIssuedAt:
           description: >-
-            The earliest issued At ISO date string that is valid. For example, if
-            you want to verify a challenge that was issued within the last minute,
-            you can specify this to be 1 minute ago.
+            The earliest issued At ISO date string that is valid. For example,
+            if you want to verify a challenge that was issued within the last
+            minute, you can specify this to be 1 minute ago.
           type: string
         issuedAtTimeWindowMs:
           description: >-
@@ -1584,12 +1735,8 @@ components:
             If true, we do not check the signature. You can pass in an undefined
             ChainDriver
           type: boolean
-      required:
-        - expectedChallengeParams
       additionalProperties: false
       type: object
-
-    # -------------------------------------------------------------COPIED FROM JS SCRIPT-------------------------------------------------------------
     Doc:
       properties:
         _docId:
@@ -1604,264 +1751,47 @@ components:
       description: |-
         Fields for the MongoDB database document
       type: object
-    iBitBadgesCollection:
+    ErrorResponse:
       properties:
-        _docId:
-          description: A unique stringified document ID
+        error:
+          description: >-
+            Serialized error object for debugging purposes. Technical users can
+            use this to debug issues.
+        errorMessage:
+          description: >-
+            UX-friendly error message that can be displayed to the user. Always
+            present if error.
           type: string
-        _id:
-          description: A uniuqe document ID (Mongo DB ObjectID)
-          type: string
-        collectionId:
-          description: The collection ID
-          $ref: '#components/schemas/NumberType'
-        collectionMetadataTimeline:
-          items:
-            $ref: '#/components/schemas/iCollectionMetadataTimeline'
-          description: The collection metadata timeline
-          type: array
-        badgeMetadataTimeline:
-          items:
-            $ref: '#/components/schemas/iBadgeMetadataTimeline'
-          description: The badge metadata timeline
-          type: array
-        balancesType:
-          enum:
-            - Standard
-            - Off-Chain - Indexed
-            - Inherited
-            - Off-Chain - Non-Indexed
-          description: >-
-            The type of balances (i.e. "Standard", "Off-Chain - Indexed",
-            "Inherited, "Off-Chain - Non-Indexed")
-          type: string
-        offChainBalancesMetadataTimeline:
-          items:
-            $ref: '#/components/schemas/iOffChainBalancesMetadataTimeline'
-          description: The off-chain balances metadata timeline
-          type: array
-        customDataTimeline:
-          items:
-            $ref: '#/components/schemas/iCustomDataTimeline'
-          description: The custom data timeline
-          type: array
-        managerTimeline:
-          items:
-            $ref: '#/components/schemas/iManagerTimeline'
-          description: The manager timeline
-          type: array
-        collectionPermissions:
-          $ref: '#/components/schemas/iCollectionPermissions'
-          description: The collection permissions
-        collectionApprovals:
-          items:
-            $ref: '#/components/schemas/iCollectionApproval'
-          description: The collection approved transfers timeline
-          type: array
-        standardsTimeline:
-          items:
-            $ref: '#/components/schemas/iStandardsTimeline'
-          description: The standards timeline
-          type: array
-        isArchivedTimeline:
-          items:
-            $ref: '#/components/schemas/iIsArchivedTimeline'
-          description: The is archived timeline
-          type: array
-        defaultBalances:
-          $ref: '#/components/schemas/iUserBalanceStore'
-          description: >-
-            The default balances for users who have not interacted with the
-            collection yet. Only used if collection has "Standard" balance type.
-        createdBy:
-          description: The cosmos address of the user who created this collection
-          type: string
-        createdBlock:
-          description: The block number when this collection was created
-          $ref: '#components/schemas/NumberType'
-        createdTimestamp:
-          description: >-
-            The timestamp when this collection was created (milliseconds since
-            epoch)
-          $ref: '#components/schemas/NumberType'
-        updateHistory:
-          items:
-            properties:
-              txHash:
-                type: string
-              block:
-                $ref: '#components/schemas/NumberType'
-              blockTimestamp:
-                $ref: '#components/schemas/NumberType'
-            required:
-              - txHash
-              - block
-              - blockTimestamp
-            additionalProperties: false
-            type: object
-          description: The update history of this collection
-          type: array
-        aliasAddress:
-          description: The alias cosmos address for the collection
-          type: string
-        cachedCollectionMetadata:
-          $ref: '#/components/schemas/iMetadata'
-          description: >-
-            The fetched collection metadata for this collection. Will only be
-            fetched if requested. It is your responsibility to join this data.
-        cachedBadgeMetadata:
-          items:
-            $ref: '#/components/schemas/iBadgeMetadataDetails'
-          description: >-
-            The fetched badge metadata for this collection. Will only be fetched
-            if requested. It is your responsibility to join this data.
-          type: array
-        activity:
-          items:
-            $ref: '#/components/schemas/iTransferActivityDoc'
-          description: >-
-            The fetched activity for this collection. Returned collections will
-            only fetch the current page. Use the pagination to fetch more. To be
-            used in conjunction with views.
-          type: array
-        reviews:
-          items:
-            $ref: '#/components/schemas/iReviewDoc'
-          description: >-
-            The fetched reviews for this collection. Returned collections will
-            only fetch the current page. Use the pagination to fetch more. To be
-            used in conjunction with views.
-          type: array
-        owners:
-          items:
-            $ref: '#/components/schemas/iBalanceDoc'
-          description: >-
-            The fetched owners of this collection. Returned collections will
-            only fetch the current page. Use the pagination to fetch more. To be
-            used in conjunction with views.
-          type: array
-        merkleChallenges:
-          items:
-            $ref: '#/components/schemas/iMerkleChallengeDoc'
-          description: >-
-            The fetched merkle challenges for this collection. Returned
-            collections will only fetch the current page. Use the pagination to
-            fetch more. To be used in conjunction with views.
-          type: array
-        approvalTrackers:
-          items:
-            $ref: '#/components/schemas/iApprovalTrackerDoc'
-          description: >-
-            The fetched approval trackers for this collection. Returned
-            collections will only fetch the current page. Use the pagination to
-            fetch more. To be used in conjunction with views.
-          type: array
-        nsfw:
-          properties:
-            badgeIds:
-              items:
-                $ref: '#/components/schemas/iUintRange'
-              type: array
-            reason:
-              type: string
-          required:
-            - badgeIds
-            - reason
-          additionalProperties: false
-          description: The badge IDs in this collection that are marked as NSFW.
-          type: object
-        reported:
-          properties:
-            badgeIds:
-              items:
-                $ref: '#/components/schemas/iUintRange'
-              type: array
-            reason:
-              type: string
-          required:
-            - badgeIds
-            - reason
-          additionalProperties: false
-          description: The badge IDs in this collection that have been reported.
-          type: object
-        views:
-          additionalProperties:
-            properties:
-              ids:
-                items:
-                  type: string
-                type: array
-              type:
-                type: string
-              pagination:
-                $ref: '#/components/schemas/PaginationInfo'
-            required:
-              - ids
-              - type
-              - pagination
-            additionalProperties: false
-            type: object
-          description: >-
-            The views for this collection and their pagination Doc. Views will
-            only include the doc _ids. Use the pagination to fetch more. To be
-            used in conjunction with activity, announcements, reviews, owners,
-            merkleChallenges, and approvalTrackers. For example, if you want to
-            fetch the activity for a view, you would use the view's pagination
-            to fetch the doc _ids, then use the corresponding activity array to
-            find the matching docs.
-          type: object
-        offChainClaims:
-          items:
-            properties:
-              claimId:
-                type: string
-              plugins:
-                items: {}
-                type: array
-              balancesToSet:
-                $ref: '#/components/schemas/iIncrementedBalances'
-              manualDistribution:
-                type: boolean
-            required:
-              - claimId
-              - plugins
-              - balancesToSet
-            additionalProperties: false
-            type: object
-          description: >-
-            Details about any off-chain claims for this collection. Only
-            applicable when outsourced to BitBadges.
-          type: array
+        unauthorized:
+          description: Authentication error. Present if the user is not authenticated.
+          type: boolean
       required:
-        - _docId
-        - collectionId
-        - collectionMetadataTimeline
-        - badgeMetadataTimeline
-        - balancesType
-        - offChainBalancesMetadataTimeline
-        - customDataTimeline
-        - managerTimeline
-        - collectionPermissions
-        - collectionApprovals
-        - standardsTimeline
-        - isArchivedTimeline
-        - defaultBalances
-        - createdBy
-        - createdBlock
-        - createdTimestamp
-        - updateHistory
-        - aliasAddress
-        - cachedBadgeMetadata
-        - activity
-        - reviews
-        - owners
-        - merkleChallenges
-        - approvalTrackers
-        - views
-        - offChainClaims
+        - errorMessage
+      additionalProperties: false
+      description: >-
+        If an error occurs, the response will be an ErrorResponse.
+
+
+        400 - Bad Request (e.g. invalid request body)
+
+        401 - Unauthorized (e.g. invalid session cookie; must sign in with
+        Blockin)
+
+        500 - Internal Server Error
+
+      type: object
+    PaginationInfo:
+      properties:
+        bookmark:
+          type: string
+        hasMore:
+          type: boolean
+      required:
+        - bookmark
+        - hasMore
       additionalProperties: false
       description: |-
-        Fields for the MongoDB database document
+        Type for pagination information.
       type: object
     iUpdateHistory:
       properties:
@@ -1871,10 +1801,13 @@ components:
           $ref: '#components/schemas/NumberType'
         blockTimestamp:
           $ref: '#components/schemas/NumberType'
+        timestamp:
+          $ref: '#components/schemas/NumberType'
       required:
         - txHash
         - block
         - blockTimestamp
+        - timestamp
       additionalProperties: false
       type: object
     ErrorDoc:
@@ -1891,6 +1824,68 @@ components:
         - _docId
         - error
         - function
+      additionalProperties: false
+      type: object
+    iSocialConnections:
+      properties:
+        discord:
+          properties:
+            username:
+              type: string
+            id:
+              type: string
+            discriminator:
+              type: string
+            lastUpdated:
+              $ref: '#components/schemas/NumberType'
+          required:
+            - username
+            - id
+            - lastUpdated
+          additionalProperties: false
+          type: object
+        twitter:
+          properties:
+            username:
+              type: string
+            id:
+              type: string
+            lastUpdated:
+              $ref: '#components/schemas/NumberType'
+          required:
+            - username
+            - id
+            - lastUpdated
+          additionalProperties: false
+          type: object
+        google:
+          properties:
+            username:
+              type: string
+            id:
+              type: string
+            lastUpdated:
+              $ref: '#components/schemas/NumberType'
+          required:
+            - username
+            - id
+            - lastUpdated
+          additionalProperties: false
+          type: object
+        github:
+          properties:
+            username:
+              type: string
+            id:
+              type: string
+            lastUpdated:
+              $ref: '#components/schemas/NumberType'
+          required:
+            - username
+            - id
+            - lastUpdated
+          additionalProperties: false
+          type: object
       additionalProperties: false
       type: object
     iNotificationPreferences:
@@ -2048,6 +2043,11 @@ components:
         onlyCheckPrioritizedApprovals:
           description: Whether or not to only check prioritized approvals.
           type: boolean
+        zkProofSolutions:
+          items:
+            $ref: '#/components/schemas/iZkProofSolution'
+          description: The ZK proofs for the transfer.
+          type: array
         initiatedBy:
           description: The cosmos address of the user who initiated the activity.
           type: string
@@ -2130,6 +2130,9 @@ components:
             Whether or not the notifications have been handled by the indexer or
             not.
           type: boolean
+        from:
+          description: The sender
+          type: string
         code:
           description: The code of the claim alert.
           type: string
@@ -2148,6 +2151,7 @@ components:
         - _docId
         - timestamp
         - block
+        - from
         - cosmosAddresses
         - collectionId
       additionalProperties: false
@@ -2179,11 +2183,11 @@ components:
           enum:
             - Standard
             - Off-Chain - Indexed
-            - Inherited
+            - Non-Public
             - Off-Chain - Non-Indexed
           description: >-
             The type of balances (i.e. "Standard", "Off-Chain - Indexed",
-            "Inherited, "Off-Chain - Non-Indexed")
+            "Non-Public, "Off-Chain - Non-Indexed")
           type: string
         offChainBalancesMetadataTimeline:
           items:
@@ -2200,9 +2204,6 @@ components:
             $ref: '#/components/schemas/iManagerTimeline'
           description: The manager timeline
           type: array
-        collectionPermissions:
-          $ref: '#/components/schemas/iCollectionPermissions'
-          description: The collection permissions
         collectionApprovals:
           items:
             $ref: '#/components/schemas/iCollectionApproval'
@@ -2218,11 +2219,6 @@ components:
             $ref: '#/components/schemas/iIsArchivedTimeline'
           description: The is archived timeline
           type: array
-        defaultBalances:
-          $ref: '#/components/schemas/iUserBalanceStore'
-          description: >-
-            The default balances for users who have not interacted with the
-            collection yet. Only used if collection has "Standard" balance type.
         createdBy:
           description: The cosmos address of the user who created this collection
           type: string
@@ -2236,19 +2232,7 @@ components:
           $ref: '#components/schemas/NumberType'
         updateHistory:
           items:
-            properties:
-              txHash:
-                type: string
-              block:
-                $ref: '#components/schemas/NumberType'
-              blockTimestamp:
-                $ref: '#components/schemas/NumberType'
-            required:
-              - txHash
-              - block
-              - blockTimestamp
-            additionalProperties: false
-            type: object
+            $ref: '#/components/schemas/iUpdateHistory'
           description: The update history of this collection
           type: array
         aliasAddress:
@@ -2263,11 +2247,9 @@ components:
         - offChainBalancesMetadataTimeline
         - customDataTimeline
         - managerTimeline
-        - collectionPermissions
         - collectionApprovals
         - standardsTimeline
         - isArchivedTimeline
-        - defaultBalances
         - createdBy
         - createdBlock
         - createdTimestamp
@@ -2279,6 +2261,12 @@ components:
       type: object
     iAccountDoc:
       properties:
+        _docId:
+          description: A unique stringified document ID
+          type: string
+        _id:
+          description: A uniuqe document ID (Mongo DB ObjectID)
+          type: string
         publicKey:
           description: The public key of the account
           type: string
@@ -2288,8 +2276,14 @@ components:
         pubKeyType:
           description: The public key type of the account
           type: string
+        cosmosAddress:
+          description: The Cosmos address of the account
+          type: string
         ethAddress:
           description: The Eth address of the account
+          type: string
+        solAddress:
+          description: The Solana address of the account
           type: string
         btcAddress:
           description: The Bitcoin address of the account
@@ -2301,17 +2295,20 @@ components:
           $ref: '#/components/schemas/iCosmosCoin'
           description: The balance of the account
       required:
+        - _docId
         - publicKey
         - accountNumber
         - pubKeyType
+        - cosmosAddress
         - ethAddress
+        - solAddress
         - btcAddress
       additionalProperties: false
+      description: |-
+        Fields for the MongoDB database document
       type: object
     iCustomLink:
       properties:
-        title:
-          type: string
         url:
           type: string
         image:
@@ -2326,8 +2323,6 @@ components:
       type: object
     iCustomPage:
       properties:
-        title:
-          type: string
         description:
           type: string
         items:
@@ -2342,8 +2337,6 @@ components:
       type: object
     iCustomListPage:
       properties:
-        title:
-          type: string
         description:
           type: string
         items:
@@ -2450,6 +2443,7 @@ components:
           description: The username of the account
           type: string
         latestSignedInChain:
+          $ref: '#/components/schemas/SupportedChain'
           description: The latest chain the user signed in with
         solAddress:
           description: >-
@@ -2459,6 +2453,9 @@ components:
         notifications:
           $ref: '#/components/schemas/iNotificationPreferences'
           description: The notifications of the account
+        socialConnections:
+          $ref: '#/components/schemas/iSocialConnections'
+          description: Social connections stored for the account
         approvedSignInMethods:
           properties:
             discord:
@@ -2595,12 +2592,12 @@ components:
           type: number
         lastXGasAmounts:
           items:
-            $ref: '#/components/schemas/NumberType'
+            $ref: '#components/schemas/NumberType'
           description: The last X gas prices
           type: array
         lastXGasLimits:
           items:
-            $ref: '#/components/schemas/NumberType'
+            $ref: '#components/schemas/NumberType'
           description: The last X gas limits
           type: array
       required:
@@ -2665,19 +2662,7 @@ components:
           type: string
         updateHistory:
           items:
-            properties:
-              txHash:
-                type: string
-              block:
-                $ref: '#components/schemas/NumberType'
-              blockTimestamp:
-                $ref: '#components/schemas/NumberType'
-            required:
-              - txHash
-              - block
-              - blockTimestamp
-            additionalProperties: false
-            type: object
+            $ref: '#/components/schemas/iUpdateHistory'
           description: The update history of this list
           type: array
         createdBlock:
@@ -2795,19 +2780,7 @@ components:
           type: string
         updateHistory:
           items:
-            properties:
-              txHash:
-                type: string
-              block:
-                $ref: '#components/schemas/NumberType'
-              blockTimestamp:
-                $ref: '#components/schemas/NumberType'
-            required:
-              - txHash
-              - block
-              - blockTimestamp
-            additionalProperties: false
-            type: object
+            $ref: '#/components/schemas/iUpdateHistory'
           description: The update history of this balance
           type: array
       required:
@@ -2839,84 +2812,18 @@ components:
       enum:
         - password
         - numUses
-        - greaterThanXBADGEBalance
         - discord
         - codes
+        - github
+        - google
         - twitter
         - transferTimes
         - requiresProofOfAddress
         - whitelist
         - mustOwnBadges
         - api
+        - email
       type: string
-    JsonBodyInputWithValue:
-      properties:
-        key:
-          type: string
-        label:
-          type: string
-        type:
-          enum:
-            - date
-            - url
-          type: string
-        value:
-          anyOf:
-            - type: string
-            - type: number
-            - type: boolean
-      required:
-        - key
-        - label
-        - value
-      additionalProperties: false
-      type: object
-    JsonBodyInputSchema:
-      properties:
-        key:
-          type: string
-        label:
-          type: string
-        type:
-          enum:
-            - date
-            - url
-            - string
-            - number
-            - boolean
-          type: string
-        helper:
-          type: string
-      required:
-        - key
-        - label
-        - type
-      additionalProperties: false
-      type: object
-    ClaimApiCallInfo:
-      properties:
-        uri:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        passDiscord:
-          type: boolean
-        passTwitter:
-          type: boolean
-        bodyParams:
-          type: object
-        userInputsSchema:
-          items:
-            $ref: '#/components/schemas/JsonBodyInputSchema'
-          type: array
-      required:
-        - uri
-        - name
-        - userInputsSchema
-      additionalProperties: false
-      type: object
     iClaimBuilderDoc:
       properties:
         _docId:
@@ -2983,8 +2890,11 @@ components:
         collectionId:
           description: The collection ID for the approval.
           $ref: '#components/schemas/NumberType'
+        approvalId:
+          description: The approval ID
+          type: string
         amountTrackerId:
-          description: The approval ID of the approval.
+          description: The amount tracker ID of the approval.
           type: string
         approvalLevel:
           description: >-
@@ -3018,6 +2928,7 @@ components:
           type: array
       required:
         - collectionId
+        - approvalId
         - amountTrackerId
         - approvalLevel
         - approverAddress
@@ -3035,7 +2946,10 @@ components:
         collectionId:
           description: The collection ID
           $ref: '#components/schemas/NumberType'
-        challengeId:
+        approvalId:
+          description: The approval ID
+          type: string
+        challengeTrackerId:
           description: The challenge ID
           type: string
         challengeLevel:
@@ -3051,7 +2965,8 @@ components:
           type: string
       required:
         - collectionId
-        - challengeId
+        - approvalId
+        - challengeTrackerId
         - challengeLevel
         - approverAddress
       additionalProperties: false
@@ -3067,8 +2982,11 @@ components:
         collectionId:
           description: The collection ID
           $ref: '#components/schemas/NumberType'
-        challengeId:
+        challengeTrackerId:
           description: The challenge ID
+          type: string
+        approvalId:
+          description: The approval ID
           type: string
         challengeLevel:
           enum:
@@ -3083,7 +3001,7 @@ components:
           type: string
         usedLeafIndices:
           items:
-            $ref: '#/components/schemas/NumberType'
+            $ref: '#components/schemas/NumberType'
           description: >-
             The used leaf indices for each challenge. A leaf index is the leaf
             location in the bottommost layer of the Merkle tree
@@ -3091,7 +3009,8 @@ components:
       required:
         - _docId
         - collectionId
-        - challengeId
+        - challengeTrackerId
+        - approvalId
         - challengeLevel
         - approverAddress
         - usedLeafIndices
@@ -3099,12 +3018,12 @@ components:
       description: |-
         Fields for the MongoDB database document
       type: object
-    iMerkleChallengeIdDetails:
+    iMerklechallengeTrackerIdDetails:
       properties:
         collectionId:
           description: The collection ID
           $ref: '#components/schemas/NumberType'
-        challengeId:
+        challengeTrackerId:
           description: The challenge ID
           type: string
         challengeLevel:
@@ -3120,14 +3039,14 @@ components:
           type: string
         usedLeafIndices:
           items:
-            $ref: '#/components/schemas/NumberType'
+            $ref: '#components/schemas/NumberType'
           description: >-
             The used leaf indices for each challenge. A leaf index is the leaf
             location in the bottommost layer of the Merkle tree
           type: array
       required:
         - collectionId
-        - challengeId
+        - challengeTrackerId
         - challengeLevel
         - approverAddress
         - usedLeafIndices
@@ -3146,6 +3065,7 @@ components:
             - $ref: '#/components/schemas/iMetadata'
             - $ref: '#/components/schemas/iApprovalInfoDetails'
             - $ref: '#/components/schemas/iOffChainBalancesMap'
+            - $ref: '#/components/schemas/iChallengeDetails'
           description: >-
             The content of the fetch document. Note that we store balances in
             BALANCES_DB and not here to avoid double storage.
@@ -3160,6 +3080,7 @@ components:
             - ApprovalInfo
             - Metadata
             - Balances
+            - ChallengeInfo
           description: The type of content fetched. This is used for querying purposes
           type: string
         isPermanent:
@@ -3352,6 +3273,8 @@ components:
           type: string
         signature:
           type: string
+        publicKey:
+          type: string
         name:
           type: string
         description:
@@ -3361,7 +3284,11 @@ components:
         cosmosAddress:
           type: string
         params:
-          $ref: '#components/schemas/BlockinChallengeParams'
+          $ref: '#/components/schemas/ChallengeParams'
+        secretsProofs:
+          items:
+            $ref: '#/components/schemas/iSecretsProof'
+          type: array
         createdAt:
           $ref: '#components/schemas/NumberType'
         deletedAt:
@@ -3374,7 +3301,109 @@ components:
         - image
         - cosmosAddress
         - params
+        - secretsProofs
         - createdAt
+      additionalProperties: false
+      description: |-
+        Fields for the MongoDB database document
+      type: object
+    iSecretDoc:
+      properties:
+        _docId:
+          description: A unique stringified document ID
+          type: string
+        _id:
+          description: A uniuqe document ID (Mongo DB ObjectID)
+          type: string
+        createdBy:
+          type: string
+        messageFormat:
+          enum:
+            - plaintext
+            - json
+          type: string
+        proofOfIssuance:
+          properties:
+            message:
+              type: string
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - message
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        secretId:
+          type: string
+        type:
+          type: string
+        scheme:
+          enum:
+            - bbs
+            - standard
+          type: string
+        secretMessages:
+          items:
+            type: string
+          type: array
+        dataIntegrityProof:
+          properties:
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        name:
+          type: string
+        image:
+          type: string
+        description:
+          type: string
+        viewers:
+          items:
+            type: string
+          type: array
+        anchors:
+          items:
+            properties:
+              txHash:
+                type: string
+              message:
+                type: string
+            additionalProperties: false
+            type: object
+          type: array
+        updateHistory:
+          items:
+            $ref: '#/components/schemas/iUpdateHistory'
+          type: array
+      required:
+        - _docId
+        - createdBy
+        - messageFormat
+        - proofOfIssuance
+        - secretId
+        - type
+        - scheme
+        - secretMessages
+        - dataIntegrityProof
+        - name
+        - image
+        - description
+        - viewers
+        - anchors
+        - updateHistory
       additionalProperties: false
       description: |-
         Fields for the MongoDB database document
@@ -3421,41 +3450,7 @@ components:
       description: |-
         Fields for the MongoDB database document
       type: object
-    iProtocolDoc:
-      properties:
-        name:
-          description: The name of the protocol.
-          type: string
-        uri:
-          description: The URI of the protocol.
-          type: string
-        customData:
-          description: The custom data of the protocol.
-          type: string
-        createdBy:
-          description: The cosmos address of the user who created the protocol.
-          type: string
-        isFrozen:
-          description: Whether the protocol is frozen or not.
-          type: boolean
-        _docId:
-          description: A unique stringified document ID
-          type: string
-        _id:
-          description: A uniuqe document ID (Mongo DB ObjectID)
-          type: string
-      required:
-        - name
-        - uri
-        - customData
-        - createdBy
-        - isFrozen
-        - _docId
-      additionalProperties: false
-      description: |-
-        Fields for the MongoDB database document
-      type: object
-    iUserProtocolCollectionsDoc:
+    iMapDoc:
       properties:
         _docId:
           description: A unique stringified document ID
@@ -3463,13 +3458,51 @@ components:
         _id:
           description: A uniuqe document ID (Mongo DB ObjectID)
           type: string
-        protocols:
+        creator:
+          type: string
+        mapId:
+          type: string
+        inheritManagerTimelineFrom:
+          $ref: '#components/schemas/NumberType'
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          type: array
+        updateCriteria:
+          $ref: '#/components/schemas/iMapUpdateCriteria'
+        valueOptions:
+          $ref: '#/components/schemas/iValueOptions'
+        defaultValue:
+          type: string
+        permissions:
+          $ref: '#/components/schemas/iMapPermissions'
+        metadataTimeline:
+          items:
+            $ref: '#/components/schemas/iMapMetadataTimeline'
+          type: array
+        values:
           additionalProperties:
-            $ref: '#/components/schemas/NumberType'
+            $ref: '#/components/schemas/iValueStore'
           type: object
+        metadata:
+          $ref: '#/components/schemas/iMetadata'
+        updateHistory:
+          items:
+            $ref: '#/components/schemas/iUpdateHistory'
+          type: array
       required:
         - _docId
-        - protocols
+        - creator
+        - mapId
+        - inheritManagerTimelineFrom
+        - managerTimeline
+        - updateCriteria
+        - valueOptions
+        - defaultValue
+        - permissions
+        - metadataTimeline
+        - values
+        - updateHistory
       additionalProperties: false
       description: |-
         Fields for the MongoDB database document
@@ -3630,19 +3663,7 @@ components:
           type: string
         updateHistory:
           items:
-            properties:
-              txHash:
-                type: string
-              block:
-                $ref: '#components/schemas/NumberType'
-              blockTimestamp:
-                $ref: '#components/schemas/NumberType'
-            required:
-              - txHash
-              - block
-              - blockTimestamp
-            additionalProperties: false
-            type: object
+            $ref: '#/components/schemas/iUpdateHistory'
           description: The update history of this list
           type: array
         createdBlock:
@@ -3704,7 +3725,7 @@ components:
             type: object
           description: The views of the address list.
           type: object
-        editClaims:
+        claims:
           items:
             properties:
               claimId:
@@ -3730,7 +3751,7 @@ components:
         - lastUpdated
         - listsActivity
         - views
-        - editClaims
+        - claims
       additionalProperties: false
       description: |-
         Fields for the MongoDB database document
@@ -3793,7 +3814,7 @@ components:
               - properties:
                   private:
                     type: boolean
-                  editClaims:
+                  claims:
                     items:
                       properties:
                         claimId:
@@ -3810,7 +3831,7 @@ components:
                   viewableWithLink:
                     type: boolean
                 required:
-                  - editClaims
+                  - claims
                 additionalProperties: false
                 type: object
           description: |-
@@ -3823,6 +3844,47 @@ components:
       additionalProperties: false
       type: object
     iUpdateAddressListsRouteSuccessResponse:
+      additionalProperties: false
+      type: object
+    CreateAddressListsRouteRequestBody:
+      properties:
+        addressLists:
+          items:
+            allOf:
+              - $ref: '#/components/schemas/iAddressList'
+              - properties:
+                  private:
+                    type: boolean
+                  claims:
+                    items:
+                      properties:
+                        claimId:
+                          type: string
+                        plugins:
+                          items: {}
+                          type: array
+                      required:
+                        - claimId
+                        - plugins
+                      additionalProperties: false
+                      type: object
+                    type: array
+                  viewableWithLink:
+                    type: boolean
+                required:
+                  - claims
+                additionalProperties: false
+                type: object
+          description: |-
+            New address lists to update.
+            Requester must be creator of the lists.
+            Only applicable to off-chain balances.
+          type: array
+      required:
+        - addressLists
+      additionalProperties: false
+      type: object
+    iCreateAddressListsRouteSuccessResponse:
       additionalProperties: false
       type: object
     DeleteAddressListsRouteRequestBody:
@@ -3906,6 +3968,30 @@ components:
           additionalProperties: false
           description: The custom pages of the account
           type: object
+        publicKey:
+          description: The public key of the account
+          type: string
+        accountNumber:
+          description: The account number of the account
+          $ref: '#components/schemas/NumberType'
+        pubKeyType:
+          description: The public key type of the account
+          type: string
+        cosmosAddress:
+          description: The Cosmos address of the account
+          type: string
+        ethAddress:
+          description: The Eth address of the account
+          type: string
+        btcAddress:
+          description: The Bitcoin address of the account
+          type: string
+        sequence:
+          description: The sequence of the account
+          $ref: '#components/schemas/NumberType'
+        balance:
+          $ref: '#/components/schemas/iCosmosCoin'
+          description: The balance of the account
         watchlists:
           properties:
             badges:
@@ -3929,15 +4015,14 @@ components:
           description: The username of the account
           type: string
         latestSignedInChain:
+          $ref: '#/components/schemas/SupportedChain'
           description: The latest chain the user signed in with
-        solAddress:
-          description: >-
-            The Solana address of the profile, if applicable (bc we need it to
-            convert)
-          type: string
         notifications:
           $ref: '#/components/schemas/iNotificationPreferences'
           description: The notifications of the account
+        socialConnections:
+          $ref: '#/components/schemas/iSocialConnections'
+          description: Social connections stored for the account
         approvedSignInMethods:
           properties:
             discord:
@@ -3956,34 +4041,17 @@ components:
           additionalProperties: false
           description: Approved ways to sign in (rather than Blockin)
           type: object
-        publicKey:
-          description: The public key of the account
-          type: string
-        accountNumber:
-          description: The account number of the account
-          $ref: '#components/schemas/NumberType'
-        pubKeyType:
-          description: The public key type of the account
-          type: string
-        ethAddress:
-          description: The Eth address of the account
-          type: string
-        btcAddress:
-          description: The Bitcoin address of the account
-          type: string
-        sequence:
-          description: The sequence of the account
-          $ref: '#components/schemas/NumberType'
-        balance:
-          $ref: '#/components/schemas/iCosmosCoin'
-          description: The balance of the account
         resolvedName:
           description: The resolved name of the account (e.g. ENS name).
           type: string
         avatar:
           description: The avatar of the account.
           type: string
+        solAddress:
+          description: The Solana address of the account.
+          type: string
         chain:
+          $ref: '#/components/schemas/SupportedChain'
           description: The chain of the account.
         airdropped:
           description: Indicates whether the account has claimed their airdrop.
@@ -4052,6 +4120,18 @@ components:
             A list of auth codes for the account. Paginated and fetched as
             needed. To be used in conjunction with views.
           type: array
+        secrets:
+          items:
+            $ref: '#/components/schemas/iSecretDoc'
+          description: >-
+            A list of user secrets for the account. Paginated and fetched as
+            needed. To be used in conjunction with views.
+          type: array
+        reservedMap:
+          $ref: '#/components/schemas/iMapDoc'
+          description: >-
+            The reserved map for the account. This is created and managed
+            on-chain through the x/maps module.
         address:
           description: The native address of the account
           type: string
@@ -4105,8 +4185,10 @@ components:
         - publicKey
         - accountNumber
         - pubKeyType
+        - cosmosAddress
         - ethAddress
         - btcAddress
+        - solAddress
         - chain
         - collected
         - activity
@@ -4117,17 +4199,12 @@ components:
         - addressLists
         - claimAlerts
         - authCodes
+        - secrets
         - address
         - views
       additionalProperties: false
       description: |-
         Fields for the MongoDB database document
-      type: object
-    AccountMap:
-      additionalProperties:
-        $ref: '#/components/schemas/iBitBadgesUserInfo'
-      description: |-
-        AccountMap is used to store the user information by address.
       type: object
     AccountViewKey:
       enum:
@@ -4144,6 +4221,8 @@ components:
         - createdBadges
         - managingBadges
         - listsActivity
+        - createdSecrets
+        - receivedSecrets
       description: |-
         The supported view keys for fetching account details.
       type: string
@@ -4389,19 +4468,6 @@ components:
         - pagination
       additionalProperties: false
       type: object
-    PaginationInfo:
-      properties:
-        bookmark:
-          type: string
-        hasMore:
-          type: boolean
-      required:
-        - bookmark
-        - hasMore
-      additionalProperties: false
-      description: |-
-        Type for pagination information.
-      type: object
     GetOwnersForBadgeRouteRequestBody:
       properties:
         bookmark:
@@ -4498,19 +4564,7 @@ components:
           type: string
         updateHistory:
           items:
-            properties:
-              txHash:
-                type: string
-              block:
-                $ref: '#components/schemas/NumberType'
-              blockTimestamp:
-                $ref: '#components/schemas/NumberType'
-            required:
-              - txHash
-              - block
-              - blockTimestamp
-            additionalProperties: false
-            type: object
+            $ref: '#/components/schemas/iUpdateHistory'
           description: The update history of this balance
           type: array
       required:
@@ -4868,6 +4922,7 @@ components:
         - `approvalTrackers` - Fetches the approvals trackers for the collection
         in random order.
 
+
       type: object
     iGetCollectionByIdRouteSuccessResponse:
       properties:
@@ -4905,70 +4960,8 @@ components:
         - refreshDoc
       additionalProperties: false
       type: object
-    GetProtocolsRouteRequestBody:
-      properties:
-        names:
-          items:
-            type: string
-          type: array
-      required:
-        - names
-      additionalProperties: false
-      type: object
-    iGetProtocolsRouteSuccessResponse:
-      properties:
-        protocols:
-          items:
-            $ref: '#/components/schemas/iProtocol'
-          type: array
-      required:
-        - protocols
-      additionalProperties: false
-      type: object
-    iProtocol:
-      properties:
-        name:
-          description: The name of the protocol.
-          type: string
-        uri:
-          description: The URI of the protocol.
-          type: string
-        customData:
-          description: The custom data of the protocol.
-          type: string
-        createdBy:
-          description: The cosmos address of the user who created the protocol.
-          type: string
-        isFrozen:
-          description: Whether the protocol is frozen or not.
-          type: boolean
-      required:
-        - name
-        - uri
-        - customData
-        - createdBy
-        - isFrozen
-      additionalProperties: false
-      type: object
-    GetCollectionForProtocolRouteRequestBody:
-      properties:
-        name:
-          type: string
-        address:
-          type: string
-      required:
-        - name
-        - address
-      additionalProperties: false
-      type: object
-    iGetCollectionForProtocolRouteSuccessResponse:
-      properties:
-        collectionId:
-          $ref: '#components/schemas/NumberType'
-      required:
-        - collectionId
-      additionalProperties: false
-      type: object
+    BlockinAssetConditionGroup:
+      $ref: '#/components/schemas/OwnershipRequirements'
     GetStatusRouteRequestBody:
       additionalProperties: false
       type: object
@@ -5265,6 +5258,8 @@ components:
           additionalProperties: false
           description: Approved sign in methods
           type: object
+        socialConntections:
+          $ref: '#/components/schemas/iSocialConnections'
       additionalProperties: false
       type: object
     iUpdateAccountInfoRouteSuccessResponse:
@@ -5275,7 +5270,7 @@ components:
         balances:
           $ref: '#/components/schemas/iOffChainBalancesMap'
           description: A map of Cosmos addresses or list IDs -> Balance[].
-        offChainClaims:
+        claims:
           items:
             properties:
               claimId:
@@ -5375,7 +5370,7 @@ components:
         challengeDetails:
           $ref: '#/components/schemas/iChallengeDetails'
           description: The challenge details.
-        offChainClaims:
+        claims:
           items:
             properties:
               plugins:
@@ -5408,6 +5403,14 @@ components:
           additionalProperties: false
           description: The result with CID for IPFS.
           type: object
+        challengeResult:
+          properties:
+            cid:
+              type: string
+          required:
+            - cid
+          additionalProperties: false
+          type: object
       required:
         - result
       additionalProperties: false
@@ -5415,6 +5418,7 @@ components:
     GetSignInChallengeRouteRequestBody:
       properties:
         chain:
+          $ref: '#/components/schemas/SupportedChain'
           description: The blockchain to be signed in with.
         address:
           description: The user's blockchain address (their native L1 address).
@@ -5433,8 +5437,8 @@ components:
           description: The nonce for the challenge.
           type: string
         params:
+          $ref: '#/components/schemas/ChallengeParams'
           description: The challenge parameters.
-          $ref: '#/components/schemas/BlockinChallengeParams'
         message:
           description: The Blockin challenge message to sign.
           type: string
@@ -5444,7 +5448,6 @@ components:
         - message
       additionalProperties: false
       type: object
-
     VerifySignInRouteRequestBody:
       properties:
         message:
@@ -5512,7 +5515,6 @@ components:
             - id
             - username
           additionalProperties: false
-          description: Signed in with Github?
           type: object
         google:
           properties:
@@ -5524,7 +5526,6 @@ components:
             - id
             - username
           additionalProperties: false
-          description: Signed in with Google?
           type: object
       required:
         - signedIn
@@ -5607,8 +5608,7 @@ components:
       additionalProperties: false
       type: object
     BroadcastTxRouteRequestBody:
-      type: object
-      additionalProperties: false
+      $ref: '#/components/schemas/BroadcastPostBody'
     iBroadcastTxRouteSuccessResponse:
       properties:
         tx_response:
@@ -5722,9 +5722,7 @@ components:
       additionalProperties: false
       type: object
     SimulateTxRouteRequestBody:
-      type: object
-      additionalProperties: false
-
+      $ref: '#/components/schemas/BroadcastPostBody'
     iSimulateTxRouteSuccessResponse:
       properties:
         gas_info:
@@ -5808,8 +5806,6 @@ components:
       additionalProperties: false
       type: object
     iGetTokensFromFaucetRouteSuccessResponse:
-      additionalProperties: false
-      type: object
     SendClaimAlertsRouteRequestBody:
       properties:
         claimAlerts:
@@ -5819,11 +5815,13 @@ components:
                 $ref: '#components/schemas/NumberType'
               message:
                 type: string
-              recipientAddress:
-                type: string
+              cosmosAddresses:
+                items:
+                  type: string
+                type: array
             required:
               - collectionId
-              - recipientAddress
+              - cosmosAddresses
             additionalProperties: false
             type: object
           type: array
@@ -5856,6 +5854,13 @@ components:
         - pub_key
         - address
       additionalProperties: false
+      description: >-
+        information returned by the REST API getAccount route.
+
+
+        Note this should be converted into AccountDoc or BitBadgesUserInfo
+        before being returned by the BitBadges API for consistency.
+
       type: object
     GenericBlockinVerifyRouteRequestBody:
       properties:
@@ -5869,6 +5874,7 @@ components:
           description: Required for some chains. The public key of the signer.
           type: string
         options:
+          $ref: '#/components/schemas/VerifyChallengeOptions'
           description: Additional options for verifying the challenge.
       required:
         - message
@@ -5877,8 +5883,287 @@ components:
       description: >-
         Generic route to verify any Blockin request. Does not sign you in with
         the API. Used for custom Blockin integrations.
+
+
       type: object
     iGenericBlockinVerifyRouteSuccessResponse:
+      additionalProperties: false
+      type: object
+    CreateSecretRouteRequestBody:
+      properties:
+        proofOfIssuance:
+          properties:
+            message:
+              type: string
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - message
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        messageFormat:
+          enum:
+            - plaintext
+            - json
+          type: string
+        scheme:
+          enum:
+            - bbs
+            - standard
+          type: string
+        type:
+          type: string
+        secretMessages:
+          items:
+            type: string
+          type: array
+        dataIntegrityProof:
+          properties:
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        name:
+          type: string
+        image:
+          type: string
+        description:
+          type: string
+      required:
+        - proofOfIssuance
+        - messageFormat
+        - scheme
+        - type
+        - secretMessages
+        - dataIntegrityProof
+        - name
+        - image
+        - description
+      additionalProperties: false
+      type: object
+    iCreateSecretRouteSuccessResponse:
+      properties:
+        secretId:
+          type: string
+      required:
+        - secretId
+      additionalProperties: false
+      type: object
+    GetSecretRouteRequestBody:
+      properties:
+        secretId:
+          type: string
+      required:
+        - secretId
+      additionalProperties: false
+      type: object
+    iGetSecretRouteSuccessResponse:
+      properties:
+        _docId:
+          description: A unique stringified document ID
+          type: string
+        _id:
+          description: A uniuqe document ID (Mongo DB ObjectID)
+          type: string
+        createdBy:
+          type: string
+        messageFormat:
+          enum:
+            - plaintext
+            - json
+          type: string
+        proofOfIssuance:
+          properties:
+            message:
+              type: string
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - message
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        secretId:
+          type: string
+        type:
+          type: string
+        scheme:
+          enum:
+            - bbs
+            - standard
+          type: string
+        secretMessages:
+          items:
+            type: string
+          type: array
+        dataIntegrityProof:
+          properties:
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        name:
+          type: string
+        image:
+          type: string
+        description:
+          type: string
+        viewers:
+          items:
+            type: string
+          type: array
+        anchors:
+          items:
+            properties:
+              txHash:
+                type: string
+              message:
+                type: string
+            additionalProperties: false
+            type: object
+          type: array
+        updateHistory:
+          items:
+            $ref: '#/components/schemas/iUpdateHistory'
+          type: array
+      required:
+        - _docId
+        - createdBy
+        - messageFormat
+        - proofOfIssuance
+        - secretId
+        - type
+        - scheme
+        - secretMessages
+        - dataIntegrityProof
+        - name
+        - image
+        - description
+        - viewers
+        - anchors
+        - updateHistory
+      additionalProperties: false
+      description: |-
+        Fields for the MongoDB database document
+      type: object
+    DeleteSecretRouteRequestBody:
+      properties:
+        secretId:
+          type: string
+      required:
+        - secretId
+      additionalProperties: false
+      type: object
+    iDeleteSecretRouteSuccessResponse:
+      additionalProperties: false
+      type: object
+    UpdateSecretRouteRequestBody:
+      properties:
+        secretId:
+          type: string
+        viewersToSet:
+          items:
+            properties:
+              cosmosAddress:
+                type: string
+              delete:
+                type: boolean
+            required:
+              - cosmosAddress
+            additionalProperties: false
+            type: object
+          type: array
+        anchorsToAdd:
+          items:
+            properties:
+              txHash:
+                type: string
+              message:
+                type: string
+            additionalProperties: false
+            type: object
+          type: array
+        proofOfIssuance:
+          properties:
+            message:
+              type: string
+            signer:
+              type: string
+            signature:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - message
+            - signer
+            - signature
+          additionalProperties: false
+          type: object
+        scheme:
+          enum:
+            - bbs
+            - standard
+          type: string
+        messageFormat:
+          enum:
+            - plaintext
+            - json
+          type: string
+        type:
+          type: string
+        secretMessages:
+          items:
+            type: string
+          type: array
+        dataIntegrityProof:
+          properties:
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        name:
+          type: string
+        image:
+          type: string
+        description:
+          type: string
+      required:
+        - secretId
+      additionalProperties: false
+      type: object
+    iUpdateSecretRouteSuccessResponse:
       additionalProperties: false
       type: object
     CreateBlockinAuthCodeRouteRequestBody:
@@ -5895,6 +6180,10 @@ components:
           type: string
         publicKey:
           type: string
+        secretsProofs:
+          items:
+            $ref: '#/components/schemas/iSecretsProof'
+          type: array
       required:
         - name
         - description
@@ -5904,16 +6193,22 @@ components:
       additionalProperties: false
       type: object
     iCreateBlockinAuthCodeRouteSuccessResponse:
+      properties:
+        id:
+          description: Secret ID only to be given to queriers
+          type: string
+      required:
+        - id
       additionalProperties: false
       type: object
     GetBlockinAuthCodeRouteRequestBody:
       properties:
-        signature:
+        id:
           type: string
         options:
           $ref: '#/components/schemas/VerifyChallengeOptions'
       required:
-        - signature
+        - id
       additionalProperties: false
       type: object
     iGetBlockinAuthCodeRouteSuccessResponse:
@@ -5921,9 +6216,20 @@ components:
         message:
           description: The corresponding message that was signed to obtain the signature.
           type: string
+        signature:
+          description: The signature of the message.
+          type: string
         params:
+          $ref: '#/components/schemas/ChallengeParams'
           description: The converted Blockin params fort the message
-          $ref: '#/components/schemas/BlockinChallengeParams'
+        cosmosAddress:
+          description: >-
+            The converted Cosmos address of params.address. This can be used as
+            the
+
+            unique identifier for the user (e.g. avoid duplicate sign ins from
+            equivalent 0x and cosmos1 addresses).
+          type: string
         verificationResponse:
           properties:
             success:
@@ -5939,18 +6245,26 @@ components:
           additionalProperties: false
           description: Verification response
           type: object
+        secretsProofs:
+          items:
+            $ref: '#/components/schemas/iSecretsProof'
+          description: Derived data integrity proofs for any secrets requested.
+          type: array
       required:
         - message
+        - signature
         - params
+        - cosmosAddress
         - verificationResponse
+        - secretsProofs
       additionalProperties: false
       type: object
     DeleteBlockinAuthCodeRouteRequestBody:
       properties:
-        signature:
+        id:
           type: string
       required:
-        - signature
+        - id
       additionalProperties: false
       type: object
     iDeleteBlockinAuthCodeRouteSuccessResponse:
@@ -6008,11 +6322,364 @@ components:
         - pagination
       additionalProperties: false
       type: object
+    GetExternalCallRouteRequestBody:
+      properties:
+        uri:
+          type: string
+        key:
+          type: string
+      required:
+        - uri
+        - key
+      additionalProperties: false
+      type: object
+    iGetExternalCallRouteSuccessResponse:
+      properties:
+        key:
+          type: string
+        timestamp:
+          type: number
+      required:
+        - key
+        - timestamp
+      additionalProperties: false
+      type: object
+    GetMapsRouteRequestBody:
+      properties:
+        mapIds:
+          items:
+            type: string
+          type: array
+      required:
+        - mapIds
+      additionalProperties: false
+      type: object
+    iMapWithValues:
+      properties:
+        creator:
+          type: string
+        mapId:
+          type: string
+        inheritManagerTimelineFrom:
+          $ref: '#components/schemas/NumberType'
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          type: array
+        updateCriteria:
+          $ref: '#/components/schemas/iMapUpdateCriteria'
+        valueOptions:
+          $ref: '#/components/schemas/iValueOptions'
+        defaultValue:
+          type: string
+        permissions:
+          $ref: '#/components/schemas/iMapPermissions'
+        metadataTimeline:
+          items:
+            $ref: '#/components/schemas/iMapMetadataTimeline'
+          type: array
+        values:
+          additionalProperties:
+            $ref: '#/components/schemas/iValueStore'
+          type: object
+        metadata:
+          $ref: '#/components/schemas/iMetadata'
+        updateHistory:
+          items:
+            $ref: '#/components/schemas/iUpdateHistory'
+          type: array
+      required:
+        - creator
+        - mapId
+        - inheritManagerTimelineFrom
+        - managerTimeline
+        - updateCriteria
+        - valueOptions
+        - defaultValue
+        - permissions
+        - metadataTimeline
+        - values
+        - updateHistory
+      additionalProperties: false
+      type: object
+    iGetMapsRouteSuccessResponse:
+      properties:
+        maps:
+          items:
+            $ref: '#/components/schemas/iMapWithValues'
+          type: array
+      required:
+        - maps
+      additionalProperties: false
+      type: object
+    iBitBadgesCollection:
+      properties:
+        _docId:
+          description: A unique stringified document ID
+          type: string
+        _id:
+          description: A uniuqe document ID (Mongo DB ObjectID)
+          type: string
+        collectionId:
+          description: The collection ID
+          $ref: '#components/schemas/NumberType'
+        collectionMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iCollectionMetadataTimeline'
+          description: The collection metadata timeline
+          type: array
+        badgeMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iBadgeMetadataTimeline'
+          description: The badge metadata timeline
+          type: array
+        balancesType:
+          enum:
+            - Standard
+            - Off-Chain - Indexed
+            - Non-Public
+            - Off-Chain - Non-Indexed
+          description: >-
+            The type of balances (i.e. "Standard", "Off-Chain - Indexed",
+            "Non-Public, "Off-Chain - Non-Indexed")
+          type: string
+        offChainBalancesMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iOffChainBalancesMetadataTimeline'
+          description: The off-chain balances metadata timeline
+          type: array
+        customDataTimeline:
+          items:
+            $ref: '#/components/schemas/iCustomDataTimeline'
+          description: The custom data timeline
+          type: array
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          description: The manager timeline
+          type: array
+        collectionApprovals:
+          allOf:
+            - items:
+                $ref: '#/components/schemas/iCollectionApproval'
+              description: The collection approved transfers timeline
+              type: array
+            - items:
+                $ref: '#/components/schemas/iCollectionApproval'
+              description: >-
+                The collection approvals for this collection, with off-chain
+                metadata populated.
+              type: array
+        standardsTimeline:
+          items:
+            $ref: '#/components/schemas/iStandardsTimeline'
+          description: The standards timeline
+          type: array
+        isArchivedTimeline:
+          items:
+            $ref: '#/components/schemas/iIsArchivedTimeline'
+          description: The is archived timeline
+          type: array
+        createdBy:
+          description: The cosmos address of the user who created this collection
+          type: string
+        createdBlock:
+          description: The block number when this collection was created
+          $ref: '#components/schemas/NumberType'
+        createdTimestamp:
+          description: >-
+            The timestamp when this collection was created (milliseconds since
+            epoch)
+          $ref: '#components/schemas/NumberType'
+        updateHistory:
+          items:
+            $ref: '#/components/schemas/iUpdateHistory'
+          description: The update history of this collection
+          type: array
+        aliasAddress:
+          description: The alias cosmos address for the collection
+          type: string
+        collectionPermissions:
+          $ref: '#/components/schemas/iCollectionPermissions'
+          description: >-
+            The collection permissions for this collection, with off-chain
+            metadata populated.
+        cachedCollectionMetadata:
+          $ref: '#/components/schemas/iMetadata'
+          description: >-
+            The fetched collection metadata for this collection. Will only be
+            fetched if requested. It is your responsibility to join this data.
+        cachedBadgeMetadata:
+          items:
+            $ref: '#/components/schemas/iBadgeMetadataDetails'
+          description: >-
+            The fetched badge metadata for this collection. Will only be fetched
+            if requested. It is your responsibility to join this data.
+          type: array
+        defaultBalances:
+          $ref: '#/components/schemas/iUserBalanceStore'
+          description: >-
+            The default balances for users upon genesis, with off-chain metadata
+            populated.
+        activity:
+          items:
+            $ref: '#/components/schemas/iTransferActivityDoc'
+          description: >-
+            The fetched activity for this collection. Returned collections will
+            only fetch the current page. Use the pagination to fetch more. To be
+            used in conjunction with views.
+          type: array
+        reviews:
+          items:
+            $ref: '#/components/schemas/iReviewDoc'
+          description: >-
+            The fetched reviews for this collection. Returned collections will
+            only fetch the current page. Use the pagination to fetch more. To be
+            used in conjunction with views.
+          type: array
+        owners:
+          items:
+            $ref: '#/components/schemas/iBalanceDoc'
+          description: >-
+            The fetched owners of this collection. Returned collections will
+            only fetch the current page. Use the pagination to fetch more. To be
+            used in conjunction with views.
+          type: array
+        merkleChallenges:
+          items:
+            $ref: '#/components/schemas/iMerkleChallengeDoc'
+          description: >-
+            The fetched merkle challenges for this collection. Returned
+            collections will only fetch the current page. Use the pagination to
+            fetch more. To be used in conjunction with views.
+          type: array
+        approvalTrackers:
+          items:
+            $ref: '#/components/schemas/iApprovalTrackerDoc'
+          description: >-
+            The fetched approval trackers for this collection. Returned
+            collections will only fetch the current page. Use the pagination to
+            fetch more. To be used in conjunction with views.
+          type: array
+        nsfw:
+          properties:
+            badgeIds:
+              items:
+                $ref: '#/components/schemas/iUintRange'
+              type: array
+            reason:
+              type: string
+          required:
+            - badgeIds
+            - reason
+          additionalProperties: false
+          description: The badge IDs in this collection that are marked as NSFW.
+          type: object
+        reported:
+          properties:
+            badgeIds:
+              items:
+                $ref: '#/components/schemas/iUintRange'
+              type: array
+            reason:
+              type: string
+          required:
+            - badgeIds
+            - reason
+          additionalProperties: false
+          description: The badge IDs in this collection that have been reported.
+          type: object
+        reservedMap:
+          $ref: '#/components/schemas/iMapDoc'
+          description: >-
+            The reserved map for the account. This is created and managed
+            on-chain through the x/maps module.
+        views:
+          additionalProperties:
+            properties:
+              ids:
+                items:
+                  type: string
+                type: array
+              type:
+                type: string
+              pagination:
+                $ref: '#/components/schemas/PaginationInfo'
+            required:
+              - ids
+              - type
+              - pagination
+            additionalProperties: false
+            type: object
+          description: >-
+            The views for this collection and their pagination Doc. Views will
+            only include the doc _ids. Use the pagination to fetch more. To be
+            used in conjunction with activity, announcements, reviews, owners,
+            merkleChallenges, and approvalTrackers. For example, if you want to
+            fetch the activity for a view, you would use the view's pagination
+            to fetch the doc _ids, then use the corresponding activity array to
+            find the matching docs.
+          type: object
+        claims:
+          items:
+            properties:
+              claimId:
+                type: string
+              plugins:
+                items: {}
+                type: array
+              balancesToSet:
+                $ref: '#/components/schemas/iIncrementedBalances'
+              manualDistribution:
+                type: boolean
+            required:
+              - claimId
+              - plugins
+              - balancesToSet
+            additionalProperties: false
+            type: object
+          description: >-
+            Details about any off-chain claims for this collection. Only
+            applicable when outsourced to BitBadges.
+          type: array
+      required:
+        - _docId
+        - collectionId
+        - collectionMetadataTimeline
+        - badgeMetadataTimeline
+        - balancesType
+        - offChainBalancesMetadataTimeline
+        - customDataTimeline
+        - managerTimeline
+        - collectionApprovals
+        - standardsTimeline
+        - isArchivedTimeline
+        - createdBy
+        - createdBlock
+        - createdTimestamp
+        - updateHistory
+        - aliasAddress
+        - collectionPermissions
+        - cachedBadgeMetadata
+        - defaultBalances
+        - activity
+        - reviews
+        - owners
+        - merkleChallenges
+        - approvalTrackers
+        - views
+        - claims
+      additionalProperties: false
+      description: |-
+        Fields for the MongoDB database document
+      type: object
     iOffChainBalancesMap:
       additionalProperties:
         items:
           $ref: '#/components/schemas/iBalance'
         type: array
+      description: |-
+        Used by the frontend for dynamically fetching data from the DB as needed
       type: object
     iTransferWithIncrements:
       properties:
@@ -6059,6 +6726,11 @@ components:
             Whether or not to only check the prioritized approvals. If false, we
             will check all approvals with any prioritized first.
           type: boolean
+        zkProofSolutions:
+          items:
+            $ref: '#/components/schemas/iZkProofSolution'
+          description: The zk proof solutions for approvals.
+          type: array
         toAddressesLength:
           description: >-
             The number of addresses to send the badges to. This takes priority
@@ -6090,49 +6762,30 @@ components:
         - badgeIds
       additionalProperties: false
       type: object
-    LeavesDetails:
+    iChallengeDetails:
       properties:
         leaves:
           items:
             type: string
+          description: >-
+            The leaves of the Merkle tree. Leaves should be considered public.
+            Use preimages for the secrets + isHashed. For whitelist trees, these
+            can be the plaintext Cosmos addresses.
           type: array
         isHashed:
+          description: True if the leaves are hashed. Hash(preimage[i]) = leaves[i]
           type: boolean
         preimages:
           items:
             type: string
+          description: >-
+            The preimages of the leaves (only used if isHashed = true).
+            Oftentimes, this is used for secret codes so should not be present
+            when user-facing.
           type: array
         seedCode:
+          description: Seed code for generating the leaves
           type: string
-      required:
-        - leaves
-        - isHashed
-      additionalProperties: false
-      description: >-
-        LeavesDetails represents details about the leaves of a claims tree.
-
-        This is used as helpers for storing leaves and for UI purposes.
-
-
-        This is used to check if an entered claim value is valid. If the leaves
-        are hashed, then the value entered by the user will be hashed before
-        being checked against the provided leaf values.
-
-        If the leaves are not hashed, then the value entered by the user will be
-        checked directly against the provided leaf values.
-
-
-        IMPORTANT: The leaf values here are to be publicly stored on IPFS, so
-        they should not contain any sensitive information (i.e. codes,
-        passwords, etc.)
-
-        Only use this with the non-hashed option when the values do not contain
-        any sensitive information (i.e. a public whitelist of addresses).
-    iChallengeDetails:
-      properties:
-        leavesDetails:
-          $ref: '#/components/schemas/LeavesDetails'
-          description: The leaves of the Merkle tree with accompanying details
         tree:
           description: The Merkle tree
         treeOptions:
@@ -6149,7 +6802,58 @@ components:
             scenes
           $ref: '#components/schemas/NumberType'
       required:
-        - leavesDetails
+        - leaves
+        - isHashed
+      additionalProperties: false
+      examples:
+        - >-
+          Codes
+
+          1. Generate N codes privately
+
+          2. Hash each code
+
+          3. Store the hashed codes publicly on IPFS via this struct
+
+          4. When a user enters a code, we hash it and check if it matches any
+          of the hashed codes. This way, the codes are never stored publicly on
+          IPFS and only known by the generator of the codes.
+        - >-
+          Whitelist
+
+          For storing a public whitelist of addresses (with
+          useCreatorAddressAsLeaf = true), hashing complicates everything
+          because the whitelist can be stored publicly.
+
+          1. Generate N whitelist addresses
+
+          2. Store the addresses publicly on IPFS via this struct
+
+          3. When a user enters an address, we check if it matches any of the
+          addresses.
+      type: object
+    iChallengeInfoDetails:
+      properties:
+        challengeDetails:
+          $ref: '#/components/schemas/iChallengeDetails'
+          description: The challenge details of the claim / approval
+        claim:
+          properties:
+            plugins:
+              items: {}
+              description: The plugins of the claim / approval
+              type: array
+            claimId:
+              type: string
+            manualDistribution:
+              type: boolean
+          required:
+            - plugins
+            - claimId
+          additionalProperties: false
+          type: object
+      required:
+        - challengeDetails
       additionalProperties: false
       type: object
     iApprovalInfoDetails:
@@ -6162,26 +6866,6 @@ components:
             The description of the claim. This describes how to earn and claim
             the badge.
           type: string
-        challengeDetails:
-          $ref: '#/components/schemas/iChallengeDetails'
-          description: The challenge details of the claim / approval
-        offChainClaims:
-          items:
-            properties:
-              plugins:
-                items: {}
-                description: The plugins of the claim / approval
-                type: array
-              claimId:
-                type: string
-              manualDistribution:
-                type: boolean
-            required:
-              - plugins
-              - claimId
-            additionalProperties: false
-            type: object
-          type: array
       required:
         - name
         - description
@@ -6200,29 +6884,327 @@ components:
         - denom
       additionalProperties: false
       type: object
-    EIP712Type:
+    PermissionNameString:
+      enum:
+        - canDeleteCollection
+        - canArchiveCollection
+        - canUpdateOffChainBalancesMetadata
+        - canUpdateBadgeMetadata
+        - canUpdateCollectionMetadata
+        - canCreateMoreBadges
+        - canUpdateCollectionApprovals
+        - canUpdateAutoApproveSelfInitiatedIncomingTransfers
+        - canUpdateAutoApproveSelfInitiatedOutgoingTransfers
+        - canUpdateStandards
+        - canUpdateCustomData
+        - canUpdateManager
+      type: string
+    Validator:
       properties:
-        name:
+        commission:
+          properties:
+            commission_rates:
+              properties:
+                max_change_rate:
+                  type: string
+                max_rate:
+                  type: string
+                rate:
+                  type: string
+              required:
+                - max_change_rate
+                - max_rate
+                - rate
+              additionalProperties: false
+              type: object
+            update_time:
+              type: string
+          required:
+            - commission_rates
+            - update_time
+          additionalProperties: false
+          type: object
+        consensus_pubkey:
+          properties:
+            '''@type''':
+              type: string
+            key:
+              type: string
+          required:
+            - '''@type'''
+            - key
+          additionalProperties: false
+          type: object
+        delegator_shares:
           type: string
-        type:
+        description:
+          properties:
+            details:
+              type: string
+            identity:
+              type: string
+            moniker:
+              type: string
+            security_contact:
+              type: string
+            website:
+              type: string
+          required:
+            - details
+            - identity
+            - moniker
+            - security_contact
+            - website
+          additionalProperties: false
+          type: object
+        jailed:
+          type: boolean
+        min_self_delegation:
+          type: string
+        operator_address:
+          type: string
+        status:
+          type: string
+        tokens:
+          type: string
+        unbonding_height:
+          type: string
+        unbonding_time:
           type: string
       required:
-        - name
-        - type
+        - commission
+        - consensus_pubkey
+        - delegator_shares
+        - description
+        - jailed
+        - min_self_delegation
+        - operator_address
+        - status
+        - tokens
+        - unbonding_height
+        - unbonding_time
       additionalProperties: false
       type: object
-    JSONObject:
-      additionalProperties: {}
-      type: object
-    FlattenPayloadResponse:
+    GetValidatorsResponse:
       properties:
-        payload:
-          $ref: '#/components/schemas/JSONObject'
-        numMessages:
-          type: number
+        validators:
+          items:
+            $ref: '#/components/schemas/Validator'
+          type: array
+        pagination:
+          properties:
+            next_key:
+              type: string
+            total:
+              type: number
+          required:
+            - next_key
+            - total
+          additionalProperties: false
+          type: object
       required:
-        - payload
-        - numMessages
+        - validators
+        - pagination
+      additionalProperties: false
+      type: object
+    UndelegationResponse:
+      properties:
+        delegator_address:
+          type: string
+        validator_address:
+          type: string
+        entries:
+          items:
+            - properties:
+                creation_height:
+                  type: string
+                completion_time:
+                  type: string
+                initial_balance:
+                  type: string
+                balance:
+                  type: string
+              required:
+                - creation_height
+                - completion_time
+                - initial_balance
+                - balance
+              additionalProperties: false
+              type: object
+          additionalItems: false
+          minItems: 1
+          type: array
+      required:
+        - delegator_address
+        - validator_address
+        - entries
+      additionalProperties: false
+      type: object
+    GetUndelegationsResponse:
+      properties:
+        unbonding_responses:
+          items:
+            $ref: '#/components/schemas/UndelegationResponse'
+          type: array
+        pagination:
+          properties:
+            next_key:
+              type: string
+            total:
+              type: string
+          required:
+            - next_key
+            - total
+          additionalProperties: false
+          type: object
+      required:
+        - unbonding_responses
+        - pagination
+      additionalProperties: false
+      type: object
+    CounterParty:
+      properties:
+        port_id:
+          type: string
+        channel_id:
+          type: string
+      required:
+        - port_id
+        - channel_id
+      additionalProperties: false
+      type: object
+    Channel:
+      properties:
+        state:
+          type: string
+        ordering:
+          type: string
+        counterparty:
+          $ref: '#/components/schemas/CounterParty'
+        connection_hops:
+          items:
+            type: string
+          type: array
+        version:
+          type: string
+        port_id:
+          type: string
+        channel_id:
+          type: string
+      required:
+        - state
+        - ordering
+        - counterparty
+        - connection_hops
+        - version
+        - port_id
+        - channel_id
+      additionalProperties: false
+      type: object
+    ChannelsResponse:
+      properties:
+        channels:
+          items:
+            $ref: '#/components/schemas/Channel'
+          type: array
+        pagination:
+          properties:
+            next_key:
+              type: string
+            total:
+              type: string
+          required:
+            - total
+          additionalProperties: false
+          type: object
+        height:
+          properties:
+            revision_number:
+              type: string
+            revision_height:
+              type: string
+          required:
+            - revision_number
+            - revision_height
+          additionalProperties: false
+          type: object
+      required:
+        - channels
+        - pagination
+        - height
+      additionalProperties: false
+      type: object
+    TallyResponse:
+      properties:
+        tally:
+          properties:
+            'yes':
+              type: string
+            abstain:
+              type: string
+            'no':
+              type: string
+            no_with_veto:
+              type: string
+          required:
+            - 'yes'
+            - abstain
+            - 'no'
+            - no_with_veto
+          additionalProperties: false
+          type: object
+      required:
+        - tally
+      additionalProperties: false
+      type: object
+    AccountResponse:
+      properties:
+        account:
+          properties:
+            '''@type''':
+              type: string
+            base_account:
+              properties:
+                address:
+                  type: string
+                pub_key:
+                  properties:
+                    '''@type''':
+                      type: string
+                    key:
+                      type: string
+                  required:
+                    - '''@type'''
+                    - key
+                  additionalProperties: false
+                  type: object
+                account_number:
+                  type: string
+                sequence:
+                  type: string
+              required:
+                - address
+                - account_number
+                - sequence
+              additionalProperties: false
+              type: object
+          required:
+            - '''@type'''
+            - base_account
+          additionalProperties: false
+          type: object
+      required:
+        - account
+      additionalProperties: false
+      type: object
+    BroadcastPostBody:
+      properties:
+        tx_bytes: {}
+        mode:
+          type: string
+      required:
+        - tx_bytes
+        - mode
       additionalProperties: false
       type: object
     TxContext:
@@ -6283,15 +7265,6 @@ components:
         EI712ToSign represents a signable EIP-712 payload that can be signed
         using MetaMask or Keplr.
 
-        @remarks Evmos uses the EIP-712 protocol to wrap Cosmos SDK Transactions
-        for Ethereum signing clients.
-
-        EIP-712 payload signatures can be used interchangeably with standard
-        Cosmos SDK signatures.
-
-        Learn more about the  ://eips.ethereum.org/EIPS/eip-712 | EIP-712
-        Standard
-
       type: object
     Fee:
       properties:
@@ -6306,14 +7279,8 @@ components:
         - denom
         - gas
       additionalProperties: false
-      description: >-
+      description: |-
         Fee represents a Cosmos SDK transaction fee object.
-
-        @remarks Learn more about fees in Evmos from the
-         ://docs.cosmos.network/main/basics/gas-fees | Cosmos SDK Fee Docs 
-        and the  ://docs.evmos.org/protocol/concepts/gas-and-fees | Evmos Gas
-        and Fee Docs
-
       type: object
     Sender:
       properties:
@@ -6347,7 +7314,7 @@ components:
         cosmosChainId:
           type: string
         chain:
-          type: string
+          $ref: '#/components/schemas/SupportedChain'
       required:
         - chainId
         - cosmosChainId
@@ -6359,9 +7326,669 @@ components:
         @remarks chainId corresponds to a numerical Ethereum ChainID (e.g. 9001)
 
         cosmosChainId corresponds to a Cosmos SDK string ChainID (e.g.
-        'evmos_9001-2'
+        'bitbadges_1-1')
 
       type: object
+    iMsgInstantiateContractCompat:
+      properties:
+        sender:
+          description: The sender of the transaction.
+          type: string
+        codeId:
+          description: The code ID of the contract to instantiate.
+          type: string
+        label:
+          description: The human-readable label of the contract.
+          type: string
+        funds:
+          description: The amount of funds to send to the contract on instantiation.
+          type: string
+      required:
+        - sender
+        - codeId
+        - label
+        - funds
+      additionalProperties: false
+      type: object
+    iMsgStoreCodeCompat:
+      properties:
+        sender:
+          description: The sender of the transaction.
+          type: string
+        hexWasmByteCode:
+          description: >-
+            The contract byte code in hexadecimal format. See BitBadges CosmWASM
+            tutorial for more details.
+          type: string
+      required:
+        - sender
+        - hexWasmByteCode
+      additionalProperties: false
+      type: object
+    iMsgExecuteContractCompat:
+      properties:
+        sender:
+          description: The sender of the transaction.
+          type: string
+        contract:
+          description: The contract address to execute.
+          type: string
+        msg:
+          description: The message to pass to the contract. Must be a valid JSON string.
+          type: string
+        funds:
+          description: The funds to send to the contract. Must be a valid JSON string.
+          type: string
+      required:
+        - sender
+        - contract
+        - msg
+        - funds
+      additionalProperties: false
+      type: object
+    iValueStore:
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        lastSetBy:
+          type: string
+      required:
+        - key
+        - value
+        - lastSetBy
+      additionalProperties: false
+      type: object
+    iMapUpdateCriteria:
+      properties:
+        managerOnly:
+          type: boolean
+        collectionId:
+          $ref: '#components/schemas/NumberType'
+        creatorOnly:
+          type: boolean
+        firstComeFirstServe:
+          type: boolean
+      required:
+        - managerOnly
+        - collectionId
+        - creatorOnly
+        - firstComeFirstServe
+      additionalProperties: false
+      type: object
+    iValueOptions:
+      properties:
+        noDuplicates:
+          type: boolean
+        permanentOnceSet:
+          type: boolean
+        expectUint:
+          type: boolean
+        expectBoolean:
+          type: boolean
+        expectAddress:
+          type: boolean
+        expectUri:
+          type: boolean
+      required:
+        - noDuplicates
+        - permanentOnceSet
+        - expectUint
+        - expectBoolean
+        - expectAddress
+        - expectUri
+      additionalProperties: false
+      type: object
+    iMapPermissions:
+      properties:
+        canUpdateMetadata:
+          items:
+            $ref: '#/components/schemas/iTimedUpdatePermission'
+          type: array
+        canUpdateManager:
+          items:
+            $ref: '#/components/schemas/iTimedUpdatePermission'
+          type: array
+        canDeleteMap:
+          items:
+            $ref: '#/components/schemas/iActionPermission'
+          type: array
+      required:
+        - canUpdateMetadata
+        - canUpdateManager
+        - canDeleteMap
+      additionalProperties: false
+      type: object
+    iMap:
+      properties:
+        creator:
+          type: string
+        mapId:
+          type: string
+        inheritManagerTimelineFrom:
+          $ref: '#components/schemas/NumberType'
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          type: array
+        updateCriteria:
+          $ref: '#/components/schemas/iMapUpdateCriteria'
+        valueOptions:
+          $ref: '#/components/schemas/iValueOptions'
+        defaultValue:
+          type: string
+        permissions:
+          $ref: '#/components/schemas/iMapPermissions'
+        metadataTimeline:
+          items:
+            $ref: '#/components/schemas/iMapMetadataTimeline'
+          type: array
+      required:
+        - creator
+        - mapId
+        - inheritManagerTimelineFrom
+        - managerTimeline
+        - updateCriteria
+        - valueOptions
+        - defaultValue
+        - permissions
+        - metadataTimeline
+      additionalProperties: false
+      type: object
+    iMapMetadataTimeline:
+      properties:
+        timelineTimes:
+          items:
+            $ref: '#/components/schemas/iUintRange'
+          type: array
+        metadata:
+          $ref: '#/components/schemas/iCollectionMetadata'
+      required:
+        - timelineTimes
+        - metadata
+      additionalProperties: false
+      type: object
+    iMsgCreateMap:
+      properties:
+        creator:
+          type: string
+        mapId:
+          type: string
+        inheritManagerTimelineFrom:
+          $ref: '#components/schemas/NumberType'
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          type: array
+        updateCriteria:
+          $ref: '#/components/schemas/iMapUpdateCriteria'
+        valueOptions:
+          $ref: '#/components/schemas/iValueOptions'
+        defaultValue:
+          type: string
+        metadataTimeline:
+          items:
+            $ref: '#/components/schemas/iMapMetadataTimeline'
+          type: array
+        permissions:
+          $ref: '#/components/schemas/iMapPermissions'
+      required:
+        - creator
+        - mapId
+        - inheritManagerTimelineFrom
+        - managerTimeline
+        - updateCriteria
+        - valueOptions
+        - defaultValue
+        - metadataTimeline
+        - permissions
+      additionalProperties: false
+      type: object
+    iMsgUpdateMap:
+      properties:
+        creator:
+          type: string
+        mapId:
+          type: string
+        updateManagerTimeline:
+          type: boolean
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          type: array
+        updateMetadataTimeline:
+          type: boolean
+        metadataTimeline:
+          items:
+            $ref: '#/components/schemas/iMapMetadataTimeline'
+          type: array
+        updatePermissions:
+          type: boolean
+        permissions:
+          $ref: '#/components/schemas/iMapPermissions'
+      required:
+        - creator
+        - mapId
+        - updateManagerTimeline
+        - managerTimeline
+        - updateMetadataTimeline
+        - metadataTimeline
+        - updatePermissions
+        - permissions
+      additionalProperties: false
+      type: object
+    iMsgDeleteMap:
+      properties:
+        creator:
+          type: string
+        mapId:
+          type: string
+      required:
+        - creator
+        - mapId
+      additionalProperties: false
+      type: object
+    iMsgSetValue:
+      properties:
+        creator:
+          type: string
+        mapId:
+          type: string
+        key:
+          type: string
+        value:
+          type: string
+        options:
+          $ref: '#/components/schemas/iSetOptions'
+      required:
+        - creator
+        - mapId
+        - key
+        - value
+        - options
+      additionalProperties: false
+      type: object
+    iSetOptions:
+      properties:
+        useMostRecentCollectionId:
+          type: boolean
+      required:
+        - useMostRecentCollectionId
+      additionalProperties: false
+      type: object
+    iMsgCreateAddressLists:
+      properties:
+        creator:
+          description: The creator of the transaction.
+          type: string
+        addressLists:
+          items:
+            $ref: '#/components/schemas/iAddressList'
+          description: The address lists to create.
+          type: array
+      required:
+        - creator
+        - addressLists
+      additionalProperties: false
+      type: object
+    iMsgCreateCollection:
+      properties:
+        creator:
+          description: The creator of the transaction.
+          type: string
+        balancesType:
+          description: >-
+            The balances type. Either "Standard", "Off-Chain - Indexed",
+            "Off-Chain - Non-Indexed" or "Non-Public"
+          type: string
+        defaultBalances:
+          $ref: '#/components/schemas/iUserBalanceStore'
+          description: >-
+            The default balances for users who have not interacted with the
+            collection yet. Only can be set on initial creation. Only used if
+            collection has "Standard" balance type.
+        badgesToCreate:
+          items:
+            $ref: '#/components/schemas/iBalance'
+          description: >-
+            The badges to create. Newly created badges will be sent to the
+            "Mint" address. Must have necessary permissions in future
+            transactions to update. However, no restrictions in this genesis
+            Msg. Only used if collection has "Standard" balance type.
+          type: array
+        collectionPermissions:
+          $ref: '#/components/schemas/iCollectionPermissions'
+          description: >-
+            The new collection permissions. Must have the necessary permissions
+            in future transactions to update. However, no restrictions in this
+            genesis Msg.
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          description: >-
+            The new manager timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+        collectionMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iCollectionMetadataTimeline'
+          description: >-
+            The new collection metadata timeline. Must have the necessary
+            permissions in future transactions to update. However, no
+            restrictions in this genesis Msg.
+          type: array
+        badgeMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iBadgeMetadataTimeline'
+          description: >-
+            The new badge metadata timeline. Must have the necessary permissions
+            in future transactions to update. However, no restrictions in this
+            genesis Msg. Note we take first-match only for badge IDs, so do not
+            define duplicates.
+          type: array
+        offChainBalancesMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iOffChainBalancesMetadataTimeline'
+          description: >-
+            The new off-chain balances metadata timeline. Must have the
+            necessary permissions in future transactions to update. However, no
+            restrictions in this genesis Msg. Only used if "Off-Chain - Indexed"
+            or "Off-Chain - Non-Indexed" balance type.
+          type: array
+        customDataTimeline:
+          items:
+            $ref: '#/components/schemas/iCustomDataTimeline'
+          description: >-
+            The new custom data timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+        collectionApprovals:
+          items:
+            $ref: '#/components/schemas/iCollectionApproval'
+          description: >-
+            The new collection approved transfers timeline. Must have the
+            necessary permissions in future transactions to update. However, no
+            restrictions in this genesis Msg.
+          type: array
+        standardsTimeline:
+          items:
+            $ref: '#/components/schemas/iStandardsTimeline'
+          description: >-
+            The new standards timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+        isArchivedTimeline:
+          items:
+            $ref: '#/components/schemas/iIsArchivedTimeline'
+          description: >-
+            The new is archived timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+      required:
+        - creator
+      additionalProperties: false
+      type: object
+    iMsgDeleteCollection:
+      properties:
+        creator:
+          description: The creator of the transaction.
+          type: string
+        collectionId:
+          description: The ID of the collection to delete.
+          $ref: '#components/schemas/NumberType'
+      required:
+        - creator
+        - collectionId
+      additionalProperties: false
+      type: object
+    iMsgTransferBadges:
+      properties:
+        creator:
+          description: The creator of the transaction.
+          type: string
+        collectionId:
+          description: The ID of the collection to transfer badges from.
+          $ref: '#components/schemas/NumberType'
+        transfers:
+          items:
+            $ref: '#/components/schemas/iTransfer'
+          description: The transfers to perform.
+          type: array
+      required:
+        - creator
+        - collectionId
+        - transfers
+      additionalProperties: false
+      type: object
+    iMsgUniversalUpdateCollection:
+      properties:
+        creator:
+          description: The creator of the transaction.
+          type: string
+        balancesType:
+          description: >-
+            The balances type. Either "Standard", "Off-Chain - Indexed",
+            "Off-Chain - Non-Indexed" or "Non-Public"
+          type: string
+        defaultBalances:
+          $ref: '#/components/schemas/iUserBalanceStore'
+          description: >-
+            The default balances for users who have not interacted with the
+            collection yet. Only can be set on initial creation. Only used if
+            collection has "Standard" balance type.
+        badgesToCreate:
+          items:
+            $ref: '#/components/schemas/iBalance'
+          description: >-
+            The badges to create. Newly created badges will be sent to the
+            "Mint" address. Must have necessary permissions in future
+            transactions to update. However, no restrictions in this genesis
+            Msg. Only used if collection has "Standard" balance type.
+          type: array
+        collectionPermissions:
+          $ref: '#/components/schemas/iCollectionPermissions'
+          description: >-
+            The new collection permissions. Must have the necessary permissions
+            in future transactions to update. However, no restrictions in this
+            genesis Msg.
+        managerTimeline:
+          items:
+            $ref: '#/components/schemas/iManagerTimeline'
+          description: >-
+            The new manager timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+        collectionMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iCollectionMetadataTimeline'
+          description: >-
+            The new collection metadata timeline. Must have the necessary
+            permissions in future transactions to update. However, no
+            restrictions in this genesis Msg.
+          type: array
+        badgeMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iBadgeMetadataTimeline'
+          description: >-
+            The new badge metadata timeline. Must have the necessary permissions
+            in future transactions to update. However, no restrictions in this
+            genesis Msg. Note we take first-match only for badge IDs, so do not
+            define duplicates.
+          type: array
+        offChainBalancesMetadataTimeline:
+          items:
+            $ref: '#/components/schemas/iOffChainBalancesMetadataTimeline'
+          description: >-
+            The new off-chain balances metadata timeline. Must have the
+            necessary permissions in future transactions to update. However, no
+            restrictions in this genesis Msg. Only used if "Off-Chain - Indexed"
+            or "Off-Chain - Non-Indexed" balance type.
+          type: array
+        customDataTimeline:
+          items:
+            $ref: '#/components/schemas/iCustomDataTimeline'
+          description: >-
+            The new custom data timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+        collectionApprovals:
+          items:
+            $ref: '#/components/schemas/iCollectionApproval'
+          description: >-
+            The new collection approved transfers timeline. Must have the
+            necessary permissions in future transactions to update. However, no
+            restrictions in this genesis Msg.
+          type: array
+        standardsTimeline:
+          items:
+            $ref: '#/components/schemas/iStandardsTimeline'
+          description: >-
+            The new standards timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+        isArchivedTimeline:
+          items:
+            $ref: '#/components/schemas/iIsArchivedTimeline'
+          description: >-
+            The new is archived timeline. Must have the necessary permissions in
+            future transactions to update. However, no restrictions in this
+            genesis Msg.
+          type: array
+        collectionId:
+          description: The ID of the collection to update.
+          $ref: '#components/schemas/NumberType'
+        updateCollectionPermissions:
+          description: Whether or not to update the collection permissions.
+          type: boolean
+        updateManagerTimeline:
+          description: Whether or not to update the manager timeline.
+          type: boolean
+        updateCollectionMetadataTimeline:
+          description: Whether or not to update the collection metadata timeline.
+          type: boolean
+        updateBadgeMetadataTimeline:
+          description: Whether or not to update the badge metadata timeline.
+          type: boolean
+        updateOffChainBalancesMetadataTimeline:
+          description: Whether or not to update the off-chain balances metadata timeline.
+          type: boolean
+        updateCustomDataTimeline:
+          description: Whether or not to update the custom data timeline.
+          type: boolean
+        updateCollectionApprovals:
+          description: Whether or not to update the collection approved transfers timeline.
+          type: boolean
+        updateStandardsTimeline:
+          description: Whether or not to update the standards timeline.
+          type: boolean
+        updateIsArchivedTimeline:
+          description: Whether or not to update the is archived timeline.
+          type: boolean
+      required:
+        - creator
+        - collectionId
+      additionalProperties: false
+      type: object
+    iMsgUpdateCollection:
+      additionalProperties: false
+      type: object
+    iMsgUpdateUserApprovals:
+      properties:
+        creator:
+          description: The creator of the transaction.
+          type: string
+        collectionId:
+          description: The ID of the collection to transfer badges from.
+          $ref: '#components/schemas/NumberType'
+        updateOutgoingApprovals:
+          description: Whether or not to update the outgoing approvals.
+          type: boolean
+        outgoingApprovals:
+          items:
+            $ref: '#/components/schemas/iUserOutgoingApproval'
+          description: >-
+            The new outgoing approvals. Must have the necessary permissions to
+            update.
+          type: array
+        updateIncomingApprovals:
+          description: Whether or not to update the incoming approvals.
+          type: boolean
+        incomingApprovals:
+          items:
+            $ref: '#/components/schemas/iUserIncomingApproval'
+          description: >-
+            The new incoming approvals. Must have the necessary permissions to
+            update.
+          type: array
+        updateAutoApproveSelfInitiatedOutgoingTransfers:
+          description: >-
+            Whether or not to update the auto approve self initiated outgoing
+            transfers (i.e. from == the user and initiator == the user).
+          type: boolean
+        autoApproveSelfInitiatedOutgoingTransfers:
+          description: >-
+            The new auto approve self initiated outgoing transfers. Must have
+            the necessary permissions to update.
+          type: boolean
+        updateAutoApproveSelfInitiatedIncomingTransfers:
+          description: >-
+            Whether or not to update the auto approve self initiated incoming
+            transfers (i.e. to == the user and initiator == the user).
+          type: boolean
+        autoApproveSelfInitiatedIncomingTransfers:
+          description: >-
+            The new auto approve self initiated incoming transfers. Must have
+            the necessary permissions to update.
+          type: boolean
+        updateUserPermissions:
+          description: Whether or not to update the user permissions.
+          type: boolean
+        userPermissions:
+          $ref: '#/components/schemas/iUserPermissions'
+          description: >-
+            The new user permissions. Must have the necessary permissions to
+            update.
+      required:
+        - creator
+        - collectionId
+      additionalProperties: false
+      type: object
+    SupportedChainType:
+      enum:
+        - Bitcoin
+        - Ethereum
+        - Cosmos
+        - Solana
+        - Unknown
+      description: >-
+        Safe adds two uints and returns an error if the result is invalid. Keeps
+        the right type.
+
+      type: string
+    JSPrimitiveNumberType:
+      description: >-
+        JSPrimitiveNumberType is a type that can be used to represent a number
+        in JavaScript in multiple ways.
+
+        Because the blockchain supports numbers > 2^53, we need to use BigInts
+        or strings to represent them.
+
+
+        JSPrimitiveNumberType is a union of all the types that can be used to
+        represent a number in JavaScript.
+
+        This is the same as NumberType, but without BigInts because they are not
+        a primitive.
+
+      $ref: '#components/schemas/NumberType'
     iUserPermissions:
       properties:
         canUpdateOutgoingApprovals:
@@ -6404,11 +8031,15 @@ components:
         toListId:
           description: The list ID of the to addresses of the approved outgoing transfers.
           type: string
+        toList:
+          $ref: '#/components/schemas/iAddressList'
         initiatedByListId:
           description: >-
             The list ID of the initiatedBy addresses of the approved outgoing
             transfers.
           type: string
+        initiatedByList:
+          $ref: '#/components/schemas/iAddressList'
         transferTimes:
           items:
             $ref: '#/components/schemas/iUintRange'
@@ -6430,18 +8061,6 @@ components:
             represent all IDs, "!approvalId" to represent all IDs except
             approvalId, or "approvalId" to represent only approvalId.
           type: string
-        amountTrackerId:
-          description: >-
-            The approval tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
-        challengeTrackerId:
-          description: >-
-            The challenge tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
         permanentlyPermittedTimes:
           items:
             $ref: '#/components/schemas/iUintRange'
@@ -6452,23 +8071,17 @@ components:
             $ref: '#/components/schemas/iUintRange'
           description: The forbidden times of the approved outgoing transfers.
           type: array
-        toList:
-          $ref: '#/components/schemas/iAddressList'
-        initiatedByList:
-          $ref: '#/components/schemas/iAddressList'
       required:
         - toListId
+        - toList
         - initiatedByListId
+        - initiatedByList
         - transferTimes
         - badgeIds
         - ownershipTimes
         - approvalId
-        - amountTrackerId
-        - challengeTrackerId
         - permanentlyPermittedTimes
         - permanentlyForbiddenTimes
-        - toList
-        - initiatedByList
       additionalProperties: false
       type: object
     iUserIncomingApprovalPermission:
@@ -6478,11 +8091,15 @@ components:
             The list ID of the from addresses of the approved incoming
             transfers.
           type: string
+        fromList:
+          $ref: '#/components/schemas/iAddressList'
         initiatedByListId:
           description: >-
             The list ID of the initiatedBy addresses of the approved incoming
             transfers.
           type: string
+        initiatedByList:
+          $ref: '#/components/schemas/iAddressList'
         transferTimes:
           items:
             $ref: '#/components/schemas/iUintRange'
@@ -6504,18 +8121,6 @@ components:
             represent all IDs, "!approvalId" to represent all IDs except
             approvalId, or "approvalId" to represent only approvalId.
           type: string
-        amountTrackerId:
-          description: >-
-            The approval tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
-        challengeTrackerId:
-          description: >-
-            The challenge tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
         permanentlyPermittedTimes:
           items:
             $ref: '#/components/schemas/iUintRange'
@@ -6526,23 +8131,17 @@ components:
             $ref: '#/components/schemas/iUintRange'
           description: The forbidden times of the approved incoming transfers.
           type: array
-        fromList:
-          $ref: '#/components/schemas/iAddressList'
-        initiatedByList:
-          $ref: '#/components/schemas/iAddressList'
       required:
         - fromListId
+        - fromList
         - initiatedByListId
+        - initiatedByList
         - transferTimes
         - badgeIds
         - ownershipTimes
         - approvalId
-        - amountTrackerId
-        - challengeTrackerId
         - permanentlyPermittedTimes
         - permanentlyForbiddenTimes
-        - fromList
-        - initiatedByList
       additionalProperties: false
       type: object
     iCollectionPermissions:
@@ -6713,213 +8312,62 @@ components:
         fromListId:
           description: The list ID of the from addresses of the approved transfers.
           type: string
-        toListId:
-          description: The list ID of the to addresses of the approved transfers.
-          type: string
-        initiatedByListId:
-          description: The list ID of the initiatedBy addresses of the approved transfers.
-          type: string
-        transferTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The transfer times of the approved transfers.
-          type: array
-        badgeIds:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The badge IDs of the approved transfers.
-          type: array
-        ownershipTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The owned times of the approved transfers.
-          type: array
-        approvalId:
-          description: >-
-            The approval ID of the approved transfers. Can use "All" to
-            represent all IDs, "!approvalId" to represent all IDs except
-            approvalId, or "approvalId" to represent only approvalId.
-          type: string
-        amountTrackerId:
-          description: >-
-            The approval tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
-        challengeTrackerId:
-          description: >-
-            The challenge tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
-        permanentlyPermittedTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The permitted times of this permission.
-          type: array
-        permanentlyForbiddenTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The forbidden times of this permission.
-          type: array
-      required:
-        - fromListId
-        - toListId
-        - initiatedByListId
-        - transferTimes
-        - badgeIds
-        - ownershipTimes
-        - approvalId
-        - amountTrackerId
-        - challengeTrackerId
-        - permanentlyPermittedTimes
-        - permanentlyForbiddenTimes
-      additionalProperties: false
-      type: object
-    iCollectionApprovalPermissionWithDetails:
-      properties:
-        fromListId:
-          description: The list ID of the from addresses of the approved transfers.
-          type: string
-        toListId:
-          description: The list ID of the to addresses of the approved transfers.
-          type: string
-        initiatedByListId:
-          description: The list ID of the initiatedBy addresses of the approved transfers.
-          type: string
-        transferTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The transfer times of the approved transfers.
-          type: array
-        badgeIds:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The badge IDs of the approved transfers.
-          type: array
-        ownershipTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The owned times of the approved transfers.
-          type: array
-        approvalId:
-          description: >-
-            The approval ID of the approved transfers. Can use "All" to
-            represent all IDs, "!approvalId" to represent all IDs except
-            approvalId, or "approvalId" to represent only approvalId.
-          type: string
-        amountTrackerId:
-          description: >-
-            The approval tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
-        challengeTrackerId:
-          description: >-
-            The challenge tracker ID of the approved transfers. Can use "All" to
-            represent all IDs, "!trackerId" to represent all IDs except
-            trackerId, or "trackerId" to represent only trackerId.
-          type: string
-        permanentlyPermittedTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The permitted times of this permission.
-          type: array
-        permanentlyForbiddenTimes:
-          items:
-            $ref: '#/components/schemas/iUintRange'
-          description: The forbidden times of this permission.
-          type: array
-        toList:
-          $ref: '#/components/schemas/iAddressList'
         fromList:
           $ref: '#/components/schemas/iAddressList'
+        toListId:
+          description: The list ID of the to addresses of the approved transfers.
+          type: string
+        toList:
+          $ref: '#/components/schemas/iAddressList'
+        initiatedByListId:
+          description: The list ID of the initiatedBy addresses of the approved transfers.
+          type: string
         initiatedByList:
           $ref: '#/components/schemas/iAddressList'
+        transferTimes:
+          items:
+            $ref: '#/components/schemas/iUintRange'
+          description: The transfer times of the approved transfers.
+          type: array
+        badgeIds:
+          items:
+            $ref: '#/components/schemas/iUintRange'
+          description: The badge IDs of the approved transfers.
+          type: array
+        ownershipTimes:
+          items:
+            $ref: '#/components/schemas/iUintRange'
+          description: The owned times of the approved transfers.
+          type: array
+        approvalId:
+          description: >-
+            The approval ID of the approved transfers. Can use "All" to
+            represent all IDs, "!approvalId" to represent all IDs except
+            approvalId, or "approvalId" to represent only approvalId.
+          type: string
+        permanentlyPermittedTimes:
+          items:
+            $ref: '#/components/schemas/iUintRange'
+          description: The permitted times of this permission.
+          type: array
+        permanentlyForbiddenTimes:
+          items:
+            $ref: '#/components/schemas/iUintRange'
+          description: The forbidden times of this permission.
+          type: array
       required:
         - fromListId
+        - fromList
         - toListId
+        - toList
         - initiatedByListId
+        - initiatedByList
         - transferTimes
         - badgeIds
         - ownershipTimes
         - approvalId
-        - amountTrackerId
-        - challengeTrackerId
         - permanentlyPermittedTimes
         - permanentlyForbiddenTimes
-        - toList
-        - fromList
-        - initiatedByList
-      additionalProperties: false
-      type: object
-    iCollectionPermissionsWithDetails:
-      properties:
-        canDeleteCollection:
-          items:
-            $ref: '#/components/schemas/iActionPermission'
-          description: The permissions for deleting the collection.
-          type: array
-        canArchiveCollection:
-          items:
-            $ref: '#/components/schemas/iTimedUpdatePermission'
-          description: The permissions for archiving the collection.
-          type: array
-        canUpdateOffChainBalancesMetadata:
-          items:
-            $ref: '#/components/schemas/iTimedUpdatePermission'
-          description: The permissions for updating the off-chain balances metadata.
-          type: array
-        canUpdateStandards:
-          items:
-            $ref: '#/components/schemas/iTimedUpdatePermission'
-          description: The permissions for updating the standards.
-          type: array
-        canUpdateCustomData:
-          items:
-            $ref: '#/components/schemas/iTimedUpdatePermission'
-          description: The permissions for updating the custom data.
-          type: array
-        canUpdateManager:
-          items:
-            $ref: '#/components/schemas/iTimedUpdatePermission'
-          description: The permissions for updating the manager.
-          type: array
-        canUpdateCollectionMetadata:
-          items:
-            $ref: '#/components/schemas/iTimedUpdatePermission'
-          description: The permissions for updating the collection metadata.
-          type: array
-        canCreateMoreBadges:
-          items:
-            $ref: '#/components/schemas/iBalancesActionPermission'
-          description: The permissions for creating more badges.
-          type: array
-        canUpdateBadgeMetadata:
-          items:
-            $ref: '#/components/schemas/iTimedUpdateWithBadgeIdsPermission'
-          description: The permissions for updating the badge metadata.
-          type: array
-        canUpdateCollectionApprovals:
-          allOf:
-            - items:
-                $ref: '#/components/schemas/iCollectionApprovalPermission'
-              description: The permissions for updating the collection approved transfers.
-              type: array
-            - items:
-                $ref: '#/components/schemas/iCollectionApprovalPermissionWithDetails'
-              type: array
-      required:
-        - canDeleteCollection
-        - canArchiveCollection
-        - canUpdateOffChainBalancesMetadata
-        - canUpdateStandards
-        - canUpdateCustomData
-        - canUpdateManager
-        - canUpdateCollectionMetadata
-        - canCreateMoreBadges
-        - canUpdateBadgeMetadata
-        - canUpdateCollectionApprovals
       additionalProperties: false
       type: object
     iUintRange:
@@ -6935,9 +8383,6 @@ components:
         - end
       additionalProperties: false
       type: object
-      example:
-        start: '1'
-        end: '10'
     iBadgeMetadata:
       properties:
         uri:
@@ -6981,6 +8426,206 @@ components:
       required:
         - uri
         - customData
+      additionalProperties: false
+      type: object
+    iSecretsProof:
+      properties:
+        createdBy:
+          type: string
+        scheme:
+          enum:
+            - bbs
+            - standard
+          type: string
+        messageFormat:
+          enum:
+            - plaintext
+            - json
+          type: string
+        secretMessages:
+          items:
+            type: string
+          type: array
+        entropies:
+          items:
+            type: string
+          type: array
+        dataIntegrityProof:
+          properties:
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        proofOfIssuance:
+          properties:
+            message:
+              type: string
+            signer:
+              type: string
+            signature:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - message
+            - signer
+            - signature
+          additionalProperties: false
+          type: object
+        name:
+          type: string
+        image:
+          type: string
+        description:
+          type: string
+        updateHistory:
+          items:
+            $ref: '#/components/schemas/iUpdateHistory'
+          type: array
+        anchors:
+          items:
+            properties:
+              txHash:
+                type: string
+              message:
+                type: string
+            additionalProperties: false
+            type: object
+          type: array
+      required:
+        - createdBy
+        - scheme
+        - messageFormat
+        - secretMessages
+        - dataIntegrityProof
+        - proofOfIssuance
+        - name
+        - image
+        - description
+      additionalProperties: false
+      type: object
+    iSecret:
+      properties:
+        createdBy:
+          type: string
+        messageFormat:
+          enum:
+            - plaintext
+            - json
+          type: string
+        proofOfIssuance:
+          properties:
+            message:
+              type: string
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - message
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        secretId:
+          type: string
+        type:
+          type: string
+        scheme:
+          enum:
+            - bbs
+            - standard
+          type: string
+        secretMessages:
+          items:
+            type: string
+          type: array
+        dataIntegrityProof:
+          properties:
+            signature:
+              type: string
+            signer:
+              type: string
+            publicKey:
+              type: string
+          required:
+            - signature
+            - signer
+          additionalProperties: false
+          type: object
+        name:
+          type: string
+        image:
+          type: string
+        description:
+          type: string
+        viewers:
+          items:
+            type: string
+          type: array
+        anchors:
+          items:
+            properties:
+              txHash:
+                type: string
+              message:
+                type: string
+            additionalProperties: false
+            type: object
+          type: array
+      required:
+        - createdBy
+        - messageFormat
+        - proofOfIssuance
+        - secretId
+        - type
+        - scheme
+        - secretMessages
+        - dataIntegrityProof
+        - name
+        - image
+        - description
+        - viewers
+        - anchors
+      additionalProperties: false
+      type: object
+    iZkProof:
+      properties:
+        verificationKey:
+          description: The verification key of the zkProof.
+          type: string
+        uri:
+          description: The URI where to fetch the zkProof metadata from.
+          type: string
+        customData:
+          description: Arbitrary custom data that can be stored on-chain.
+          type: string
+      required:
+        - verificationKey
+        - uri
+        - customData
+      additionalProperties: false
+      type: object
+    iZkProofSolution:
+      properties:
+        proof:
+          description: The proof of the zkProof.
+          type: string
+        publicInputs:
+          description: The public inputs of the zkProof.
+          type: string
+      required:
+        - proof
+        - publicInputs
       additionalProperties: false
       type: object
     iMustOwnBadges:
@@ -7121,6 +8766,11 @@ components:
             Whether or not to only check the prioritized approvals. If false, we
             will check all approvals with any prioritized first.
           type: boolean
+        zkProofSolutions:
+          items:
+            $ref: '#/components/schemas/iZkProofSolution'
+          description: The zk proof solutions for approvals.
+          type: array
       required:
         - from
         - toAddresses
@@ -7148,13 +8798,31 @@ components:
         - approverAddress
       additionalProperties: false
       type: object
+    iCoinTransfer:
+      properties:
+        to:
+          description: The recipient of the coin transfer.
+          type: string
+        coins:
+          items:
+            $ref: '#/components/schemas/iCosmosCoin'
+          description: The coins
+          type: array
+      required:
+        - to
+        - coins
+      additionalProperties: false
+      type: object
     iAmountTrackerIdDetails:
       properties:
         collectionId:
           description: The collection ID for the approval.
           $ref: '#components/schemas/NumberType'
+        approvalId:
+          description: The approval ID
+          type: string
         amountTrackerId:
-          description: The approval ID of the approval.
+          description: The amount tracker ID of the approval.
           type: string
         approvalLevel:
           description: >-
@@ -7174,6 +8842,7 @@ components:
           type: string
       required:
         - collectionId
+        - approvalId
         - amountTrackerId
         - approvalLevel
         - approverAddress
@@ -7205,6 +8874,9 @@ components:
         customData:
           description: Arbitrary custom data that can be stored on-chain.
           type: string
+        challengeTrackerId:
+          description: Tracker ID details for the merkle challenge.
+          type: string
       required:
         - root
         - expectedProofLength
@@ -7212,6 +8884,7 @@ components:
         - maxUsesPerLeaf
         - uri
         - customData
+        - challengeTrackerId
       additionalProperties: false
       type: object
     iMerklePathItem:
@@ -7368,10 +9041,10 @@ components:
       properties:
         toListId:
           type: string
-        initiatedByListId:
-          type: string
         toList:
           $ref: '#/components/schemas/iAddressList'
+        initiatedByListId:
+          type: string
         initiatedByList:
           $ref: '#/components/schemas/iAddressList'
         transferTimes:
@@ -7388,10 +9061,6 @@ components:
           type: array
         approvalId:
           type: string
-        amountTrackerId:
-          type: string
-        challengeTrackerId:
-          type: string
         uri:
           type: string
         customData:
@@ -7400,15 +9069,13 @@ components:
           $ref: '#/components/schemas/iOutgoingApprovalCriteria'
       required:
         - toListId
-        - initiatedByListId
         - toList
+        - initiatedByListId
         - initiatedByList
         - transferTimes
         - badgeIds
         - ownershipTimes
         - approvalId
-        - amountTrackerId
-        - challengeTrackerId
       additionalProperties: false
       type: object
     iOutgoingApprovalCriteria:
@@ -7418,9 +9085,23 @@ components:
             $ref: '#/components/schemas/iMustOwnBadges'
           description: The list of must own badges to be approved.
           type: array
-        merkleChallenge:
-          $ref: '#/components/schemas/iMerkleChallenge'
+        zkProofs:
+          items:
+            $ref: '#/components/schemas/iZkProof'
+          description: >-
+            The list of ZK proofs that need to be satisfied. One use per proof
+            solution.
+          type: array
+        coinTransfers:
+          items:
+            $ref: '#/components/schemas/iCoinTransfer'
+          description: The $BADGE transfers to be executed upon every approval.
+          type: array
+        merkleChallenges:
+          items:
+            $ref: '#/components/schemas/iMerkleChallenge'
           description: The list of merkle challenges that need valid proofs to be approved.
+          type: array
         predeterminedBalances:
           $ref: '#/components/schemas/iPredeterminedBalances'
           description: The predetermined balances for each transfer.
@@ -7536,12 +9217,22 @@ components:
             specific balances for specific leaves (such as codes or whitelist
             address leafs)
           type: boolean
+        challengeTrackerId:
+          description: >-
+            Use the merkle challenge leaf index as the order number. Must
+            specify ONE merkle challenge with the useLeafIndexForTransferOrder
+            flag set to true. If so, we will use the leaf index of each merkle
+            proof to calculate the order number. This is used to reserve
+            specific balances for specific leaves (such as codes or whitelist
+            address leafs)
+          type: string
       required:
         - useOverallNumTransfers
         - usePerToAddressNumTransfers
         - usePerFromAddressNumTransfers
         - usePerInitiatedByAddressNumTransfers
         - useMerkleChallengeLeafIndex
+        - challengeTrackerId
       additionalProperties: false
       type: object
     iApprovalAmounts:
@@ -7570,11 +9261,17 @@ components:
             each initiated by address. Running tally that includes all transfers
             from each unique initiated by address that match this approval.
           $ref: '#components/schemas/NumberType'
+        amountTrackerId:
+          description: >-
+            The ID of the approval tracker. This is the key used to track
+            tallies.
+          type: string
       required:
         - overallApprovalAmount
         - perToAddressApprovalAmount
         - perFromAddressApprovalAmount
         - perInitiatedByAddressApprovalAmount
+        - amountTrackerId
       additionalProperties: false
       type: object
     iMaxNumTransfers:
@@ -7604,11 +9301,17 @@ components:
             transfers from each unique initiated by address that match this
             approval.
           $ref: '#components/schemas/NumberType'
+        amountTrackerId:
+          description: >-
+            The ID of the approval tracker. This is the key used to track
+            tallies.
+          type: string
       required:
         - overallMaxNumTransfers
         - perToAddressMaxNumTransfers
         - perFromAddressMaxNumTransfers
         - perInitiatedByAddressMaxNumTransfers
+        - amountTrackerId
       additionalProperties: false
       type: object
     iUserIncomingApproval:
@@ -7616,9 +9319,13 @@ components:
         fromListId:
           description: The list ID for the user(s) who is sending the badges.
           type: string
+        fromList:
+          $ref: '#/components/schemas/iAddressList'
         initiatedByListId:
           description: The list ID for the user(s) who initiate the transfer.
           type: string
+        initiatedByList:
+          $ref: '#/components/schemas/iAddressList'
         transferTimes:
           items:
             $ref: '#/components/schemas/iUintRange'
@@ -7639,16 +9346,6 @@ components:
             The ID of the approval. Must not be a duplicate of another approval
             ID in the same timeline.
           type: string
-        amountTrackerId:
-          description: >-
-            The ID of the approval tracker. This is the key used to track
-            tallies.
-          type: string
-        challengeTrackerId:
-          description: >-
-            The ID of the challenge tracker. This is the key used to track used
-            leaves for challenges.
-          type: string
         uri:
           description: The URI of the approval.
           type: string
@@ -7662,21 +9359,15 @@ components:
             approval. These represent the restrictions that must be obeyed such
             as the total amount approved, max num transfers, merkle challenges,
             must own badges, etc.
-        fromList:
-          $ref: '#/components/schemas/iAddressList'
-        initiatedByList:
-          $ref: '#/components/schemas/iAddressList'
       required:
         - fromListId
+        - fromList
         - initiatedByListId
+        - initiatedByList
         - transferTimes
         - badgeIds
         - ownershipTimes
         - approvalId
-        - amountTrackerId
-        - challengeTrackerId
-        - fromList
-        - initiatedByList
       additionalProperties: false
       type: object
     iIncomingApprovalCriteria:
@@ -7686,9 +9377,23 @@ components:
             $ref: '#/components/schemas/iMustOwnBadges'
           description: The list of must own badges to be approved.
           type: array
-        merkleChallenge:
-          $ref: '#/components/schemas/iMerkleChallenge'
+        zkProofs:
+          items:
+            $ref: '#/components/schemas/iZkProof'
+          description: >-
+            The list of ZK proofs that need to be satisfied. One use per proof
+            solution.
+          type: array
+        coinTransfers:
+          items:
+            $ref: '#/components/schemas/iCoinTransfer'
+          description: The $BADGE transfers to be executed upon every approval.
+          type: array
+        merkleChallenges:
+          items:
+            $ref: '#/components/schemas/iMerkleChallenge'
           description: The list of merkle challenges that need valid proofs to be approved.
+          type: array
         predeterminedBalances:
           $ref: '#/components/schemas/iPredeterminedBalances'
           description: The predetermined balances for each transfer using this approval.
@@ -7711,12 +9416,18 @@ components:
         toListId:
           description: The list ID for the user(s) who is receiving the badges.
           type: string
+        toList:
+          $ref: '#/components/schemas/iAddressList'
         fromListId:
           description: The list ID for the user(s) who is sending the badges.
           type: string
+        fromList:
+          $ref: '#/components/schemas/iAddressList'
         initiatedByListId:
           description: The list ID for the user(s) who initiate the transfer.
           type: string
+        initiatedByList:
+          $ref: '#/components/schemas/iAddressList'
         transferTimes:
           items:
             $ref: '#/components/schemas/iUintRange'
@@ -7737,16 +9448,6 @@ components:
             The ID of the approval. Must not be a duplicate of another approval
             ID in the same timeline.
           type: string
-        amountTrackerId:
-          description: >-
-            The ID of the approval tracker. This is the key used to track
-            tallies.
-          type: string
-        challengeTrackerId:
-          description: >-
-            The ID of the challenge tracker. This is the key used to track used
-            leaves for challenges.
-          type: string
         uri:
           description: The URI of the approval.
           type: string
@@ -7760,27 +9461,17 @@ components:
             approval. These represent the restrictions that must be obeyed such
             as the total amount approved, max num transfers, merkle challenges,
             must own badges, etc.
-        details:
-          $ref: '#/components/schemas/iApprovalInfoDetails'
-        toList:
-          $ref: '#/components/schemas/iAddressList'
-        fromList:
-          $ref: '#/components/schemas/iAddressList'
-        initiatedByList:
-          $ref: '#/components/schemas/iAddressList'
       required:
         - toListId
+        - toList
         - fromListId
+        - fromList
         - initiatedByListId
+        - initiatedByList
         - transferTimes
         - badgeIds
         - ownershipTimes
         - approvalId
-        - amountTrackerId
-        - challengeTrackerId
-        - toList
-        - fromList
-        - initiatedByList
       additionalProperties: false
       type: object
     iApprovalCriteria:
@@ -7790,9 +9481,23 @@ components:
             $ref: '#/components/schemas/iMustOwnBadges'
           description: The list of must own badges to be approved.
           type: array
-        merkleChallenge:
-          $ref: '#/components/schemas/iMerkleChallenge'
+        zkProofs:
+          items:
+            $ref: '#/components/schemas/iZkProof'
+          description: >-
+            The list of ZK proofs that need to be satisfied. One use per proof
+            solution.
+          type: array
+        coinTransfers:
+          items:
+            $ref: '#/components/schemas/iCoinTransfer'
+          description: The $BADGE transfers to be executed upon every approval.
+          type: array
+        merkleChallenges:
+          items:
+            $ref: '#/components/schemas/iMerkleChallenge'
           description: The list of merkle challenges that need valid proofs to be approved.
+          type: array
         predeterminedBalances:
           $ref: '#/components/schemas/iPredeterminedBalances'
           description: The predetermined balances for each transfer.

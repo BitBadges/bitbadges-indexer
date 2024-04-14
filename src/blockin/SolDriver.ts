@@ -1,5 +1,5 @@
-import { type BalanceArray, Stringify } from 'bitbadgesjs-sdk';
-import { constructChallengeObjectFromString, type AssetConditionGroup, type IChainDriver } from 'blockin';
+import { type BalanceArray } from 'bitbadgesjs-sdk';
+import { type AssetConditionGroup, type IChainDriver } from 'blockin';
 import bs58 from 'bs58';
 import { TextDecoder } from 'node:util';
 import nacl from 'tweetnacl';
@@ -28,9 +28,8 @@ export default class SolDriver implements IChainDriver<bigint> {
     return address.length === 44;
   }
 
-  async verifySignature(message: string, signature: string) {
-    const originalAddress = constructChallengeObjectFromString(message, Stringify).address;
-    const solanaPublicKeyBase58 = originalAddress;
+  async verifySignature(address: string, message: string, signature: string) {
+    const solanaPublicKeyBase58 = address;
 
     const originalBytes = new Uint8Array(Buffer.from(message, 'utf8'));
     const signatureBytes = new Uint8Array(Buffer.from(signature, 'hex'));

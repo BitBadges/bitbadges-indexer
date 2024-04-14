@@ -8,11 +8,10 @@ import {
   type MerkleChallengeDoc,
   type NumberType,
   type ClaimBuilderDoc,
-  type ProtocolDoc,
   type RefreshDoc,
   type StatusDoc,
-  type UserProtocolCollectionsDoc,
-  convertToCosmosAddress
+  convertToCosmosAddress,
+  MapDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -28,8 +27,7 @@ import {
   type DocsCache,
   type MerkleChallengeDocs,
   type ClaimBuilderDocs,
-  type ProtocolDocs,
-  type UserProtocolCollectionsDocs
+  MapDocs
 } from './types';
 import { getManyFromDB, insertMany, insertToDB } from './db';
 import {
@@ -40,15 +38,14 @@ import {
   ApprovalTrackerModel,
   AddressListModel,
   ClaimBuilderModel,
-  ProtocolModel,
-  UserProtocolCollectionsModel,
   TransferActivityModel,
   QueueModel,
   FollowDetailsModel,
   RefreshModel,
   ListActivityModel,
   ClaimAlertModel,
-  ErrorModel
+  ErrorModel,
+  MapModel
 } from './schemas';
 import { findInDB } from './queries';
 
@@ -66,8 +63,7 @@ export async function fetchDocsForCacheIfEmpty(
   approvalTrackerIds: string[],
   addressListIds: string[],
   claimBuilderDocIds: string[],
-  protocolIds: string[],
-  userProtocolCollectionsIds: string[],
+  mapIds: string[],
   session?: mongoose.mongo.ClientSession
 ) {
   try {
@@ -76,34 +72,31 @@ export async function fetchDocsForCacheIfEmpty(
     const newApprovalTrackerIds = approvalTrackerIds.filter((id) => !currDocs.approvalTrackers[id]);
     const newAddressListIds = addressListIds.filter((id) => !currDocs.addressLists[id]);
     const newClaimBuilderDocIds = claimBuilderDocIds.filter((id) => !currDocs.claimBuilderDocs[id]);
-    const newProtocolIds = protocolIds.filter((id) => !currDocs.protocols[id]);
-    const newUserProtocolCollectionsIds = userProtocolCollectionsIds.filter((id) => !currDocs.userProtocolCollections[id]);
+    const newMapIds = mapIds.filter((id) => !currDocs.maps[id]);
 
     // Partitioned IDs (collectionId:___)
     const newBalanceIds = balanceIds.filter((id) => !currDocs.balances[id]);
-    const newMerkleChallengeIds = challengeTrackers.filter((id) => !currDocs.merkleChallenges[id]);
+    const newMerklechallengeTrackerIds = challengeTrackers.filter((id) => !currDocs.merkleChallenges[id]);
 
     if (
       newCollectionIds.length > 0 ||
       newBalanceIds.length > 0 ||
-      newMerkleChallengeIds.length > 0 ||
+      newMerklechallengeTrackerIds.length > 0 ||
       newCosmosAddresses.length > 0 ||
       newApprovalTrackerIds.length > 0 ||
       newAddressListIds.length > 0 ||
       newClaimBuilderDocIds.length > 0 ||
-      newProtocolIds.length > 0 ||
-      newUserProtocolCollectionsIds.length > 0
+      newMapIds.length > 0
     ) {
       const newDocs = await fetchDocsForCache(
         newCosmosAddresses,
         newCollectionIds,
         newBalanceIds,
-        newMerkleChallengeIds,
+        newMerklechallengeTrackerIds,
         newApprovalTrackerIds,
         newAddressListIds,
         newClaimBuilderDocIds,
-        newProtocolIds,
-        newUserProtocolCollectionsIds,
+        newMapIds,
         session
       );
       currDocs.accounts = {
@@ -143,14 +136,9 @@ export async function fetchDocsForCacheIfEmpty(
       // currDocs.activityToAdd = currDocs.activityToAdd
       // currDocs.queueDocsToAdd = currDocs.queueDocsToAdd
 
-      currDocs.protocols = {
-        ...currDocs.protocols,
-        ...newDocs.protocols
-      };
-
-      currDocs.userProtocolCollections = {
-        ...currDocs.userProtocolCollections,
-        ...newDocs.userProtocolCollections
+      currDocs.maps = {
+        ...currDocs.maps,
+        ...newDocs.maps
       };
     }
   } catch (error) {
@@ -171,8 +159,7 @@ export async function fetchDocsForCache(
   _approvalTrackerIds: string[],
   _addressListIds: string[],
   _claimBuilderDocIds: string[],
-  _protocolIds: string[],
-  _userProtocolCollectionsIds: string[],
+  _mapIds: string[],
   session?: mongoose.mongo.ClientSession
 ) {
   try {
@@ -183,8 +170,18 @@ export async function fetchDocsForCache(
     const approvalTrackerIds = [...new Set(_approvalTrackerIds)].filter((id) => id.length > 0);
     const addressListIds = [...new Set(_addressListIds)].filter((id) => id.length > 0);
     const claimBuilderDocIds = [...new Set(_claimBuilderDocIds)].filter((id) => id.length > 0);
-    const protocolIds = [...new Set(_protocolIds)].filter((id) => id.length > 0);
-    const userProtocolCollectionsIds = [...new Set(_userProtocolCollectionsIds)].filter((id) => id.length > 0);
+    const mapIds = [...new Set(_mapIds)].filter((id) => id.length > 0);
+
+    console.log(
+      _cosmosAddresses,
+      _collectionDocIds,
+      _balanceDocIds,
+      _claimDocIds,
+      _approvalTrackerIds,
+      _addressListIds,
+      _claimBuilderDocIds,
+      _mapIds
+    );
 
     const accountsData: AccountDocs = {};
     const collectionData: CollectionDocs = {};
@@ -193,8 +190,7 @@ export async function fetchDocsForCache(
     const approvalTrackerData: ApprovalTrackerDocs = {};
     const addressListsData: AddressListsDocs = {};
     const claimBuilderDocs: ClaimBuilderDocs = {};
-    const protocolsData: ProtocolDocs = {};
-    const userProtocolCollectionsData: UserProtocolCollectionsDocs = {};
+    const mapsData: MapDocs = {};
 
     const promises = [];
     if (cosmosAddresses.length > 0) promises.push(getManyFromDB(AccountModel, cosmosAddresses, session));
@@ -204,8 +200,7 @@ export async function fetchDocsForCache(
     if (approvalTrackerIds.length > 0) promises.push(getManyFromDB(ApprovalTrackerModel, approvalTrackerIds, session));
     if (addressListIds.length > 0) promises.push(getManyFromDB(AddressListModel, addressListIds, session));
     if (claimBuilderDocIds.length > 0) promises.push(getManyFromDB(ClaimBuilderModel, claimBuilderDocIds, session));
-    if (protocolIds.length > 0) promises.push(getManyFromDB(ProtocolModel, protocolIds, session));
-    if (userProtocolCollectionsIds.length > 0) promises.push(getManyFromDB(UserProtocolCollectionsModel, userProtocolCollectionsIds, session));
+    if (mapIds.length > 0) promises.push(getManyFromDB(MapModel, mapIds, session));
 
     if (promises.length > 0) {
       const results = await Promise.allSettled(promises);
@@ -285,37 +280,26 @@ export async function fetchDocsForCache(
         }
       }
 
-      if (protocolIds.length > 0) {
+      if (mapIds.length > 0) {
         const result = results[idx++];
         if (result.status === 'fulfilled') {
           const docs = (result.value as any[]).filter((x) => x);
-          for (const protocolId of protocolIds) {
-            protocolsData[protocolId] = docs.find((x) => x._docId === protocolId);
-          }
-        }
-      }
-
-      if (userProtocolCollectionsIds.length > 0) {
-        const result = results[idx++];
-        if (result.status === 'fulfilled') {
-          const docs = (result.value as any[]).filter((x) => x);
-          for (const userProtocolCollectionsId of userProtocolCollectionsIds) {
-            userProtocolCollectionsData[userProtocolCollectionsId] = docs.find((x) => x._docId === userProtocolCollectionsId);
+          for (const mapId of mapIds) {
+            mapsData[mapId] = docs.find((x) => x._docId === mapId);
           }
         }
       }
     }
 
     return {
-      protocols: protocolsData,
-      userProtocolCollections: userProtocolCollectionsData,
       accounts: accountsData,
       collections: collectionData,
       balances: balanceData,
       merkleChallenges: claimData,
       approvalTrackers: approvalTrackerData,
       addressLists: addressListsData,
-      claimBuilderDocs
+      claimBuilderDocs,
+      maps: mapsData
     };
   } catch (error) {
     throw new Error(`Error in fetchDocsForCache(): ${error}`);
@@ -343,8 +327,7 @@ export async function flushCachedDocs(
     const activityDocs = docs.activityToAdd;
     const queueDocs = docs.queueDocsToAdd;
     const claimAlertDocs = docs.claimAlertsToAdd;
-    const protocolDocs = Object.values(docs.protocols) as Array<ProtocolDoc>;
-    const userProtocolCollectionsDocs = Object.values(docs.userProtocolCollections) as Array<UserProtocolCollectionsDoc<bigint>>;
+    const mapDocs = Object.values(docs.maps) as Array<MapDoc<bigint>>;
 
     // If we have a session, we should not execute all inserts in parallel bc it messes up transactions
     // If not, we can execute all inserts in parallel
@@ -441,14 +424,9 @@ export async function flushCachedDocs(
       else await insertMany(ClaimAlertModel, claimAlertDocs, session);
     }
 
-    if (protocolDocs.length > 0) {
-      if (parallelExecution) promises.push(insertMany(ProtocolModel, protocolDocs, session));
-      else await insertMany(ProtocolModel, protocolDocs, session);
-    }
-
-    if (userProtocolCollectionsDocs.length > 0) {
-      if (parallelExecution) promises.push(insertMany(UserProtocolCollectionsModel, userProtocolCollectionsDocs, session));
-      else await insertMany(UserProtocolCollectionsModel, userProtocolCollectionsDocs, session);
+    if (mapDocs.length > 0) {
+      if (parallelExecution) promises.push(insertMany(MapModel, mapDocs, session));
+      else await insertMany(MapModel, mapDocs, session);
     }
 
     if (promises.length === 0 && status && skipStatusFlushIfEmptyBlock) {

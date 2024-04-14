@@ -45,7 +45,7 @@ export async function getAddressListsFromDB(
             lastUpdated: 0n,
             createdBlock: 0n,
             listsActivity: [],
-            editClaims: [],
+            claims: [],
             views: {}
           })
         );
@@ -77,7 +77,7 @@ export async function getAddressListsFromDB(
         addressLists.push(
           new BitBadgesAddressList<bigint>({
             ...doc,
-            editClaims: [],
+            claims: [],
             listsActivity: listActivity.docs,
             views: fetchMetadata
               ? {
@@ -142,7 +142,22 @@ export const appendSelfInitiatedIncomingApprovalToApprovals = <T extends bigint>
     return new UserIncomingApprovalWithDetails({
       ...transfer,
       fromList: mustFindAddressList(addressLists, transfer.fromListId),
-      initiatedByList: mustFindAddressList(addressLists, transfer.initiatedByListId)
+      initiatedByList: mustFindAddressList(addressLists, transfer.initiatedByListId),
+      approvalCriteria: {
+        ...transfer.approvalCriteria,
+        merkleChallenges:
+          transfer.approvalCriteria?.merkleChallenges?.map((y) => {
+            return {
+              ...y,
+              challengeInfoDetails: {
+                challengeDetails: {
+                  leaves: [],
+                  isHashed: false
+                }
+              }
+            };
+          }) ?? []
+      }
     });
   });
 
@@ -162,7 +177,22 @@ export const appendSelfInitiatedOutgoingApprovalToApprovals = <T extends bigint>
     return new UserOutgoingApprovalWithDetails({
       ...transfer,
       toList: mustFindAddressList(addressLists, transfer.toListId),
-      initiatedByList: mustFindAddressList(addressLists, transfer.initiatedByListId)
+      initiatedByList: mustFindAddressList(addressLists, transfer.initiatedByListId),
+      approvalCriteria: {
+        ...transfer.approvalCriteria,
+        merkleChallenges:
+          transfer.approvalCriteria?.merkleChallenges?.map((y) => {
+            return {
+              ...y,
+              challengeInfoDetails: {
+                challengeDetails: {
+                  leaves: [],
+                  isHashed: false
+                }
+              }
+            };
+          }) ?? []
+      }
     });
   });
 

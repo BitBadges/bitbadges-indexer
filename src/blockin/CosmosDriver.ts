@@ -1,8 +1,10 @@
 import { verifyADR36Amino } from '@keplr-wallet/cosmos';
 import axiosApi from 'axios';
-import { Stringify, SupportedChain, getChainForAddress, type BalanceArray, type NumberType } from 'bitbadgesjs-sdk';
-import { constructChallengeObjectFromString, type AssetConditionGroup, type IChainDriver } from 'blockin';
+import { SupportedChain, convertToCosmosAddress, getChainForAddress, type BalanceArray, type NumberType } from 'bitbadgesjs-sdk';
+import { type AssetConditionGroup, type IChainDriver } from 'blockin';
 import { Buffer } from 'buffer';
+import { getFromDB } from '../db/db';
+import { AccountModel } from '../db/schemas';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
 
 export const axios = axiosApi.create({
@@ -30,34 +32,25 @@ export default class CosmosDriver implements IChainDriver<NumberType> {
     return getChainForAddress(address) === SupportedChain.COSMOS;
   }
 
-  async verifySignature(message: string, signature: string, publicKey?: string) {
+  async verifySignature(address: string, message: string, signature: string, publicKey?: string) {
+    const prefix = 'cosmos';
     if (!publicKey) {
-      throw new Error('Public key is required for Cosmos. This may not be required for other chains.');
+      const fetchedPublicKey = await getFromDB(AccountModel, convertToCosmosAddress(address));
+      if (!fetchedPublicKey || !fetchedPublicKey.publicKey) {
+        throw new Error(
+          `Public key must be provided for Cosmos signatures. We could not fetch it from the blockchain or BitBadges databases either.`
+        );
+      }
+
+      publicKey = fetchedPublicKey.publicKey;
     }
 
-    const originalString = message;
-    const originalAddress = constructChallengeObjectFromString(message, Stringify).address;
+    const pubKeyBytes = Buffer.from(publicKey, 'base64');
+    const signatureBytes = Buffer.from(signature, 'base64');
 
-    const signatureBuffer = Buffer.from(signature, 'base64');
-    const uint8Signature = new Uint8Array(signatureBuffer); // Convert the buffer to an Uint8Array
-
-    const pubKeyValueBuffer = Buffer.from(publicKey, 'base64'); // Decode the base64 encoded value
-    const pubKeyUint8Array = new Uint8Array(pubKeyValueBuffer); // Convert the buffer to an Uint8Array
-
-    // concat the two Uint8Arrays //This is probably legacy code and can be removed
-    const signedChallenge = new Uint8Array(pubKeyUint8Array.length + uint8Signature.length);
-    signedChallenge.set(pubKeyUint8Array);
-    signedChallenge.set(uint8Signature, pubKeyUint8Array.length);
-
-    const pubKeyBytes = signedChallenge.slice(0, 33);
-    const signatureBytes = signedChallenge.slice(33);
-
-    const prefix = 'cosmos'; // change prefix for other chains...
-
-    const isRecovered = verifyADR36Amino(prefix, originalAddress, originalString, pubKeyBytes, signatureBytes, 'secp256k1');
-
+    const isRecovered = verifyADR36Amino(prefix, address, message, pubKeyBytes, signatureBytes, 'secp256k1');
     if (!isRecovered) {
-      throw new Error(`Signature invalid for address ${originalAddress}`);
+      throw new Error(`Signature invalid for address ${address}`);
     }
   }
 

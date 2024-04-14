@@ -233,25 +233,22 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
   name: string,
   description: string,
   challengeDetails?: iChallengeDetails<T>
-) => {
+): Promise<[string, string | undefined] | undefined> => {
   // Remove preimages and passwords from challengeDetails
   let convertedDetails: ChallengeDetails<T> | undefined;
 
   if (challengeDetails) {
     convertedDetails = new ChallengeDetails<T>({
       ...challengeDetails,
-      leavesDetails: {
-        ...challengeDetails.leavesDetails,
-        preimages: undefined,
-        seedCode: undefined
-      }
+      preimages: undefined,
+      seedCode: undefined
     });
   }
 
   const files = [];
   files.push({
     path: '',
-    content: uint8ArrayFromString(JSON.stringify({ name, description, challengeDetails: convertedDetails }))
+    content: uint8ArrayFromString(JSON.stringify({ name, description }))
   });
 
   const result = await last(ipfsClient.addAll(files));
@@ -261,8 +258,7 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
 
   const content = new ApprovalInfoDetails({
     name,
-    description,
-    challengeDetails: convertedDetails
+    description
   });
 
   await insertToDB(
@@ -277,5 +273,30 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
     })
   );
 
-  return result;
+  let challengeResult;
+  if (convertedDetails) {
+    const files = [];
+    files.push({
+      path: '',
+      content: uint8ArrayFromString(JSON.stringify({ challengeDetails: convertedDetails }))
+    });
+
+    const challengeContent = new ChallengeDetails<T>(convertedDetails);
+    challengeResult = await last(ipfsClient.addAll(files));
+    if (!challengeResult) return undefined;
+
+    await insertToDB(
+      FetchModel,
+      new FetchDoc<NumberType>({
+        _docId: `ipfs://${challengeResult.cid.toString()}`,
+        fetchedAt: BigInt(Date.now()),
+        fetchedAtBlock: status.block.height,
+        content: challengeContent,
+        db: 'ChallengeInfo',
+        isPermanent: true
+      })
+    );
+  }
+
+  return [result.cid.toString(), challengeResult?.cid.toString()];
 };

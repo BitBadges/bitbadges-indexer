@@ -195,21 +195,25 @@ export async function executeCollectionMerkleChallengesQuery(collectionId: strin
   });
 }
 
-export async function executeMerkleChallengeByIdsQuery(collectionId: string, challengeIdsToFetch: Array<iChallengeTrackerIdDetails<NumberType>>) {
-  if (challengeIdsToFetch.length > 100) {
+export async function executeMerkleChallengeByIdsQuery(
+  collectionId: string,
+  challengeTrackerIdsToFetch: Array<iChallengeTrackerIdDetails<NumberType>>
+) {
+  if (challengeTrackerIdsToFetch.length > 100) {
     throw new Error('You can only fetch up to 100 merkle challenges at a time.');
   }
 
   const docs = await Promise.all(
-    challengeIdsToFetch.map(async (idObj) => {
-      const docId = `${collectionId}:${idObj.challengeLevel}-${idObj.approverAddress}-${idObj.challengeId}`;
+    challengeTrackerIdsToFetch.map(async (idObj) => {
+      const docId = `${collectionId}:${idObj.challengeLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.challengeTrackerId}`;
       const res = await getFromDB(MerkleChallengeModel, docId);
 
       return (
         res ?? {
           _docId: docId,
           collectionId: Number(collectionId),
-          challengeId: idObj.challengeId,
+          approvalId: idObj.approvalId,
+          challengeTrackerId: idObj.challengeTrackerId,
           challengeLevel: idObj.challengeLevel,
           approverAddress: idObj.approverAddress,
           usedLeafIndices: []
@@ -228,7 +232,7 @@ export async function executeApprovalTrackersByIdsQuery(collectionId: string, id
 
   const docs = await Promise.all(
     idsToFetch.map(async (idObj) => {
-      const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.amountTrackerId}-${idObj.trackerType}-${idObj.approvedAddress}`;
+      const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.amountTrackerId}-${idObj.trackerType}-${idObj.approvedAddress}`;
       const res = await getFromDB(ApprovalTrackerModel, docId);
 
       return (
@@ -236,6 +240,7 @@ export async function executeApprovalTrackersByIdsQuery(collectionId: string, id
         new ApprovalTrackerDoc<bigint>({
           _docId: docId,
           collectionId: BigInt(collectionId),
+          approvalId: idObj.approvalId,
           approvalLevel: idObj.approvalLevel,
           approverAddress: idObj.approverAddress,
           amountTrackerId: idObj.amountTrackerId,

@@ -202,7 +202,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
         result.addressLists[`${key}` as keyof typeof result.addressLists].push({
           ...addressList,
           listsActivity: [],
-          editClaims: [],
+          claims: [],
           views: {}
         });
       }

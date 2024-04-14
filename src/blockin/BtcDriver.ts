@@ -1,6 +1,6 @@
 import { Verifier } from 'bip322-js';
-import { type BalanceArray, Stringify, convertToCosmosAddress } from 'bitbadgesjs-sdk';
-import { constructChallengeObjectFromString, type AssetConditionGroup, type IChainDriver } from 'blockin';
+import { convertToCosmosAddress, type BalanceArray } from 'bitbadgesjs-sdk';
+import { type AssetConditionGroup, type IChainDriver } from 'blockin';
 import { TextDecoder } from 'node:util';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
 
@@ -27,9 +27,8 @@ export default class BtcDriver implements IChainDriver<bigint> {
     return !!convertToCosmosAddress(address);
   }
 
-  async verifySignature(message: string, signature: string) {
-    const originalAddress = constructChallengeObjectFromString(message, Stringify).address;
-    const isValidSignature = Verifier.verifySignature(originalAddress, message, signature);
+  async verifySignature(address: string, message: string, signature: string) {
+    const isValidSignature = Verifier.verifySignature(address, message, signature);
     if (!isValidSignature) {
       throw new Error('Signature Invalid');
     }

@@ -20,13 +20,11 @@ import {
   NumberifyIfPossible,
   ClaimBuilderDoc,
   ProfileDoc,
-  ProtocolDoc,
   QueueDoc,
   RefreshDoc,
   ReviewDoc,
   StatusDoc,
   TransferActivityDoc,
-  UserProtocolCollectionsDoc,
   type iAccountDoc,
   type iAddressListDoc,
   type iAirdropDoc,
@@ -37,19 +35,21 @@ import {
   type iCollectionDoc,
   type iComplianceDoc,
   type iFetchDoc,
+  type iSecretDoc,
   type iFollowDetailsDoc,
   type iIPFSTotalsDoc,
   type iListActivityDoc,
   type iMerkleChallengeDoc,
   type iClaimBuilderDoc,
   type iProfileDoc,
-  type iProtocolDoc,
   type iQueueDoc,
   type iRefreshDoc,
   type iReviewDoc,
   type iStatusDoc,
   type iTransferActivityDoc,
-  type iUserProtocolCollectionsDoc
+  SecretDoc,
+  MapDoc,
+  iMapDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto-js';
 import { config } from 'dotenv';
@@ -88,7 +88,6 @@ import {
   PageVisitsModel,
   ClaimBuilderModel,
   ProfileModel,
-  ProtocolModel,
   QueueModel,
   RefreshModel,
   ReportModel,
@@ -97,7 +96,10 @@ import {
   TransferActivityModel,
   type TypedDocFromModel,
   type TypedInterfaceFromModel,
-  UserProtocolCollectionsModel
+  ExternalCallKeysModel,
+  KeysDoc,
+  OffChainSecretsModel,
+  MapModel
 } from './schemas';
 
 const { SHA256 } = crypto;
@@ -342,14 +344,16 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new FollowDetailsDoc(doc as iFollowDetailsDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === BrowseModel.modelName) {
       convertedDoc = new BrowseDoc(doc as iBrowseDoc<NumberType>).convert(convertFunction);
-    } else if (model.modelName === ProtocolModel.modelName) {
-      convertedDoc = new ProtocolDoc(doc as iProtocolDoc);
-    } else if (model.modelName === UserProtocolCollectionsModel.modelName) {
-      convertedDoc = new UserProtocolCollectionsDoc(doc as iUserProtocolCollectionsDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === ListActivityModel.modelName) {
       convertedDoc = new ListActivityDoc(doc as iListActivityDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === PageVisitsModel.modelName) {
       convertedDoc = new PageVisitsDoc(doc as iPageVisitsDoc<NumberType>).convert(convertFunction);
+    } else if (model.modelName === ExternalCallKeysModel.modelName) {
+      convertedDoc = doc as KeysDoc;
+    } else if (model.modelName === OffChainSecretsModel.modelName) {
+      convertedDoc = new SecretDoc(doc as iSecretDoc<NumberType>).convert(convertFunction);
+    } else if (model.modelName === MapModel.modelName) {
+      convertedDoc = new MapDoc(doc as iMapDoc<NumberType>).convert(convertFunction);
     }
 
     if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);

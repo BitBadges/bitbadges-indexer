@@ -71,7 +71,7 @@ export const deleteAddressLists = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting address lists. Please try again later.'
+      errorMessage: 'Error deleting address lists.'
     });
   }
 };
@@ -162,7 +162,7 @@ const handleAddressListsUpdateAndCreate = async (
         throw new Error('List with ID ' + list.listId + ' does not exist.');
       }
 
-      for (const claim of list.editClaims) {
+      for (const claim of list.claims) {
         const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': list.listId, _docId: claim.claimId }, limit: 1 });
         const plugins = encryptPlugins(claim.plugins ?? []);
 
@@ -204,7 +204,7 @@ const handleAddressListsUpdateAndCreate = async (
 
       //Delete all old claims that are not in the new stuff
       const claimDocs = await findInDB(ClaimBuilderModel, {
-        query: { 'action.listId': list.listId, _docId: { $nin: list.editClaims.map((x) => x.claimId) } }
+        query: { 'action.listId': list.listId, _docId: { $nin: list.claims.map((x) => x.claimId) } }
       });
       const docIdsToDelete = claimDocs.map((x) => x._docId);
       claimDocsToDelete.push(...docIdsToDelete);
@@ -228,7 +228,8 @@ const handleAddressListsUpdateAndCreate = async (
               {
                 block: status.block.height,
                 blockTimestamp: status.block.timestamp,
-                txHash: ''
+                txHash: '',
+                timestamp: Date.now()
               }
             ],
             lastUpdated: status.block.timestamp
@@ -246,7 +247,8 @@ const handleAddressListsUpdateAndCreate = async (
               {
                 block: status.block.height,
                 blockTimestamp: status.block.timestamp,
-                txHash: ''
+                txHash: '',
+                timestamp: Date.now()
               }
             ],
             _docId: list.listId,
@@ -281,7 +283,7 @@ const handleAddressListsUpdateAndCreate = async (
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error creating address lists. Please try again later.'
+      errorMessage: 'Error creating address lists.'
     });
   }
 };
@@ -322,7 +324,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
       }
 
       const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': doc.listId } });
-      doc.editClaims = await getClaimDetailsForFrontend(req, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
+      doc.claims = await getClaimDetailsForFrontend(req, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
     }
 
     return res.status(200).send({ addressLists: docs });
@@ -330,7 +332,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching address lists. Please try again later.'
+      errorMessage: 'Error fetching address lists.'
     });
   }
 };

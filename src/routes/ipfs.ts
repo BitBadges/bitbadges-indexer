@@ -107,10 +107,10 @@ export const addBalancesToOffChainStorageHandler = async (
     }
 
     const docsToDelete = await findInDB(ClaimBuilderModel, {
-      query: { collectionId: Number(reqBody.collectionId), _docId: { $nin: (reqBody.offChainClaims ?? []).map((claim) => claim.claimId) } }
+      query: { collectionId: Number(reqBody.collectionId), _docId: { $nin: (reqBody.claims ?? []).map((claim) => claim.claimId) } }
     });
 
-    for (const claim of reqBody.offChainClaims ?? []) {
+    for (const claim of reqBody.claims ?? []) {
       if (!reqBody.collectionId && !result) {
         throw new Error('You must upload the balances to IPFS before adding plugins');
       }
@@ -221,7 +221,7 @@ export const addMetadataToIpfsHandler = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding metadata. Please try again later.'
+      errorMessage: 'Error adding metadata.'
     });
   }
 };
@@ -237,21 +237,23 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
 
     const size = Buffer.byteLength(JSON.stringify(req.body));
     await checkIpfsTotals(req.session.cosmosAddress, size);
-    const offChainClaims = reqBody.offChainClaims;
-    if (offChainClaims && offChainClaims?.length > 1) {
+    const claims = reqBody.claims;
+    if (claims && claims?.length > 1) {
       throw new Error('Only one claim can be added at a time for on-chain approvals');
     }
 
-    const result = await addApprovalDetailsToOffChainStorage(reqBody.name, reqBody.description, challengeDetails);
+    const ipfsRes = await addApprovalDetailsToOffChainStorage(reqBody.name, reqBody.description, challengeDetails);
+    const result = ipfsRes?.[0];
+    const challengeResult = ipfsRes?.[1];
     if (!result) {
       throw new Error('No IPFS result received');
     }
 
     //We handle deletes of old claims in the poller
-    for (const claim of offChainClaims ?? []) {
+    for (const claim of claims ?? []) {
       const encryptedAction = getPlugin('codes').encryptPrivateParams({
-        codes: challengeDetails?.leavesDetails.preimages ?? [],
-        seedCode: challengeDetails?.leavesDetails.seedCode ?? ''
+        codes: challengeDetails?.preimages ?? [],
+        seedCode: challengeDetails?.seedCode ?? ''
       });
 
       if (!claim.claimId) {
@@ -261,7 +263,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       const query = { docClaimed: true, _docId: claim.claimId };
       const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1 });
       const existingDoc = existingDocRes.length > 0 ? existingDocRes[0] : undefined;
-      const hasSeedCode = challengeDetails?.leavesDetails.seedCode;
+      const hasSeedCode = challengeDetails?.seedCode;
       const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
       const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
 
@@ -311,12 +313,12 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
 
     await updateIpfsTotals(req.session.cosmosAddress, size);
 
-    return res.status(200).send({ result: { cid: result.cid.toString() } });
+    return res.status(200).send({ result: { cid: result }, challengeResult: { cid: challengeResult ?? '' } });
   } catch (e) {
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding claim details to IPFS. Please try again later.'
+      errorMessage: 'Error adding claim details to IPFS.'
     });
   }
 };

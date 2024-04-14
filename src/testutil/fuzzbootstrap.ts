@@ -179,8 +179,6 @@ const randomMsgCreateCollection = (newCollection?: boolean) => {
         ? [
             {
               approvalId: crypto.randomBytes(32).toString('hex'),
-              challengeTrackerId: crypto.randomBytes(32).toString('hex'),
-              amountTrackerId: crypto.randomBytes(32).toString('hex'),
               fromListId: 'All',
               toListId: 'All',
               initiatedByListId: 'All',

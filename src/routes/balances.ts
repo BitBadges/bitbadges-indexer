@@ -64,7 +64,12 @@ export const getBadgeBalanceByAddress = async (
     const docId = `${req.params.collectionId}:${cosmosAddress}`;
     const collection = await mustGetFromDB(CollectionModel, req.params.collectionId);
 
-    if (collection.balancesType === 'Off-Chain - Non-Indexed') {
+    if (collection.balancesType === 'Non-Public') {
+      return res.status(403).send({
+        error: 'Non-Public Collection',
+        errorMessage: 'This collection has balances that are private or none at all.'
+      });
+    } else if (collection.balancesType === 'Off-Chain - Non-Indexed') {
       // we need to fetch from source directly
       const uri = collection.getOffChainBalancesMetadata()?.uri;
       const uriToFetch = uri?.replace('{address}', convertToCosmosAddress(cosmosAddress));

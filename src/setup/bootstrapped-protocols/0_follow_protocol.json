@@ -1,7 +1,50 @@
 {
-  "creator": "",
-  "name": "BitBadges Follow Protocol",
-  "uri": "",
-  "description": "",
-  "isFrozen": false
+  "creator": "cosmos1zd5dsage58jfrgmsu377pk6w0q5zhc67fn4gsl",
+  "mapId": "BitBadges Follow Protocol",
+  "inheritManagerTimelineFrom": "0",
+  "managerTimeline": [
+    {
+      "manager": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateCriteria": {
+    "managerOnly": false,
+    "collectionId": "0",
+    "creatorOnly": true,
+    "firstComeFirstServe": false
+  },
+  "valueOptions": {
+    "noDuplicates": false,
+    "permanentOnceSet": false,
+    "expectUint": true,
+    "expectBoolean": false,
+    "expectAddress": false,
+    "expectUri": false
+  },
+  "defaultValue": "",
+  "metadataTimeline": [
+    {
+      "metadata": {
+        "uri": "ipfs://QmQQ1tjiV29CrxFPpPFNWAbwSysgrpwegwHV2BUj81E5nr",
+        "customData": ""
+      },
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "permissions": {
+    "canUpdateMetadata": [],
+    "canUpdateManager": [],
+    "canDeleteMap": []
+  }
 }

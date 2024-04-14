@@ -252,6 +252,33 @@ export const updateRefreshDoc = async (docs: DocsCache, collectionId: string, re
   return 0;
 };
 
+export const getMapIdForQueueDb = (entropy: string, mapId: string, uri: string) => {
+  return entropy + '-map-' + mapId.toString() + '-' + uri.toString();
+};
+
+export const pushMapFetchToQueue = async (
+  docs: DocsCache,
+  mapId: string,
+  uri: string,
+  loadBalanceId: number,
+  refreshTime: bigint,
+  deterministicEntropy?: string
+) => {
+  docs.queueDocsToAdd.push(
+    new QueueDoc<bigint>({
+      _docId: deterministicEntropy
+        ? getMapIdForQueueDb(deterministicEntropy, mapId.toString(), uri.toString())
+        : crypto.randomBytes(16).toString('hex'),
+      uri,
+      collectionId: 0n,
+      numRetries: 0n,
+      refreshRequestTime: refreshTime,
+      loadBalanceId: BigInt(loadBalanceId),
+      nextFetchTime: BigInt(Date.now())
+    })
+  );
+};
+
 export const getApprovalInfoIdForQueueDb = (entropy: string, collectionId: string, claimId: string) => {
   return entropy + '-approval-' + collectionId.toString() + '-' + claimId.toString();
 };
@@ -480,8 +507,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     claimAlertsToAdd: [],
     activityToAdd: [],
     queueDocsToAdd: [],
-    protocols: {},
-    userProtocolCollections: {}
+    maps: {}
   };
 
   try {
@@ -522,7 +548,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     // Check the total doc first. If undefined, we can assume the rest are undefined (since this collection has never had balances before)
     // Saves us from fetching 10000+ or however many undefined docs if we dont need to
 
-    await fetchDocsForCacheIfEmpty(docs, [], [], [`${queueObj.collectionId}:Mint`, `${queueObj.collectionId}:Total`], [], [], [], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [], [], [`${queueObj.collectionId}:Mint`, `${queueObj.collectionId}:Total`], [], [], [], [], []);
 
     const mintDoc = docs.balances[`${queueObj.collectionId}:Mint`];
     if (!mintDoc) throw new Error('Mint doc not found');
@@ -553,7 +579,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
       });
       const allIdsToFetch = new Set([...mapKeys.map((key) => `${queueObj.collectionId}:${key}`), ...allPreviousDocIds.map((x) => x._docId)]);
 
-      await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], [], [], []);
+      await fetchDocsForCacheIfEmpty(docs, [], [], [...allIdsToFetch], [], [], [], [], []);
 
       const docBalancesCopy: Record<string, BalanceDoc<bigint> | undefined> = {};
       for (const [key, val] of Object.entries(docs.balances)) {
@@ -683,6 +709,7 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
             memo: '',
             initiatedBy: '',
             prioritizedApprovals: [],
+            zkProofSolutions: [],
             onlyCheckPrioritizedApprovals: false,
             precalculateBalancesFromApproval: {
               approvalId: '',

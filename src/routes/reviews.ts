@@ -34,7 +34,7 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting review. Please try again later.'
+      errorMessage: 'Error deleting review.'
     });
   }
 };
@@ -80,7 +80,7 @@ export const addReviewForCollection = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding review. Please try again later.'
+      errorMessage: 'Error adding review.'
     });
   }
 };
@@ -136,7 +136,7 @@ export const addReviewForUser = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding announcement. Please try again later.'
+      errorMessage: 'Error adding announcement.'
     });
   }
 };

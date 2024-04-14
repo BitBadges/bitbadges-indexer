@@ -21,22 +21,25 @@ export const sendClaimAlert = async (req: AuthenticatedRequest<NumberType>, res:
     const reqBody = req.body as SendClaimAlertsRouteRequestBody;
 
     for (const claimAlert of reqBody.claimAlerts) {
-      const isManager = await checkIfManager(req, claimAlert.collectionId);
-      if (!isManager) {
-        return res.status(403).send({
-          errorMessage: 'You must be a manager of the collection you are trying to send claim alerts for.'
-        });
+      if (claimAlert.collectionId && Number(claimAlert.collectionId) !== 0) {
+        const isManager = await checkIfManager(req, claimAlert.collectionId);
+        if (!isManager) {
+          return res.status(403).send({
+            errorMessage: 'You must be a manager of the collection you are trying to send claim alerts for.'
+          });
+        }
       }
 
       // random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
       const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
       const status = await getStatus();
       const doc = new ClaimAlertDoc<NumberType>({
+        from: req.session.cosmosAddress,
         _docId: `${claimAlert.collectionId}:${id}`,
         timestamp: Number(Date.now()),
         collectionId: Number(claimAlert.collectionId),
         message: claimAlert.message,
-        cosmosAddresses: [convertToCosmosAddress(claimAlert.recipientAddress)],
+        cosmosAddresses: claimAlert.cosmosAddresses.map(convertToCosmosAddress),
         block: status.block.height
       });
 
@@ -48,7 +51,7 @@ export const sendClaimAlert = async (req: AuthenticatedRequest<NumberType>, res:
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding claim alert. Please try again later.'
+      errorMessage: 'Error adding claim alert.'
     });
   }
 };
@@ -84,7 +87,7 @@ export async function getClaimAlertsForCollection(
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting claim alerts. Please try again later.'
+      errorMessage: 'Error getting claim alerts.'
     });
   }
 }

@@ -30,7 +30,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter
   }
 };
 
-type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email'; // | 'stripe';
+type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email'; 
 
 export const GenericOauthValidateFunction = async <P extends OauthType>(
   publicParams: ClaimIntegrationPublicParamsType<P>,
@@ -158,34 +158,6 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<NumberType, 'github'>
     return {};
   }
 };
-
-// export const StripePluginDetails: BackendIntegrationPlugin<NumberType, 'stripe'> = {
-//   id: 'stripe',
-//   metadata: {
-//     name: 'Stripe',
-//     description: '',
-//     image: 'https://bitbadges.s3.amazonaws.com/twitter.png',
-//     createdBy: 'BitBadges',
-//     stateless: false,
-//     scoped: true
-//   },
-//   defaultState: {},
-//   encryptPrivateParams: (privateParams) => {
-//     return privateParams;
-//   },
-//   decryptPrivateParams: (privateParams) => {
-//     return privateParams;
-//   },
-//   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, stripeInfo) => {
-//     return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, stripeInfo);
-//   },
-//   getPublicState: () => {
-//     return {};
-//   },
-//   getBlankPublicState() {
-//     return {};
-//   }
-// };
 
 export const DiscordPluginDetails: BackendIntegrationPlugin<NumberType, 'discord'> = {
   id: 'discord',

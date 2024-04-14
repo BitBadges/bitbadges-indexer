@@ -1,17 +1,16 @@
 import {
-  type QueueDoc,
-  type TransferActivityDoc,
+  type AccountDoc,
+  type AddressListDoc,
+  type ApprovalTrackerDoc,
+  type BalanceDoc,
   type ClaimAlertDoc,
-  type ProtocolDoc,
-  type UserProtocolCollectionsDoc,
   type ClaimBuilderDoc,
   type CollectionDoc,
-  type RefreshDoc,
-  type AccountDoc,
-  type BalanceDoc,
+  MapDoc,
   type MerkleChallengeDoc,
-  type ApprovalTrackerDoc,
-  type AddressListDoc
+  type QueueDoc,
+  type RefreshDoc,
+  type TransferActivityDoc
 } from 'bitbadgesjs-sdk';
 
 /**
@@ -30,9 +29,7 @@ export interface DocsCache {
   activityToAdd: Array<TransferActivityDoc<bigint>>;
   claimAlertsToAdd: Array<ClaimAlertDoc<bigint>>;
   claimBuilderDocs: Record<string, ClaimBuilderDoc<bigint> | undefined>;
-
-  protocols: Record<string, ProtocolDoc | undefined>;
-  userProtocolCollections: Record<string, UserProtocolCollectionsDoc<bigint> | undefined>;
+  maps: Record<string, MapDoc<bigint> | undefined>;
 }
 
 export type AccountDocs = Record<string, AccountDoc<bigint> | undefined>;
@@ -43,6 +40,4 @@ export type RefreshDocs = Record<string, RefreshDoc<bigint> | undefined>;
 export type ApprovalTrackerDocs = Record<string, ApprovalTrackerDoc<bigint> | undefined>;
 export type AddressListsDocs = Record<string, AddressListDoc<bigint> | undefined>;
 export type ClaimBuilderDocs = Record<string, ClaimBuilderDoc<bigint> | undefined>;
-
-export type ProtocolDocs = Record<string, ProtocolDoc | undefined>;
-export type UserProtocolCollectionsDocs = Record<string, UserProtocolCollectionsDoc<bigint> | undefined>;
+export type MapDocs = Record<string, MapDoc<bigint> | undefined>;

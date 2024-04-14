@@ -86,7 +86,7 @@ const codesPlugin = (numCodes: number, seedCode: string): IntegrationPluginDetai
       seedCode: AES.encrypt(seedCode, process.env.SYM_KEY ?? '').toString()
     },
     publicState: {
-      usedCodes: []
+      usedCodeIndices: []
     },
     resetState: true
   };
@@ -153,7 +153,8 @@ const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'discord'>
     id: 'discord',
     publicParams: {
       hasPrivateList: false,
-      users: usernames
+      users: usernames,
+      maxUsesPerUser: 1
     },
     privateParams: {},
     publicState: {},
@@ -166,7 +167,8 @@ const twitterPlugin = (usernames: string[]): IntegrationPluginDetails<'twitter'>
     id: 'twitter',
     publicParams: {
       hasPrivateList: false,
-      users: usernames
+      users: usernames,
+      maxUsesPerUser: 1
     },
     privateParams: {},
     publicState: {},
@@ -242,7 +244,7 @@ describe('claims', () => {
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
-    expect(finalDoc.state.codes.usedCodes[codes[0]]).toBe(1);
+    expect(finalDoc.state.codes.usedCodeIndices[0]).toBe(1);
   }, 30000);
 
   it('should not exceed max uses', async () => {
@@ -373,7 +375,7 @@ describe('claims', () => {
           codes: codes.map((code) => AES.encrypt(code, process.env.SYM_KEY ?? '').toString())
         },
         publicState: {
-          usedCodes: {}
+          usedCodeIndices: {}
         }
       }
     ]);

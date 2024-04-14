@@ -20,7 +20,7 @@ export const handleApprovals = async (
     let idx = 0;
     for (const approval of collectionDoc.collectionApprovals) {
       const approvalCriteria = approval.approvalCriteria;
-      const merkleChallenge = approvalCriteria?.merkleChallenge;
+      const merkleChallenges = approvalCriteria?.merkleChallenges;
       if (approval?.uri) {
         if (!handledUris.includes(approval.uri)) {
           handledUris.push(approval.uri);
@@ -36,8 +36,8 @@ export const handleApprovals = async (
       // If the collection was created through our API, we previously made a document in ClaimBuilderModel with docClaimed = false and the correct passwords
       // To prevent duplicates, we "claim" the document by setting docClaimed = true
       // We need this claiming process because we don't know the collection and claim IDs until after the collection is created on the blockchain
-      if (approval.approvalId) {
-        const cid = approval.approvalId;
+      for (const merkleChallenge of merkleChallenges ?? []) {
+        const cid = merkleChallenge.challengeTrackerId;
 
         const docQuery = {
           docClaimed: false,
@@ -59,12 +59,13 @@ export const handleApprovals = async (
             const res = await getFromIpfs(cid);
             const convertedDoc = JSON.parse(res.file);
 
-            if (convertedDoc.challengeDetails?.leavesDetails.isHashed === false) {
-              const addresses = convertedDoc.challengeDetails?.leavesDetails.leaves.map((leaf: string) => convertToCosmosAddress(leaf));
+            if (convertedDoc.challengeDetails?.isHashed === false) {
+              const addresses = convertedDoc.challengeDetails?.leaves.map((leaf: string) => convertToCosmosAddress(leaf));
 
               const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
               docs.claimAlertsToAdd.push(
                 new ClaimAlertDoc({
+                  from: '',
                   _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
                   timestamp: status.block.timestamp,
                   block: status.block.height,
@@ -81,12 +82,19 @@ export const handleApprovals = async (
     }
 
     //For on-chain approvals with off-chain claim builders, we delete the claim builder docs that are no longer in the collectionApprovals
-    //TODO: Handle case where deleted then re-added?
+    //TODO: Handle case where deleted then re-added? Just do not delete them?
     if (!isCreateTx) {
       const oldDoc = await mustGetFromDB(CollectionModel, collectionDoc.collectionId.toString());
-      const oldCids: string[] = oldDoc.collectionApprovals.map((approval) => approval.approvalId);
-      const newCids: string[] = collectionDoc.collectionApprovals.map((approval) => approval.approvalId);
-      const docIdsToDelete = oldCids.filter((cid) => !newCids.includes(cid));
+      const oldCids: string[] = oldDoc.collectionApprovals
+        .map((approval) => approval.approvalCriteria?.merkleChallenges?.map((y) => y.challengeTrackerId))
+        .flat()
+        .filter((x) => x) as string[];
+      const newCids: string[] = collectionDoc.collectionApprovals
+        .map((approval) => approval.approvalCriteria?.merkleChallenges?.map((y) => y.challengeTrackerId))
+        .flat()
+        .filter((x) => x) as string[];
+
+      const docIdsToDelete = [...new Set(oldCids)].filter((cid) => ![...new Set(newCids)].includes(cid));
 
       const docs = await findInDB(ClaimBuilderModel, { query: { cid: { $in: docIdsToDelete } } });
       if (docs.length > 0) {

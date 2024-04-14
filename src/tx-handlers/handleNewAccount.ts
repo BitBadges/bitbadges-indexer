@@ -16,7 +16,7 @@ import { type DocsCache } from '../db/types';
  */
 export const handleNewAccountByAddress = async (cosmosAddress: string, docs: DocsCache, solanaAddress?: string): Promise<void> => {
   if (!docs.accounts[cosmosAddress]) {
-    await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], [], [], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [cosmosAddress], [], [], [], [], [], [], []);
   }
 
   // If we already have an account doc with an acct number and public key, we don't need to do anything

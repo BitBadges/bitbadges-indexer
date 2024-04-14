@@ -19,11 +19,10 @@
     "noImplicitAny": true,
     "strictNullChecks": true,
     "noUnusedLocals": true,
-    "allowSyntheticDefaultImports": true,
-    "downlevelIteration": true
+    "allowSyntheticDefaultImports": true
   },
   "exclude": ["node_modules/**/*"],
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "src/**/*.js", "src/**/*.jsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "src/**/*.js", "src/**/*.jsx", "src/reddit.d.ts"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"

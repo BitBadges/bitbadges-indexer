@@ -1,8 +1,17 @@
-import { areBalancesEqual, Balance, BigIntify, CollectionDoc, UserPermissions, type iCollectionDoc, type NumberType } from 'bitbadgesjs-sdk';
+import {
+  areBalancesEqual,
+  Balance,
+  BigIntify,
+  CollectionDoc,
+  Stringify,
+  UserPermissions,
+  type iCollectionDoc,
+  type NumberType
+} from 'bitbadgesjs-sdk';
 import { type BadgeCollection } from 'bitbadgesjs-sdk/dist/proto/badges/collections_pb';
 import mongoose from 'mongoose';
-import { getFromDB } from '../db/db';
-import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, CollectionModel, MerkleChallengeModel } from '../db/schemas';
+import { getFromDB, mustGetFromDB } from '../db/db';
+import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, CollectionModel, MapModel, MerkleChallengeModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { client, server } from '../indexer';
 import { connectToRpc } from '../poll';
@@ -163,9 +172,10 @@ describe('queryClient', () => {
 
         const challengeRes = await queryClient.badges.getChallengeTracker(
           indexedChallenge.collectionId.toString(),
+          indexedChallenge.approvalId,
           indexedChallenge.challengeLevel,
           indexedChallenge.approverAddress,
-          indexedChallenge.challengeId,
+          indexedChallenge.challengeTrackerId,
           leafIndex.toString()
         );
 
@@ -179,9 +189,10 @@ describe('queryClient', () => {
       // Check something not used
       const challengeRes = await queryClient.badges.getChallengeTracker(
         indexedChallenge.collectionId.toString(),
+        indexedChallenge.approvalId,
         indexedChallenge.challengeLevel,
         indexedChallenge.approverAddress,
-        indexedChallenge.challengeId,
+        indexedChallenge.challengeTrackerId,
         '10000000000000000000000'
       );
       expect(challengeRes).toBeDefined();
@@ -228,6 +239,7 @@ describe('queryClient', () => {
       const approvalTrackerRes = await queryClient.badges.getApprovalTracker(
         indexedApprovalTracker.collectionId.toString(),
         indexedApprovalTracker.approvalLevel,
+        indexedApprovalTracker.approvalId,
         indexedApprovalTracker.approverAddress,
         indexedApprovalTracker.amountTrackerId,
         indexedApprovalTracker.trackerType,
@@ -242,4 +254,57 @@ describe('queryClient', () => {
       );
     }
   });
+
+  it('all maps should be indexed correctly', async () => {
+    const queryClient = client.badgesQueryClient;
+    if (!queryClient) throw new Error('queryClient not ready');
+
+    const allMaps = await MapModel.find({}).lean().exec();
+
+    for (const indexedProtocol of allMaps) {
+      const mapRes = await queryClient.maps.getMap(indexedProtocol.mapId);
+      expect(mapRes).toBeDefined();
+      if (!mapRes) continue; // For TS
+
+      const convertedDoc = (await mustGetFromDB(MapModel, indexedProtocol._docId)).convert(Stringify);
+
+      expect(mapRes.mapId).toEqual(convertedDoc.mapId);
+      expect(BigInt(mapRes.inheritManagerTimelineFrom).toString()).toEqual(convertedDoc.inheritManagerTimelineFrom.toString());
+      expect(JSON.stringify(mapRes.managerTimeline)).toEqual(JSON.stringify(convertedDoc.managerTimeline));
+      expect(JSON.stringify(mapRes.updateCriteria)).toEqual(JSON.stringify(convertedDoc.updateCriteria));
+      expect(JSON.stringify(mapRes.valueOptions)).toEqual(JSON.stringify(convertedDoc.valueOptions));
+      expect(mapRes.defaultValue).toEqual(convertedDoc.defaultValue);
+      expect(JSON.stringify(sortJsonByKeys(mapRes.permissions))).toEqual(JSON.stringify(sortJsonByKeys(convertedDoc.permissions)));
+      expect(JSON.stringify(sortJsonByKeys(mapRes.metadataTimeline))).toEqual(JSON.stringify(sortJsonByKeys(convertedDoc.metadataTimeline)));
+
+      for (const [key, val] of Object.entries(indexedProtocol.values)) {
+        const valueRes = await queryClient.maps.getMapValue(indexedProtocol.mapId, key);
+        expect(valueRes).toBeDefined();
+        if (!valueRes) continue; // For TS
+
+        expect(valueRes.value).toEqual(val.value);
+        expect(valueRes.key).toEqual(val.key);
+        expect(valueRes.lastSetBy).toEqual(val.lastSetBy);
+      }
+    }
+  });
 });
+
+function sortJsonByKeys(json: any): any {
+  if (typeof json !== 'object' || json === null) {
+    return json;
+  }
+
+  if (Array.isArray(json)) {
+    return json.map(sortJsonByKeys);
+  }
+
+  return Object.keys(json)
+    .sort()
+    .reduce((acc, key) => {
+      return {
+        ...acc,
+        [key]: sortJsonByKeys(json[key])
+      };
+    }, {});
+}

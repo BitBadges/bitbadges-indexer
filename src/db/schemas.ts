@@ -8,24 +8,25 @@ import {
   type BalanceDoc,
   type BlockinAuthSignatureDoc,
   type ClaimAlertDoc,
+  type ClaimBuilderDoc,
   type CollectionDoc,
   type ComplianceDoc,
   type ErrorDoc,
   type FetchDoc,
   type FollowDetailsDoc,
   type IPFSTotalsDoc,
+  type JSPrimitiveNumberType,
   type ListActivityDoc,
+  MapDoc,
   type MerkleChallengeDoc,
   type NumberType,
-  type ClaimBuilderDoc,
   type ProfileDoc,
-  type ProtocolDoc,
   type QueueDoc,
   type RefreshDoc,
   type ReviewDoc,
+  SecretDoc,
   type StatusDoc,
   type TransferActivityDoc,
-  type UserProtocolCollectionsDoc,
   type iAccountDoc,
   type iAddressListDoc,
   type iAirdropDoc,
@@ -33,31 +34,30 @@ import {
   type iBalanceDoc,
   type iBlockinAuthSignatureDoc,
   type iClaimAlertDoc,
+  type iClaimBuilderDoc,
   type iCollectionDoc,
   type iComplianceDoc,
   type iFetchDoc,
   type iFollowDetailsDoc,
   type iIPFSTotalsDoc,
   type iListActivityDoc,
+  iMapDoc,
   type iMerkleChallengeDoc,
-  type iClaimBuilderDoc,
   type iProfileDoc,
-  type iProtocolDoc,
   type iQueueDoc,
   type iRefreshDoc,
   type iReviewDoc,
+  iSecretDoc,
   type iStatusDoc,
-  type iTransferActivityDoc,
-  type iUserProtocolCollectionsDoc,
-  type JSPrimitiveNumberType
+  type iTransferActivityDoc
 } from 'bitbadgesjs-sdk';
 import mongoose from 'mongoose';
 import {
-  type BrowseDoc,
   type ApiKeyDoc,
-  type PageVisitsDoc,
+  type BrowseDoc,
   type EthTxCountDoc,
   type OffChainUrlDoc,
+  type PageVisitsDoc,
   type ReportDoc,
   type iBrowseDoc,
   type iPageVisitsDoc
@@ -65,18 +65,49 @@ import {
 
 const { Schema } = mongoose;
 
-export const ProtocolSchema = new Schema<ProtocolDoc>({
+export interface KeysDoc {
+  _id?: string;
+  _docId: string;
+  keys: Array<{ key: string; timestamp: number }>;
+}
+
+export const MapSchema = new Schema<MapDoc<JSPrimitiveNumberType>>({
   _docId: String,
-  name: String,
-  uri: String,
-  customData: String,
-  createdBy: String,
-  isFrozen: Boolean
+  _id: String,
+  values: Schema.Types.Mixed,
+  creator: String,
+  mapId: String,
+  inheritManagerTimelineFrom: Schema.Types.Mixed,
+  managerTimeline: Schema.Types.Mixed,
+  updateCriteria: Schema.Types.Mixed,
+  valueOptions: Schema.Types.Mixed,
+  defaultValue: String,
+  permissions: Schema.Types.Mixed,
+  metadataTimeline: Schema.Types.Mixed,
+  updateHistory: [Schema.Types.Mixed]
 });
 
-export const UserProtocolCollectionsSchema = new Schema<UserProtocolCollectionsDoc<JSPrimitiveNumberType>>({
+export const OffChainSecretsSchema = new Schema<SecretDoc<JSPrimitiveNumberType>>({
   _docId: String,
-  protocols: Schema.Types.Mixed
+  createdBy: String,
+  secretId: String,
+  type: String,
+  scheme: String,
+  secretMessages: [String],
+  dataIntegrityProof: Schema.Types.Mixed,
+  viewers: [String],
+  name: String,
+  image: String,
+  description: String,
+  updateHistory: [Schema.Types.Mixed],
+  anchors: [Schema.Types.Mixed],
+  proofOfIssuance: Schema.Types.Mixed,
+  messageFormat: String
+});
+
+export const ExternalCallKeysSchema = new Schema<KeysDoc>({
+  _docId: String,
+  keys: [Schema.Types.Mixed]
 });
 
 export const CollectionSchema = new Schema<CollectionDoc<JSPrimitiveNumberType>>({
@@ -147,6 +178,7 @@ export const ProfileSchema = new Schema<ProfileDoc<JSPrimitiveNumberType>>({
   latestSignedInChain: String, // String type for latestSignedInChain
   solAddress: String, // String type for solAddress
   notifications: Schema.Types.Mixed, // Notification details
+  socialConnections: Schema.Types.Mixed, // Social connections
   approvedSignInMethods: Schema.Types.Mixed // Sign in details
 });
 
@@ -229,7 +261,8 @@ export const ClaimBuilderSchema = new Schema<ClaimBuilderDoc<JSPrimitiveNumberTy
 export const ChallengeSchema = new Schema<MerkleChallengeDoc<JSPrimitiveNumberType>>({
   _docId: String,
   collectionId: Schema.Types.Mixed, // Mixed type for collectionId (number type)
-  challengeId: String, // String type for challengeId
+  approvalId: String, // String type for approvalId
+  challengeTrackerId: String, // String type for challengeTrackerId
   challengeLevel: String, // String type for challengeLevel
   approverAddress: String, // String type for approverAddress
   usedLeafIndices: [Schema.Types.Mixed] // Array of Mixed type for usedLeafIndices (number type)
@@ -242,6 +275,7 @@ export const ApprovalTrackerSchema = new Schema<ApprovalTrackerDoc<JSPrimitiveNu
   amounts: [Schema.Types.Mixed], // Array of Mixed type for amounts (Balance type)
   approvalLevel: String, // String type for approvalLevel
   approverAddress: String, // String type for approverAddress
+  approvalId: String, // String type for approvalId
   amountTrackerId: String, // String type for amountTrackerId
   trackerType: String, // String type for trackerType
   approvedAddress: String // String type for approvedAddress
@@ -290,7 +324,8 @@ export const BlockinAuthSignatureSchema = new Schema<BlockinAuthSignatureDoc<JSP
   cosmosAddress: String, // String type for cosmosAddress
   params: Schema.Types.Mixed, // Mixed type for params (ChallengeParams type)
   createdAt: Schema.Types.Mixed, // Mixed type for createdAt (number type)
-  deletedAt: Schema.Types.Mixed // Mixed type for deletedAt (number type)
+  deletedAt: Schema.Types.Mixed, // Mixed type for deletedAt (number type)
+  secretsProofs: [Schema.Types.Mixed] // Array of Mixed type for secretsProofs
 });
 
 export const FollowDetailsSchema = new Schema<FollowDetailsDoc<JSPrimitiveNumberType>>({
@@ -327,6 +362,7 @@ export const TransferActivitySchema = new Schema<TransferActivityDoc<JSPrimitive
   precalculateBalancesFromApproval: Schema.Types.Mixed,
   prioritizedApprovals: [Schema.Types.Mixed],
   onlyCheckPrioritizedApprovals: Boolean,
+  zkProofSolutions: [Schema.Types.Mixed],
   initiatedBy: String,
   txHash: String
 });
@@ -345,6 +381,7 @@ export const ReviewSchema = new Schema<ReviewDoc<JSPrimitiveNumberType>>({
 export const ClaimAlertSchema = new Schema<ClaimAlertDoc<JSPrimitiveNumberType>>({
   _docId: String,
   _notificationsHandled: Boolean,
+  from: String,
   code: String, // String type for code
   cosmosAddresses: [String], // Array of string for cosmosAddresses
   collectionId: Schema.Types.Mixed, // Mixed type for collectionId (number type)
@@ -389,6 +426,7 @@ export const ReportSchema = new Schema({
   _docId: String,
   collectionId: Number,
   listId: String,
+  mapId: String,
   addressOrUsername: String,
   reason: String
 });
@@ -410,6 +448,8 @@ export const UsernameSchema = new Schema({
 // set minimize to false to avoid issues with empty objects
 ClaimBuilderSchema.set('minimize', false); // claimedUsers is {} by default
 
+export const MapModel = mongoose.model<MapDoc<JSPrimitiveNumberType>>('maps', MapSchema);
+export const OffChainSecretsModel = mongoose.model<SecretDoc<JSPrimitiveNumberType>>('secrets', OffChainSecretsSchema);
 export const BrowseModel = mongoose.model<BrowseDoc<JSPrimitiveNumberType>>('browse', BrowseSchema);
 export const ApiKeyModel = mongoose.model<ApiKeyDoc>('api-keys', ApiKeySchema);
 export const FetchModel = mongoose.model<FetchDoc<JSPrimitiveNumberType>>('fetches', FetchSchema);
@@ -432,11 +472,6 @@ export const ClaimAlertModel = mongoose.model<ClaimAlertDoc<JSPrimitiveNumberTyp
 export const ComplianceModel = mongoose.model<ComplianceDoc<JSPrimitiveNumberType>>('compliance', ComplianceSchema);
 export const BlockinAuthSignatureModel = mongoose.model<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>('auth-codes', BlockinAuthSignatureSchema);
 export const FollowDetailsModel = mongoose.model<FollowDetailsDoc<JSPrimitiveNumberType>>('follows', FollowDetailsSchema);
-export const ProtocolModel = mongoose.model<ProtocolDoc>('protocols', ProtocolSchema);
-export const UserProtocolCollectionsModel = mongoose.model<UserProtocolCollectionsDoc<JSPrimitiveNumberType>>(
-  'user-collection-protocols',
-  UserProtocolCollectionsSchema
-);
 export const ListActivityModel = mongoose.model<ListActivityDoc<JSPrimitiveNumberType>>('list-activity', ListActivitySchema);
 export const PageVisitsModel = mongoose.model<PageVisitsDoc<JSPrimitiveNumberType>>('page-visits', PageVisitsSchema);
 export const ErrorModel = mongoose.model<ErrorDoc>('errors', ErrorSchema);
@@ -444,6 +479,7 @@ export const UsernameModel = mongoose.model<UsernameDoc>('usernames', UsernameSc
 export const EthTxCountModel = mongoose.model<EthTxCountDoc>('eth-tx-count', EthTxCountSchema);
 export const OffChainUrlModel = mongoose.model<OffChainUrlDoc>('off-chain-urls', OffChainUrlSchema);
 export const ReportModel = mongoose.model<ReportDoc>('reports', ReportSchema);
+export const ExternalCallKeysModel = mongoose.model('external-call-keys', ExternalCallKeysSchema);
 
 export type TypedInterfaceFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType>, U extends NumberType = bigint> =
   T extends StatusDoc<JSPrimitiveNumberType>
@@ -486,29 +522,31 @@ export type TypedInterfaceFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType
                                         ? iFollowDetailsDoc<U>
                                         : T extends BrowseDoc<JSPrimitiveNumberType>
                                           ? iBrowseDoc<U>
-                                          : T extends ProtocolDoc
-                                            ? iProtocolDoc
-                                            : T extends UserProtocolCollectionsDoc<JSPrimitiveNumberType>
-                                              ? iUserProtocolCollectionsDoc<U>
-                                              : T extends ListActivityDoc<JSPrimitiveNumberType>
-                                                ? iListActivityDoc<U>
-                                                : T extends PageVisitsDoc<JSPrimitiveNumberType>
-                                                  ? iPageVisitsDoc<U>
-                                                  : T extends ProfileDoc<JSPrimitiveNumberType>
-                                                    ? iProfileDoc<U>
-                                                    : T extends ErrorDoc
-                                                      ? ErrorDoc
-                                                      : T extends ApiKeyDoc
-                                                        ? ApiKeyDoc
-                                                        : T extends ReportDoc
-                                                          ? ReportDoc
-                                                          : T extends EthTxCountDoc
-                                                            ? EthTxCountDoc
-                                                            : T extends OffChainUrlDoc
-                                                              ? OffChainUrlDoc
-                                                              : T extends UsernameDoc
-                                                                ? UsernameDoc
-                                                                : never;
+                                          : T extends ListActivityDoc<JSPrimitiveNumberType>
+                                            ? iListActivityDoc<U>
+                                            : T extends PageVisitsDoc<JSPrimitiveNumberType>
+                                              ? iPageVisitsDoc<U>
+                                              : T extends SecretDoc<JSPrimitiveNumberType>
+                                                ? iSecretDoc<U>
+                                                : T extends ProfileDoc<JSPrimitiveNumberType>
+                                                  ? iProfileDoc<U>
+                                                  : T extends ErrorDoc
+                                                    ? ErrorDoc
+                                                    : T extends ApiKeyDoc
+                                                      ? ApiKeyDoc
+                                                      : T extends ReportDoc
+                                                        ? ReportDoc
+                                                        : T extends EthTxCountDoc
+                                                          ? EthTxCountDoc
+                                                          : T extends OffChainUrlDoc
+                                                            ? OffChainUrlDoc
+                                                            : T extends UsernameDoc
+                                                              ? UsernameDoc
+                                                              : T extends KeysDoc
+                                                                ? KeysDoc
+                                                                : T extends MapDoc<JSPrimitiveNumberType>
+                                                                  ? iMapDoc<U>
+                                                                  : never;
 
 export type TypedDocFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType>, U extends NumberType = bigint> =
   T extends StatusDoc<JSPrimitiveNumberType>
@@ -551,29 +589,31 @@ export type TypedDocFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType>, U e
                                         ? FollowDetailsDoc<U>
                                         : T extends BrowseDoc<JSPrimitiveNumberType>
                                           ? BrowseDoc<U>
-                                          : T extends ProtocolDoc
-                                            ? ProtocolDoc
-                                            : T extends UserProtocolCollectionsDoc<JSPrimitiveNumberType>
-                                              ? UserProtocolCollectionsDoc<U>
-                                              : T extends ListActivityDoc<JSPrimitiveNumberType>
-                                                ? ListActivityDoc<U>
-                                                : T extends PageVisitsDoc<JSPrimitiveNumberType>
-                                                  ? PageVisitsDoc<U>
-                                                  : T extends ProfileDoc<JSPrimitiveNumberType>
-                                                    ? ProfileDoc<U>
-                                                    : T extends ApiKeyDoc
-                                                      ? ApiKeyDoc
-                                                      : T extends ErrorDoc
-                                                        ? ErrorDoc
-                                                        : T extends ReportDoc
-                                                          ? ReportDoc
-                                                          : T extends EthTxCountDoc
-                                                            ? EthTxCountDoc
-                                                            : T extends OffChainUrlDoc
-                                                              ? OffChainUrlDoc
-                                                              : T extends UsernameDoc
-                                                                ? UsernameDoc
-                                                                : never;
+                                          : T extends SecretDoc<JSPrimitiveNumberType>
+                                            ? SecretDoc<U>
+                                            : T extends ListActivityDoc<JSPrimitiveNumberType>
+                                              ? ListActivityDoc<U>
+                                              : T extends PageVisitsDoc<JSPrimitiveNumberType>
+                                                ? PageVisitsDoc<U>
+                                                : T extends ProfileDoc<JSPrimitiveNumberType>
+                                                  ? ProfileDoc<U>
+                                                  : T extends ApiKeyDoc
+                                                    ? ApiKeyDoc
+                                                    : T extends ErrorDoc
+                                                      ? ErrorDoc
+                                                      : T extends ReportDoc
+                                                        ? ReportDoc
+                                                        : T extends EthTxCountDoc
+                                                          ? EthTxCountDoc
+                                                          : T extends OffChainUrlDoc
+                                                            ? OffChainUrlDoc
+                                                            : T extends UsernameDoc
+                                                              ? UsernameDoc
+                                                              : T extends KeysDoc
+                                                                ? KeysDoc
+                                                                : T extends MapDoc<JSPrimitiveNumberType>
+                                                                  ? MapDoc<U>
+                                                                  : never;
 
 export type BitBadgesDoc<T extends NumberType> =
   | TransferActivityDoc<T>
@@ -603,11 +643,13 @@ export type BitBadgesDoc<T extends NumberType> =
   | BlockinAuthSignatureDoc<T>
   | FollowDetailsDoc<T>
   | BrowseDoc<T>
-  | ProtocolDoc
-  | UserProtocolCollectionsDoc<T>
   | ListActivityDoc<T>
   | PageVisitsDoc<T>
-  | UsernameDoc;
+  | UsernameDoc
+  | KeysDoc
+  | SecretDoc<T>
+  | MapDoc<T>;
+
 export type iBitBadgesDoc<T extends NumberType> =
   | iTransferActivityDoc<T>
   | iReviewDoc<T>
@@ -636,8 +678,9 @@ export type iBitBadgesDoc<T extends NumberType> =
   | iBlockinAuthSignatureDoc<T>
   | iFollowDetailsDoc<T>
   | BrowseDoc<T>
-  | iProtocolDoc
-  | iUserProtocolCollectionsDoc<T>
   | iListActivityDoc<T>
   | iPageVisitsDoc<T>
-  | UsernameDoc;
+  | UsernameDoc
+  | KeysDoc
+  | iSecretDoc<T>
+  | iMapDoc<T>;

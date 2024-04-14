@@ -22,10 +22,7 @@ import { findInDB } from '../db/queries';
 export const getFollowDetails = async (req: Request, res: Response<iGetFollowDetailsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as GetFollowDetailsRouteRequestBody;
-
-    // const followingBookmark = reqBody.followingBookmark ?? '';
     const followersBookmark = reqBody.followersBookmark ?? '';
-    // const protocolName = reqBody.protocol ?? 'BitBadges Follow Protocol';
 
     let followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
     if (!followDoc) {

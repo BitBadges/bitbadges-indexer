@@ -15,6 +15,7 @@ import {
   ClaimAlertModel,
   CollectionModel,
   ListActivityModel,
+  OffChainSecretsModel,
   ReviewModel,
   TransferActivityModel,
   type BitBadgesDoc
@@ -642,4 +643,35 @@ export async function executeListsActivityQueryForList(listId: string, fetchHidd
   const collectedRes = await queryAndFilter(bookmark, queryFunc, filterFunc);
   if (QUERY_TIME_MODE) console.timeEnd('listsActivityQueryForList');
   return collectedRes;
+}
+
+export async function executeCreatedSecretsQuery(cosmosAddress: string, bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('createdSecrets');
+  const paginationParams = await getQueryParamsFromBookmark(OffChainSecretsModel, bookmark, false, 'secretId');
+  const res = await findWithPagination(OffChainSecretsModel, {
+    query: { createdBy: cosmosAddress, ...paginationParams },
+    sort: { secretId: 1 },
+    limit: 25
+  });
+  if (QUERY_TIME_MODE) console.timeEnd('createdSecrets');
+  return res;
+}
+
+export async function executeReceivedSecretsQuery(cosmosAddress: string, bookmark?: string) {
+  if (QUERY_TIME_MODE) console.time('receivedSecrets');
+  const paginationParams = await getQueryParamsFromBookmark(OffChainSecretsModel, bookmark, false, 'secretId');
+  const res = await findWithPagination(OffChainSecretsModel, {
+    query: {
+      viewers: {
+        $elemMatch: {
+          $eq: cosmosAddress
+        }
+      },
+      ...paginationParams
+    },
+    sort: { secretId: 1 },
+    limit: 25
+  });
+  if (QUERY_TIME_MODE) console.timeEnd('receivedSecrets');
+  return res;
 }

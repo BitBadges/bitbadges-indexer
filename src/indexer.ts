@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { type ErrorResponse } from 'bitbadgesjs-sdk';
+import { SocialConnectionInfo, type ErrorResponse, SocialConnections, NotificationPreferences } from 'bitbadgesjs-sdk';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
@@ -12,12 +12,11 @@ import https from 'https';
 import mongoose from 'mongoose';
 import Moralis from 'moralis';
 import multer from 'multer';
+import OAuthPkg from 'oauth';
 import passport from 'passport';
 import passportDiscord from 'passport-discord';
 import passportGithub from 'passport-github';
 import passportGoogle from 'passport-google-oauth20';
-// import passportStripe from 'passport-stripe';
-import OAuthPkg from 'oauth';
 import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
@@ -33,10 +32,10 @@ import {
 import { type IndexerStargateClient } from './chain-client/indexer_stargateclient';
 import { insertToDB, mustGetFromDB } from './db/db';
 import { findInDB } from './db/queries';
-import { ApiKeyModel, ProfileModel } from './db/schemas';
+import { ApiKeyModel, ExternalCallKeysModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE, TIME_MODE } from './indexer-vars';
 import { poll, pollNotifications, pollUris } from './poll';
-import { deleteAddressLists, getAddressLists, updateAddressLists, createAddressLists } from './routes/addressLists';
+import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
 import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes';
 import { getOwnersForBadge } from './routes/badges';
 import { getBadgeBalanceByAddress } from './routes/balances';
@@ -50,21 +49,21 @@ import { getTokensFromFaucet } from './routes/faucet';
 import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from './routes/ipfs';
 import { fetchMetadataDirectly } from './routes/metadata';
+import { createSecret, deleteSecret, getSecret, updateSecret } from './routes/offChainSecrets';
 import { createPass } from './routes/pass';
-import { getCollectionForProtocol, getProtocols } from './routes/protocols';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
 import { addReviewForCollection, addReviewForUser, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
+import { getMaps } from './routes/maps';
 
 const OAuth = OAuthPkg.OAuth;
 
 const DiscordStrategy = passportDiscord.Strategy;
 const GitHubStrategy = passportGithub.Strategy;
 const GoogleStrategy = passportGoogle.Strategy;
-// const StripeStrategy = passportStripe.Strategy;
 
 var scopes = ['identify', 'guilds', 'guilds.members.read'];
 
@@ -125,24 +124,6 @@ passport.use(
   )
 );
 
-// passport.use(
-//   new StripeStrategy(
-//     {
-//       clientID: process.env.STRIPE_ID,
-//       clientSecret: process.env.STRIPE_SECRET,
-//       callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/stripe/callback' : 'https://api.bitbadges.io/auth/stripe/callback'
-//     },
-//     function (_: any, __: any, stripe_properties: any, cb: any) {
-//       const user = {
-//         username: stripe_properties.stripe_user_id,
-//         id: stripe_properties.stripe_user_id
-//       };
-
-//       return cb(null, user);
-//     }
-//   )
-// );
-
 passport.serializeUser(function (user, cb) {
   process.nextTick(function () {
     return cb(null, user);
@@ -171,7 +152,7 @@ const limiter = rateLimit({
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   handler: (req, res) => {
     const errorResponse: ErrorResponse = {
-      errorMessage: 'Exceeded rate limit. Too many requests, please try again later.'
+      errorMessage: 'Exceeded rate limit. Too many requests,'
     };
     res.status(429).json(errorResponse);
   }
@@ -230,8 +211,9 @@ app.use(async (req, res, next) => {
     req.path.startsWith('/auth/discord') ||
     req.path.startsWith('/auth/twitter') ||
     req.path.startsWith('/auth/github') ||
-    req.path.startsWith('/auth/stripe') ||
-    req.path.startsWith('/auth/google')
+    req.path.startsWith('/auth/google') ||
+    req.path.startsWith('/auth/reddit') ||
+    req.path.startsWith('/api/v0/unsubscribe')
   ) {
     next();
     return;
@@ -336,7 +318,7 @@ app.post('/api/v0/status', getStatusHandler);
  * We don't use the default setup because it overwrites our Blockin sessions.
  */
 const discordCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('discord', function (err: Error, user: any) {
+  passport.authenticate('discord', async function (err: Error, user: any) {
     if (err) {
       return next(err);
     }
@@ -347,12 +329,115 @@ const discordCallbackHandler = (req: Request, res: Response, next: Function) => 
     (req.session as BlockinSession<bigint>).discord = user;
     req.session.save();
 
+    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+      profileDoc.socialConnections = new SocialConnections({
+        ...profileDoc.socialConnections,
+        discord: new SocialConnectionInfo({
+          discriminator: user.discriminator,
+          username: user.username,
+          id: user.id,
+          lastUpdated: BigInt(Date.now())
+        })
+      });
+      await insertToDB(ProfileModel, profileDoc);
+    }
+
     return res.status(200).send('Logged in. Please proceed back to the app.');
   })(req, res, next);
 };
 
 app.get('/auth/discord', passport.authenticate('discord', { session: false }));
 app.get('/auth/discord/callback', discordCallbackHandler);
+
+const redditConfig = {
+  clientID: process.env.REDDIT_CLIENT_ID || '',
+  clientSecret: process.env.REDDIT_CLIENT_SECRET || '',
+  callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/reddit/callback' : 'https://api.bitbadges.io/auth/reddit/callback'
+};
+
+const redditOauth = new OAuth(
+  'https://www.reddit.com/api/v1/access_token',
+  'https://www.reddit.com/api/v1/authorize',
+  redditConfig.clientID,
+  redditConfig.clientSecret,
+  '1.0A',
+  redditConfig.callbackURL,
+  'HMAC-SHA1'
+);
+
+app.get('/auth/reddit', (_req, res) => {
+  try {
+    return redditOauth.getOAuthRequestToken((error, oauthToken, oauthTokenSecret) => {
+      if (error) {
+        console.error('Error getting OAuth request token:', error);
+        return res.status(500).send('Error getting OAuth request token');
+      } else {
+        // Redirect the user to Reddit authentication page
+        return res.redirect(
+          `https://www.reddit.com/api/v1/authorize?client_id=${redditConfig.clientID}&response_type=code&state=${oauthToken}&redirect_uri=${redditConfig.callbackURL}&duration=permanent&scope=identity`
+        );
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
+
+app.get('/auth/reddit/callback', async (req: Request, res: Response) => {
+  try {
+    const code = req.query.code as string;
+
+    const oauthParams = {
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: redditConfig.callbackURL
+    };
+
+    const oauthRes = await axios.post('https://www.reddit.com/api/v1/access_token', null, {
+      params: oauthParams,
+      auth: {
+        username: redditConfig.clientID,
+        password: redditConfig.clientSecret
+      }
+    });
+
+    const data = oauthRes.data;
+
+    const accessToken = data.access_token as string;
+
+    // Get user's Reddit profile
+    const userProfileUrl = 'https://oauth.reddit.com/api/v1/me';
+    return redditOauth.get(userProfileUrl, accessToken, '', (error, data) => {
+      if (error) {
+        console.error('Error getting Reddit profile:', error);
+        return res.status(500).send('Error getting Reddit profile');
+      } else {
+        const profile = JSON.parse(data as any);
+        const user = {
+          id: profile.id,
+          username: profile.name,
+          access_token: accessToken
+        };
+
+        (req.session as BlockinSession<bigint>).reddit = user;
+        req.session.save();
+
+        return res.status(200).send('Logged in. Please proceed back to the app.');
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
 
 const twitterConfig = {
   consumerKey: process.env.TWITTER_CONSUMER_KEY || '',
@@ -415,7 +500,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
 
     // Get user's Twitter profile
     const userProfileUrl = 'https://api.twitter.com/1.1/account/verify_credentials.json';
-    return twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, (error, data) => {
+    return twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, async (error, data) => {
       if (error) {
         console.error('Error getting Twitter profile:', error);
         return res.status(500).send('Error getting Twitter profile');
@@ -431,6 +516,19 @@ app.get('/auth/twitter/callback', async (req, res) => {
         (req.session as BlockinSession<bigint>).twitter = user;
         req.session.save();
 
+        if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+          const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+          profileDoc.socialConnections = new SocialConnections({
+            ...profileDoc.socialConnections,
+            twitter: new SocialConnectionInfo({
+              username: user.username,
+              id: user.id,
+              lastUpdated: BigInt(Date.now())
+            })
+          });
+          await insertToDB(ProfileModel, profileDoc);
+        }
+
         return res.status(200).send('Logged in. Please proceed back to the app.');
       }
     });
@@ -443,27 +541,8 @@ app.get('/auth/twitter/callback', async (req, res) => {
   }
 });
 
-// const stripeCallbackHandler = (req: Request, res: Response, next: Function) => {
-//   passport.authenticate('stripe', function (err: Error, user: any) {
-//     if (err) {
-//       return next(err);
-//     }
-//     if (!user) {
-//       return res.status(401).send('Unauthorized. No user found.');
-//     }
-
-//     (req.session as BlockinSession<bigint>).stripe = user;
-//     req.session.save();
-
-//     return res.status(200).send('Logged in. Please proceed back to the app.');
-//   })(req, res, next);
-// };
-
-// app.get('/auth/stripe', passport.authenticate('stripe', { session: false }));
-// app.get('/auth/stripe/callback', stripeCallbackHandler);
-
 const githubCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('github', function (err: Error, user: any) {
+  passport.authenticate('github', async function (err: Error, user: any) {
     if (err) {
       return next(err);
     }
@@ -474,6 +553,19 @@ const githubCallbackHandler = (req: Request, res: Response, next: Function) => {
     (req.session as BlockinSession<bigint>).github = user;
     req.session.save();
 
+    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+      profileDoc.socialConnections = new SocialConnections({
+        ...profileDoc.socialConnections,
+        github: new SocialConnectionInfo({
+          username: user.username,
+          id: user.id,
+          lastUpdated: BigInt(Date.now())
+        })
+      });
+      await insertToDB(ProfileModel, profileDoc);
+    }
+
     return res.status(200).send('Logged in. Please proceed back to the app.');
   })(req, res, next);
 };
@@ -481,8 +573,27 @@ const githubCallbackHandler = (req: Request, res: Response, next: Function) => {
 app.get('/auth/github', passport.authenticate('github', { session: false }));
 app.get('/auth/github/callback', githubCallbackHandler);
 
+const redditCallbackHandler = (req: Request, res: Response, next: Function) => {
+  passport.authenticate('reddit', function (err: Error, user: any) {
+    if (err) {
+      return next(err);
+    }
+    if (!user) {
+      return res.status(401).send('Unauthorized. No user found.');
+    }
+
+    (req.session as BlockinSession<bigint>).reddit = user;
+    req.session.save();
+
+    return res.status(200).send('Logged in. Please proceed back to the app.');
+  })(req, res, next);
+};
+
+app.get('/auth/reddit', passport.authenticate('reddit', { session: false }));
+app.get('/auth/reddit/callback', redditCallbackHandler);
+
 const googleCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('google', function (err: Error, user: any) {
+  passport.authenticate('google', async function (err: Error, user: any) {
     if (err) {
       return next(err);
     }
@@ -492,6 +603,19 @@ const googleCallbackHandler = (req: Request, res: Response, next: Function) => {
 
     (req.session as BlockinSession<bigint>).google = user;
     req.session.save();
+
+    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+      profileDoc.socialConnections = new SocialConnections({
+        ...profileDoc.socialConnections,
+        google: new SocialConnectionInfo({
+          username: user.username,
+          id: user.id,
+          lastUpdated: BigInt(Date.now())
+        })
+      });
+      await insertToDB(ProfileModel, profileDoc);
+    }
 
     return res.status(200).send('Logged in. Please proceed back to the app.');
   })(req, res, next);
@@ -585,11 +709,77 @@ app.post('/api/v0/follow-protocol', getFollowDetails);
 // Eth First Tx
 app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 
-// Protocols
-app.post('/api/v0/protocols', getProtocols);
-app.post('/api/v0/protocols/collection', getCollectionForProtocol);
+//Maps
+app.post('/api/v0/maps', getMaps);
 
 app.post('/api/v0/appleWalletPass', createPass);
+
+//Off-Chain Secret Sigs
+app.post('/api/v0/secret', getSecret);
+app.post('/api/v0/secret/create', authorizeBlockinRequest, createSecret);
+app.post('/api/v0/secret/delete', authorizeBlockinRequest, deleteSecret);
+app.post('/api/v0/secret/update', authorizeBlockinRequest, updateSecret);
+
+app.post('/api/v0/externalCallKey', async (req: Request, res: Response) => {
+  try {
+    const uri = req.body.uri;
+    if (!uri) {
+      throw new Error('uri is required');
+    }
+
+    const key = req.body.key;
+    if (!key) {
+      throw new Error('key is required');
+    }
+
+    const keysDoc = await mustGetFromDB(ExternalCallKeysModel, uri);
+
+    const matchingKey = keysDoc.keys.find((k) => k.key === key);
+    if (!matchingKey) {
+      throw new Error('Key not found');
+    }
+
+    return res.status(200).send({
+      timestamp: matchingKey.timestamp,
+      key: matchingKey.key
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
+
+app.get('/api/v0/unsubscribe/:token', async (req: Request, res: Response) => {
+  try {
+    const docs = await findInDB(ProfileModel, {
+      query: { 'notifications.emailVerification.token': req.params.token }
+    });
+    const doc = docs.length > 0 ? docs[0] : undefined;
+    if (!doc) {
+      throw new Error('Token not found');
+    }
+
+    const newDoc = {
+      ...doc,
+      notifications: new NotificationPreferences({})
+    };
+
+    await insertToDB(ProfileModel, newDoc);
+
+    return res.status(200).send({
+      success: true
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
 
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, async (req: Request, res: Response) => {
   try {
@@ -622,7 +812,6 @@ app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, async (req: Request, res:
         emailVerification: {
           ...doc.notifications.emailVerification,
           verified: true,
-          token: undefined,
           expiry: undefined
         }
       }

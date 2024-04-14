@@ -51,7 +51,7 @@ export const handleMsgUniversalUpdateCollection = async (
 ): Promise<void> => {
   recursivelyDeleteFalseProperties(msg);
 
-  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], [], [], []);
+  await fetchDocsForCacheIfEmpty(docs, [msg.creator], [], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   let collectionId = BigInt(msg.collectionId);
@@ -84,7 +84,7 @@ export const handleMsgUniversalUpdateCollection = async (
         userPermissions: UserPermissions.InitEmpty()
       },
       createdBy: msg.creator,
-      balancesType: msg.balancesType as 'Standard' | 'Inherited' | 'Off-Chain - Indexed' | 'Off-Chain - Non-Indexed',
+      balancesType: msg.balancesType as 'Standard' | 'Off-Chain - Indexed' | 'Off-Chain - Non-Indexed' | 'Non-Public',
       collectionApprovals: [],
       collectionMetadataTimeline: [],
       badgeMetadataTimeline: [],
@@ -96,7 +96,12 @@ export const handleMsgUniversalUpdateCollection = async (
       updateHistory: []
     });
 
-    if (msg.balancesType === 'Standard' || msg.balancesType === 'Off-Chain - Indexed' || msg.balancesType === 'Off-Chain - Non-Indexed') {
+    if (
+      msg.balancesType === 'Standard' ||
+      msg.balancesType === 'Off-Chain - Indexed' ||
+      msg.balancesType === 'Off-Chain - Non-Indexed' ||
+      msg.balancesType === 'Non-Public'
+    ) {
       docs.balances[`${status.nextCollectionId}:Total`] = new BalanceDoc({
         _docId: `${status.nextCollectionId.toString()}:Total`,
         balances: [],
@@ -126,7 +131,7 @@ export const handleMsgUniversalUpdateCollection = async (
       });
     }
   } else {
-    await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [`${collectionId}:Total`, `${collectionId}:Mint`], [], [], [], [], [], []);
+    await fetchDocsForCacheIfEmpty(docs, [], [collectionId], [`${collectionId}:Total`, `${collectionId}:Mint`], [], [], [], [], []);
   }
   const collection = docs.collections[collectionId.toString()];
   if (!collection) throw new Error(`Collection ${collectionId} does not exist`);
@@ -135,7 +140,8 @@ export const handleMsgUniversalUpdateCollection = async (
     new UpdateHistory({
       block: status.block.height,
       blockTimestamp: status.block.timestamp,
-      txHash
+      txHash,
+      timestamp: 0n
     })
   );
 

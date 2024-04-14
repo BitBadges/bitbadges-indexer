@@ -32,7 +32,7 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
     scoped: false
   },
   defaultState: {
-    usedCodes: {}
+    usedCodeIndices: {}
   },
   encryptPrivateParams: (privateParams) => {
     return {
@@ -51,10 +51,6 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
       return { success: false, error: 'Invalid code' };
     }
 
-    if (priorState.usedCodes[customBody.code]) {
-      return { success: false, error: 'Code already used' };
-    }
-
     const maxUses = publicParams.numCodes;
     const seedCode = privateParams.seedCode;
     const codes = privateParams.seedCode ? generateCodesFromSeed(seedCode, maxUses) : privateParams.codes;
@@ -71,7 +67,11 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
       return { success: false, error: 'Invalid code' };
     }
 
-    const toSet: any = [{ $set: { [`state.codes.usedCodes.${customBody.code}`]: 1 } }];
+    if (priorState.usedCodeIndices[codeIdx]) {
+      return { success: false, error: 'Code already used' };
+    }
+
+    const toSet: any = [{ $set: { [`state.codes.usedCodeIndices.${codeIdx}`]: 1 } }];
     const cosmosAddress = context.cosmosAddress;
     const claimedUsers = globalState.numUses.claimedUsers;
     const assignMethod = adminInfo.assignMethod;
@@ -93,12 +93,12 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
   },
   getPublicState: (currState) => {
     return {
-      usedCodes: Object.keys(currState.usedCodes)
+      usedCodeIndices: Object.keys(currState.usedCodeIndices)
     };
   },
   getBlankPublicState: () => {
     return {
-      usedCodes: []
+      usedCodeIndices: []
     };
   }
 };
