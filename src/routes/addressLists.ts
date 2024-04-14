@@ -13,7 +13,8 @@ import {
   type iAddressList,
   type iDeleteAddressListsRouteSuccessResponse,
   type iGetAddressListsRouteSuccessResponse,
-  type iUpdateAddressListsRouteSuccessResponse
+  type iUpdateAddressListsRouteSuccessResponse,
+  AddressList
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
@@ -297,6 +298,7 @@ export const updateAddressLists = async (
 
 export const getAddressLists = async (req: Request, res: Response<iGetAddressListsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
+    // console.time('getAddressLists');
     const reqBody = req.body as GetAddressListsRouteRequestBody;
     const listsToFetch = reqBody.listsToFetch;
 
@@ -304,7 +306,9 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
       throw new Error('You can only fetch up to 100 address lists at a time.');
     }
 
+    // console.time('getAddressListsFromDB');
     const docs = await getAddressListsFromDB(listsToFetch, true);
+    // console.timeEnd('getAddressListsFromDB');
 
     for (let i = 0; i < docs.length; i++) {
       const doc = docs[i];
@@ -323,9 +327,21 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
         }
       }
 
+      let isReserved = false;
+      try {
+        AddressList.getReservedAddressList(doc.listId);
+        isReserved = true;
+      } catch (e) {}
+
+      if (isReserved) continue;
+
+      // console.time('getClaimDocs');
       const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': doc.listId } });
       doc.claims = await getClaimDetailsForFrontend(req, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
+      // console.timeEnd('getClaimDocs');
     }
+
+    // console.timeEnd('getAddressLists');
 
     return res.status(200).send({ addressLists: docs });
   } catch (e) {

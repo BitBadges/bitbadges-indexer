@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SocialConnectionInfo, type ErrorResponse, SocialConnections, NotificationPreferences } from 'bitbadgesjs-sdk';
+import { NotificationPreferences, SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
@@ -33,7 +33,7 @@ import { type IndexerStargateClient } from './chain-client/indexer_stargateclien
 import { insertToDB, mustGetFromDB } from './db/db';
 import { findInDB } from './db/queries';
 import { ApiKeyModel, ExternalCallKeysModel, ProfileModel } from './db/schemas';
-import { OFFLINE_MODE, TIME_MODE } from './indexer-vars';
+import { OFFLINE_MODE } from './indexer-vars';
 import { poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
 import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes';
@@ -48,6 +48,7 @@ import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
 import { getTokensFromFaucet } from './routes/faucet';
 import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from './routes/ipfs';
+import { getMaps } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
 import { createSecret, deleteSecret, getSecret, updateSecret } from './routes/offChainSecrets';
 import { createPass } from './routes/pass';
@@ -57,7 +58,6 @@ import { addReviewForCollection, addReviewForUser, deleteReview } from './routes
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
-import { getMaps } from './routes/maps';
 
 const OAuth = OAuthPkg.OAuth;
 
@@ -261,17 +261,7 @@ const websiteOnlyCors = cors(websiteOnlyCorsOptions);
 app.use(limiter);
 // app.use(timeout('30s'));
 // console.log the repsonse
-app.use(
-  responseTime((req: Request, response: Response, time: number) => {
-    if (TIME_MODE) {
-      console.log(`${req.method} ${req.url}: ${time} ms`);
-      if (time > 1500) {
-        console.log('SLOW REQUEST!');
-        console.log(JSON.stringify(req.body, null, 2).substring(0, 250));
-      }
-    }
-  })
-);
+app.use(responseTime({ suffix: false }));
 
 app.use(express.json({ limit: '100mb' }));
 

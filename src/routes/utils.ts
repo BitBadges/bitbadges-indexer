@@ -5,17 +5,17 @@ import {
   UserOutgoingApprovalWithDetails,
   appendSelfInitiatedIncomingApproval,
   appendSelfInitiatedOutgoingApproval,
+  type Metadata,
   type iAddressList,
   type iBitBadgesAddressList,
   type iUserBalanceStore,
   type iUserIncomingApproval,
   type iUserIncomingApprovalWithDetails,
   type iUserOutgoingApproval,
-  type iUserOutgoingApprovalWithDetails,
-  type Metadata
+  type iUserOutgoingApprovalWithDetails
 } from 'bitbadgesjs-sdk';
+import { getManyFromDB, mustGetManyFromDB } from '../db/db';
 import { AddressListModel, FetchModel } from '../db/schemas';
-import { getFromDB, mustGetManyFromDB } from '../db/db';
 import { complianceDoc } from '../poll';
 import { mustFindAddressList } from './balances';
 import { executeListsActivityQueryForList } from './userQueries';
@@ -59,11 +59,15 @@ export async function getAddressListsFromDB(
   // addressListIdsToFetch = [...new Set(addressListIdsToFetch)];
 
   if (listsToFetch.length > 0) {
+    // console.time('fetchAddressLists');
     const addressListDocs = await mustGetManyFromDB(
       AddressListModel,
       listsToFetch.map((x) => x.listId)
     );
+
+    // console.timeEnd('fetchAddressLists');
     for (const listToFetch of listsToFetch) {
+      // console.time('fetchListActivity');
       const listActivity = fetchMetadata
         ? await executeListsActivityQueryForList(
             listToFetch.listId,
@@ -71,6 +75,7 @@ export async function getAddressListsFromDB(
             listToFetch.viewsToFetch?.find((x) => x.viewType === 'listActivity')?.bookmark
           )
         : { docs: [], bookmark: '' };
+      // console.timeEnd('fetchListActivity');
 
       const doc = addressListDocs.find((x) => x.listId === listToFetch.listId);
       if (doc) {
@@ -97,24 +102,17 @@ export async function getAddressListsFromDB(
     }
   }
 
+  // console.time('fetchMetadata');
   if (fetchMetadata) {
     const uris: string[] = [...new Set(addressLists.map((x) => x.uri))];
 
     if (uris.length > 0) {
-      const fetchPromises = uris.map(async (uri) => {
-        if (!uri) {
-          return { uri, doc: undefined };
-        }
-        const doc = await getFromDB(FetchModel, uri);
-        return { uri, doc };
-      });
+      const results = await getManyFromDB(FetchModel, uris);
 
-      const results = await Promise.all(fetchPromises);
-
-      results.forEach(({ uri, doc }) => {
+      results.forEach((doc) => {
         if (doc?.content) {
           for (const list of addressLists) {
-            if (list.uri === uri) {
+            if (list.uri === doc._docId) {
               list.metadata = doc.content as Metadata<bigint>;
             }
           }
@@ -122,6 +120,8 @@ export async function getAddressListsFromDB(
       });
     }
   }
+
+  // console.timeEnd('fetchMetadata');
 
   for (const list of addressLists) {
     list.nsfw = complianceDoc?.addressLists.nsfw.find((y) => y.listId === list.listId);

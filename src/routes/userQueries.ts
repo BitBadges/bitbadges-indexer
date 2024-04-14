@@ -40,12 +40,13 @@ export async function queryAndFilter<T extends BitBadgesDoc<bigint>>(
   while (docsLeft > 0) {
     const queryDocs = await queryFunc(currBookmark);
     currBookmark = queryDocs.length > 0 ? queryDocs[queryDocs.length - 1]._id?.toString() : undefined;
+
     const filteredDocs = await filterFunc(queryDocs);
 
     docs.push(...filteredDocs);
     docsLeft -= filteredDocs.length;
 
-    if (filteredDocs.length === 0) {
+    if (filteredDocs.length < 25) {
       break;
     }
 
