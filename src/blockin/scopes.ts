@@ -1,21 +1,30 @@
-import { NumberType } from 'bitbadgesjs-sdk';
-import { MaybeAuthenticatedRequest } from './blockin_handlers';
+import { type NumberType } from 'bitbadgesjs-sdk';
+import { type MaybeAuthenticatedRequest } from './blockin_handlers';
 
-export function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes: string[]) {
-  const resources = req.session.blockinParams?.resources;
-  if (!resources || !resources.length) {
-    return false;
-  }
+// We use a "Label : Explanation" format for the scopes
+const SupportedScopes = [
+  'Full Access: Full access to all features.',
+  'Report: Report users or collections.',
+  'Reviews: Create, read, update, and delete reviews.',
+  'Profile: Maintain your user profile information and view private information.',
+  'Address Lists: Create, read, update, and delete address lists.',
+  'Auth Codes: Manage authentication codes.',
+  'Claim Alerts: Manage claim alerts.',
+  'Secrets: Manage the account secrets and credentials.'
+];
 
-  //We use a "Label : Explanation" format for the scopes
-  const scopes = resources.map((r) => r.split(':')?.[0]).map((r) => r.trim());
+export function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopeLabels: string[]): boolean {
+  const resources = req.session.blockinParams?.resources ?? [];
 
-  if (scopes.includes('Full Access')) {
+  const scopeLabels = resources.map((r) => r.split(':')?.[0]).map((r) => r.trim());
+  if (scopeLabels.includes('Full Access')) {
     return true;
   }
 
-  for (const expectedScope of expectedScopes) {
-    if (!resources.includes(expectedScope)) {
+  // We need to check that a) the message was signed with the expected scope and b) the scope message matches.
+  for (const expectedScopeLabel of expectedScopeLabels) {
+    const expectedScope = SupportedScopes.find((s) => s.startsWith(expectedScopeLabel));
+    if (!expectedScope || !resources.includes(expectedScope)) {
       return false;
     }
   }
@@ -23,8 +32,8 @@ export function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedSc
   return true;
 }
 
-export function mustHaveScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes: string[]) {
-  if (!hasScopes(req, expectedScopes)) {
+export function mustHaveScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopeLabels: string[]): void {
+  if (!hasScopes(req, expectedScopeLabels)) {
     throw new Error('Unauthorized');
   }
 }

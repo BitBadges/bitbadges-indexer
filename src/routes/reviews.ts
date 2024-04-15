@@ -24,7 +24,7 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
     const reviewDoc = await mustGetFromDB(ReviewModel, reviewId);
 
     if (req.session.cosmosAddress && reviewDoc.from !== req.session.cosmosAddress) {
-      return res.status(403).send({ errorMessage: 'You can only delete your own reviews.' });
+      return res.status(401).send({ errorMessage: 'You can only delete your own reviews.' });
     }
 
     await deleteMany(ReviewModel, [reviewId]);

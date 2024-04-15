@@ -49,7 +49,7 @@ const handleDiscordServerQuery = async (body: {
   discord: { id: string; username: string; discriminator: string; access_token: string };
 }) => {
   const { serverId, discord: discordInfo } = body;
-  
+
   const userId = discordInfo.id;
   const guildId = serverId;
   const access_token = discordInfo.access_token;

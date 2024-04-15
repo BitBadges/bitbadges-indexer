@@ -377,7 +377,7 @@ const getAdditionalUserInfo = async (
   }
 
   const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-  const isAuthenticated = checkIfAuthenticated(authReq) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+  const isAuthenticated = checkIfAuthenticated(authReq, ['Profile']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
 
   const asyncOperations = [];
   for (const view of reqBody.viewsToFetch) {

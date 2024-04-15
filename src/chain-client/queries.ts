@@ -1,12 +1,5 @@
 import { createProtobufRpcClient, type QueryClient } from '@cosmjs/stargate';
-import {
-  convertToEthAddress,
-  convertToBtcAddress,
-  convertToCosmosAddress,
-  getChainForAddress,
-  SupportedChain,
-  ValueStore
-} from 'bitbadgesjs-sdk';
+import { convertToEthAddress, convertToBtcAddress, convertToCosmosAddress, getChainForAddress, SupportedChain, ValueStore } from 'bitbadgesjs-sdk';
 import * as account from 'bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/auth_pb';
 import * as accountQuery from 'bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/query_pb';
 import * as bitbadgesQuery from 'bitbadgesjs-sdk/dist/proto/badges/query_pb';

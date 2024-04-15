@@ -24,35 +24,48 @@ import { generateNonce } from 'siwe';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { CollectionModel, ProfileModel } from '../db/schemas';
 import { getChainDriver } from './blockin';
+import { hasScopes } from './scopes';
 
 export interface BlockinSession<T extends NumberType> extends Session {
+  /**
+   * Nonce that is used to prevent replay attacks. The following sign-in must be signed with this nonce.
+   *
+   * Note this may be inconsistent from blockinParams.nonce which is for the current sign-in details. This nonce is for the next sign-in.
+   */
   nonce?: string;
+  /** Stringified Blockin message that was signed. */
   blockin?: string;
+  /** Blockin params that were signed. */
   blockinParams?: ChallengeParams<T>;
+  /** Cosmos address of the user. Equal to convertToCosmosAddress(blockinParams.address). */
   cosmosAddress?: string;
+  /** Native chain address of the user. Equal to blockinParams.address. */
   address?: string;
+  /** Connected OAuth Discord account. */
   discord?: {
     id: string;
     username: string;
     discriminator: string;
     access_token: string;
   };
+  /** Connected OAuth Twitter account. */
   twitter?: {
     id: string;
     username: string;
     access_token: string;
     access_token_secret: string;
   };
+  /** Connected OAuth Github account. */
   github?: {
     id: string;
     username: string;
   };
-
+  /** Connected OAuth Google account. */
   google?: {
     id: string;
     username: string;
   };
-
+  /** Connected OAuth Reddit account. */
   reddit?: {
     id: string;
     username: string;
@@ -67,7 +80,13 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
   session: Required<BlockinSession<T>>;
 }
 
-export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>) {
+export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]) {
+  if (expectedScopes) {
+    if (!hasScopes(req, expectedScopes)) {
+      return false;
+    }
+  }
+
   // Nonce should not be checked in case you are prompting a new sign-in (we generate and verify the new sign-in with req.sesssion.nonce)
   return (
     req.session.blockin &&
@@ -225,8 +244,6 @@ export async function verifyBlockinAndGrantSessionCookie(
       const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(challenge.address));
       const discordSignInMethod = profileDoc.approvedSignInMethods?.discord;
 
-      console.log('discordSignInMethod', discordSignInMethod, req.session.discord);
-
       if (!discordSignInMethod || !req.session.discord) {
         return res
           .status(401)
@@ -315,29 +332,41 @@ export async function verifyBlockinAndGrantSessionCookie(
   }
 }
 
-export function authorizeBlockinRequest(req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) {
-  if (process.env.TEST_MODE === 'true') {
-    const mockSessionJson = req.header('x-mock-session');
-    if (mockSessionJson) {
-      const mockSession = JSON.parse(mockSessionJson);
-      req.session.address = mockSession.address;
-      req.session.cosmosAddress = mockSession.cosmosAddress;
-      req.session.blockin = mockSession.blockin;
-      req.session.blockinParams = mockSession.blockinParams;
-      req.session.nonce = mockSession.nonce;
-      req.session.save();
+export function authorizeBlockinRequest(expectedScopes?: string[]) {
+  return (req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) => {
+    if (process.env.TEST_MODE === 'true') {
+      const mockSessionJson = req.header('x-mock-session');
+      if (mockSessionJson) {
+        const mockSession = JSON.parse(mockSessionJson);
+        req.session.address = mockSession.address;
+        req.session.cosmosAddress = mockSession.cosmosAddress;
+        req.session.blockin = mockSession.blockin;
+        req.session.blockinParams = mockSession.blockinParams;
+        req.session.nonce = mockSession.nonce;
+        req.session.save();
+        if (expectedScopes?.length) {
+          if (!hasScopes(req, expectedScopes)) {
+            return returnUnauthorized(res);
+          }
+        }
 
+        next();
+        return;
+      }
+    }
+
+    if (checkIfAuthenticated(req)) {
+      if (expectedScopes?.length) {
+        if (!hasScopes(req, expectedScopes)) {
+          return returnUnauthorized(res);
+        }
+      }
       next();
       return;
     }
-  }
 
-  if (checkIfAuthenticated(req)) {
-    next();
-    return;
-  }
-
-  return returnUnauthorized(res);
+    return returnUnauthorized(res);
+  };
 }
 
 export async function genericBlockinVerify(body: GenericBlockinVerifyRouteRequestBody) {

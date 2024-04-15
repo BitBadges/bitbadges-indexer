@@ -726,7 +726,7 @@ const getDecryptedPluginsAndPublicState = async (
   listId?: string
 ): Promise<IntegrationPluginDetails<ClaimIntegrationPluginType>[]> => {
   if (includePrivateParams) {
-    const auth = checkIfAuthenticated(req);
+    const auth = checkIfAuthenticated(req, ['Full Access']);
     if (!auth) {
       throw new Error('You must be authenticated to fetch private params');
     }

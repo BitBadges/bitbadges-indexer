@@ -317,7 +317,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
         if (doc.viewableWithLink) continue;
 
         const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-        if (!checkIfAuthenticated(authReq)) return returnUnauthorized(res);
+        if (!checkIfAuthenticated(authReq, ['Address Lists'])) return returnUnauthorized(res);
 
         const cosmosAddress = authReq.session.cosmosAddress;
         if (docs.some((x) => x.private && x.createdBy !== cosmosAddress)) {

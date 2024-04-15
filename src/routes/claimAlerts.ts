@@ -24,7 +24,7 @@ export const sendClaimAlert = async (req: AuthenticatedRequest<NumberType>, res:
       if (claimAlert.collectionId && Number(claimAlert.collectionId) !== 0) {
         const isManager = await checkIfManager(req, claimAlert.collectionId);
         if (!isManager) {
-          return res.status(403).send({
+          return res.status(401).send({
             errorMessage: 'You must be a manager of the collection you are trying to send claim alerts for.'
           });
         }
@@ -67,7 +67,7 @@ export async function getClaimAlertsForCollection(
 
     const isManager = await checkIfManager(req, collectionId);
     if (!isManager) {
-      return res.status(403).send({
+      return res.status(401).send({
         errorMessage: 'You must be the manager of the collection you are trying to get claim alerts for.'
       });
     }

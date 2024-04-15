@@ -30,7 +30,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter
   }
 };
 
-type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email'; 
+type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email';
 
 export const GenericOauthValidateFunction = async <P extends OauthType>(
   publicParams: ClaimIntegrationPublicParamsType<P>,
@@ -71,7 +71,6 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
     }
   }
 
-  
   return { success: true, toSet: [{ $set: { [`state.${pluginId}.${oauthInfo.id}`]: 1 } }] };
 };
 

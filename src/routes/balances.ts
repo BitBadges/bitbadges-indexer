@@ -65,7 +65,7 @@ export const getBadgeBalanceByAddress = async (
     const collection = await mustGetFromDB(CollectionModel, req.params.collectionId);
 
     if (collection.balancesType === 'Non-Public') {
-      return res.status(403).send({
+      return res.status(401).send({
         error: 'Non-Public Collection',
         errorMessage: 'This collection has balances that are private or none at all.'
       });

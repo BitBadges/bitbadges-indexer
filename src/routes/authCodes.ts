@@ -31,7 +31,7 @@ export const createAuthCode = async (
         continue;
       }
 
-      if (!checkIfAuthenticated(req)) {
+      if (!checkIfAuthenticated(req, ['Secrets'])) {
         throw new Error('You must be authenticated to create a code w/ a secrets proof.');
       }
 

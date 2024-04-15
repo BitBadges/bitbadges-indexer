@@ -3,7 +3,13 @@ import mongoose from 'mongoose';
 import request from 'supertest';
 import app, { server } from '../indexer';
 
-import { BitBadgesApiRoutes, BlockinChallengeParams, GetSignInChallengeRouteSuccessResponse, UintRangeArray } from 'bitbadgesjs-sdk';
+import {
+  BitBadgesApiRoutes,
+  BlockinChallengeParams,
+  GetClaimAlertsForCollectionRouteRequestBody,
+  GetSignInChallengeRouteSuccessResponse,
+  UintRangeArray
+} from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { MongoDB } from '../db/db';
@@ -23,7 +29,7 @@ const challengeParams: ChallengeParams<bigint> = {
   nonce: 'exampleNonce',
   expirationDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString(),
   notBefore: undefined,
-  resources: [],
+  resources: ['Full Access: This sign-in gives full access to all features.'],
   assetOwnershipRequirements: undefined
 };
 
@@ -108,6 +114,24 @@ describe('checkIfAuthenticated function', () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it('should not add a report with no scopes', async () => {
+    // Mock session object with all required properties
+    // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
+    // Set up a mock session middleware
+
+    const reportRoute = '/api/v0/report';
+    const res = await request(app)
+      .post(reportRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify({ ...exampleReq.session, blockinParams: { ...exampleReq.session.blockinParams, resources: [] } }))
+      .send({
+        collectionId: '1',
+        addressOrUsername: 'exampleAddressOrUsername',
+        reason: 'exampleReason'
+      });
+    expect(res.statusCode).toBe(401);
+  });
+
   it('should not add a report w/o a session', async () => {
     // Mock session object with all required properties
     // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
@@ -126,19 +150,70 @@ describe('checkIfAuthenticated function', () => {
     expect(res.statusCode).toBe(401);
   });
 
+  it('should add a report w/ the correct scope', async () => {
+    // Mock session object with all required properties
+    // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
+    // Set up a mock session middleware
+
+    const reportRoute = '/api/v0/report';
+    const res = await request(app)
+      .post(reportRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...exampleReq.session,
+          blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: This sign-in allows you to report users or collections.'] }
+        })
+      )
+      .send({
+        collectionId: '1',
+        addressOrUsername: 'exampleAddressOrUsername',
+        reason: 'exampleReason'
+      });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('should not add a report w/ the correct scope but incorrect message', async () => {
+    // Mock session object with all required properties
+    // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
+    // Set up a mock session middleware
+
+    const reportRoute = '/api/v0/report';
+    const res = await request(app)
+      .post(reportRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...exampleReq.session,
+          blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: This is a malicious message.'] }
+        })
+      )
+      .send({
+        collectionId: '1',
+        addressOrUsername: 'exampleAddressOrUsername',
+        reason: 'exampleReason'
+      });
+
+    expect(res.statusCode).toBe(401);
+  });
+
   it('should pass manager route with a session', async () => {
     // Mock session object with all required properties
     // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
     // Set up a mock session middleware
 
     const collectionId = 1;
-    const managerRoute = `/api/v0/collection/${collectionId}/codes`;
+    const managerRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
+    const body: GetClaimAlertsForCollectionRouteRequestBody = { collectionId: collectionId.toString(), bookmark: '' };
     const managerReq = createExampleReqForAddress('cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp');
     const res = await request(app)
       .post(managerRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .set('x-mock-session', JSON.stringify(managerReq.session));
-    // console.log(res)
+      .set('x-mock-session', JSON.stringify(managerReq.session))
+      .send(body);
 
     expect(res.statusCode).toBe(200);
   });
@@ -149,13 +224,14 @@ describe('checkIfAuthenticated function', () => {
     // Set up a mock session middleware
 
     const collectionId = 1;
-    const managerRoute = `/api/v0/collection/${collectionId}/codes`;
+    const managerRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
+    const body: GetClaimAlertsForCollectionRouteRequestBody = { collectionId: collectionId.toString(), bookmark: '' };
     const managerReq = createExampleReqForAddress('differentAddress');
     const res = await request(app)
       .post(managerRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .set('x-mock-session', JSON.stringify(managerReq.session));
-    // console.log(res)
+      .set('x-mock-session', JSON.stringify(managerReq.session))
+      .send(body);
 
     expect(res.statusCode).toBe(401);
   });

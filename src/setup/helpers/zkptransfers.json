@@ -4,9 +4,7 @@
   "transfers": [
     {
       "from": "Mint",
-      "toAddresses": [
-        "cosmos178m3nrv6arrfwh6r6gcr60v6m63cyxrycf4ywe"
-      ],
+      "toAddresses": ["cosmos178m3nrv6arrfwh6r6gcr60v6m63cyxrycf4ywe"],
       "balances": [
         {
           "amount": "1",

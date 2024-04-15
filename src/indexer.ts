@@ -21,7 +21,7 @@ import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
 import {
-  BlockinSession,
+  type BlockinSession,
   authorizeBlockinRequest,
   checkifSignedInHandler,
   genericBlockinVerifyHandler,
@@ -65,7 +65,7 @@ const DiscordStrategy = passportDiscord.Strategy;
 const GitHubStrategy = passportGithub.Strategy;
 const GoogleStrategy = passportGoogle.Strategy;
 
-var scopes = ['identify', 'guilds', 'guilds.members.read'];
+const scopes = ['identify', 'guilds', 'guilds.members.read'];
 
 passport.use(
   new GoogleStrategy(
@@ -75,7 +75,6 @@ passport.use(
       callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/google/callback' : 'https://api.bitbadges.io/auth/google/callback'
     },
     function (accessToken, refreshToken, profile, cb) {
-      console.log(profile);
       const user = {
         id: profile.id,
         username: profile.emails ? profile.emails[0].value : ''
@@ -320,7 +319,7 @@ const discordCallbackHandler = (req: Request, res: Response, next: Function) => 
     req.session.save();
 
     if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
       profileDoc.socialConnections = new SocialConnections({
         ...profileDoc.socialConnections,
         discord: new SocialConnectionInfo({
@@ -384,7 +383,7 @@ app.get('/auth/reddit/callback', async (req: Request, res: Response) => {
 
     const oauthParams = {
       grant_type: 'authorization_code',
-      code: code,
+      code,
       redirect_uri: redditConfig.callbackURL
     };
 
@@ -507,7 +506,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
         req.session.save();
 
         if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-          const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+          const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
           profileDoc.socialConnections = new SocialConnections({
             ...profileDoc.socialConnections,
             twitter: new SocialConnectionInfo({
@@ -544,7 +543,7 @@ const githubCallbackHandler = (req: Request, res: Response, next: Function) => {
     req.session.save();
 
     if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
       profileDoc.socialConnections = new SocialConnections({
         ...profileDoc.socialConnections,
         github: new SocialConnectionInfo({
@@ -595,7 +594,7 @@ const googleCallbackHandler = (req: Request, res: Response, next: Function) => {
     req.session.save();
 
     if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress as string);
+      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
       profileDoc.socialConnections = new SocialConnections({
         ...profileDoc.socialConnections,
         google: new SocialConnectionInfo({
@@ -615,7 +614,7 @@ app.get('/auth/google', passport.authenticate('google', { session: false, scope:
 app.get('/auth/google/callback', googleCallbackHandler);
 
 // Reports
-app.post('/api/v0/report', authorizeBlockinRequest, addReport);
+app.post('/api/v0/report', authorizeBlockinRequest(['Report']), addReport);
 
 // Search
 app.post('/api/v0/search/:searchValue', searchHandler);
@@ -633,27 +632,33 @@ app.post('/api/v0/claims/:claimId/:cosmosAddress', checkAndCompleteClaim); // Wr
 app.post('/api/v0/claims', getClaimsHandler);
 app.post('/api/v0/collections/filter', filterBadgesInCollectionHandler);
 
-app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest, addReviewForCollection); // Write route
-app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest, deleteReview); // Write route
+app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest(['Reviews']), addReviewForCollection); // Write route
+app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview); // Write route
 
 // User
 app.post('/api/v0/user/batch', getAccounts);
-app.post('/api/v0/user/updateAccount', authorizeBlockinRequest, upload.single('profilePicImageFile'), updateAccountInfo); // Write route
-app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest, addReviewForUser); // Write route
+app.post('/api/v0/user/updateAccount', authorizeBlockinRequest(['Profile']), upload.single('profilePicImageFile'), updateAccountInfo); // Write route
+app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest(['Reviews']), addReviewForUser); // Write route
 
 // IPFS
-app.post('/api/v0/addMetadataToIpfs', websiteOnlyCors, authorizeBlockinRequest, express.json({ limit: '100mb' }), addMetadataToIpfsHandler); //
+app.post(
+  '/api/v0/addMetadataToIpfs',
+  websiteOnlyCors,
+  authorizeBlockinRequest(['Full Access']),
+  express.json({ limit: '100mb' }),
+  addMetadataToIpfsHandler
+); //
 app.post(
   '/api/v0/addApprovalDetailsToOffChainStorage',
   websiteOnlyCors,
-  authorizeBlockinRequest,
+  authorizeBlockinRequest(['Full Access']),
   express.json({ limit: '100mb' }),
   addApprovalDetailsToOffChainStorageHandler
 ); //
 app.post(
   '/api/v0/addBalancesToOffChainStorage',
   websiteOnlyCors,
-  authorizeBlockinRequest,
+  authorizeBlockinRequest(['Full Access']),
   express.json({ limit: '100mb' }),
   addBalancesToOffChainStorageHandler
 ); //
@@ -676,22 +681,22 @@ app.post('/api/v0/broadcast', broadcastTx);
 app.post('/api/v0/simulate', simulateTx);
 
 // Faucet
-app.post('/api/v0/faucet', authorizeBlockinRequest, getTokensFromFaucet);
+app.post('/api/v0/faucet', authorizeBlockinRequest(['Full Access']), getTokensFromFaucet);
 
 // Address Lists
 app.post('/api/v0/addressLists', getAddressLists);
-app.post('/api/v0/addressLists/create', authorizeBlockinRequest, createAddressLists);
-app.post('/api/v0/addressLists/update', authorizeBlockinRequest, updateAddressLists);
-app.post('/api/v0/addressLists/delete', authorizeBlockinRequest, deleteAddressLists);
+app.post('/api/v0/addressLists/create', authorizeBlockinRequest(['Address Lists']), createAddressLists);
+app.post('/api/v0/addressLists/update', authorizeBlockinRequest(['Address Lists']), updateAddressLists);
+app.post('/api/v0/addressLists/delete', authorizeBlockinRequest(['Address Lists']), deleteAddressLists);
 
 // Blockin Auth Codes
 app.post('/api/v0/authCode', getAuthCode);
-app.post('/api/v0/authCode/create', createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest)
-app.post('/api/v0/authCode/delete', authorizeBlockinRequest, deleteAuthCode);
+app.post('/api/v0/authCode/create', createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
+app.post('/api/v0/authCode/delete', authorizeBlockinRequest(['Auth Codes']), deleteAuthCode);
 
 // Claim Alerts
-app.post('/api/v0/claimAlerts/send', websiteOnlyCors, authorizeBlockinRequest, sendClaimAlert);
-app.post('/api/v0/claimAlerts', authorizeBlockinRequest, getClaimAlertsForCollection);
+app.post('/api/v0/claimAlerts/send', websiteOnlyCors, authorizeBlockinRequest(['Claim Alerts']), sendClaimAlert);
+app.post('/api/v0/claimAlerts', authorizeBlockinRequest(['Claim Alerts']), getClaimAlertsForCollection);
 
 // Follow Protocol
 app.post('/api/v0/follow-protocol', getFollowDetails);
@@ -699,16 +704,16 @@ app.post('/api/v0/follow-protocol', getFollowDetails);
 // Eth First Tx
 app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 
-//Maps
+// Maps
 app.post('/api/v0/maps', getMaps);
 
 app.post('/api/v0/appleWalletPass', createPass);
 
-//Off-Chain Secret Sigs
+// Off-Chain Secret Sigs
 app.post('/api/v0/secret', getSecret);
-app.post('/api/v0/secret/create', authorizeBlockinRequest, createSecret);
-app.post('/api/v0/secret/delete', authorizeBlockinRequest, deleteSecret);
-app.post('/api/v0/secret/update', authorizeBlockinRequest, updateSecret);
+app.post('/api/v0/secret/create', authorizeBlockinRequest(['Secrets']), createSecret);
+app.post('/api/v0/secret/delete', authorizeBlockinRequest(['Secrets']), deleteSecret);
+app.post('/api/v0/secret/update', authorizeBlockinRequest(['Secrets']), updateSecret);
 
 app.post('/api/v0/externalCallKey', async (req: Request, res: Response) => {
   try {
