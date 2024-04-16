@@ -9,10 +9,9 @@ import {
   type UintRange
 } from 'bitbadgesjs-sdk';
 import { type AndGroup, type AssetConditionGroup, type OrGroup, type OwnershipRequirements } from 'blockin';
-import { getFromDB } from '../db/db';
-import { BalanceModel } from '../db/schemas';
-import { getAddressListsFromDB } from '../routes/utils';
 import Moralis from 'moralis';
+import { getBalanceForAddress } from '../routes/balances';
+import { getAddressListsFromDB } from '../routes/utils';
 
 export async function verifyBitBadgesAssets(
   bitbadgesAssets: AssetConditionGroup<bigint> | undefined,
@@ -184,7 +183,7 @@ export async function verifyBitBadgesAssets(
       } else {
         let docBalances = new BalanceArray<bigint>();
         if (!balancesSnapshot) {
-          const balanceDoc = await getFromDB(BalanceModel, `${asset.collectionId}:${convertToCosmosAddress(address)}`);
+          const balanceDoc = await getBalanceForAddress(Number(asset.collectionId), address);
 
           if (!balanceDoc) {
             docBalances = new BalanceArray<bigint>();

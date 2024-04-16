@@ -26,10 +26,10 @@ import { convertDocs, getManyFromDB, mustGetFromDB } from '../db/db';
 import { AccountModel, AddressListModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel } from '../db/schemas';
 import { complianceDoc } from '../poll';
 import { getAddressForName } from '../utils/ensResolvers';
-import { getQueryParamsFromBookmark } from './activityHelpers';
 import { executeAdditionalCollectionQueries } from './collections';
 import { convertToBitBadgesUserInfo } from './userHelpers';
 import { getAddressListsFromDB } from './utils';
+import { getQueryParamsFromBookmark } from '../db/utils';
 
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
   try {

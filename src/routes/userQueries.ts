@@ -7,6 +7,7 @@ import {
   type iProfileDoc,
   type iUintRange
 } from 'bitbadgesjs-sdk';
+import { mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import {
   AddressListModel,
@@ -20,8 +21,8 @@ import {
   TransferActivityModel,
   type BitBadgesDoc
 } from '../db/schemas';
+import { findWithPagination, getQueryParamsFromBookmark } from '../db/utils';
 import { complianceDoc } from '../poll';
-import { findWithPagination, getQueryParamsFromBookmark } from './activityHelpers';
 
 const QUERY_TIME_MODE = false;
 
@@ -46,7 +47,8 @@ export async function queryAndFilter<T extends BitBadgesDoc<bigint>>(
     docs.push(...filteredDocs);
     docsLeft -= filteredDocs.length;
 
-    if (filteredDocs.length < 25) {
+    // If we have less than 25 docs, we break (note this is queries and all queries have page size of 25)
+    if (queryDocs.length < 25) {
       break;
     }
 
@@ -556,12 +558,14 @@ export async function executeListsActivityQuery(
   profileInfo: iProfileDoc<bigint>,
   fetchHidden: boolean,
   bookmark?: string,
-  oldestFirst?: boolean
+  oldestFirst?: boolean,
+  fetchPrivate?: boolean
 ) {
   if (QUERY_TIME_MODE) console.time('listsActivityQuery');
 
   const hiddenLists = [...(profileInfo.hiddenLists ?? []), ...(complianceDoc?.addressLists.reported.map((x) => x.listId) ?? [])];
 
+  console.log(fetchPrivate);
   const queryFunc = async (currBookmark?: string) => {
     const paginationParams = await getQueryParamsFromBookmark(ListActivityModel, currBookmark, oldestFirst, 'timestamp', '_id');
     return await findInDB(ListActivityModel, {
@@ -593,6 +597,16 @@ export async function executeListsActivityQuery(
         .filter((doc) => doc !== undefined);
 
       viewDocs = viewDocs.filter((doc) => doc && nonHiddenDocs.find((x) => x && x._docId === doc._docId));
+    }
+
+    if (!fetchPrivate) {
+      const listIds = [...new Set(viewDocs.map((x) => x.listId))];
+      const lists = await mustGetManyFromDB(AddressListModel, listIds);
+
+      viewDocs = viewDocs.filter((doc) => {
+        const list = lists.find((x) => x.listId === doc.listId);
+        return list && !list.private;
+      });
     }
 
     for (const doc of viewDocs) {

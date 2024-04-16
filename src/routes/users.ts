@@ -38,7 +38,12 @@ import { type Request, type Response } from 'express';
 import type nano from 'nano';
 import { serializeError } from 'serialize-error';
 import { findInDB } from '../db/queries';
-import { checkIfAuthenticated, type AuthenticatedRequest, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
+import {
+  checkIfAuthenticated,
+  type AuthenticatedRequest,
+  type MaybeAuthenticatedRequest,
+  setMockSessionIfTestMode
+} from '../blockin/blockin_handlers';
 import { type CleanedCosmosAccountInformation } from '../chain-client/queries';
 import { deleteMany, getFromDB, getManyFromDB, insertToDB } from '../db/db';
 import { AccountModel, ProfileModel, UsernameModel } from '../db/schemas';
@@ -159,6 +164,7 @@ async function getBatchProfileInformation(req: Request | undefined, queries: Arr
 
   // Filter out private info if not authenticated user
   if (req && req.session) {
+    setMockSessionIfTestMode(req);
     const currAddress = (req.session as any).cosmosAddress;
     for (const profileInfo of profileInfos) {
       if (profileInfo._docId !== currAddress) {
@@ -377,7 +383,7 @@ const getAdditionalUserInfo = async (
   }
 
   const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-  const isAuthenticated = checkIfAuthenticated(authReq, ['Profile']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+  const isAuthenticated = !!checkIfAuthenticated(authReq, ['Profile']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
 
   const asyncOperations = [];
   for (const view of reqBody.viewsToFetch) {
@@ -387,7 +393,7 @@ const getAdditionalUserInfo = async (
     const oldestFirst = view.oldestFirst;
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
-        asyncOperations.push(async () => await executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst));
+        asyncOperations.push(async () => await executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst, isAuthenticated));
       }
     } else if (view.viewType === 'transferActivity') {
       if (bookmark !== undefined) {

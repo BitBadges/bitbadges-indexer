@@ -11,6 +11,7 @@ import * as ethereum from 'bitbadgesjs-sdk/dist/proto/ethereum/ethsecp256k1/keys
 import { type BadgeCollection } from 'bitbadgesjs-sdk/dist/proto/badges/collections_pb';
 import { type ApprovalTracker, type UserBalanceStore } from 'bitbadgesjs-sdk/dist/proto/badges/transfers_pb';
 import { type AddressList } from 'bitbadgesjs-sdk/dist/proto/badges/address_lists_pb';
+
 /**
  * The chain will return a similar structure but with a pub_key object and account_number field (see CosmosAccountResponse from bitbadgesjs-sdk)
  *
@@ -222,7 +223,6 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
         }).toBinary();
 
         const challengeTrackerPromise = await rpc.request('badges.Query', 'GetChallengeTracker', challengeTrackerData);
-
         return bitbadgesQuery.QueryGetChallengeTrackerResponse.fromBinary(challengeTrackerPromise).numUsed;
       }
     }

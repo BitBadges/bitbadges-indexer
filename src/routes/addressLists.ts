@@ -44,7 +44,7 @@ export const deleteAddressLists = async (
 
     const docsToDelete = await mustGetManyFromDB(AddressListModel, listIds);
     for (const doc of docsToDelete) {
-      if (doc.createdBy !== req.session.cosmosAddress) {
+      if (doc.createdBy !== req.session.cosmosAddress || !doc.listId.startsWith(req.session.cosmosAddress + '_')) {
         throw new Error('You are not the owner of list with ID ' + doc._docId);
       }
 
@@ -67,9 +67,9 @@ export const deleteAddressLists = async (
       );
     }
 
-    return res.status(200).send({});
+    return res.status(200).send();
   } catch (e) {
-    console.error(e);
+    console.log(e);
     return res.status(500).send({
       error: serializeError(e),
       errorMessage: 'Error deleting address lists.'
@@ -79,17 +79,18 @@ export const deleteAddressLists = async (
 
 export function getActivityDocsForListUpdate(
   list: iAddressList,
-  existingDoc: iAddressList,
+  existingDoc: iAddressList | undefined,
   status: StatusDoc<NumberType>,
   activityDocs: Array<ListActivityDoc<NumberType>>
 ) {
-  const newAddressesNotInOld = list.addresses.filter((x) => !existingDoc.addresses.includes(x));
-  const oldAddressesNotInNew = existingDoc.addresses.filter((x) => !list.addresses.includes(x));
+  const existingAddresses = existingDoc?.addresses ?? [];
+  const newAddressesNotInOld = list.addresses.filter((x) => !existingAddresses.includes(x));
+  const oldAddressesNotInNew = existingAddresses.filter((x) => !list.addresses.includes(x));
 
   if (newAddressesNotInOld.length > 0) {
     activityDocs.push(
       new ListActivityDoc({
-        _docId: crypto.randomBytes(16).toString('hex'),
+        _docId: crypto.randomBytes(32).toString('hex'),
         addresses: newAddressesNotInOld.map((x) => convertToCosmosAddress(x)),
         addedToList: true,
         listId: list.listId,
@@ -102,7 +103,7 @@ export function getActivityDocsForListUpdate(
   if (oldAddressesNotInNew.length > 0) {
     activityDocs.push(
       new ListActivityDoc({
-        _docId: crypto.randomBytes(16).toString('hex'),
+        _docId: crypto.randomBytes(32).toString('hex'),
         addresses: oldAddressesNotInNew.map((x) => convertToCosmosAddress(x)),
         addedToList: false,
         listId: list.listId,
@@ -165,20 +166,23 @@ const handleAddressListsUpdateAndCreate = async (
 
       for (const claim of list.claims) {
         const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': list.listId, _docId: claim.claimId }, limit: 1 });
-        const plugins = encryptPlugins(claim.plugins ?? []);
+        const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
 
+        const hasExistingClaim = claimDocs.length > 0;
+        const existingClaim = claimDocs?.[0];
         const state: Record<string, any> = {};
-        for (let i = 0; i < plugins.length; i++) {
-          const plugin = plugins[i];
+        for (let i = 0; i < encryptedPlugins.length; i++) {
+          const encryptedPlugin = encryptedPlugins[i];
           const passedInPlugin = claim.plugins[i];
+          const id = encryptedPlugin.id;
 
-          state[plugin.id] = Plugins[plugin.id].defaultState;
-          if (claimDocs.length > 0 && !passedInPlugin.resetState) {
-            state[plugin.id] = claimDocs[0].state[plugin.id];
+          state[id] = Plugins[id].defaultState;
+          if (hasExistingClaim && !passedInPlugin.resetState) {
+            state[id] = existingClaim.state[id];
           }
         }
 
-        if (claimDocs.length === 0) {
+        if (!hasExistingClaim) {
           claimBuilderDocs.push({
             _docId: claim.claimId,
             createdBy: req.session.cosmosAddress,
@@ -189,16 +193,14 @@ const handleAddressListsUpdateAndCreate = async (
               listId: list.listId
             },
             state,
-            plugins: plugins ?? []
+            plugins: encryptedPlugins ?? []
           });
         } else {
-          assertPluginsUpdateIsValid(claimDocs[0].plugins, plugins);
-
-          //Keep state if claim already exists
+          assertPluginsUpdateIsValid(existingClaim.plugins, encryptedPlugins);
           claimBuilderDocs.push({
-            ...claimDocs[0],
+            ...existingClaim,
             state,
-            plugins: plugins ?? []
+            plugins: encryptedPlugins ?? []
           });
         }
       }
@@ -218,59 +220,30 @@ const handleAddressListsUpdateAndCreate = async (
         if (existingDoc.whitelist !== list.whitelist) {
           throw new Error('You cannot change from a whitelist to a blacklist or vice versa.');
         }
-
-        docs.push(
-          new AddressListDoc<NumberType>({
-            ...existingDoc,
-            ...list,
-            addresses: list.addresses.map((x) => convertToCosmosAddress(x)),
-            updateHistory: [
-              ...existingDoc.updateHistory,
-              {
-                block: status.block.height,
-                blockTimestamp: status.block.timestamp,
-                txHash: '',
-                timestamp: Date.now()
-              }
-            ],
-            lastUpdated: status.block.timestamp
-          })
-        );
-
-        getActivityDocsForListUpdate(list, existingDoc, status, activityDocs);
-      } else {
-        docs.push(
-          new AddressListDoc<NumberType>({
-            ...list,
-            addresses: list.addresses.map((x) => convertToCosmosAddress(x)),
-            createdBy: cosmosAddress,
-            updateHistory: [
-              {
-                block: status.block.height,
-                blockTimestamp: status.block.timestamp,
-                txHash: '',
-                timestamp: Date.now()
-              }
-            ],
-            _docId: list.listId,
-            createdBlock: status.block.height,
-            lastUpdated: status.block.timestamp
-          })
-        );
-
-        if (list.addresses.length > 0) {
-          activityDocs.push(
-            new ListActivityDoc<NumberType>({
-              _docId: crypto.randomBytes(16).toString('hex'),
-              addresses: list.addresses.map((x) => convertToCosmosAddress(x)),
-              addedToList: true,
-              listId: list.listId,
-              timestamp: Date.now(),
-              block: status?.block.height ?? 0n
-            })
-          );
-        }
       }
+
+      docs.push(
+        new AddressListDoc<NumberType>({
+          ...existingDoc,
+          ...list,
+          _docId: list.listId,
+          createdBlock: existingDoc?.createdBlock ?? status.block.height,
+          createdBy: existingDoc?.createdBy ?? cosmosAddress,
+          lastUpdated: status.block.timestamp,
+          addresses: list.addresses.map((x) => convertToCosmosAddress(x)),
+          updateHistory: [
+            ...(existingDoc?.updateHistory ?? []),
+            {
+              block: status.block.height,
+              blockTimestamp: status.block.timestamp,
+              txHash: '',
+              timestamp: Date.now()
+            }
+          ]
+        })
+      );
+
+      getActivityDocsForListUpdate(list, existingDoc, status, activityDocs);
     }
 
     // TODO: Session?
@@ -296,9 +269,17 @@ export const updateAddressLists = async (
   return handleAddressListsUpdateAndCreate(req, res);
 };
 
+const isReserved = (listId: string) => {
+  try {
+    AddressList.getReservedAddressList(listId);
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
 export const getAddressLists = async (req: Request, res: Response<iGetAddressListsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    // console.time('getAddressLists');
     const reqBody = req.body as GetAddressListsRouteRequestBody;
     const listsToFetch = reqBody.listsToFetch;
 
@@ -306,46 +287,39 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
       throw new Error('You can only fetch up to 100 address lists at a time.');
     }
 
-    // console.time('getAddressListsFromDB');
-    const docs = await getAddressListsFromDB(listsToFetch, true);
-    // console.timeEnd('getAddressListsFromDB');
+    const reservedStatuses = listsToFetch.map((x) => isReserved(x.listId));
+    const docs = await getAddressListsFromDB(
+      listsToFetch,
+      reservedStatuses.some((x) => !x) //Reserved lists will not have metadata
+    );
 
+    //Private lists that are not viewable by ID can only be viewed by the creator
     for (let i = 0; i < docs.length; i++) {
       const doc = docs[i];
       const query = listsToFetch[i];
-      if (doc.private) {
-        if (doc.viewableWithLink) continue;
+      const isReserved = reservedStatuses[i];
+      if (isReserved) continue; //Reserved lists will not have claims, privacy restrictions, etc
 
+      //If it is viewable by link / ID, they have requested it via the API call so they know the link
+      if (doc.private && !doc.viewableWithLink) {
         const authReq = req as MaybeAuthenticatedRequest<NumberType>;
         if (!checkIfAuthenticated(authReq, ['Address Lists'])) return returnUnauthorized(res);
 
         const cosmosAddress = authReq.session.cosmosAddress;
-        if (docs.some((x) => x.private && x.createdBy !== cosmosAddress)) {
+        if (doc.createdBy !== cosmosAddress) {
           return res.status(401).send({
-            errorMessage: `Your signed in address ${authReq.session.address} does not have permission to view one or more of the requested address lists.`
+            errorMessage: `You do not have permission to view one or more of the requested address lists. The list with ID ${doc.listId} is private and viewable only by the creator.`
           });
         }
       }
 
-      let isReserved = false;
-      try {
-        AddressList.getReservedAddressList(doc.listId);
-        isReserved = true;
-      } catch (e) {}
-
-      if (isReserved) continue;
-
-      // console.time('getClaimDocs');
       const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': doc.listId } });
       doc.claims = await getClaimDetailsForFrontend(req, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
-      // console.timeEnd('getClaimDocs');
     }
-
-    // console.timeEnd('getAddressLists');
 
     return res.status(200).send({ addressLists: docs });
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return res.status(500).send({
       error: serializeError(e),
       errorMessage: 'Error fetching address lists.'

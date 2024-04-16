@@ -15,6 +15,7 @@ import { getStatus } from '../db/status';
 import { insertToDB } from '../db/db';
 import { ClaimAlertModel } from '../db/schemas';
 import { findInDB } from '../db/queries';
+import crypto from 'crypto';
 
 export const sendClaimAlert = async (req: AuthenticatedRequest<NumberType>, res: Response<iSendClaimAlertsRouteSuccessResponse | ErrorResponse>) => {
   try {
@@ -30,8 +31,7 @@ export const sendClaimAlert = async (req: AuthenticatedRequest<NumberType>, res:
         }
       }
 
-      // random collision resistant id (ik it's not properly collision resistant but we just need it to not collide)
-      const id = BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
+      const id = crypto.randomBytes(32).toString('hex');
       const status = await getStatus();
       const doc = new ClaimAlertDoc<NumberType>({
         from: req.session.cosmosAddress,

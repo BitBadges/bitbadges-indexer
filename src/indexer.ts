@@ -21,13 +21,13 @@ import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
 import {
-  type BlockinSession,
   authorizeBlockinRequest,
   checkifSignedInHandler,
   genericBlockinVerifyHandler,
   getChallenge,
   removeBlockinSessionCookie,
-  verifyBlockinAndGrantSessionCookie
+  verifyBlockinAndGrantSessionCookie,
+  type BlockinSession
 } from './blockin/blockin_handlers';
 import { type IndexerStargateClient } from './chain-client/indexer_stargateclient';
 import { insertToDB, mustGetFromDB } from './db/db';

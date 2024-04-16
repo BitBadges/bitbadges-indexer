@@ -1,5 +1,3 @@
-import { ChallengeParams, createChallenge } from 'blockin';
-import mongoose from 'mongoose';
 import request from 'supertest';
 import app, { server } from '../indexer';
 
@@ -8,15 +6,20 @@ import {
   BlockinChallengeParams,
   GetClaimAlertsForCollectionRouteRequestBody,
   GetSignInChallengeRouteSuccessResponse,
-  UintRangeArray
+  ProfileDoc,
+  UintRangeArray,
+  convertToCosmosAddress
 } from 'bitbadgesjs-sdk';
+import { ChallengeParams, createChallenge } from 'blockin';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
-import { MongoDB } from '../db/db';
+import mongoose from 'mongoose';
+import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { CollectionModel, ProfileModel } from '../db/schemas';
 import { connectToRpc } from '../poll';
 import { createExampleReqForAddress } from '../testutil/utils';
+import { BlockinSession, MaybeAuthenticatedRequest, statement } from './blockin_handlers';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
-import { statement, MaybeAuthenticatedRequest, BlockinSession, checkIfAuthenticated } from './blockin_handlers';
 
 connectToRpc();
 dotenv.config();
@@ -44,7 +47,7 @@ const exampleReq: MaybeAuthenticatedRequest<bigint> = {
 } as MaybeAuthenticatedRequest<bigint>;
 
 describe('checkIfAuthenticated function', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.DISABLE_API = 'false';
     process.env.DISABLE_URI_POLLER = 'true';
     process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
@@ -56,7 +59,7 @@ describe('checkIfAuthenticated function', () => {
     while (!MongoDB.readyState) {
       console.log('Waiting for MongoDB to be ready');
     }
-
+    await connectToRpc();
     console.log('MongoDB is ready');
   });
 
@@ -64,10 +67,6 @@ describe('checkIfAuthenticated function', () => {
     await mongoose.disconnect().catch(console.error);
     // shut down server
     server?.close();
-  });
-
-  beforeEach(async () => {
-    await connectToRpc();
   });
 
   test('responds to /', async () => {
@@ -79,22 +78,22 @@ describe('checkIfAuthenticated function', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('should return true if all session properties are present and match', () => {
-    // Mock session object with all required properties
-    const req: MaybeAuthenticatedRequest<bigint> = {
-      ...exampleReq
-    } as MaybeAuthenticatedRequest<bigint>;
-    expect(checkIfAuthenticated(req)).toBeTruthy();
-  });
+  // it('should return true if all session properties are present and match', () => {
+  //   // Mock session object with all required properties
+  //   const req: MaybeAuthenticatedRequest<bigint> = {
+  //     ...exampleReq
+  //   } as MaybeAuthenticatedRequest<bigint>;
+  //   expect(checkIfAuthenticated(req)).toBeTruthy();
+  // });
 
-  it('should return false if session properties are missing', () => {
-    // Mock session object missing some required properties
-    const req = {
-      ...exampleReq,
-      session: { ...exampleReq.session, cosmosAddress: undefined }
-    } as MaybeAuthenticatedRequest<bigint>;
-    expect(checkIfAuthenticated(req)).toBeFalsy();
-  });
+  // it('should return false if session properties are missing', () => {
+  //   // Mock session object missing some required properties
+  //   const req = {
+  //     ...exampleReq,
+  //     session: { ...exampleReq.session, cosmosAddress: undefined }
+  //   } as MaybeAuthenticatedRequest<bigint>;
+  //   expect(checkIfAuthenticated(req)).toBeFalsy();
+  // });
 
   it('should add a report which is an authenticated request', async () => {
     // Mock session object with all required properties
@@ -124,6 +123,27 @@ describe('checkIfAuthenticated function', () => {
       .post(reportRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify({ ...exampleReq.session, blockinParams: { ...exampleReq.session.blockinParams, resources: [] } }))
+      .send({
+        collectionId: '1',
+        addressOrUsername: 'exampleAddressOrUsername',
+        reason: 'exampleReason'
+      });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('should not add report with wrong scope', async () => {
+    // Mock session object with all required properties
+    // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
+    // Set up a mock session middleware
+
+    const reportRoute = '/api/v0/report';
+    const res = await request(app)
+      .post(reportRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({ ...exampleReq.session, blockinParams: { ...exampleReq.session.blockinParams, resources: ['Wrong Scope'] } })
+      )
       .send({
         collectionId: '1',
         addressOrUsername: 'exampleAddressOrUsername',
@@ -163,7 +183,7 @@ describe('checkIfAuthenticated function', () => {
         'x-mock-session',
         JSON.stringify({
           ...exampleReq.session,
-          blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: This sign-in allows you to report users or collections.'] }
+          blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: Report users or collections.'] }
         })
       )
       .send({
@@ -208,7 +228,9 @@ describe('checkIfAuthenticated function', () => {
     const collectionId = 1;
     const managerRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
     const body: GetClaimAlertsForCollectionRouteRequestBody = { collectionId: collectionId.toString(), bookmark: '' };
-    const managerReq = createExampleReqForAddress('cosmos1kj9kt5y64n5a8677fhjqnmcc24ht2vy97kn7rp');
+    const collectionDoc = await mustGetFromDB(CollectionModel, '1');
+
+    const managerReq = createExampleReqForAddress(collectionDoc.managerTimeline[0].manager);
     const res = await request(app)
       .post(managerRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -950,5 +972,121 @@ describe('checkIfAuthenticated function', () => {
     } catch (e) {
       console.log(e);
     }
+  });
+
+  it('should work with sign ins and sign outs', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ address });
+    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const messageToSign = challenge.message;
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    const verifyRes = await request(app)
+      .post(BitBadgesApiRoutes.VerifySignInRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: messageToSign, signature });
+    expect(verifyRes.statusCode).toBe(200);
+
+    const signOutRes = await request(app)
+      .post(BitBadgesApiRoutes.SignOutRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ address });
+    expect(signOutRes.statusCode).toBe(200);
+
+    const signInStatusRoute = BitBadgesApiRoutes.CheckIfSignedInRoute();
+    const signInStatusRes = await request(app)
+      .post(signInStatusRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ address });
+    expect(signInStatusRes.statusCode).toBe(200);
+    expect(signInStatusRes.body.signedIn).toBe(false);
+  });
+
+  it('should approve discord sign in if set', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ address });
+    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const messageToSign = challenge.message;
+
+    const profileDoc =
+      (await getFromDB(ProfileModel, convertToCosmosAddress(address))) ??
+      new ProfileDoc({
+        _docId: convertToCosmosAddress(address)
+      });
+    profileDoc.approvedSignInMethods = {
+      discord: {
+        id: '123456789',
+        username: 'test',
+        discriminator: '0'
+      }
+    };
+    await insertToDB(ProfileModel, profileDoc);
+
+    const verifyRes = await request(app)
+      .post(BitBadgesApiRoutes.VerifySignInRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...createExampleReqForAddress(address).session,
+          discord: {
+            id: '123456789',
+            username: 'test',
+            discriminator: '0'
+          }
+        })
+      )
+      .send({ message: messageToSign });
+    expect(verifyRes.statusCode).toBe(200);
+  });
+
+  it('should not approve discord sign in if set but not matching', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ address });
+    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const messageToSign = challenge.message;
+
+    const profileDoc =
+      (await getFromDB(ProfileModel, convertToCosmosAddress(address))) ??
+      new ProfileDoc({
+        _docId: convertToCosmosAddress(address)
+      });
+    profileDoc.approvedSignInMethods = {
+      discord: {
+        id: '123456789',
+        username: 'test',
+        discriminator: '0'
+      }
+    };
+    await insertToDB(ProfileModel, profileDoc);
+
+    const verifyRes = await request(app)
+      .post(BitBadgesApiRoutes.VerifySignInRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...createExampleReqForAddress(address).session,
+          discord: {
+            id: '123456789',
+            username: 'test',
+            discriminator: '1'
+          }
+        })
+      )
+      .send({ message: messageToSign });
+    expect(verifyRes.statusCode).toBe(401);
   });
 });

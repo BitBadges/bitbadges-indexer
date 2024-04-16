@@ -19,7 +19,7 @@ import { s3 } from '../indexer-vars';
 import { refreshCollection } from './refresh';
 
 // Create a mutex to protect the faucet from double spending
-// TODO: this solution is bottlenecked by mutex and only works on one cluster DB (bc of CouchDB eventual consistency and needing confirmation w/ blockchain); it will work for now  but needs a refactor
+// TODO: this solution is bottlenecked by mutex and only works on one cluster DB; it will work for now  but needs a refactor
 
 /**
  * Problem: How do we prevent double spending from the faucet when the blockchain is asynchronous?

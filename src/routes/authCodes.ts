@@ -27,10 +27,6 @@ export const createAuthCode = async (
     const reqBody = req.body as CreateBlockinAuthCodeRouteRequestBody;
 
     for (const proof of reqBody.secretsProofs || []) {
-      if (process.env.TEST_MODE === 'true') {
-        continue;
-      }
-
       if (!checkIfAuthenticated(req, ['Secrets'])) {
         throw new Error('You must be authenticated to create a code w/ a secrets proof.');
       }
@@ -56,7 +52,6 @@ export const createAuthCode = async (
     }
 
     const uniqueId = crypto.randomBytes(32).toString('hex');
-
     await insertToDB(BlockinAuthSignatureModel, {
       _docId: uniqueId,
       ...reqBody,
@@ -85,50 +80,24 @@ export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCod
     // For now, we use the approach that if someone has the signature, they can see the message.
     const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.id);
     const params = doc.params;
-    try {
-      const verificationResponse = await genericBlockinVerify({
-        message: createChallenge(params),
-        signature: doc.signature,
-        publicKey: doc.publicKey,
-        options: reqBody.options
-      });
-      if (!verificationResponse.success) {
-        return res.status(200).send({
-          secretsProofs: doc.secretsProofs,
-          signature: doc.signature,
-          message: createChallenge(params),
-          params: params,
-          cosmosAddress: convertToCosmosAddress(params.address),
-          verificationResponse: {
-            success: false,
-            errorMessage: verificationResponse.message
-          }
-        });
-      }
 
-      return res.status(200).send({
-        secretsProofs: doc.secretsProofs,
-        message: createChallenge(params),
-        params: params,
-        signature: doc.signature,
-        cosmosAddress: convertToCosmosAddress(params.address),
-        verificationResponse: {
-          success: verificationResponse.success
-        }
-      });
-    } catch (e) {
-      return res.status(200).send({
-        params: params,
-        secretsProofs: doc.secretsProofs,
-        signature: doc.signature,
-        message: createChallenge(params),
-        cosmosAddress: convertToCosmosAddress(params.address),
-        verificationResponse: {
-          success: false,
-          errorMessage: e.message
-        }
-      });
-    }
+    const verificationResponse = await genericBlockinVerify({
+      message: createChallenge(params),
+      signature: doc.signature,
+      publicKey: doc.publicKey,
+      options: reqBody.options
+    });
+    return res.status(200).send({
+      secretsProofs: doc.secretsProofs,
+      message: createChallenge(params),
+      params: params,
+      signature: doc.signature,
+      cosmosAddress: convertToCosmosAddress(params.address),
+      verificationResponse: {
+        success: verificationResponse.success,
+        errorMessage: verificationResponse.success ? '' : verificationResponse.message
+      }
+    });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -155,7 +124,7 @@ export const deleteAuthCode = async (
       deletedAt: Date.now()
     });
 
-    return res.status(200).send({ success: true });
+    return res.status(200).send();
   } catch (e) {
     console.error(e);
     return res.status(500).send({

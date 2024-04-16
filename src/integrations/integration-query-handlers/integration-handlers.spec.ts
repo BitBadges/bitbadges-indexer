@@ -60,4 +60,19 @@ describe('handleIntegrationQuery', () => {
     });
     expect(response).toBeUndefined();
   });
+
+  //TODO: Test Discord (requires access token?)
+  // it('should test discord server query', async () => {
+  //   const response = await handleIntegrationQuery({
+  //     __type: 'discord-server',
+  //     discordInfo: {
+  //       id: '123',
+  //       username: 'test',
+  //       discriminator: '0'
+  //     },
+  //     serverId: '123'
+  //   });
+
+  //   expect(response).toBeUndefined();
+  // });
 });

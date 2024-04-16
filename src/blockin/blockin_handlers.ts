@@ -81,6 +81,8 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
 }
 
 export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]) {
+  setMockSessionIfTestMode(req);
+
   if (expectedScopes) {
     if (!hasScopes(req, expectedScopes)) {
       return false;
@@ -120,6 +122,7 @@ export function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: b
 
 export const statement =
   'Sign this message only if prompted by a trusted party. The signature of this message can be used to authenticate you on BitBadges. By signing, you agree to the BitBadges privacy policy and terms of service.';
+
 export async function getChallenge(
   req: MaybeAuthenticatedRequest<NumberType>,
   res: Response<iGetSignInChallengeRouteSuccessResponse<NumberType> | ErrorResponse>
@@ -234,6 +237,8 @@ export async function verifyBlockinAndGrantSessionCookie(
   const body = req.body as VerifySignInRouteRequestBody;
 
   try {
+    setMockSessionIfTestMode(req);
+
     const generatedEIP4361ChallengeStr = body.message;
     const challenge = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const chain = getChainForAddress(challenge.address);
@@ -243,6 +248,8 @@ export async function verifyBlockinAndGrantSessionCookie(
     if (useWeb2SignIn) {
       const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(challenge.address));
       const discordSignInMethod = profileDoc.approvedSignInMethods?.discord;
+
+      console.log('discordSignInMethod', discordSignInMethod, req.session.discord);
 
       if (!discordSignInMethod || !req.session.discord) {
         return res
@@ -332,28 +339,29 @@ export async function verifyBlockinAndGrantSessionCookie(
   }
 }
 
+export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberType>) {
+  const mockSessionJson = req.header('x-mock-session');
+
+  if (!mockSessionJson) return;
+  if (process.env.TEST_MODE != 'true') return;
+  const mockSession = JSON.parse(mockSessionJson);
+
+  req.session.address = mockSession.address;
+  req.session.cosmosAddress = mockSession.cosmosAddress;
+  req.session.blockin = mockSession.blockin;
+  req.session.blockinParams = mockSession.blockinParams;
+  req.session.nonce = mockSession.nonce;
+  req.session.discord = mockSession.discord;
+  req.session.twitter = mockSession.twitter;
+  req.session.github = mockSession.github;
+  req.session.google = mockSession.google;
+  req.session.reddit = mockSession.reddit;
+  req.session.save();
+}
+
 export function authorizeBlockinRequest(expectedScopes?: string[]) {
   return (req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) => {
-    if (process.env.TEST_MODE === 'true') {
-      const mockSessionJson = req.header('x-mock-session');
-      if (mockSessionJson) {
-        const mockSession = JSON.parse(mockSessionJson);
-        req.session.address = mockSession.address;
-        req.session.cosmosAddress = mockSession.cosmosAddress;
-        req.session.blockin = mockSession.blockin;
-        req.session.blockinParams = mockSession.blockinParams;
-        req.session.nonce = mockSession.nonce;
-        req.session.save();
-        if (expectedScopes?.length) {
-          if (!hasScopes(req, expectedScopes)) {
-            return returnUnauthorized(res);
-          }
-        }
-
-        next();
-        return;
-      }
-    }
+    setMockSessionIfTestMode(req);
 
     if (checkIfAuthenticated(req)) {
       if (expectedScopes?.length) {

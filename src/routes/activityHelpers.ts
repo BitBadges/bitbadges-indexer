@@ -1,52 +1,21 @@
 import {
   ApprovalTrackerDoc,
-  type JSPrimitiveNumberType,
   type ErrorResponse,
   type NumberType,
   type iAmountTrackerIdDetails,
   type iChallengeTrackerIdDetails,
   type iGetBadgeActivityRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
-import type mongoose from 'mongoose';
 import { getFromDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import {
-  ApprovalTrackerModel,
-  BalanceModel,
-  type BitBadgesDoc,
-  MerkleChallengeModel,
-  ReviewModel,
-  TransferActivityModel,
-  type TypedDocFromModel
-} from '../db/schemas';
-const pageSize = 25;
-
-export async function findWithPagination<T extends BitBadgesDoc<JSPrimitiveNumberType>, S extends TypedDocFromModel<T>>(
-  model: mongoose.Model<T>,
-  options: {
-    query: mongoose.FilterQuery<T>;
-    session?: mongoose.mongo.ClientSession;
-    limit?: number;
-    skip?: number;
-    sort?: any;
-  }
-): Promise<{ docs: S[]; pagination: { bookmark: string; hasMore: boolean } }> {
-  const docs = await findInDB<T, S>(model, options);
-  return {
-    docs,
-    pagination: getPaginationInfoToReturn(docs)
-  };
-}
+import { ApprovalTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel } from '../db/schemas';
+import { getQueryParamsFromBookmark, pageSize, getPaginationInfoToReturn, findWithPagination } from '../db/utils';
 
 export async function executeBadgeActivityQuery(
   collectionId: string,
   badgeId: string,
   bookmark?: string
 ): Promise<iGetBadgeActivityRouteSuccessResponse<NumberType> | ErrorResponse> {
-  // Check if badgeId > Number.MAX_SAFE_INTEGER
-  // If so, we need to do a string query because it is saved in DB as a string
-  // Otherwise, we can do a number query
-
   const totalSupplys = await mustGetFromDB(BalanceModel, `${collectionId}:Total`);
 
   let maxBadgeId = 1n;
@@ -58,8 +27,8 @@ export async function executeBadgeActivityQuery(
     }
   }
 
+  // TODO: Support string-number queries
   if (BigInt(maxBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
-    // TODO: Support string-number queries
     throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
   }
 
@@ -89,60 +58,6 @@ export async function executeBadgeActivityQuery(
     pagination: getPaginationInfoToReturn(docs)
   };
 }
-
-export const getPaginationInfoToReturn = (docs: any[]) => {
-  const newBookmark = docs.length > 0 ? docs[docs.length - 1]._id.toString() : undefined;
-  return {
-    bookmark: newBookmark ?? '',
-    hasMore: docs.length === pageSize
-  };
-};
-
-// A little naive bc we always assume descending (-1) sort order
-// But basically what this does is ensures the query starts at the last fetched doc + 1
-// If we have duplicate primary sort fields, we need to handle based on the secondary sort field
-export const getQueryParamsFromBookmark = async (
-  model: mongoose.Model<any>,
-  bookmark: string | undefined,
-  oldestFirst: boolean | undefined,
-  primarySort: string,
-  secondarySort?: string
-) => {
-  let lastFetchedDoc: any = null;
-  if (bookmark) {
-    lastFetchedDoc = await model.findOne({ _id: bookmark }).lean().exec();
-  }
-
-  const operator = oldestFirst ? '$gt' : '$lt';
-
-  if (secondarySort) {
-    return {
-      $or: lastFetchedDoc
-        ? [
-            {
-              [primarySort]: { $eq: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] },
-              [secondarySort]: {
-                [`${operator}`]: lastFetchedDoc[secondarySort as keyof typeof lastFetchedDoc]
-              }
-            },
-            {
-              [primarySort]: {
-                [`${operator}`]: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc]
-              }
-            }
-          ]
-        : [
-            {
-              [primarySort]: { $exists: true }
-            }
-          ]
-    };
-  } else {
-    return {
-      [primarySort]: lastFetchedDoc ? { [`${operator}`]: lastFetchedDoc[primarySort as keyof typeof lastFetchedDoc] } : { $exists: true }
-    };
-  }
-};
 
 export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
   const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, oldestFirst, 'timestamp', '_id');

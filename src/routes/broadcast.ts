@@ -1,52 +1,50 @@
 import axios from 'axios';
-import { type Request, type Response } from 'express';
-import { serializeError } from 'serialize-error';
-import { DEV_MODE } from '../constants';
-import { getAccountByAddress } from './users';
 import {
-  isAddressValid,
-  SupportedChain,
-  type iBroadcastTxRouteSuccessResponse,
-  type ErrorResponse,
   type BroadcastTxRouteRequestBody,
+  type ErrorResponse,
+  type iBroadcastTxRouteSuccessResponse,
   type iSimulateTxRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { generateEndpointBroadcast } from 'bitbadgesjs-sdk/dist/node-rest-api/broadcast';
+import { type Request, type Response } from 'express';
+import { serializeError } from 'serialize-error';
 
 // Cleans up the generated Cosmos SDK error messages into a more applicable format
 // Goal is for it to be human readable and understandable while also being informative
 async function tidyErrorMessage(originalMessage: string) {
-  const message = DEV_MODE ? originalMessage : originalMessage.split('[/')[0];
-  const words = message.split(' ');
+  // const message = DEV_MODE ? originalMessage : originalMessage.split('[/')[0];
+  // const words = message.split(' ');
 
-  const newWords = [];
-  for (const word of words) {
-    const punctuation = word[word.length - 1];
-    let wordWithoutPunctuation = word;
-    if (punctuation === '.' || punctuation === ',' || punctuation === '!' || punctuation === '?') {
-      wordWithoutPunctuation = word.slice(0, word.length - 1);
-    }
+  // const newWords = [];
+  // for (const word of words) {
+  //   const punctuation = word[word.length - 1];
+  //   let wordWithoutPunctuation = word;
+  //   if (punctuation === '.' || punctuation === ',' || punctuation === '!' || punctuation === '?') {
+  //     wordWithoutPunctuation = word.slice(0, word.length - 1);
+  //   }
 
-    if (wordWithoutPunctuation.startsWith('cosmos') && isAddressValid(wordWithoutPunctuation, SupportedChain.COSMOS)) {
-      const blankExpressRequest: Request = {
-        body: {},
-        params: {},
-        query: {}
-      } as any;
+  //   if (wordWithoutPunctuation.startsWith('cosmos') && isAddressValid(wordWithoutPunctuation, SupportedChain.COSMOS)) {
+  //     const blankExpressRequest: Request = {
+  //       body: {},
+  //       params: {},
+  //       query: {}
+  //     } as any;
 
-      const account = await getAccountByAddress(blankExpressRequest, wordWithoutPunctuation);
-      if (account) {
-        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-        newWords.push((account.username || account.resolvedName || account.address) + punctuation);
-      } else {
-        newWords.push(word);
-      }
-    } else {
-      newWords.push(word);
-    }
-  }
+  //     const account = await getAccountByAddress(blankExpressRequest, wordWithoutPunctuation);
+  //     if (account) {
+  //       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+  //       newWords.push((account.username || account.resolvedName || account.address) + punctuation);
+  //     } else {
+  //       newWords.push(word);
+  //     }
+  //   } else {
+  //     newWords.push(word);
+  //   }
+  // }
 
-  return newWords.join(' ');
+  // return newWords.join(' ');
+
+  return originalMessage;
 }
 
 export const broadcastTx = async (req: Request, res: Response<iBroadcastTxRouteSuccessResponse | ErrorResponse>) => {

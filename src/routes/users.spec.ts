@@ -1,24 +1,36 @@
-import { BitBadgesApiRoutes, type UpdateAccountInfoRouteRequestBody, convertToCosmosAddress } from 'bitbadgesjs-sdk';
+import {
+  BitBadgesApiRoutes,
+  type UpdateAccountInfoRouteRequestBody,
+  convertToCosmosAddress,
+  GetAccountsRouteRequestBody,
+  AccountViewKey,
+  BitBadgesUserInfo,
+  NotificationPreferences,
+  SocialConnections
+} from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { ProfileModel } from '../db/schemas';
 import request from 'supertest';
-import { MongoDB, mustGetFromDB } from '../db/db';
+import { MongoDB, insertToDB, mustGetFromDB } from '../db/db';
 import app, { gracefullyShutdown } from '../indexer';
 import { createExampleReqForAddress } from '../testutil/utils';
+import { connectToRpc } from '../poll';
 
 dotenv.config();
 
 const wallet = ethers.Wallet.createRandom();
 const address = wallet.address;
 
-describe('get auth codes', () => {
+describe('users', () => {
   beforeAll(async () => {
     process.env.DISABLE_API = 'false';
     process.env.DISABLE_URI_POLLER = 'true';
     process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
     process.env.DISABLE_NOTIFICATION_POLLER = 'true';
     process.env.TEST_MODE = 'true';
+
+    await connectToRpc();
 
     while (!MongoDB.readyState) {}
   });
@@ -159,5 +171,80 @@ describe('get auth codes', () => {
     expect(profileDoc?.telegram).toEqual('test');
     expect(profileDoc?.username).toEqual(randomUsername);
     expect(profileDoc?.readme).toEqual('test');
+  });
+
+  it('should throw on fetching secret values while unauthenticated', async () => {
+    const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
+    const problemViews: AccountViewKey[] = ['authCodes', 'privateLists', 'receivedSecrets', 'createdSecrets'];
+    for (const view of problemViews) {
+      const getBody: GetAccountsRouteRequestBody = {
+        accountsToFetch: [
+          {
+            address: convertToCosmosAddress(address),
+            viewsToFetch: [{ viewType: view, viewId: view, bookmark: '' }]
+          }
+        ]
+      };
+
+      const getRes = await request(app)
+        .post(getRoute)
+        .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+        .set('x-mock-session', JSON.stringify({}))
+        .send(getBody);
+
+      expect(getRes.status).toBeGreaterThan(401);
+
+      const successRes = await request(app)
+        .post(getRoute)
+        .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+        .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+        .send(getBody);
+      expect(successRes.status).toBe(200);
+    }
+  });
+
+  it('should not return private profile details if unauthenticated', async () => {
+    const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
+    const getBody: GetAccountsRouteRequestBody = {
+      accountsToFetch: [
+        {
+          address: convertToCosmosAddress(address)
+        }
+      ]
+    };
+
+    const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(address));
+    profileDoc.notifications = new NotificationPreferences({});
+    profileDoc.socialConnections = new SocialConnections({ discord: { username: 'test', id: 'test', lastUpdated: 1n } });
+    profileDoc.approvedSignInMethods = {
+      discord: { username: 'test', id: 'test' }
+    };
+    await insertToDB(ProfileModel, profileDoc);
+
+    const getRes = await request(app)
+      .post(getRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify({}))
+      .send(getBody);
+
+    expect(getRes.status).toBe(200);
+
+    const account = new BitBadgesUserInfo(getRes.body.accounts[0]);
+    expect(account.socialConnections).toBeFalsy();
+    expect(account.notifications).toBeFalsy();
+    expect(account.approvedSignInMethods).toBeFalsy();
+
+    const successRes = await request(app)
+      .post(getRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(getBody);
+
+    expect(successRes.status).toBe(200);
+
+    const successAccount = new BitBadgesUserInfo(successRes.body.accounts[0]);
+    expect(successAccount.socialConnections).toBeTruthy();
+    expect(successAccount.notifications).toBeTruthy();
+    expect(successAccount.approvedSignInMethods).toBeTruthy();
   });
 });

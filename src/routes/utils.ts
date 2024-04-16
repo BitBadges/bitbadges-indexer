@@ -19,6 +19,7 @@ import { AddressListModel, FetchModel } from '../db/schemas';
 import { complianceDoc } from '../poll';
 import { mustFindAddressList } from './balances';
 import { executeListsActivityQueryForList } from './userQueries';
+import { addBlankChallengeDetailsToCriteria } from './badges';
 
 export async function getAddressListsFromDB(
   listsToFetch: Array<{
@@ -56,18 +57,13 @@ export async function getAddressListsFromDB(
     }
   }
 
-  // addressListIdsToFetch = [...new Set(addressListIdsToFetch)];
-
   if (listsToFetch.length > 0) {
-    // console.time('fetchAddressLists');
     const addressListDocs = await mustGetManyFromDB(
       AddressListModel,
       listsToFetch.map((x) => x.listId)
     );
 
-    // console.timeEnd('fetchAddressLists');
     for (const listToFetch of listsToFetch) {
-      // console.time('fetchListActivity');
       const listActivity = fetchMetadata
         ? await executeListsActivityQueryForList(
             listToFetch.listId,
@@ -75,7 +71,6 @@ export async function getAddressListsFromDB(
             listToFetch.viewsToFetch?.find((x) => x.viewType === 'listActivity')?.bookmark
           )
         : { docs: [], bookmark: '' };
-      // console.timeEnd('fetchListActivity');
 
       const doc = addressListDocs.find((x) => x.listId === listToFetch.listId);
       if (doc) {
@@ -102,7 +97,6 @@ export async function getAddressListsFromDB(
     }
   }
 
-  // console.time('fetchMetadata');
   if (fetchMetadata) {
     const uris: string[] = [...new Set(addressLists.map((x) => x.uri))];
 
@@ -120,8 +114,6 @@ export async function getAddressListsFromDB(
       });
     }
   }
-
-  // console.timeEnd('fetchMetadata');
 
   for (const list of addressLists) {
     list.nsfw = complianceDoc?.addressLists.nsfw.find((y) => y.listId === list.listId);
@@ -143,21 +135,7 @@ export const appendSelfInitiatedIncomingApprovalToApprovals = <T extends bigint>
       ...transfer,
       fromList: mustFindAddressList(addressLists, transfer.fromListId),
       initiatedByList: mustFindAddressList(addressLists, transfer.initiatedByListId),
-      approvalCriteria: {
-        ...transfer.approvalCriteria,
-        merkleChallenges:
-          transfer.approvalCriteria?.merkleChallenges?.map((y) => {
-            return {
-              ...y,
-              challengeInfoDetails: {
-                challengeDetails: {
-                  leaves: [],
-                  isHashed: false
-                }
-              }
-            };
-          }) ?? []
-      }
+      approvalCriteria: addBlankChallengeDetailsToCriteria(transfer.approvalCriteria)
     });
   });
 
@@ -178,21 +156,7 @@ export const appendSelfInitiatedOutgoingApprovalToApprovals = <T extends bigint>
       ...transfer,
       toList: mustFindAddressList(addressLists, transfer.toListId),
       initiatedByList: mustFindAddressList(addressLists, transfer.initiatedByListId),
-      approvalCriteria: {
-        ...transfer.approvalCriteria,
-        merkleChallenges:
-          transfer.approvalCriteria?.merkleChallenges?.map((y) => {
-            return {
-              ...y,
-              challengeInfoDetails: {
-                challengeDetails: {
-                  leaves: [],
-                  isHashed: false
-                }
-              }
-            };
-          }) ?? []
-      }
+      approvalCriteria: addBlankChallengeDetailsToCriteria(transfer.approvalCriteria)
     });
   });
 

@@ -1,24 +1,27 @@
 import {
+  iApprovalCriteria,
+  iIncomingApprovalCriteria,
+  iMerkleChallenge,
+  iOutgoingApprovalCriteria,
   type ErrorResponse,
-  type iAddressList,
-  type iGetOwnersForBadgeRouteSuccessResponse,
   type GetOwnersForBadgeRouteRequestBody,
-  type NumberType
+  type NumberType,
+  type iAddressList,
+  type iGetOwnersForBadgeRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
+import { mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
+import { BalanceModel } from '../db/schemas';
 import { applyAddressListsToUserPermissions } from './balances';
 import { getAddressListsFromDB } from './utils';
-import { mustGetFromDB } from '../db/db';
-import { BalanceModel } from '../db/schemas';
-import { findInDB } from '../db/queries';
 
 export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersForBadgeRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as GetOwnersForBadgeRouteRequestBody;
 
     const totalSupplys = await mustGetFromDB(BalanceModel, `${req.params.collectionId}:Total`);
-
     let maxBadgeId = 1n;
     for (const balance of totalSupplys.balances) {
       for (const badgeId of balance.badgeIds) {
@@ -28,8 +31,8 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
       }
     }
 
+    // TODO: Support string-number queries
     if (BigInt(maxBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
-      // TODO: Support string-number queries
       throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
     }
 
@@ -104,21 +107,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
               ...y,
               fromList: addressLists.find((list) => list.listId === y.fromListId) as iAddressList,
               initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList,
-              approvalCriteria: {
-                ...y.approvalCriteria,
-                merkleChallenges:
-                  y.approvalCriteria?.merkleChallenges?.map((y) => {
-                    return {
-                      ...y,
-                      challengeInfoDetails: {
-                        challengeDetails: {
-                          leaves: [],
-                          isHashed: false
-                        }
-                      }
-                    };
-                  }) ?? []
-              }
+              approvalCriteria: addBlankChallengeDetailsToCriteria(y.approvalCriteria)
             };
           }),
           outgoingApprovals: balance.outgoingApprovals.map((y) => {
@@ -126,21 +115,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
               ...y,
               toList: addressLists.find((list) => list.listId === y.toListId) as iAddressList,
               initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList,
-              approvalCriteria: {
-                ...y.approvalCriteria,
-                merkleChallenges:
-                  y.approvalCriteria?.merkleChallenges?.map((y) => {
-                    return {
-                      ...y,
-                      challengeInfoDetails: {
-                        challengeDetails: {
-                          leaves: [],
-                          isHashed: false
-                        }
-                      }
-                    };
-                  }) ?? []
-              }
+              approvalCriteria: addBlankChallengeDetailsToCriteria(y.approvalCriteria)
             };
           }),
           userPermissions: applyAddressListsToUserPermissions(balance.userPermissions, addressLists)
@@ -159,3 +134,28 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
     });
   }
 };
+
+export function addBlankChallengeDetailsToCriteria(
+  approvalCriteria?: iApprovalCriteria<bigint> | iIncomingApprovalCriteria<bigint> | iOutgoingApprovalCriteria<bigint>
+) {
+  if (!approvalCriteria) return approvalCriteria;
+
+  return {
+    ...approvalCriteria,
+    merkleChallenges: addBlankChallengeDetails(approvalCriteria.merkleChallenges ?? [])
+  };
+}
+
+export function addBlankChallengeDetails(merkleChallenges: iMerkleChallenge<bigint>[]) {
+  return merkleChallenges.map((y) => {
+    return {
+      ...y,
+      challengeInfoDetails: {
+        challengeDetails: {
+          leaves: [],
+          isHashed: false
+        }
+      }
+    };
+  });
+}

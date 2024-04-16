@@ -8,9 +8,7 @@ import { FetchModel, MapModel } from '../db/schemas';
 export const getMaps = async (req: Request, res: Response<iGetMapsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as GetMapsRouteRequestBody;
-
     const mapIds = reqBody.mapIds;
-
     if (mapIds.length > 100) {
       throw new Error('Cannot fetch more than 100 maps at a time.');
     }
@@ -32,7 +30,6 @@ export const getMaps = async (req: Request, res: Response<iGetMapsRouteSuccessRe
       promises.push(async () => {
         let metadataRes: any;
         const fetchDoc = await getFromDB(FetchModel, uri);
-
         if (!fetchDoc) {
           metadataRes = await fetchUriFromSource(uri);
         } else {
@@ -44,7 +41,6 @@ export const getMaps = async (req: Request, res: Response<iGetMapsRouteSuccessRe
     }
 
     const results = await Promise.all(promises.map(async (p) => await p()));
-    console.log(results);
     return res.status(200).send({
       maps: maps.map((x) => {
         const matchingIdx = uris.findIndex((y) => y === x.metadataTimeline[0].metadata.uri);

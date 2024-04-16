@@ -17,6 +17,7 @@ import { OffChainSecretsModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { createExampleReqForAddress } from '../testutil/utils';
 import { verifySecretsProof } from './offChainSecrets';
+import { connectToRpc } from '../poll';
 
 dotenv.config();
 
@@ -60,11 +61,59 @@ describe('get auth codes', () => {
 
     while (!MongoDB.readyState) {}
 
+    await connectToRpc();
+
     signature = await wallet.signMessage(message ?? '');
   });
 
   afterAll(async () => {
     await gracefullyShutdown();
+  });
+
+  it('should not create auth code in storage without correct scope', async () => {
+    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const body: CreateBlockinAuthCodeRouteRequestBody = {
+      message,
+      signature,
+      name: 'test',
+      image: '',
+      description: '',
+      secretsProofs: [
+        {
+          createdBy: '',
+          secretMessages: ['test'],
+          dataIntegrityProof: {
+            signature: '',
+            signer: ''
+          },
+          scheme: 'bbs',
+          messageFormat: 'plaintext',
+          name: 'test',
+          description: 'test',
+          image: 'test',
+          proofOfIssuance: {
+            message: '',
+            signature: '',
+            signer: ''
+          }
+        }
+      ]
+    };
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...createExampleReqForAddress(address).session,
+          blockinParams: {
+            ...createExampleReqForAddress(address).session.blockinParams,
+            resources: []
+          }
+        })
+      )
+      .send(body);
+    expect(res.status).toBeGreaterThan(400);
   });
 
   it('should create auth code in storage', async () => {
@@ -123,6 +172,57 @@ describe('get auth codes', () => {
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(deleteResBody);
     expect(deleteRes.status).toBe(200);
+  });
+
+  it('should not allow deleting an unowned auth code', async () => {
+    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const body: CreateBlockinAuthCodeRouteRequestBody = {
+      message,
+      signature,
+      name: 'test',
+      image: '',
+      description: ''
+    };
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const authCodeId = res.body.id;
+
+    const deleteResRoute = BitBadgesApiRoutes.DeleteAuthCodeRoute();
+    const deleteResBody: DeleteBlockinAuthCodeRouteRequestBody = { id: authCodeId };
+    const deleteRes = await request(app)
+      .post(deleteResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...createExampleReqForAddress(address).session,
+          cosmosAddress: 'cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu'
+        })
+      )
+      .send(deleteResBody);
+    expect(deleteRes.status).toBe(500);
+  });
+
+  it('should check signature before creating auth code', async () => {
+    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const body: CreateBlockinAuthCodeRouteRequestBody = {
+      message,
+      signature: 'invalid',
+      name: 'test',
+      image: '',
+      description: ''
+    };
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(500);
   });
 
   it('should create secret in storage', async () => {

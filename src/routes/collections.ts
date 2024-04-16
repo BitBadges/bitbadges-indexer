@@ -677,8 +677,6 @@ export async function executeAdditionalCollectionQueries(
         });
         if (docs.length > 0) {
           const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionRes.collectionId);
-
-          console.log('claims', claims);
           merkleChallenge.challengeInfoDetails.claim = claims[0];
         }
       }
