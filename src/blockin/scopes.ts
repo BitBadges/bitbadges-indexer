@@ -25,8 +25,6 @@ function checkScope(scope: string, resources: string[]): boolean {
 
 export function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopeLabels: string[]): boolean {
   const resources = req.session.blockinParams?.resources ?? [];
-  console.log('Checking scopes', resources);
-  console.log(checkScope('Full Access', resources));
   if (checkScope('Full Access', resources)) {
     return true;
   }
