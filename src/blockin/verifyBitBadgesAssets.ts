@@ -43,9 +43,9 @@ export async function verifyBitBadgesAssets(
     const supportedChains = ['BitBadges', 'Ethereum', 'Polygon'];
     const evmChains = ['Ethereum', 'Polygon'];
 
-    //Validate basic checks
+    // Validate basic checks
     for (const asset of normalItem.assets) {
-      //Validate BitBadges Lists
+      // Validate BitBadges Lists
       if (asset.collectionId === 'BitBadges Lists') {
         if (asset.mustOwnAmounts && !(asset.mustOwnAmounts.start === 1n || asset.mustOwnAmounts.start === 0n)) {
           throw new Error('mustOwnAmount must be 0 or 1 for BitBadges Lists');
@@ -60,14 +60,14 @@ export async function verifyBitBadgesAssets(
         }
       }
 
-      //Validate BitBadges
+      // Validate BitBadges
       if (asset.chain === 'BitBadges' && asset.collectionId !== 'BitBadges Lists') {
         if (!asset.assetIds.every((x) => typeof x === 'object' && BigInt(x.start) >= 0 && BigInt(x.end) >= 0)) {
           throw new Error('All assetIds must be UintRanges for BitBadges compatibility');
         }
       }
 
-      //Validate EVM
+      // Validate EVM
       if (evmChains.includes(asset.chain)) {
         if (asset.ownershipTimes && asset.ownershipTimes.length > 0) {
           throw new Error(`Ownership times not supported for Ethereum assets`);
@@ -78,7 +78,7 @@ export async function verifyBitBadgesAssets(
         }
       }
 
-      //Applicable to all
+      // Applicable to all
       if (!supportedChains.includes(asset.chain)) {
         throw new Error('Only BitBadges, Ethereum, and Polygon assets are supported');
       }
@@ -111,7 +111,7 @@ export async function verifyBitBadgesAssets(
         if (asset.collectionId === 'BitBadges Lists' || asset.chain !== 'BitBadges') {
           numToSatisfy += BigInt(asset.assetIds.length); // string[]
         } else {
-          //UintRange[]
+          // UintRange[]
           numToSatisfy += UintRangeArray.From(asset.assetIds.map((x) => x as UintRange<bigint>))
             .convert(BigIntify)
             .size();
@@ -135,8 +135,8 @@ export async function verifyBitBadgesAssets(
         };
         const assetsForAddress = (await Moralis.EvmApi.nft.getWalletNFTs(options)).result;
 
-        //little hacky but makes it compatible with UintRange interface
-        //Each assetId is imply mapped to a numeric badge ID
+        // little hacky but makes it compatible with UintRange interface
+        // Each assetId is imply mapped to a numeric badge ID
         for (let i = 0; i < asset.assetIds.length; i++) {
           const assetId = asset.assetIds[i];
           const badgeId = BigInt(i + 1);
@@ -152,7 +152,7 @@ export async function verifyBitBadgesAssets(
           });
         }
 
-        //Little hacky but the addBalances do not include zero balances but the getBalancesForIds does
+        // Little hacky but the addBalances do not include zero balances but the getBalancesForIds does
         balances = getBalancesForIds([{ start: 1n, end: BigInt(asset.assetIds.length) }], asset.ownershipTimes, balances);
       } else if (asset.collectionId === 'BitBadges Lists') {
         // Little hacky but it works
@@ -178,7 +178,7 @@ export async function verifyBitBadgesAssets(
           ]);
         }
 
-        //Little hacky but the addBalances do not include zero balances but the getBalancesForIds does
+        // Little hacky but the addBalances do not include zero balances but the getBalancesForIds does
         balances = getBalancesForIds([{ start: 1n, end: BigInt(res.length) }], asset.ownershipTimes, balances);
       } else {
         let docBalances = new BalanceArray<bigint>();

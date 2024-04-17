@@ -90,7 +90,7 @@ export const getAuthCode = async (req: Request, res: Response<iGetBlockinAuthCod
     return res.status(200).send({
       secretsProofs: doc.secretsProofs,
       message: createChallenge(params),
-      params: params,
+      params,
       signature: doc.signature,
       cosmosAddress: convertToCosmosAddress(params.address),
       verificationResponse: {

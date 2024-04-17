@@ -1,5 +1,5 @@
-import { NumberType, UintRangeArray } from 'bitbadgesjs-sdk';
-import { BackendIntegrationPlugin } from './types';
+import { type NumberType, UintRangeArray } from 'bitbadgesjs-sdk';
+import { type BackendIntegrationPlugin } from './types';
 
 export const TransferTimesPluginDetails: BackendIntegrationPlugin<NumberType, 'transferTimes'> = {
   id: 'transferTimes',

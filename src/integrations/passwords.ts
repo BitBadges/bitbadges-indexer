@@ -1,6 +1,6 @@
-import { NumberType } from 'bitbadgesjs-sdk';
+import { type NumberType } from 'bitbadgesjs-sdk';
 
-import { BackendIntegrationPlugin } from './types';
+import { type BackendIntegrationPlugin } from './types';
 import CryptoJS from 'crypto-js';
 
 const { AES } = CryptoJS;

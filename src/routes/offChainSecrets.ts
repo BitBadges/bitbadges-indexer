@@ -1,21 +1,21 @@
 import { blsVerify, blsVerifyProof } from '@mattrglobal/bbs-signatures';
 import {
-  DeleteSecretRouteRequestBody,
-  GetSecretRouteRequestBody,
+  type DeleteSecretRouteRequestBody,
+  type GetSecretRouteRequestBody,
   UpdateHistory,
-  UpdateSecretRouteRequestBody,
+  type UpdateSecretRouteRequestBody,
   getChainForAddress,
-  iDeleteSecretRouteSuccessResponse,
-  iGetSecretRouteSuccessResponse,
-  iSecretsProof,
-  iUpdateSecretRouteSuccessResponse,
+  type iDeleteSecretRouteSuccessResponse,
+  type iGetSecretRouteSuccessResponse,
+  type iSecretsProof,
+  type iUpdateSecretRouteSuccessResponse,
   type CreateSecretRouteRequestBody,
   type ErrorResponse,
   type NumberType,
   type iCreateSecretRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
-import { Request, type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { getChainDriver } from '../blockin/blockin';
 import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
@@ -45,7 +45,7 @@ export const verifySecretsProof = async (
     }
   }
 
-  //Check data integrity proof
+  // Check data integrity proof
   if (body.dataIntegrityProof) {
     if (body.scheme === 'standard') {
       await getChainDriver(chain).verifySignature(
@@ -54,8 +54,8 @@ export const verifySecretsProof = async (
         body.dataIntegrityProof.signature,
         body.dataIntegrityProof.publicKey
       );
-    } else if (body.scheme == 'bbs') {
-      if (!body.proofOfIssuance || !body.proofOfIssuance.message || !body.proofOfIssuance.signature) {
+    } else if (body.scheme === 'bbs') {
+      if (!body.proofOfIssuance?.message || !body.proofOfIssuance.signature) {
         throw new Error('Proof of issuance is required for BBS scheme');
       }
 
@@ -175,7 +175,7 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       throw new Error('You are not the owner of this auth code.');
     }
 
-    //TODO: Do deletedAt like auth codes?
+    // TODO: Do deletedAt like auth codes?
 
     await deleteMany(OffChainSecretsModel, [reqBody.secretId]);
 

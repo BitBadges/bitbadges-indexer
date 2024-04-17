@@ -3,7 +3,7 @@ import { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
 import { SigningStargateClient, assertIsDeliverTxSuccess } from '@cosmjs/stargate';
 import {
   BETANET_CHAIN_DETAILS,
-  MsgCreateMap,
+  type MsgCreateMap,
   Numberify,
   SupportedChain,
   convertToCosmosAddress,
@@ -26,7 +26,7 @@ import env from 'dotenv';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
-import { broadcastTx } from './testutil/broadcastUtils';
+import { broadcastTx } from '../testutil/broadcastUtils';
 
 env.config();
 

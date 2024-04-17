@@ -1,10 +1,10 @@
 import {
-  ClaimIntegrationPluginType,
-  ClaimIntegrationPrivateParamsType,
-  ClaimIntegrationPublicParamsType,
-  ClaimIntegrationPublicStateType,
-  IntegrationPluginParams,
-  NumberType
+  type ClaimIntegrationPluginType,
+  type ClaimIntegrationPrivateParamsType,
+  type ClaimIntegrationPublicParamsType,
+  type ClaimIntegrationPublicStateType,
+  type IntegrationPluginParams,
+  type NumberType
 } from 'bitbadgesjs-sdk';
 import { Plugins } from '../routes/claims';
 
@@ -55,7 +55,7 @@ export const getPlugin = <T extends ClaimIntegrationPluginType>(id: T): BackendI
 
 export const getPluginParamsAndState = <T extends ClaimIntegrationPluginType>(
   id: T,
-  detailsArr: IntegrationPluginParams<ClaimIntegrationPluginType>[]
+  detailsArr: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>
 ): IntegrationPluginParams<T> | undefined => {
   const plugin = detailsArr.find((details) => details.id === id);
   if (!plugin) return undefined;
@@ -64,8 +64,8 @@ export const getPluginParamsAndState = <T extends ClaimIntegrationPluginType>(
 };
 
 export const encryptPlugins = (
-  plugins: IntegrationPluginParams<ClaimIntegrationPluginType>[]
-): IntegrationPluginParams<ClaimIntegrationPluginType>[] => {
+  plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>
+): Array<IntegrationPluginParams<ClaimIntegrationPluginType>> => {
   const SYM_KEY = process.env.SYM_KEY;
   if (!SYM_KEY) {
     throw new Error('No symmetric key found');

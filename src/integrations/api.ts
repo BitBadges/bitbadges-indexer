@@ -1,7 +1,7 @@
-import { NumberType } from 'bitbadgesjs-sdk';
+import { type NumberType } from 'bitbadgesjs-sdk';
 
 import axios from 'axios';
-import { BackendIntegrationPlugin } from './types';
+import { type BackendIntegrationPlugin } from './types';
 import { handleIntegrationQuery } from './integration-query-handlers/integration-handlers';
 import { getFromDB, insertToDB } from '../db/db';
 import { ExternalCallKeysModel } from '../db/schemas';
@@ -36,7 +36,7 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
       };
 
       try {
-        //TODO: timeout and handle correctly?
+        // TODO: timeout and handle correctly?
         if (apiCall.uri.startsWith('https://api.bitbadges.io/api/v0/integrations/query')) {
           await handleIntegrationQuery({
             ...body,
@@ -45,7 +45,7 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
         } else {
           console.log('Calling API:', apiCall.uri);
 
-          let keysDoc = await getFromDB(ExternalCallKeysModel, apiCall.uri);
+          const keysDoc = await getFromDB(ExternalCallKeysModel, apiCall.uri);
           if (!keysDoc) {
             await insertToDB(ExternalCallKeysModel, { _docId: apiCall.uri, keys: [] });
           }
@@ -87,7 +87,7 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
           await axios.post(apiCall.uri, {
             ...body,
             __key: randomKey,
-            //Don't send access tokens and other sensitive info
+            // Don't send access tokens and other sensitive info
             ...authBodyDetails
           });
         }

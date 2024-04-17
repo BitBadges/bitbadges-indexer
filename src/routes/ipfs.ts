@@ -1,7 +1,7 @@
 import {
   ClaimBuilderDoc,
-  ClaimIntegrationPluginType,
-  IntegrationPluginParams,
+  type ClaimIntegrationPluginType,
+  type IntegrationPluginParams,
   deepCopyPrimitives,
   type AddApprovalDetailsToOffChainStorageRouteRequestBody,
   type AddBalancesToOffChainStorageRouteRequestBody,
@@ -47,10 +47,10 @@ export const updateIpfsTotals = async (address: string, size: number, doNotInser
 };
 
 export const assertPluginsUpdateIsValid = (
-  oldPlugins: IntegrationPluginParams<ClaimIntegrationPluginType>[],
-  newPlugins: IntegrationPluginParams<ClaimIntegrationPluginType>[]
+  oldPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
+  newPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>
 ) => {
-  //cant change assignmethods
+  // cant change assignmethods
 
   const oldNumUses = getPluginParamsAndState('numUses', oldPlugins);
   const newNumUses = getPluginParamsAndState('numUses', newPlugins);
@@ -59,9 +59,9 @@ export const assertPluginsUpdateIsValid = (
     throw new Error('numUses plugin is required');
   }
 
-  //In practice, we could allow firstComeFirstServe -> codeIdx
-  //We could also allow codeIdx -> firstComeFirstServe if all codes are linear from 1 (no gaps)
-  //But, for simplicity, we will not allow this for now
+  // In practice, we could allow firstComeFirstServe -> codeIdx
+  // We could also allow codeIdx -> firstComeFirstServe if all codes are linear from 1 (no gaps)
+  // But, for simplicity, we will not allow this for now
   if (oldNumUses && newNumUses && oldNumUses.publicParams.assignMethod !== newNumUses.publicParams.assignMethod) {
     throw new Error('Cannot change assignMethod');
   }
@@ -133,8 +133,8 @@ export const addBalancesToOffChainStorageHandler = async (
         }
       }
 
-      //If we have the existing doc, we simply need to update the plugins and keep the state.
-      //Else, we need to create a new doc with the plugins and the default state.
+      // If we have the existing doc, we simply need to update the plugins and keep the state.
+      // Else, we need to create a new doc with the plugins and the default state.
       if (existingDoc) {
         assertPluginsUpdateIsValid(existingDoc.plugins, claim.plugins ?? []);
 
@@ -249,7 +249,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       throw new Error('No IPFS result received');
     }
 
-    //We handle deletes of old claims in the poller
+    // We handle deletes of old claims in the poller
     for (const claim of claims ?? []) {
       const encryptedAction = getPlugin('codes').encryptPrivateParams({
         codes: challengeDetails?.preimages ?? [],
@@ -274,7 +274,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
           state[plugin.id] = existingDoc.state[plugin.id];
         }
 
-        if (plugin.id == 'numUses' && existingDoc && plugin.resetState) {
+        if (plugin.id === 'numUses' && existingDoc && plugin.resetState) {
           throw new Error('numUses plugin does not support resetState for approval claims');
         }
       }
@@ -284,7 +284,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
 
         await insertToDB(ClaimBuilderModel, {
           ...existingDoc,
-          //action cannot change
+          // action cannot change
           state,
           plugins: encryptedPlugins ?? []
         });
@@ -297,7 +297,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
             collectionId: '-1',
             docClaimed: false,
             manualDistribution: claim.manualDistribution,
-            cid: claim.claimId, //approvalId
+            cid: claim.claimId, // approvalId
             action: {
               seedCode: hasSeedCode ? encryptedAction.seedCode : undefined,
               codes: hasSeedCode ? undefined : encryptedAction.codes
@@ -309,7 +309,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       }
     }
 
-    //Deleted docs are handled in the poller
+    // Deleted docs are handled in the poller
 
     await updateIpfsTotals(req.session.cosmosAddress, size);
 

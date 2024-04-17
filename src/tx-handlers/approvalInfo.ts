@@ -81,8 +81,8 @@ export const handleApprovals = async (
       }
     }
 
-    //For on-chain approvals with off-chain claim builders, we delete the claim builder docs that are no longer in the collectionApprovals
-    //TODO: Handle case where deleted then re-added? Just do not delete them?
+    // For on-chain approvals with off-chain claim builders, we delete the claim builder docs that are no longer in the collectionApprovals
+    // TODO: Handle case where deleted then re-added? Just do not delete them?
     if (!isCreateTx) {
       const oldDoc = await mustGetFromDB(CollectionModel, collectionDoc.collectionId.toString());
       const oldCids: string[] = oldDoc.collectionApprovals

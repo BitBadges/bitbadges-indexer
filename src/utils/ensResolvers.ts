@@ -11,13 +11,7 @@ export async function getNameForAddress(address: string) {
 }
 
 export async function getAddressForName(name: string) {
-  try {
-    const resolvedAddress = await provider.resolveName(name);
-    if (resolvedAddress) return resolvedAddress;
-    return '';
-  } catch (e) {
-    return '';
-  }
+  return (await provider.resolveName(name).catch(() => '')) ?? '';
 }
 
 export async function getEnsResolver(name: string) {
@@ -47,25 +41,12 @@ export async function getEnsResolversForNames(names: string[]) {
 export async function getEnsDetails(resolver: ethers.providers.Resolver) {
   try {
     const ensAvatar = await resolver.getAvatar();
-    // const twitter = await resolver.getText('com.twitter');
-    // const github = await resolver.getText('com.github');
-    // const discord = await resolver.getText('com.discord');
-    // const telegram = await resolver.getText('org.telegram');
-
     return {
       avatar: ensAvatar ? ensAvatar.url : ''
-      // twitter: twitter ? twitter : '',
-      // github: github ? github : '',
-      // discord: discord ? discord : '',
-      // telegram: telegram ? telegram : '',
     };
   } catch (e) {
     return {
       avatar: ''
-      // twitter: '',
-      // github: '',
-      // discord: '',
-      // telegram: '',
     };
   }
 }

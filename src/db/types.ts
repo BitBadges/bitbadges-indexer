@@ -6,7 +6,7 @@ import {
   type ClaimAlertDoc,
   type ClaimBuilderDoc,
   type CollectionDoc,
-  MapDoc,
+  type MapDoc,
   type MerkleChallengeDoc,
   type QueueDoc,
   type RefreshDoc,

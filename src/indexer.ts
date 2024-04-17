@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { NotificationPreferences, SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
+import { SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
@@ -12,11 +12,7 @@ import https from 'https';
 import mongoose from 'mongoose';
 import Moralis from 'moralis';
 import multer from 'multer';
-import OAuthPkg from 'oauth';
 import passport from 'passport';
-import passportDiscord from 'passport-discord';
-import passportGithub from 'passport-github';
-import passportGoogle from 'passport-google-oauth20';
 import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
@@ -31,9 +27,9 @@ import {
 } from './blockin/blockin_handlers';
 import { type IndexerStargateClient } from './chain-client/indexer_stargateclient';
 import { insertToDB, mustGetFromDB } from './db/db';
-import { findInDB } from './db/queries';
-import { ApiKeyModel, ExternalCallKeysModel, ProfileModel } from './db/schemas';
+import { ApiKeyModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE } from './indexer-vars';
+import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './oauth';
 import { poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
 import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes';
@@ -42,8 +38,9 @@ import { getBadgeBalanceByAddress } from './routes/balances';
 import { broadcastTx, simulateTx } from './routes/broadcast';
 import { getBrowseCollections } from './routes/browse';
 import { getClaimAlertsForCollection, sendClaimAlert } from './routes/claimAlerts';
-import { checkAndCompleteClaim, getClaimsHandler } from './routes/claims';
+import { checkAndCompleteClaim, externalApiCallKeyCheckHandler, getClaimsHandler } from './routes/claims';
 import { getBadgeActivity, getCollections } from './routes/collections';
+import { unsubscribeHandler, verifyEmailHandler } from './routes/email';
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
 import { getTokensFromFaucet } from './routes/faucet';
 import { getFollowDetails } from './routes/follows';
@@ -58,82 +55,6 @@ import { addReviewForCollection, addReviewForUser, deleteReview } from './routes
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
-
-const OAuth = OAuthPkg.OAuth;
-
-const DiscordStrategy = passportDiscord.Strategy;
-const GitHubStrategy = passportGithub.Strategy;
-const GoogleStrategy = passportGoogle.Strategy;
-
-const scopes = ['identify', 'guilds', 'guilds.members.read'];
-
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-      callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/google/callback' : 'https://api.bitbadges.io/auth/google/callback'
-    },
-    function (accessToken, refreshToken, profile, cb) {
-      const user = {
-        id: profile.id,
-        username: profile.emails ? profile.emails[0].value : ''
-      };
-      return cb(null, user);
-    }
-  )
-);
-
-passport.use(
-  new DiscordStrategy(
-    {
-      clientID: process.env.CLIENT_ID ?? '',
-      clientSecret: process.env.CLIENT_SECRET ?? '',
-      callbackURL:
-        process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/discord/callback' : 'https://api.bitbadges.io/auth/discord/callback',
-      scope: scopes
-    },
-    function (accessToken, refreshToken, profile, cb) {
-      const user = {
-        id: profile.id,
-        username: profile.username,
-        discriminator: profile.discriminator,
-        access_token: accessToken
-      };
-      return cb(null, user);
-    }
-  )
-);
-
-passport.use(
-  new GitHubStrategy(
-    {
-      clientID: process.env.GITHUB_CLIENT_ID ?? '',
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
-      callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/github/callback' : 'https://api.bitbadges.io/auth/github/callback'
-    },
-    function (accessToken, refreshToken, profile, cb) {
-      const user = {
-        id: profile.id,
-        username: profile.username
-      };
-
-      return cb(null, user);
-    }
-  )
-);
-
-passport.serializeUser(function (user, cb) {
-  process.nextTick(function () {
-    return cb(null, user);
-  });
-});
-
-passport.deserializeUser(function (user, cb) {
-  process.nextTick(function () {
-    return cb(null, user as Express.User);
-  });
-});
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config();
@@ -284,15 +205,6 @@ app.use(cookieParser());
 app.use(passport.initialize());
 app.use(passport.session());
 
-// app.use((req, res, next) => {
-//   // if (!TIME_MODE) {
-//   //   console.log();
-//   //   console.log(req.method, req.url);
-//   //   console.log(JSON.stringify(req.body, null, 2));
-//   // }
-//   next();
-// });
-
 app.get('/', (req: Request, res: Response) => {
   return res.send({
     message: 'Hello from the BitBadges indexer! See docs.bitbadges.io for documentation.'
@@ -301,149 +213,8 @@ app.get('/', (req: Request, res: Response) => {
 // Status
 app.post('/api/v0/status', getStatusHandler);
 
-/**
- * This is to handle setting session in storage NOT for authenticating a request.
- *
- * We don't use the default setup because it overwrites our Blockin sessions.
- */
-const discordCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('discord', async function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
-
-    (req.session as BlockinSession<bigint>).discord = user;
-    req.session.save();
-
-    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-      profileDoc.socialConnections = new SocialConnections({
-        ...profileDoc.socialConnections,
-        discord: new SocialConnectionInfo({
-          discriminator: user.discriminator,
-          username: user.username,
-          id: user.id,
-          lastUpdated: BigInt(Date.now())
-        })
-      });
-      await insertToDB(ProfileModel, profileDoc);
-    }
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
-  })(req, res, next);
-};
-
 app.get('/auth/discord', passport.authenticate('discord', { session: false }));
 app.get('/auth/discord/callback', discordCallbackHandler);
-
-const redditConfig = {
-  clientID: process.env.REDDIT_CLIENT_ID || '',
-  clientSecret: process.env.REDDIT_CLIENT_SECRET || '',
-  callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/reddit/callback' : 'https://api.bitbadges.io/auth/reddit/callback'
-};
-
-const redditOauth = new OAuth(
-  'https://www.reddit.com/api/v1/access_token',
-  'https://www.reddit.com/api/v1/authorize',
-  redditConfig.clientID,
-  redditConfig.clientSecret,
-  '1.0A',
-  redditConfig.callbackURL,
-  'HMAC-SHA1'
-);
-
-app.get('/auth/reddit', (_req, res) => {
-  try {
-    return redditOauth.getOAuthRequestToken((error, oauthToken, oauthTokenSecret) => {
-      if (error) {
-        console.error('Error getting OAuth request token:', error);
-        return res.status(500).send('Error getting OAuth request token');
-      } else {
-        // Redirect the user to Reddit authentication page
-        return res.redirect(
-          `https://www.reddit.com/api/v1/authorize?client_id=${redditConfig.clientID}&response_type=code&state=${oauthToken}&redirect_uri=${redditConfig.callbackURL}&duration=permanent&scope=identity`
-        );
-      }
-    });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      errorMessage: e.message
-    });
-  }
-});
-
-app.get('/auth/reddit/callback', async (req: Request, res: Response) => {
-  try {
-    const code = req.query.code as string;
-
-    const oauthParams = {
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: redditConfig.callbackURL
-    };
-
-    const oauthRes = await axios.post('https://www.reddit.com/api/v1/access_token', null, {
-      params: oauthParams,
-      auth: {
-        username: redditConfig.clientID,
-        password: redditConfig.clientSecret
-      }
-    });
-
-    const data = oauthRes.data;
-
-    const accessToken = data.access_token as string;
-
-    // Get user's Reddit profile
-    const userProfileUrl = 'https://oauth.reddit.com/api/v1/me';
-    return redditOauth.get(userProfileUrl, accessToken, '', (error, data) => {
-      if (error) {
-        console.error('Error getting Reddit profile:', error);
-        return res.status(500).send('Error getting Reddit profile');
-      } else {
-        const profile = JSON.parse(data as any);
-        const user = {
-          id: profile.id,
-          username: profile.name,
-          access_token: accessToken
-        };
-
-        (req.session as BlockinSession<bigint>).reddit = user;
-        req.session.save();
-
-        return res.status(200).send('Logged in. Please proceed back to the app.');
-      }
-    });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      errorMessage: e.message
-    });
-  }
-});
-
-const twitterConfig = {
-  consumerKey: process.env.TWITTER_CONSUMER_KEY || '',
-  consumerSecret: process.env.TWITTER_CONSUMER_SECRET || '',
-  callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/twitter/callback' : 'https://api.bitbadges.io/auth/twitter/callback'
-};
-
-const oauthRequestTokenUrl = 'https://api.twitter.com/oauth/request_token';
-const twitterOauth = new OAuth(
-  oauthRequestTokenUrl,
-  'https://api.twitter.com/oauth/access_token',
-  twitterConfig.consumerKey,
-  twitterConfig.consumerSecret,
-  '1.0A',
-  twitterConfig.callbackURL,
-  'HMAC-SHA1'
-);
 
 // Twitter authentication route
 app.get('/auth/twitter', (_req, res) => {
@@ -530,85 +301,8 @@ app.get('/auth/twitter/callback', async (req, res) => {
   }
 });
 
-const githubCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('github', async function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
-
-    (req.session as BlockinSession<bigint>).github = user;
-    req.session.save();
-
-    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-      profileDoc.socialConnections = new SocialConnections({
-        ...profileDoc.socialConnections,
-        github: new SocialConnectionInfo({
-          username: user.username,
-          id: user.id,
-          lastUpdated: BigInt(Date.now())
-        })
-      });
-      await insertToDB(ProfileModel, profileDoc);
-    }
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
-  })(req, res, next);
-};
-
 app.get('/auth/github', passport.authenticate('github', { session: false }));
 app.get('/auth/github/callback', githubCallbackHandler);
-
-const redditCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('reddit', function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
-
-    (req.session as BlockinSession<bigint>).reddit = user;
-    req.session.save();
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
-  })(req, res, next);
-};
-
-app.get('/auth/reddit', passport.authenticate('reddit', { session: false }));
-app.get('/auth/reddit/callback', redditCallbackHandler);
-
-const googleCallbackHandler = (req: Request, res: Response, next: Function) => {
-  passport.authenticate('google', async function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
-
-    (req.session as BlockinSession<bigint>).google = user;
-    req.session.save();
-
-    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-      profileDoc.socialConnections = new SocialConnections({
-        ...profileDoc.socialConnections,
-        google: new SocialConnectionInfo({
-          username: user.username,
-          id: user.id,
-          lastUpdated: BigInt(Date.now())
-        })
-      });
-      await insertToDB(ProfileModel, profileDoc);
-    }
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
-  })(req, res, next);
-};
 
 app.get('/auth/google', passport.authenticate('google', { session: false, scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', googleCallbackHandler);
@@ -715,115 +409,10 @@ app.post('/api/v0/secret/create', authorizeBlockinRequest(['Secrets']), createSe
 app.post('/api/v0/secret/delete', authorizeBlockinRequest(['Secrets']), deleteSecret);
 app.post('/api/v0/secret/update', authorizeBlockinRequest(['Secrets']), updateSecret);
 
-app.post('/api/v0/externalCallKey', async (req: Request, res: Response) => {
-  try {
-    const uri = req.body.uri;
-    if (!uri) {
-      throw new Error('uri is required');
-    }
+app.post('/api/v0/externalCallKey', externalApiCallKeyCheckHandler);
 
-    const key = req.body.key;
-    if (!key) {
-      throw new Error('key is required');
-    }
-
-    const keysDoc = await mustGetFromDB(ExternalCallKeysModel, uri);
-
-    const matchingKey = keysDoc.keys.find((k) => k.key === key);
-    if (!matchingKey) {
-      throw new Error('Key not found');
-    }
-
-    return res.status(200).send({
-      timestamp: matchingKey.timestamp,
-      key: matchingKey.key
-    });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      errorMessage: e.message
-    });
-  }
-});
-
-app.get('/api/v0/unsubscribe/:token', async (req: Request, res: Response) => {
-  try {
-    const docs = await findInDB(ProfileModel, {
-      query: { 'notifications.emailVerification.token': req.params.token }
-    });
-    const doc = docs.length > 0 ? docs[0] : undefined;
-    if (!doc) {
-      throw new Error('Token not found');
-    }
-
-    const newDoc = {
-      ...doc,
-      notifications: new NotificationPreferences({})
-    };
-
-    await insertToDB(ProfileModel, newDoc);
-
-    return res.status(200).send({
-      success: true
-    });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      errorMessage: e.message
-    });
-  }
-});
-
-app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, async (req: Request, res: Response) => {
-  try {
-    const docs = await findInDB(ProfileModel, {
-      query: { 'notifications.emailVerification.token': req.params.token }
-    });
-    const doc = docs.length > 0 ? docs[0] : undefined;
-
-    if (!doc) {
-      throw new Error('Token not found');
-    }
-
-    if (!doc.notifications?.emailVerification) {
-      throw new Error('Token not found');
-    }
-
-    if (doc.notifications.emailVerification.verified) {
-      throw new Error('Email already verified');
-    }
-
-    const expiry = new Date(Number(doc.notifications.emailVerification.expiry) ?? 0);
-    if (expiry < new Date()) {
-      throw new Error('Token expired');
-    }
-
-    const newDoc = {
-      ...doc,
-      notifications: {
-        ...doc.notifications,
-        emailVerification: {
-          ...doc.notifications.emailVerification,
-          verified: true,
-          expiry: undefined
-        }
-      }
-    };
-    await insertToDB(ProfileModel, newDoc);
-
-    return res.status(200).send({
-      success: true
-    });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: serializeError(e),
-      errorMessage: e.message
-    });
-  }
-});
+app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
+app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
 
 // TODO: Simple implementation of a one-way heartbeat mode.
 // If the parent process dies, the child process will take over.

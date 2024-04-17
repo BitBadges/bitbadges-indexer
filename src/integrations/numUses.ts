@@ -1,5 +1,5 @@
-import { NumberType } from 'bitbadgesjs-sdk';
-import { BackendIntegrationPlugin } from './types';
+import { type NumberType } from 'bitbadgesjs-sdk';
+import { type BackendIntegrationPlugin } from './types';
 
 export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
   id: 'numUses',
@@ -34,13 +34,13 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
 
     const assignMethod = publicParams.assignMethod;
     if (assignMethod === 'firstComeFirstServe' || !assignMethod) {
-      //defaults to this
+      // defaults to this
       return {
         success: true,
         toSet: [
           {
             $set: {
-              ['state.numUses.numUses']: { $add: ['$state.numUses.numUses', 1] }
+              'state.numUses.numUses': { $add: ['$state.numUses.numUses', 1] }
             }
           },
           {
@@ -58,7 +58,7 @@ export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
         toSet: [
           {
             $set: {
-              ['state.numUses.numUses']: { $add: ['$state.numUses.numUses', 1] }
+              'state.numUses.numUses': { $add: ['$state.numUses.numUses', 1] }
             }
           }
         ]

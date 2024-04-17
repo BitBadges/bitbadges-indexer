@@ -9,7 +9,7 @@ import {
   EmailVerificationStatus,
   NotificationPreferences,
   ProfileDoc,
-  SecretDoc,
+  type SecretDoc,
   SupportedChain,
   convertToBtcAddress,
   convertToCosmosAddress,

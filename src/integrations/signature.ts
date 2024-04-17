@@ -1,5 +1,5 @@
-import { NumberType } from 'bitbadgesjs-sdk';
-import { BackendIntegrationPlugin } from './types';
+import { type NumberType } from 'bitbadgesjs-sdk';
+import { type BackendIntegrationPlugin } from './types';
 
 export const RequiresSignaturePluginDetails: BackendIntegrationPlugin<NumberType, 'requiresProofOfAddress'> = {
   id: 'requiresProofOfAddress',

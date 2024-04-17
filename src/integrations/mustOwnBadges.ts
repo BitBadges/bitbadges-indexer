@@ -1,6 +1,6 @@
-import { BigIntify, BlockinAndGroup, BlockinAssetConditionGroup, BlockinOrGroup, NumberType, OwnershipRequirements } from 'bitbadgesjs-sdk';
-import { AndGroup, OrGroup } from 'blockin';
-import { BackendIntegrationPlugin } from './types';
+import { BigIntify, BlockinAndGroup, type BlockinAssetConditionGroup, BlockinOrGroup, type NumberType, OwnershipRequirements } from 'bitbadgesjs-sdk';
+import { type AndGroup, type OrGroup } from 'blockin';
+import { type BackendIntegrationPlugin } from './types';
 import { verifyBitBadgesAssets } from '../blockin/verifyBitBadgesAssets';
 
 export const MustOwnPluginDetails: BackendIntegrationPlugin<NumberType, 'mustOwnBadges'> = {
@@ -20,15 +20,13 @@ export const MustOwnPluginDetails: BackendIntegrationPlugin<NumberType, 'mustOwn
       return { success: false, error: 'No ownership requirements found' };
     }
 
-    let ownershipRequirements: BlockinAssetConditionGroup<bigint> | undefined = undefined;
-    if ((ownershipRequirementsBase as AndGroup<NumberType>)['$and']) {
-      ownershipRequirements = new BlockinAndGroup(ownershipRequirementsBase as AndGroup<NumberType>).convert(BigIntify) as BlockinAndGroup<bigint>;
-    } else if ((ownershipRequirementsBase as OrGroup<NumberType>)['$or']) {
-      ownershipRequirements = new BlockinOrGroup(ownershipRequirementsBase as OrGroup<NumberType>).convert(BigIntify) as BlockinOrGroup<bigint>;
+    let ownershipRequirements: BlockinAssetConditionGroup<bigint> | undefined;
+    if ((ownershipRequirementsBase as AndGroup<NumberType>).$and) {
+      ownershipRequirements = new BlockinAndGroup(ownershipRequirementsBase as AndGroup<NumberType>).convert(BigIntify);
+    } else if ((ownershipRequirementsBase as OrGroup<NumberType>).$or) {
+      ownershipRequirements = new BlockinOrGroup(ownershipRequirementsBase as OrGroup<NumberType>).convert(BigIntify);
     } else {
-      ownershipRequirements = new OwnershipRequirements(ownershipRequirementsBase as OwnershipRequirements<NumberType>).convert(
-        BigIntify
-      ) as OwnershipRequirements<bigint>;
+      ownershipRequirements = new OwnershipRequirements(ownershipRequirementsBase as OwnershipRequirements<NumberType>).convert(BigIntify);
     }
 
     try {

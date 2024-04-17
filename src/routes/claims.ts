@@ -1,25 +1,25 @@
 import {
   BalanceArray,
-  ClaimBuilderDoc,
-  ClaimIntegrationPluginType,
-  GetClaimsRouteRequestBody,
-  IncrementedBalances,
-  IntegrationPluginDetails,
-  ListActivityDoc,
+  type ClaimBuilderDoc,
+  type ClaimIntegrationPluginType,
+  type GetClaimsRouteRequestBody,
+  type IncrementedBalances,
+  type IntegrationPluginDetails,
+  type ListActivityDoc,
   convertToCosmosAddress,
-  iGetClaimsRouteSuccessResponse,
-  iOffChainBalancesMap,
+  type iGetClaimsRouteSuccessResponse,
+  type iOffChainBalancesMap,
   mustConvertToCosmosAddress,
   type ErrorResponse,
   type NumberType,
   type iCheckAndCompleteClaimRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
-import { type Response } from 'express';
+import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { AddressListModel, ClaimBuilderModel, CollectionModel, ListActivityModel, ProfileModel } from '../db/schemas';
+import { AddressListModel, ClaimBuilderModel, CollectionModel, ExternalCallKeysModel, ListActivityModel, ProfileModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { ApiPluginDetails } from '../integrations/api';
 import { DiscordPluginDetails, EmailPluginDetails, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from '../integrations/auth';
@@ -29,7 +29,7 @@ import { NumUsesDetails } from '../integrations/numUses';
 import { PasswordPluginDetails } from '../integrations/passwords';
 import { RequiresSignaturePluginDetails } from '../integrations/signature';
 import { TransferTimesPluginDetails } from '../integrations/transferTimes';
-import { BackendIntegrationPlugin, ContextInfo, getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { type BackendIntegrationPlugin, type ContextInfo, getPlugin, getPluginParamsAndState } from '../integrations/types';
 import { WhitelistPluginDetails } from '../integrations/whitelist';
 import { addBalancesToOffChainStorage } from '../ipfs/ipfs';
 import { getActivityDocsForListUpdate } from './addressLists';
@@ -62,7 +62,7 @@ enum ActionType {
 export interface ClaimDetails<T extends NumberType> {
   claimId: string;
   balancesToSet?: IncrementedBalances<T>;
-  plugins: IntegrationPluginDetails<ClaimIntegrationPluginType>[];
+  plugins: Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>;
   manualDistribution?: boolean;
 }
 
@@ -85,14 +85,14 @@ export const getClaimsHandler = async (
       }
 
       if (doc.action.listId) {
-        //We need to check if they are for a private / viewable with link only list
-        //If so, we have to return blank public state unless they can prove they have permissions
+        // We need to check if they are for a private / viewable with link only list
+        // If so, we have to return blank public state unless they can prove they have permissions
         const addressListDoc = await mustGetFromDB(AddressListModel, doc.action.listId);
-        let hasPermissions = addressListDoc.private || addressListDoc.viewableWithLink ? false : true;
+        let hasPermissions = !(addressListDoc.private || addressListDoc.viewableWithLink);
         if (addressListDoc.private) {
           hasPermissions = hasPermissions || req.session.cosmosAddress === addressListDoc.createdBy;
         }
-        //Prove knowledge of list link by specifying listId
+        // Prove knowledge of list link by specifying listId
         if (addressListDoc.viewableWithLink) {
           hasPermissions = hasPermissions || reqBody.listId === addressListDoc._docId;
         }
@@ -124,7 +124,7 @@ export const checkAndCompleteClaim = async (
 
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
     const context: ContextInfo = Object.freeze({
-      cosmosAddress: cosmosAddress,
+      cosmosAddress,
       claimId
     });
 
@@ -162,8 +162,8 @@ export const checkAndCompleteClaim = async (
       }
     }
 
-    //Pass in email only if previously set up and verified
-    //Must be logged in
+    // Pass in email only if previously set up and verified
+    // Must be logged in
     let email = '';
     if (req.session.cosmosAddress) {
       const profileDoc = await mustGetFromDB(ProfileModel, req.session.cosmosAddress);
@@ -249,7 +249,7 @@ export const checkAndCompleteClaim = async (
               twitter: req.session.twitter,
               github: req.session.github,
               google: req.session.google,
-              email: email
+              email
             };
             break;
           }
@@ -297,7 +297,7 @@ export const checkAndCompleteClaim = async (
     let codeConsistencyQuery: any = {};
     const assignMethod = getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod;
     if (assignMethod === 'firstComeFirstServe') {
-      //Handled by the $size query
+      // Handled by the $size query
     } else if (assignMethod === 'codeIdx') {
       const params = getPluginParamsAndState('codes', claimBuilderDoc.plugins);
       const privateParams = getPlugin('codes').decryptPrivateParams(params?.privateParams ?? { codes: [], seedCode: '' });
@@ -308,7 +308,7 @@ export const checkAndCompleteClaim = async (
 
       const seedCode = privateParams.seedCode;
       const codes = privateParams.seedCode ? generateCodesFromSeed(seedCode, maxUses) : privateParams.codes;
-      if ((codes.length == 0 && !seedCode) || codes.length !== maxUses) {
+      if ((codes.length === 0 && !seedCode) || codes.length !== maxUses) {
         throw new Error('Invalid configuration');
       }
 
@@ -328,7 +328,7 @@ export const checkAndCompleteClaim = async (
       };
     }
 
-    //TODO: Session w/ the action updates as well?
+    // TODO: Session w/ the action updates as well?
     // Find the doc, increment currCode, and add the given code idx to claimedUsers
     const newDoc = await ClaimBuilderModel.findOneAndUpdate(
       {
@@ -346,7 +346,7 @@ export const checkAndCompleteClaim = async (
       throw new Error('No doc found');
     }
 
-    //Perform Actions
+    // Perform Actions
     if (actionType === ActionType.SetBalance) {
       await performBalanceClaimAction(newDoc as ClaimBuilderDoc<NumberType>);
       return res.status(200).send();
@@ -415,7 +415,7 @@ const performBalanceClaimAction = async (doc: ClaimBuilderDoc<NumberType>) => {
 
   for (const claimDoc of allClaimDocsForCollection) {
     const entries = Object.entries(claimDoc?.state.numUses.claimedUsers);
-    //Sort by claimedUsers value
+    // Sort by claimedUsers value
     entries.sort((a: any, b: any) => Number(a[1]) - Number(b[1]));
 
     for (const entry of entries) {
@@ -442,4 +442,36 @@ const performBalanceClaimAction = async (doc: ClaimBuilderDoc<NumberType>) => {
 
   await addBalancesToOffChainStorage(balanceMap, 'centralized', collectionId, currUriPath);
   await refreshCollection(collectionId.toString(), true);
+};
+
+export const externalApiCallKeyCheckHandler = async (req: Request, res: Response) => {
+  try {
+    const uri = req.body.uri;
+    if (!uri) {
+      throw new Error('uri is required');
+    }
+
+    const key = req.body.key;
+    if (!key) {
+      throw new Error('key is required');
+    }
+
+    const keysDoc = await mustGetFromDB(ExternalCallKeysModel, uri);
+
+    const matchingKey = keysDoc.keys.find((k) => k.key === key);
+    if (!matchingKey) {
+      throw new Error('Key not found');
+    }
+
+    return res.status(200).send({
+      timestamp: matchingKey.timestamp,
+      key: matchingKey.key
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
 };

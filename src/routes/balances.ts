@@ -100,18 +100,18 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
 
       const apiRes = await getPlugin('api').validateFunction(
         {
-          cosmosAddress: cosmosAddress,
+          cosmosAddress,
           claimId: claim._docId
         },
         apiDetails.publicParams,
         apiDetails.privateParams
-        //Everything else is N/A to non-indexed
+        // Everything else is N/A to non-indexed
       );
 
       balancesRes = {
         ...BlankUserBalance,
         _docId: collectionId + ':' + cosmosAddress,
-        collectionId: collectionId,
+        collectionId,
         cosmosAddress: _cosmosAddress,
         balances: [
           {
@@ -167,14 +167,14 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
       addressListIdsToFetch.map((id) => {
         return {
           listId: id,
-          collectionId: collectionId
+          collectionId
         };
       }),
       false
     );
 
     const balanceToReturn = response ?? {
-      collectionId: collectionId,
+      collectionId,
       cosmosAddress: _cosmosAddress,
       balances: collection.defaultBalances.balances,
       incomingApprovals: collection.defaultBalances.incomingApprovals,
@@ -202,7 +202,7 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
   return new BalanceDocWithDetails<NumberType>({
     ...BlankUserBalance,
     _docId: collectionId + ':' + cosmosAddress,
-    collectionId: collectionId,
+    collectionId,
     cosmosAddress: _cosmosAddress,
     balances
   }).convert(BigIntify);

@@ -28,7 +28,6 @@ export const handleGithubContributionsQuery = async (body: { github: { username:
 
   // Send the response based on whether the user has contributed or not
   if (userContributions.length > 0) {
-    return;
   } else {
     throw new Error('User has not contributed to the specified repository');
   }
@@ -38,7 +37,6 @@ const handleMinBadgeQuery = async (body: { cosmosAddress: string; minBalance: nu
   const minBalance = BigInt(body.minBalance);
   const account = await getAccountByAddress(undefined, body.cosmosAddress, { fetchBalance: true });
   if (account.balance && BigInt(account.balance.amount) >= minBalance) {
-    return;
   } else {
     throw new Error('Insufficient balance');
   }

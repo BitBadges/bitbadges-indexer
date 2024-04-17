@@ -20,7 +20,8 @@ export const getRefreshStatus = async (req: Request, res: Response<iRefreshStatu
       query: {
         collectionId: Number(collectionId),
         error: { $exists: true },
-        deletedAt: { $exists: false }
+        deletedAt: { $exists: false },
+        notificationType: { $exists: false }
       },
       limit: 20
     });
@@ -96,9 +97,7 @@ export const refreshMetadata = async (req: Request, res: Response<iRefreshMetada
         `Refresh already in progress or recently executed for collection ${req.params.collectionId}. Cooldown timer has ${cooldownSeconds / BigInt(1000)} seconds left.`
       );
     } else {
-      return res.status(200).send({
-        successMessage: `Successfully refreshed metadata for collection ${req.params.collectionId}`
-      });
+      return res.status(200).send();
     }
   } catch (e) {
     return res.status(500).send({

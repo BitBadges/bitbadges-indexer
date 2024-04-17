@@ -3,10 +3,10 @@ import { constructChallengeObjectFromString } from 'blockin';
 import { type Request, type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-//For running tests (TS bugs out)
+// For running tests (TS bugs out)
 // import { PKPass } from 'passkit-generator';
 
-//For running
+// For running
 import passkit from 'passkit-generator';
 const { PKPass } = passkit;
 
@@ -38,27 +38,6 @@ export const createPass = async (req: Request, res: Response<any>) => {
         foregroundColor: 'rgb(0, 0, 0)'
       }
     );
-
-    //   export interface PassProps {
-    //     formatVersion?: 1;
-    //     serialNumber?: string;
-    //     description?: string;
-    //     organizationName?: string;
-    //     passTypeIdentifier?: string;
-    //     teamIdentifier?: string;
-    //     appLaunchURL?: string;
-    //     voided?: boolean;
-    //     userInfo?: {
-    //         [key: string]: any;
-    //     };
-    //     sharingProhibited?: boolean;
-    //     groupingIdentifier?: string;
-    //     suppressStripShine?: boolean;
-    //     logoText?: string;
-    //     maxDistance?: number;
-    //     backgroundColor?: string;
-    //     foregroundColor?: string;
-    //     labelColor?: string;
 
     // Adding some settings to be written inside pass.json
     pass.setBarcodes(passID);

@@ -36,7 +36,7 @@ export default class CosmosDriver implements IChainDriver<NumberType> {
     const prefix = 'cosmos';
     if (!publicKey) {
       const fetchedPublicKey = await getFromDB(AccountModel, convertToCosmosAddress(address));
-      if (!fetchedPublicKey || !fetchedPublicKey.publicKey) {
+      if (!fetchedPublicKey?.publicKey) {
         throw new Error(
           `Public key must be provided for Cosmos signatures. We could not fetch it from the blockchain or BitBadges databases either.`
         );

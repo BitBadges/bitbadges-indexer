@@ -1,8 +1,8 @@
 import {
-  iApprovalCriteria,
-  iIncomingApprovalCriteria,
-  iMerkleChallenge,
-  iOutgoingApprovalCriteria,
+  type iApprovalCriteria,
+  type iIncomingApprovalCriteria,
+  type iMerkleChallenge,
+  type iOutgoingApprovalCriteria,
   type ErrorResponse,
   type GetOwnersForBadgeRouteRequestBody,
   type NumberType,
@@ -146,7 +146,7 @@ export function addBlankChallengeDetailsToCriteria(
   };
 }
 
-export function addBlankChallengeDetails(merkleChallenges: iMerkleChallenge<bigint>[]) {
+export function addBlankChallengeDetails(merkleChallenges: Array<iMerkleChallenge<bigint>>) {
   return merkleChallenges.map((y) => {
     return {
       ...y,

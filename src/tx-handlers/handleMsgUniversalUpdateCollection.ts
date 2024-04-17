@@ -211,8 +211,8 @@ export const handleMsgUniversalUpdateCollection = async (
     status.nextCollectionId++;
   }
 
-  //For off-chain URLs, we use a claiming method to avoid data races between indexer and blockchain
-  //The ultimate decider is the first on the blockchain
+  // For off-chain URLs, we use a claiming method to avoid data races between indexer and blockchain
+  // The ultimate decider is the first on the blockchain
 
   const customData = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.customData;
   const uri = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.uri;
@@ -230,8 +230,8 @@ export const handleMsgUniversalUpdateCollection = async (
       });
     }
 
-    //If we just claimed the customData or already claimed, we can claim all others with the balances
-    if (!existingDoc || BigInt(existingDoc.collectionId) == collection.collectionId) {
+    // If we just claimed the customData or already claimed, we can claim all others with the balances
+    if (!existingDoc || BigInt(existingDoc.collectionId) === collection.collectionId) {
       const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, { query: { cid: customData, docClaimed: false } });
       for (const doc of existingClaimBuilderDocs) {
         doc.collectionId = collection.collectionId;

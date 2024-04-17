@@ -8,7 +8,7 @@ import {
   type NumberType,
   convertToEthAddress,
   convertToBtcAddress,
-  MapDoc
+  type MapDoc
 } from 'bitbadgesjs-sdk';
 import { AddressListModel, AirdropModel, CollectionModel, EthTxCountModel, MapModel } from '../db/schemas';
 import { getFromDB, insertToDB } from '../db/db';

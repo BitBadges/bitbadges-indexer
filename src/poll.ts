@@ -9,7 +9,7 @@ import {
   BigIntify,
   MapDoc,
   MerkleChallengeDoc,
-  MerkleProof,
+  type MerkleProof,
   MsgCreateAddressLists,
   MsgCreateCollection,
   MsgDeleteCollection,
@@ -17,17 +17,17 @@ import {
   MsgUniversalUpdateCollection,
   MsgUpdateCollection,
   MsgUpdateUserApprovals,
-  NumberType,
+  type NumberType,
   QueueDoc,
   Transfer,
   UintRangeArray,
   UpdateHistory,
-  ZkProofSolution,
+  type ZkProofSolution,
   convertToCosmosAddress,
   type ComplianceDoc,
   type StatusDoc,
   type iBalance,
-  AddressListDoc
+  type AddressListDoc
 } from 'bitbadgesjs-sdk';
 import * as tx from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
 import * as bank from 'bitbadgesjs-sdk/dist/proto/cosmos/bank/v1beta1/tx_pb';
@@ -272,17 +272,17 @@ export const pollNotifications = async () => {
     );
 
     const listIds = [...new Set(listsActivityRes.map((x) => x.listId))];
-    let lists: AddressListDoc<bigint>[] = [];
+    let lists: Array<AddressListDoc<bigint>> = [];
     if (listIds.length > 0) {
       const listDocs = await getManyFromDB(AddressListModel, listIds);
-      lists = listDocs.filter((x) => x).filter((x) => !x?.private) as AddressListDoc<bigint>[];
+      lists = listDocs.filter((x) => x).filter((x) => !x?.private) as Array<AddressListDoc<bigint>>;
     }
 
     for (const activityDoc of listsActivityRes) {
       const addresses = activityDoc.addresses;
       const message = `You have been added to the list: ${activityDoc.listId}`;
 
-      //Don't send notifications for private lists
+      // Don't send notifications for private lists
       if (!lists.map((x) => x.listId).includes(activityDoc.listId)) {
         continue;
       }
@@ -733,7 +733,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         const updateMapMsg = maps.MsgUpdateMap.fromBinary(value);
         await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [updateMapMsg.mapId]);
 
-        let doc = docs.maps[updateMapMsg.mapId];
+        const doc = docs.maps[updateMapMsg.mapId];
         if (!doc) {
           throw new Error(`Map ${updateMapMsg.mapId} does not exist`);
         }
@@ -818,7 +818,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
           await unsetFollowCollection(setValueMsg.creator);
         }
 
-        let doc = docs.maps[setValueMsg.mapId];
+        const doc = docs.maps[setValueMsg.mapId];
         if (!doc) {
           throw new Error(`Map ${setValueMsg.mapId} does not exist`);
         }

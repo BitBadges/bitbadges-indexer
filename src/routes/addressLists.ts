@@ -2,7 +2,7 @@ import {
   AddressListDoc,
   ListActivityDoc,
   convertToCosmosAddress,
-  iClaimBuilderDoc,
+  type iClaimBuilderDoc,
   type DeleteAddressListsRouteRequestBody,
   type ErrorResponse,
   type GetAddressListsRouteRequestBody,
@@ -53,7 +53,7 @@ export const deleteAddressLists = async (
       }
     }
 
-    //TODO: session?
+    // TODO: session?
     const docs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': { $in: listIds } } });
     await deleteMany(
       AddressListModel,
@@ -118,7 +118,7 @@ export const createAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
   res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>
 ) => {
-  return handleAddressListsUpdateAndCreate(req, res, true);
+  return await handleAddressListsUpdateAndCreate(req, res, true);
 };
 
 const handleAddressListsUpdateAndCreate = async (
@@ -205,7 +205,7 @@ const handleAddressListsUpdateAndCreate = async (
         }
       }
 
-      //Delete all old claims that are not in the new stuff
+      // Delete all old claims that are not in the new stuff
       const claimDocs = await findInDB(ClaimBuilderModel, {
         query: { 'action.listId': list.listId, _docId: { $nin: list.claims.map((x) => x.claimId) } }
       });
@@ -266,7 +266,7 @@ export const updateAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
   res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>
 ) => {
-  return handleAddressListsUpdateAndCreate(req, res);
+  return await handleAddressListsUpdateAndCreate(req, res);
 };
 
 const isReserved = (listId: string) => {
@@ -290,17 +290,17 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
     const reservedStatuses = listsToFetch.map((x) => isReserved(x.listId));
     const docs = await getAddressListsFromDB(
       listsToFetch,
-      reservedStatuses.some((x) => !x) //Reserved lists will not have metadata
+      reservedStatuses.some((x) => !x) // Reserved lists will not have metadata
     );
 
-    //Private lists that are not viewable by ID can only be viewed by the creator
+    // Private lists that are not viewable by ID can only be viewed by the creator
     for (let i = 0; i < docs.length; i++) {
       const doc = docs[i];
       const query = listsToFetch[i];
       const isReserved = reservedStatuses[i];
-      if (isReserved) continue; //Reserved lists will not have claims, privacy restrictions, etc
+      if (isReserved) continue; // Reserved lists will not have claims, privacy restrictions, etc
 
-      //If it is viewable by link / ID, they have requested it via the API call so they know the link
+      // If it is viewable by link / ID, they have requested it via the API call so they know the link
       if (doc.private && !doc.viewableWithLink) {
         const authReq = req as MaybeAuthenticatedRequest<NumberType>;
         if (!checkIfAuthenticated(authReq, ['Address Lists'])) return returnUnauthorized(res);

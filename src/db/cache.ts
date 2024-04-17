@@ -11,7 +11,7 @@ import {
   type RefreshDoc,
   type StatusDoc,
   convertToCosmosAddress,
-  MapDoc
+  type MapDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -27,7 +27,7 @@ import {
   type DocsCache,
   type MerkleChallengeDocs,
   type ClaimBuilderDocs,
-  MapDocs
+  type MapDocs
 } from './types';
 import { getManyFromDB, insertMany, insertToDB } from './db';
 import {

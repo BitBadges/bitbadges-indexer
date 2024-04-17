@@ -1,4 +1,10 @@
-import { NumberType, UintRangeArray, type ErrorResponse, type GetMapsRouteRequestBody, type iGetMapsRouteSuccessResponse } from 'bitbadgesjs-sdk';
+import {
+  type NumberType,
+  UintRangeArray,
+  type ErrorResponse,
+  type GetMapsRouteRequestBody,
+  type iGetMapsRouteSuccessResponse
+} from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { fetchUriFromSource } from '../queue';
@@ -17,7 +23,7 @@ export const getMaps = async (req: Request, res: Response<iGetMapsRouteSuccessRe
 
     let uris: string[] = [];
     for (const map of maps) {
-      //Get metadata
+      // Get metadata
       const uri = map.metadataTimeline.find((x) => UintRangeArray.From(x.timelineTimes).searchIfExists(BigInt(Date.now())))?.metadata.uri;
       if (uri) {
         uris.push(uri);

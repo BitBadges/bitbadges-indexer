@@ -1,18 +1,18 @@
 import {
-  ApprovalInfoDetails,
+  type ApprovalInfoDetails,
   ApprovalTrackerDoc,
   BadgeMetadataDetails,
   BalanceArray,
   BalanceDocWithDetails,
   BigIntify,
   BitBadgesCollection,
-  ChallengeDetails,
-  ClaimBuilderDoc,
-  ClaimIntegrationPluginType,
+  type ChallengeDetails,
+  type ClaimBuilderDoc,
+  type ClaimIntegrationPluginType,
   CollectionApprovalWithDetails,
   CollectionPermissionsWithDetails,
-  IntegrationPluginDetails,
-  IntegrationPluginParams,
+  type IntegrationPluginDetails,
+  type IntegrationPluginParams,
   MerkleChallengeDoc,
   Metadata,
   UintRangeArray,
@@ -54,7 +54,7 @@ import {
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
-import { MaybeAuthenticatedRequest, checkIfAuthenticated, checkIfManager } from '../blockin/blockin_handlers';
+import { type MaybeAuthenticatedRequest, checkIfAuthenticated, checkIfManager } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
 import { PageVisitsDoc } from '../db/docs';
 import { findInDB } from '../db/queries';
@@ -74,7 +74,7 @@ import {
   fetchTotalAndUnmintedBalancesQuery
 } from './activityHelpers';
 import { applyAddressListsToUserPermissions } from './balances';
-import { ClaimDetails } from './claims';
+import { type ClaimDetails } from './claims';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
 
 const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
@@ -627,15 +627,15 @@ export async function executeAdditionalCollectionQueries(
       );
     }
 
-    //TODO: Parallelize this
-    //Perform off-chain claims query (on-chain ones are handled below with approval fetches)
+    // TODO: Parallelize this
+    // Perform off-chain claims query (on-chain ones are handled below with approval fetches)
     if (collectionToReturn.balancesType !== 'Standard') {
       const docs = await findInDB(ClaimBuilderModel, {
         query: { collectionId: Number(collectionToReturn.collectionId), docClaimed: true }
       });
 
       const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionToReturn.collectionId);
-      collectionToReturn.claims = claims as Required<ClaimDetails<bigint>>[];
+      collectionToReturn.claims = claims as Array<Required<ClaimDetails<bigint>>>;
     }
 
     const reservedMap = await getFromDB(MapModel, `${collectionToReturn.collectionId}`);
@@ -656,14 +656,14 @@ export async function executeAdditionalCollectionQueries(
     for (let i = 0; i < collectionRes.collectionApprovals.length; i++) {
       const approval = collectionRes.collectionApprovals[i];
 
-      let content = undefined;
+      let content;
 
       if (approval.uri) {
         const claimFetch = claimFetchesFlat.find((fetch) => fetch.uri === approval.uri);
         if (!claimFetch?.content) continue;
 
         content = claimFetch.content as ApprovalInfoDetails<bigint>;
-        approval.details = content as ApprovalInfoDetails<bigint>;
+        approval.details = content;
       }
 
       for (const merkleChallenge of approval.approvalCriteria?.merkleChallenges ?? []) {
@@ -717,12 +717,12 @@ export const getClaimDetailsForFrontend = async (
 
 const getDecryptedPluginsAndPublicState = async (
   req: MaybeAuthenticatedRequest<NumberType>,
-  plugins: IntegrationPluginParams<ClaimIntegrationPluginType>[],
+  plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   state: any,
   includePrivateParams?: boolean,
   collectionId?: NumberType,
   listId?: string
-): Promise<IntegrationPluginDetails<ClaimIntegrationPluginType>[]> => {
+): Promise<Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>> => {
   if (includePrivateParams) {
     const auth = checkIfAuthenticated(req, ['Full Access']);
     if (!auth) {

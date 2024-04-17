@@ -1,6 +1,6 @@
-import { AddressList, BitBadgesAddressList, NumberType } from 'bitbadgesjs-sdk';
+import { AddressList, BitBadgesAddressList, type NumberType } from 'bitbadgesjs-sdk';
 import { getAddressListsFromDB } from '../routes/utils';
-import { BackendIntegrationPlugin } from './types';
+import { type BackendIntegrationPlugin } from './types';
 
 export const WhitelistPluginDetails: BackendIntegrationPlugin<NumberType, 'whitelist'> = {
   id: 'whitelist',

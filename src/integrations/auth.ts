@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { ClaimIntegrationPrivateParamsType, ClaimIntegrationPublicParamsType, NumberType } from 'bitbadgesjs-sdk';
-import { BackendIntegrationPlugin, ClaimIntegrationCustomBodyType } from './types';
+import { type ClaimIntegrationPrivateParamsType, type ClaimIntegrationPublicParamsType, type NumberType } from 'bitbadgesjs-sdk';
+import { type BackendIntegrationPlugin, type ClaimIntegrationCustomBodyType } from './types';
 
 export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter'> = {
   id: 'twitter',
@@ -20,7 +20,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, twitterInfo) => {
-    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, 'twitter');
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, 'twitter');
   },
   getPublicState: () => {
     return {};
@@ -57,7 +57,7 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
     return { success: false, error: 'Invalid reserved sequence in ID ([dot])' };
   }
 
-  //Handle "." in oauthInfo.id
+  // Handle "." in oauthInfo.id
   oauthInfo.id = oauthInfo.id.replace(/\./g, '[dot]');
 
   if (priorState[oauthInfo.id] && maxUsesPerUser > 0 && priorState[oauthInfo.id] >= maxUsesPerUser) {
@@ -92,7 +92,7 @@ export const GooglePluginDetails: BackendIntegrationPlugin<NumberType, 'google'>
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, googleInfo) => {
-    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, 'google');
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, 'google');
   },
   getPublicState: () => {
     return {};
@@ -120,7 +120,7 @@ export const EmailPluginDetails: BackendIntegrationPlugin<NumberType, 'email'> =
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
-    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, 'email');
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, 'email');
   },
   getPublicState: () => {
     return {};
@@ -148,7 +148,7 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<NumberType, 'github'>
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, githubInfo) => {
-    return GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, 'github');
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, 'github');
   },
   getPublicState: () => {
     return {};
@@ -195,7 +195,7 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<NumberType, 'discord
       return { success: false, error: 'Discord user already exceeded max uses' };
     }
 
-    //Check if user ID is in list of whitelisted users (if applicable)
+    // Check if user ID is in list of whitelisted users (if applicable)
     if (params.users && params.users.length > 0) {
       const inList = params.users.some((user) => {
         const split = user.split('#');

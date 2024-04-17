@@ -11,7 +11,7 @@ export const createExampleReqForAddress = (address: string) => {
     nonce: 'exampleNonce',
     expirationDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString(),
     notBefore: undefined,
-    resources: ['Full Access: This sign-in gives full access to all features.'],
+    resources: ['Full Access: Full access to all features.'],
     assetOwnershipRequirements: undefined
   };
 

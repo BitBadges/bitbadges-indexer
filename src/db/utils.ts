@@ -1,7 +1,7 @@
-import { JSPrimitiveNumberType, PaginationInfo } from "bitbadgesjs-sdk";
-import mongoose from "mongoose";
-import { findInDB } from "./queries";
-import { BitBadgesDoc, TypedDocFromModel } from "./schemas";
+import { type JSPrimitiveNumberType, type PaginationInfo } from 'bitbadgesjs-sdk';
+import type mongoose from 'mongoose';
+import { findInDB } from './queries';
+import { type BitBadgesDoc, type TypedDocFromModel } from './schemas';
 
 export const pageSize = 25;
 

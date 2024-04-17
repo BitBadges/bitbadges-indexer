@@ -82,7 +82,6 @@ describe('users', () => {
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
       .send(body);
     expect(res2.status).toBe(500);
-    console.log('res2', res2.body);
   }, 30000);
 
   it('should unset if empty strings are sent', async () => {

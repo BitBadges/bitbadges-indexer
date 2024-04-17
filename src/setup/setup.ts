@@ -1,4 +1,4 @@
-import { MongoDB } from './db/db';
+import { MongoDB } from '../db/db';
 import { initStatus, createIndexesAndViews, deleteDatabases } from './setup-helpers';
 
 async function main(): Promise<void> {

@@ -1,6 +1,6 @@
 import { type EmptyResponseClass, type ErrorResponse } from 'bitbadgesjs-sdk';
+import crypto from 'crypto';
 import { type Request, type Response } from 'express';
-import mongoose from 'mongoose';
 import { insertToDB } from '../db/db';
 import { type ReportDoc } from '../db/docs';
 import { ReportModel } from '../db/schemas';
@@ -10,7 +10,7 @@ export const addReport = async (req: Request, res: Response<EmptyResponseClass |
     const report = req.body;
 
     const reportDoc: ReportDoc = {
-      _docId: new mongoose.Types.ObjectId().toString(),
+      _docId: crypto.randomBytes(32).toString('hex'),
       collectionId: report.collectionId,
       listId: report.listId,
       mapId: report.mapId,

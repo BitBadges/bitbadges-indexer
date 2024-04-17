@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { MongoDB, insertToDB } from './db/db';
+import { MongoDB, insertToDB } from '../db/db';
 import {
   AccountModel,
   AccountSchema,
@@ -65,7 +65,7 @@ import {
   TransferActivitySchema,
   UsernameModel,
   UsernameSchema
-} from './db/schemas';
+} from '../db/schemas';
 
 config();
 

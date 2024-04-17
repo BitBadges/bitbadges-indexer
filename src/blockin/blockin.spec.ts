@@ -1,24 +1,24 @@
 import request from 'supertest';
 import app, { server } from '../indexer';
 
-import {
-  BitBadgesApiRoutes,
-  BlockinChallengeParams,
-  GetClaimAlertsForCollectionRouteRequestBody,
-  GetSignInChallengeRouteSuccessResponse,
-  ProfileDoc,
-  UintRangeArray,
-  convertToCosmosAddress
-} from 'bitbadgesjs-sdk';
 import { ChallengeParams, createChallenge } from 'blockin';
 import dotenv from 'dotenv';
-import { ethers } from 'ethers';
 import mongoose from 'mongoose';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
-import { CollectionModel, ProfileModel } from '../db/schemas';
 import { connectToRpc } from '../poll';
-import { createExampleReqForAddress } from '../testutil/utils';
 import { BlockinSession, MaybeAuthenticatedRequest, statement } from './blockin_handlers';
+import {
+  BitBadgesApiRoutes,
+  GetClaimAlertsForCollectionRouteRequestBody,
+  GetSignInChallengeRouteSuccessResponse,
+  BlockinChallengeParams,
+  UintRangeArray,
+  convertToCosmosAddress,
+  ProfileDoc
+} from 'bitbadgesjs-sdk';
+import { ethers } from 'ethers';
+import { CollectionModel, ProfileModel } from '../db/schemas';
+import { createExampleReqForAddress } from '../testutil/utils';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
 
 connectToRpc();
@@ -32,7 +32,7 @@ const challengeParams: ChallengeParams<bigint> = {
   nonce: 'exampleNonce',
   expirationDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString(),
   notBefore: undefined,
-  resources: ['Full Access: This sign-in gives full access to all features.'],
+  resources: ['Full Access: Full access to all features.'],
   assetOwnershipRequirements: undefined
 };
 
@@ -77,23 +77,6 @@ describe('checkIfAuthenticated function', () => {
     expect(res.header['content-type']).toBe('application/json; charset=utf-8');
     expect(res.statusCode).toBe(200);
   });
-
-  // it('should return true if all session properties are present and match', () => {
-  //   // Mock session object with all required properties
-  //   const req: MaybeAuthenticatedRequest<bigint> = {
-  //     ...exampleReq
-  //   } as MaybeAuthenticatedRequest<bigint>;
-  //   expect(checkIfAuthenticated(req)).toBeTruthy();
-  // });
-
-  // it('should return false if session properties are missing', () => {
-  //   // Mock session object missing some required properties
-  //   const req = {
-  //     ...exampleReq,
-  //     session: { ...exampleReq.session, cosmosAddress: undefined }
-  //   } as MaybeAuthenticatedRequest<bigint>;
-  //   expect(checkIfAuthenticated(req)).toBeFalsy();
-  // });
 
   it('should add a report which is an authenticated request', async () => {
     // Mock session object with all required properties

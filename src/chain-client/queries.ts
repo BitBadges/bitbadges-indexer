@@ -4,7 +4,7 @@ import * as account from 'bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/auth_pb
 import * as accountQuery from 'bitbadgesjs-sdk/dist/proto/cosmos/auth/v1beta1/query_pb';
 import * as bitbadgesQuery from 'bitbadgesjs-sdk/dist/proto/badges/query_pb';
 import * as mapsQuery from 'bitbadgesjs-sdk/dist/proto/maps/query_pb';
-import * as proto from 'bitbadgesjs-sdk/dist/proto/';
+import type * as proto from 'bitbadgesjs-sdk/dist/proto/';
 import * as crypto from 'bitbadgesjs-sdk/dist/proto/cosmos/crypto/ed25519/keys_pb';
 import * as secp256k1 from 'bitbadgesjs-sdk/dist/proto/cosmos/crypto/secp256k1/keys_pb';
 import * as ethereum from 'bitbadgesjs-sdk/dist/proto/ethereum/ethsecp256k1/keys_pb';

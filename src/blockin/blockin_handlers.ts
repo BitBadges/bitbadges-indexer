@@ -1,7 +1,7 @@
 import {
   BalanceArray,
   BigIntify,
-  SignOutRequestBody,
+  type SignOutRequestBody,
   SupportedChain,
   convertToCosmosAddress,
   getChainForAddress,

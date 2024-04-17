@@ -49,7 +49,7 @@ import {
   type iTransferActivityDoc,
   SecretDoc,
   MapDoc,
-  iMapDoc
+  type iMapDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto-js';
 import { config } from 'dotenv';
@@ -97,7 +97,7 @@ import {
   type TypedDocFromModel,
   type TypedInterfaceFromModel,
   ExternalCallKeysModel,
-  KeysDoc,
+  type KeysDoc,
   OffChainSecretsModel,
   MapModel
 } from './schemas';

@@ -34,8 +34,7 @@ const fromMnemonic = process.env.FAUCET_MNEMONIC ?? '';
 //   });
 // };
 
-//TODO: All other msg types
-
+// TODO: All other msg types
 const randomAddress = () => {
   const randomNum = Math.floor(Math.random() * 50);
   if (randomNum === 0) return 'Mint';
@@ -61,7 +60,7 @@ const randomBalance = () => {
 const randomMsgTransferBadges = (collectionId: string) => {
   return new ProtoMsgTransferBadges({
     creator: convertToCosmosAddress(ethWallet.address),
-    collectionId: collectionId,
+    collectionId,
     transfers: [
       {
         from: randomAddress(),
@@ -133,8 +132,8 @@ const randomMsgCreateCollection = (newCollection?: boolean) => {
   return new ProtoMsgUniversalUpdateCollection({
     creator: convertToCosmosAddress(ethWallet.address),
     collectionId: newCollection ? '0' : Math.floor(Math.random() * 1000).toString(),
-    balancesType: balancesType,
-    badgesToCreate: Array.from({ length: 25 }, randomBalance),
+    balancesType,
+    badgesToCreate: Array.from({ length: 10 }, randomBalance),
     updateCollectionPermissions: newCollection ? true : Math.random() < 0.5,
     updateManagerTimeline: newCollection ? true : Math.random() < 0.5,
     updateCollectionMetadataTimeline: newCollection ? true : Math.random() < 0.5,
@@ -206,7 +205,7 @@ async function main() {
     for (let i = 0; i < NUM_RUNS; i++) {
       const sender = {
         accountAddress: convertToCosmosAddress(ethWallet.address),
-        sequence: sequence,
+        sequence,
         accountNumber: Numberify(account.accountNumber),
         pubkey: base64PubKey
       };
