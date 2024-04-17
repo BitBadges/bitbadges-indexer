@@ -1613,7 +1613,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     UnauthorizedResponse:
-      description: Unauthorized - Does not meet authnetication requirements. This can be due to an invalid API key, CORS origin, or session cookie.
+      description: Unauthorized - Does not meet authentication requirements. This can be due to an invalid API key, CORS origin, or session cookie.
       content:
         application/json:
           schema:
