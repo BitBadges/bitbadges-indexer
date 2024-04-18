@@ -1,7 +1,5 @@
-import { type NumberType } from 'bitbadgesjs-sdk';
-
-import { type BackendIntegrationPlugin } from './types';
 import CryptoJS from 'crypto-js';
+import { type BackendIntegrationPlugin } from './types';
 
 const { AES } = CryptoJS;
 const symKey = process.env.SYM_KEY ?? '';
@@ -9,7 +7,7 @@ if (!symKey) {
   throw new Error('No symmetric key found');
 }
 
-export const PasswordPluginDetails: BackendIntegrationPlugin<NumberType, 'password'> = {
+export const PasswordPluginDetails: BackendIntegrationPlugin<'password'> = {
   id: 'password',
   metadata: {
     name: 'Password',
@@ -20,7 +18,7 @@ export const PasswordPluginDetails: BackendIntegrationPlugin<NumberType, 'passwo
     scoped: true
   },
   defaultState: {},
-  validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
+  validateFunction: async (context, publicParams, privateParams, customBody) => {
     const password = privateParams.password;
 
     if (!privateParams.password || !customBody?.password) {
@@ -33,7 +31,7 @@ export const PasswordPluginDetails: BackendIntegrationPlugin<NumberType, 'passwo
 
     return { success: false, error: 'Incorrect password' };
   },
-  getPublicState: (currState) => {
+  getPublicState: () => {
     return {};
   },
   encryptPrivateParams: (privateParams) => {

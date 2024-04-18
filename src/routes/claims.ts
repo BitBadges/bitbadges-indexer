@@ -34,7 +34,7 @@ import { getActivityDocsForListUpdate } from './addressLists';
 import { getClaimDetailsForFrontend } from './collections';
 import { refreshCollection } from './refresh';
 
-export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<NumberType, key> } = {
+export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<key> } = {
   codes: CodesPluginDetails,
   twitter: TwitterPluginDetails,
   discord: DiscordPluginDetails,

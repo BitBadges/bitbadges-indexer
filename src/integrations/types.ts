@@ -3,8 +3,7 @@ import {
   type ClaimIntegrationPrivateParamsType,
   type ClaimIntegrationPublicParamsType,
   type ClaimIntegrationPublicStateType,
-  type IntegrationPluginParams,
-  type NumberType
+  type IntegrationPluginParams
 } from 'bitbadgesjs-sdk';
 import { Plugins } from '../routes/claims';
 
@@ -28,9 +27,9 @@ export type ClaimIntegrationCustomBodyType<T extends ClaimIntegrationPluginType>
     ? { code: string }
     : T extends 'api'
       ? object[]
-      : {};
+      : object;
 
-export interface BackendIntegrationPlugin<T extends NumberType, P extends ClaimIntegrationPluginType> {
+export interface BackendIntegrationPlugin<P extends ClaimIntegrationPluginType> {
   id: P;
   metadata: IntegrationMetadata;
   validateFunction: (
@@ -49,7 +48,7 @@ export interface BackendIntegrationPlugin<T extends NumberType, P extends ClaimI
   encryptPrivateParams: (privateParams: ClaimIntegrationPrivateParamsType<P>) => ClaimIntegrationPrivateParamsType<P>;
 }
 
-export const getPlugin = <T extends ClaimIntegrationPluginType>(id: T): BackendIntegrationPlugin<NumberType, T> => {
+export const getPlugin = <T extends ClaimIntegrationPluginType>(id: T): BackendIntegrationPlugin<T> => {
   return Plugins[id];
 };
 

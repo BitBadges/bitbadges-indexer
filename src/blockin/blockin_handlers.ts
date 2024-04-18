@@ -80,26 +80,26 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
   session: Required<BlockinSession<T>>;
 }
 
-export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]) {
+export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]): boolean {
   setMockSessionIfTestMode(req);
 
-  if (expectedScopes) {
+  if (expectedScopes != null) {
     if (!hasScopes(req, expectedScopes)) {
       return false;
     }
   }
 
   // Nonce should not be checked in case you are prompting a new sign-in (we generate and verify the new sign-in with req.sesssion.nonce)
-  return (
+  return Boolean(
     req.session.blockin &&
-    req.session.blockinParams &&
-    req.session.cosmosAddress &&
-    req.session.address &&
-    req.session.blockinParams.address === req.session.address
+      req.session.blockinParams &&
+      req.session.cosmosAddress &&
+      req.session.address &&
+      req.session.blockinParams.address === req.session.address
   );
 }
 
-export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>, collectionId: NumberType) {
+export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>, collectionId: NumberType): Promise<boolean> {
   if (!checkIfAuthenticated(req)) return false;
 
   // Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
@@ -209,19 +209,19 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     session.cookie.expires = new Date(Date.now() - 1000);
   }
 
-  if (body.signOutDiscord) {
+  if (body.signOutDiscord ?? false) {
     session.discord = undefined;
   }
 
-  if (body.signOutTwitter) {
+  if (body.signOutTwitter ?? false) {
     session.twitter = undefined;
   }
 
-  if (body.signOutGithub) {
+  if (body.signOutGithub ?? false) {
     session.github = undefined;
   }
 
-  if (body.signOutGoogle) {
+  if (body.signOutGoogle ?? false) {
     session.google = undefined;
   }
 
@@ -337,11 +337,11 @@ export async function verifyBlockinAndGrantSessionCookie(
   }
 }
 
-export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberType>) {
+export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberType>): void {
   const mockSessionJson = req.header('x-mock-session');
 
-  if (!mockSessionJson) return;
-  if (process.env.TEST_MODE != 'true') return;
+  if (mockSessionJson == null || mockSessionJson === '') return;
+  if (process.env.TEST_MODE !== 'true') return;
   const mockSession = JSON.parse(mockSessionJson);
 
   req.session.address = mockSession.address;
@@ -376,11 +376,11 @@ export function authorizeBlockinRequest(expectedScopes?: string[]) {
 }
 
 export async function genericBlockinVerify(body: GenericBlockinVerifyRouteRequestBody) {
-  if (body.options?.beforeVerification) {
+  if (body.options?.beforeVerification != null) {
     throw new Error('You cannot use the beforeVerification option over HTTP.');
   }
 
-  if (body.options?.balancesSnapshot) {
+  if (body.options?.balancesSnapshot != null) {
     for (const key in body.options.balancesSnapshot) {
       for (const key2 in (body.options.balancesSnapshot as any)[key]) {
         (body.options.balancesSnapshot as any)[key][key2] = BalanceArray.From((body.options.balancesSnapshot as any)[key][key2]);

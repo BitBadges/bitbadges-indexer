@@ -1,7 +1,6 @@
-import { type NumberType } from 'bitbadgesjs-sdk';
 import CryptoJS from 'crypto-js';
-import { type BackendIntegrationPlugin } from './types';
 import dotenv from 'dotenv';
+import { type BackendIntegrationPlugin } from './types';
 
 dotenv.config();
 const { AES, SHA256 } = CryptoJS;
@@ -21,7 +20,11 @@ if (!symKey) {
   throw new Error('No symmetric key found');
 }
 
-export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> = {
+export interface Setter {
+  $set: object;
+}
+
+export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
   id: 'codes',
   metadata: {
     name: 'Codes',
@@ -71,7 +74,7 @@ export const CodesPluginDetails: BackendIntegrationPlugin<NumberType, 'codes'> =
       return { success: false, error: 'Code already used' };
     }
 
-    const toSet: any = [{ $set: { [`state.codes.usedCodeIndices.${codeIdx}`]: 1 } }];
+    const toSet: Setter[] = [{ $set: { [`state.codes.usedCodeIndices.${codeIdx}`]: 1 } }];
     const cosmosAddress = context.cosmosAddress;
     const claimedUsers = globalState.numUses.claimedUsers;
     const assignMethod = adminInfo.assignMethod;

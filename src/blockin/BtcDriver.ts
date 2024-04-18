@@ -19,7 +19,7 @@ export default class BtcDriver implements IChainDriver<bigint> {
     this.chain = chain;
   }
 
-  async parseChallengeStringFromBytesToSign(txnBytes: Uint8Array) {
+  async parseChallengeStringFromBytesToSign(txnBytes: Uint8Array): Promise<string> {
     return new TextDecoder().decode(txnBytes);
   }
 

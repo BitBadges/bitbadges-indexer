@@ -1,13 +1,11 @@
-import { type NumberType } from 'bitbadgesjs-sdk';
-
 import axios from 'axios';
-import { type BackendIntegrationPlugin } from './types';
-import { handleIntegrationQuery } from './integration-query-handlers/integration-handlers';
+import crypto from 'crypto';
 import { getFromDB, insertToDB } from '../db/db';
 import { ExternalCallKeysModel } from '../db/schemas';
-import crypto from 'crypto';
+import { handleIntegrationQuery } from './integration-query-handlers/integration-handlers';
+import { type BackendIntegrationPlugin } from './types';
 
-export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
+export const ApiPluginDetails: BackendIntegrationPlugin<'api'> = {
   id: 'api',
   metadata: {
     name: 'Custom API Calls',
@@ -96,13 +94,13 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
 
     return { success: true };
   },
-  getPublicState: (currState) => {
+  getPublicState: () => {
     return {};
   },
-  encryptPrivateParams: (privateParams) => {
+  encryptPrivateParams: () => {
     return {};
   },
-  decryptPrivateParams: (privateParams) => {
+  decryptPrivateParams: () => {
     return {};
   },
   getBlankPublicState: () => {

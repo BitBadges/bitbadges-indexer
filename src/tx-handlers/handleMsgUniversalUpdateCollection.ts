@@ -20,7 +20,7 @@ import { type DocsCache } from '../db/types';
 import { OffChainUrlModel, ClaimBuilderModel } from '../db/schemas';
 import { findInDB } from '../db/queries';
 
-export function recursivelyDeleteFalseProperties(obj: object) {
+export function recursivelyDeleteFalseProperties(obj: object): void {
   if (Array.isArray(obj)) {
     obj.forEach((item: object) => {
       recursivelyDeleteFalseProperties(item);
@@ -60,7 +60,7 @@ export const handleMsgUniversalUpdateCollection = async (
 
     // TODO: Do this natively
     const collection = await client.badgesQueryClient?.badges.getCollection(collectionId.toString());
-    if (!collection) throw new Error(`Collection ${collectionId} does not exist`);
+    if (collection == null) throw new Error(`Collection ${collectionId} does not exist`);
 
     docs.collections[status.nextCollectionId.toString()] = new CollectionDoc<bigint>({
       _docId: status.nextCollectionId.toString(),
@@ -151,7 +151,7 @@ export const handleMsgUniversalUpdateCollection = async (
   const mintBalance = docs.balances[`${collectionId}:Mint`];
   if (!mintBalance) throw new Error(`Mint balance for collection ${collectionId} does not exist`);
 
-  if (msg.badgesToCreate && msg.badgesToCreate.length > 0) {
+  if (msg.badgesToCreate != null && msg.badgesToCreate.length > 0) {
     totalBalance.balances.addBalances(msg.badgesToCreate);
     mintBalance.balances.addBalances(msg.badgesToCreate);
   }

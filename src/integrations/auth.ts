@@ -1,7 +1,7 @@
-import { type ClaimIntegrationPrivateParamsType, type ClaimIntegrationPublicParamsType, type NumberType } from 'bitbadgesjs-sdk';
+import { type ClaimIntegrationPrivateParamsType, type ClaimIntegrationPublicParamsType } from 'bitbadgesjs-sdk';
 import { type BackendIntegrationPlugin, type ClaimIntegrationCustomBodyType } from './types';
 
-export const TwitterPluginDetails: BackendIntegrationPlugin<NumberType, 'twitter'> = {
+export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
   id: 'twitter',
   metadata: {
     name: 'Twitter',
@@ -73,7 +73,7 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
   return { success: true, toSet: [{ $set: { [`state.${pluginId}.${oauthInfo.id}`]: 1 } }] };
 };
 
-export const GooglePluginDetails: BackendIntegrationPlugin<NumberType, 'google'> = {
+export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
   id: 'google',
   metadata: {
     name: 'Google',
@@ -101,7 +101,7 @@ export const GooglePluginDetails: BackendIntegrationPlugin<NumberType, 'google'>
   }
 };
 
-export const EmailPluginDetails: BackendIntegrationPlugin<NumberType, 'email'> = {
+export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
   id: 'email',
   metadata: {
     name: 'Email',
@@ -129,7 +129,7 @@ export const EmailPluginDetails: BackendIntegrationPlugin<NumberType, 'email'> =
   }
 };
 
-export const GitHubPluginDetails: BackendIntegrationPlugin<NumberType, 'github'> = {
+export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
   id: 'github',
   metadata: {
     name: 'GitHub',
@@ -157,7 +157,7 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<NumberType, 'github'>
   }
 };
 
-export const DiscordPluginDetails: BackendIntegrationPlugin<NumberType, 'discord'> = {
+export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
   id: 'discord',
   metadata: {
     name: 'Discord',

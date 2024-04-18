@@ -1,8 +1,8 @@
-import { AddressList, BitBadgesAddressList, type NumberType } from 'bitbadgesjs-sdk';
+import { AddressList, BitBadgesAddressList } from 'bitbadgesjs-sdk';
 import { getAddressListsFromDB } from '../routes/utils';
 import { type BackendIntegrationPlugin } from './types';
 
-export const WhitelistPluginDetails: BackendIntegrationPlugin<NumberType, 'whitelist'> = {
+export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
   id: 'whitelist',
   metadata: {
     name: 'Whitelist',
@@ -19,7 +19,7 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<NumberType, 'white
   decryptPrivateParams: (privateParams) => {
     return privateParams;
   },
-  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState) => {
+  validateFunction: async (context, publicParams, privateParams) => {
     const targetUser = context.cosmosAddress;
     const params = publicParams.list || publicParams.listId ? publicParams : privateParams;
 

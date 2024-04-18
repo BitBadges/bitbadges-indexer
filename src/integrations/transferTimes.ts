@@ -1,7 +1,7 @@
-import { type NumberType, UintRangeArray } from 'bitbadgesjs-sdk';
+import { UintRangeArray } from 'bitbadgesjs-sdk';
 import { type BackendIntegrationPlugin } from './types';
 
-export const TransferTimesPluginDetails: BackendIntegrationPlugin<NumberType, 'transferTimes'> = {
+export const TransferTimesPluginDetails: BackendIntegrationPlugin<'transferTimes'> = {
   id: 'transferTimes',
   metadata: {
     name: 'Transfer Times',
@@ -12,7 +12,7 @@ export const TransferTimesPluginDetails: BackendIntegrationPlugin<NumberType, 't
     scoped: true
   },
   defaultState: {},
-  validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
+  validateFunction: async (context, publicParams) => {
     const times = UintRangeArray.From(publicParams.transferTimes);
     if (times.searchIfExists(Date.now())) {
       return { success: true };
@@ -20,7 +20,7 @@ export const TransferTimesPluginDetails: BackendIntegrationPlugin<NumberType, 't
 
     return { success: false, error: 'Invalid transfer time' };
   },
-  getPublicState: (currState) => {
+  getPublicState: () => {
     return {};
   },
   encryptPrivateParams: (privateParams) => {

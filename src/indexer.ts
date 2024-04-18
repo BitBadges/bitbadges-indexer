@@ -219,7 +219,7 @@ app.get('/auth/discord/callback', discordCallbackHandler);
 // Twitter authentication route
 app.get('/auth/twitter', (_req, res) => {
   try {
-    return twitterOauth.getOAuthRequestToken((error, oauthToken, oauthTokenSecret) => {
+    return twitterOauth.getOAuthRequestToken((error, oauthToken) => {
       if (error) {
         console.error('Error getting OAuth request token:', error);
         return res.status(500).send('Error getting OAuth request token');

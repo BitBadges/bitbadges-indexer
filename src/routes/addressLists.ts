@@ -170,7 +170,7 @@ const handleAddressListsUpdateAndCreate = async (
 
         const hasExistingClaim = claimDocs.length > 0;
         const existingClaim = claimDocs?.[0];
-        const state: Record<string, any> = {};
+        const state: Record<string, object> = {};
         for (let i = 0; i < encryptedPlugins.length; i++) {
           const encryptedPlugin = encryptedPlugins[i];
           const passedInPlugin = claim.plugins[i];

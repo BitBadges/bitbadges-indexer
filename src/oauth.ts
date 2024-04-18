@@ -1,5 +1,5 @@
 import { SocialConnections, SocialConnectionInfo } from 'bitbadgesjs-sdk';
-import { type Request, type Response } from 'express';
+import { NextFunction, type Request, type Response } from 'express';
 
 import OAuthPkg from 'oauth';
 import passport from 'passport';
@@ -91,7 +91,7 @@ passport.deserializeUser(function (user, cb) {
  *
  * We don't use the default setup because it overwrites our Blockin sessions.
  */
-export const discordCallbackHandler = (req: Request, res: Response, next: Function) => {
+export const discordCallbackHandler = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('discord', async function (err: Error, user: any) {
     if (err) {
       return next(err);
@@ -138,7 +138,7 @@ export const twitterOauth = new OAuth(
   'HMAC-SHA1'
 );
 
-export const githubCallbackHandler = (req: Request, res: Response, next: Function) => {
+export const githubCallbackHandler = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('github', async function (err: Error, user: any) {
     if (err) {
       return next(err);
@@ -167,7 +167,7 @@ export const githubCallbackHandler = (req: Request, res: Response, next: Functio
   })(req, res, next);
 };
 
-export const googleCallbackHandler = (req: Request, res: Response, next: Function) => {
+export const googleCallbackHandler = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('google', async function (err: Error, user: any) {
     if (err) {
       return next(err);

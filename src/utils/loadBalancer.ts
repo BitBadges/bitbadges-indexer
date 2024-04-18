@@ -2,6 +2,7 @@
 // const hashedId = SHA256(`${uri}-${refreshDoc._rev}`).toString();
 
 // Determinstically choose which node to assign the fetch too
-export function getLoadBalancerId(str?: string) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function getLoadBalancerId(_str?: string) {
   return 0;
 }

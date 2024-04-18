@@ -1,7 +1,6 @@
-import { type NumberType } from 'bitbadgesjs-sdk';
 import { type BackendIntegrationPlugin } from './types';
 
-export const NumUsesDetails: BackendIntegrationPlugin<NumberType, 'numUses'> = {
+export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
   id: 'numUses',
   defaultState: {
     claimedUsers: {},

@@ -3,7 +3,7 @@ import { type AndGroup, type OrGroup } from 'blockin';
 import { type BackendIntegrationPlugin } from './types';
 import { verifyBitBadgesAssets } from '../blockin/verifyBitBadgesAssets';
 
-export const MustOwnPluginDetails: BackendIntegrationPlugin<NumberType, 'mustOwnBadges'> = {
+export const MustOwnPluginDetails: BackendIntegrationPlugin<'mustOwnBadges'> = {
   id: 'mustOwnBadges',
   metadata: {
     name: 'Ownership Requirements',
@@ -14,7 +14,7 @@ export const MustOwnPluginDetails: BackendIntegrationPlugin<NumberType, 'mustOwn
     scoped: true
   },
   defaultState: {},
-  validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
+  validateFunction: async (context, publicParams, privateParams) => {
     const ownershipRequirementsBase = publicParams.ownershipRequirements || privateParams.ownershipRequirements;
     if (!ownershipRequirementsBase) {
       return { success: false, error: 'No ownership requirements found' };
@@ -36,7 +36,7 @@ export const MustOwnPluginDetails: BackendIntegrationPlugin<NumberType, 'mustOwn
       return { success: false, error: e.message };
     }
   },
-  getPublicState: (currState) => {
+  getPublicState: () => {
     return {};
   },
   encryptPrivateParams: (privateParams) => {
