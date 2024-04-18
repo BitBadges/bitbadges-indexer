@@ -1,22 +1,20 @@
 import {
   BalanceArray,
+  convertToCosmosAddress,
+  mustConvertToCosmosAddress,
   type ClaimBuilderDoc,
   type ClaimIntegrationPluginType,
-  type GetClaimsRouteRequestBody,
-  type IncrementedBalances,
-  type IntegrationPluginDetails,
-  type ListActivityDoc,
-  convertToCosmosAddress,
-  type iGetClaimsRouteSuccessResponse,
-  type iOffChainBalancesMap,
-  mustConvertToCosmosAddress,
   type ErrorResponse,
+  type GetClaimsRouteRequestBody,
+  type ListActivityDoc,
   type NumberType,
-  type iCheckAndCompleteClaimRouteSuccessResponse
+  type iCheckAndCompleteClaimRouteSuccessResponse,
+  type iGetClaimsRouteSuccessResponse,
+  type iOffChainBalancesMap
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { setMockSessionIfTestMode, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, CollectionModel, ExternalCallKeysModel, ListActivityModel, ProfileModel } from '../db/schemas';
@@ -29,7 +27,7 @@ import { NumUsesDetails } from '../integrations/numUses';
 import { PasswordPluginDetails } from '../integrations/passwords';
 import { RequiresSignaturePluginDetails } from '../integrations/signature';
 import { TransferTimesPluginDetails } from '../integrations/transferTimes';
-import { type BackendIntegrationPlugin, type ContextInfo, getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { getPlugin, getPluginParamsAndState, type BackendIntegrationPlugin, type ContextInfo } from '../integrations/types';
 import { WhitelistPluginDetails } from '../integrations/whitelist';
 import { addBalancesToOffChainStorage } from '../ipfs/ipfs';
 import { getActivityDocsForListUpdate } from './addressLists';
@@ -59,12 +57,12 @@ enum ActionType {
   ClaimNumbers = 'ClaimNumbers'
 }
 
-export interface ClaimDetails<T extends NumberType> {
-  claimId: string;
-  balancesToSet?: IncrementedBalances<T>;
-  plugins: Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>;
-  manualDistribution?: boolean;
-}
+// export interface ClaimDetails<T extends NumberType> {
+//   claimId: string;
+//   balancesToSet?: IncrementedBalances<T>;
+//   plugins: Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>;
+//   manualDistribution?: boolean;
+// }
 
 export const getClaimsHandler = async (
   req: AuthenticatedRequest<NumberType>,
@@ -119,6 +117,8 @@ export const checkAndCompleteClaim = async (
   res: Response<iCheckAndCompleteClaimRouteSuccessResponse | ErrorResponse>
 ) => {
   try {
+    setMockSessionIfTestMode(req);
+
     const claimId = req.params.claimId;
     const query = { _docId: claimId, docClaimed: true };
 
@@ -165,18 +165,24 @@ export const checkAndCompleteClaim = async (
     // Pass in email only if previously set up and verified
     // Must be logged in
     let email = '';
-    if (req.session.cosmosAddress) {
+    const requiresEmail = getPluginParamsAndState('api', claimBuilderDoc.plugins)?.publicParams.apiCalls?.find((x) => x.passEmail);
+    if (req.session.cosmosAddress && requiresEmail) {
       const profileDoc = await mustGetFromDB(ProfileModel, req.session.cosmosAddress);
       if (!profileDoc) {
-        throw new Error('No profile found');
+        throw new Error('Email required but no profile found');
       }
+
       if (profileDoc.notifications?.email) {
         if (profileDoc.notifications.emailVerification?.verified) {
           email = profileDoc.notifications.email;
         }
       }
+
+      if (!email) {
+        throw new Error('Email required but none found in profile');
+      }
     } else {
-      if (getPluginParamsAndState('api', claimBuilderDoc.plugins)?.publicParams.apiCalls?.find((x) => x.passEmail)) {
+      if (requiresEmail) {
         throw new Error('Email required but user is not logged in to BitBadges');
       }
     }
@@ -186,77 +192,48 @@ export const checkAndCompleteClaim = async (
       const pluginInstance = getPlugin(plugin.id);
 
       let adminInfo = {};
-      if (process.env.TEST_MODE === 'true') {
-        switch (plugin.id) {
-          case 'requiresProofOfAddress':
-            adminInfo = {
-              cosmosAddress: 'cosmos1tqg2v8h5y9a2t7n4q9f4p7f8d8t7n4q9f4p7f',
-              blockin: true
-            };
-            break;
 
-          case 'codes': {
-            adminInfo = {
-              assignMethod: getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod
-            };
-            break;
-          }
-          case 'discord':
-          case 'twitter':
-          case 'github':
-          case 'google':
-          case 'email':
-            adminInfo = {
-              username: 'testuser',
-              id: '123456789'
-            };
-            break;
-          default:
-            break;
+      switch (plugin.id) {
+        case 'requiresProofOfAddress':
+          adminInfo = req.session;
+          break;
+        case 'discord':
+          adminInfo = req.session.discord;
+          break;
+        case 'twitter':
+          adminInfo = req.session.twitter;
+          break;
+        case 'codes': {
+          adminInfo = {
+            assignMethod: getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod
+          };
+          break;
         }
-      } else {
-        switch (plugin.id) {
-          case 'requiresProofOfAddress':
-            adminInfo = req.session;
-            break;
-          case 'discord':
-            adminInfo = req.session.discord;
-            break;
-          case 'twitter':
-            adminInfo = req.session.twitter;
-            break;
-          case 'codes': {
-            adminInfo = {
-              assignMethod: getPluginParamsAndState('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod
-            };
-            break;
-          }
-          case 'github':
-            adminInfo = req.session.github;
-            break;
-          case 'google':
-            adminInfo = req.session.google;
-            break;
-          case 'email':
-            adminInfo = {
-              username: email,
-              id: email
-            };
-            break;
-          case 'api': {
-            adminInfo = {
-              discord: req.session.discord,
-              twitter: req.session.twitter,
-              github: req.session.github,
-              google: req.session.google,
-              email
-            };
-            break;
-          }
+        case 'github':
+          adminInfo = req.session.github;
+          break;
+        case 'google':
+          adminInfo = req.session.google;
+          break;
+        case 'email':
+          adminInfo = {
+            username: email,
+            id: email
+          };
+          break;
+        case 'api': {
+          adminInfo = {
+            discord: req.session.discord,
+            twitter: req.session.twitter,
+            github: req.session.github,
+            google: req.session.google,
+            email
+          };
+          break;
+        }
 
-          default:
-            break;
-        }
+        default:
+          break;
       }
 
       const result = await pluginInstance.validateFunction(

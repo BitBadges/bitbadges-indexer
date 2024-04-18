@@ -60,6 +60,8 @@ export async function verifyBitBadgesAssets(
         }
       }
 
+      console.log(JSON.stringify(asset));
+
       // Validate BitBadges
       if (asset.chain === 'BitBadges' && asset.collectionId !== 'BitBadges Lists') {
         if (!asset.assetIds.every((x) => typeof x === 'object' && BigInt(x.start) >= 0 && BigInt(x.end) >= 0)) {
@@ -186,7 +188,7 @@ export async function verifyBitBadgesAssets(
           const balanceDoc = await getBalanceForAddress(Number(asset.collectionId), address);
 
           if (!balanceDoc) {
-            docBalances = new BalanceArray<bigint>();
+            throw new Error(`Error fetching balance for collection ${asset.collectionId} and address ${address}`); //Should return a doc even if owns x0
           } else {
             docBalances = balanceDoc.balances.clone();
           }

@@ -51,7 +51,7 @@ import { createSecret, deleteSecret, getSecret, updateSecret } from './routes/of
 import { createPass } from './routes/pass';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
-import { addReviewForCollection, addReviewForUser, deleteReview } from './routes/reviews';
+import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
@@ -326,13 +326,14 @@ app.post('/api/v0/claims/:claimId/:cosmosAddress', checkAndCompleteClaim); // Wr
 app.post('/api/v0/claims', getClaimsHandler);
 app.post('/api/v0/collections/filter', filterBadgesInCollectionHandler);
 
-app.post('/api/v0/collection/:collectionId/addReview', authorizeBlockinRequest(['Reviews']), addReviewForCollection); // Write route
+//Reviews
+app.post('/api/v0/reviews/add', authorizeBlockinRequest(['Reviews']), addReview); // Write route
+app.post('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview); // Write route
 app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview); // Write route
 
 // User
 app.post('/api/v0/user/batch', getAccounts);
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest(['Profile']), upload.single('profilePicImageFile'), updateAccountInfo); // Write route
-app.post('/api/v0/user/:addressOrUsername/addReview', authorizeBlockinRequest(['Reviews']), addReviewForUser); // Write route
 
 // IPFS
 app.post(
@@ -414,59 +415,12 @@ app.post('/api/v0/externalCallKey', externalApiCallKeyCheckHandler);
 app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
 
-// TODO: Simple implementation of a one-way heartbeat mode.
-// If the parent process dies, the child process will take over.
-// Probably
-const NUM_FAILED_HEARTBEATS_BEFORE_SWITCH = 10;
-let numConsecutiveFailedHeartbeats = 0;
-const initHeartbeat = async () => {
-  const PARENT_PROCESS_URL = process.env.PARENT_PROCESS_URL;
-  if (!PARENT_PROCESS_URL) {
-    throw new Error('PARENT_PROCESS_URL not set');
-  }
-
-  const heartbeat = async () => {
-    try {
-      await axios.get(PARENT_PROCESS_URL, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.BITBADGES_API_KEY
-        }
-      });
-
-      return true;
-    } catch (e) {
-      console.log(e);
-      return false;
-    }
-  };
-
-  const isParentAlive = await heartbeat();
-  if (!isParentAlive) {
-    numConsecutiveFailedHeartbeats++;
-    console.log(`Parent process is dead. Failed heartbeats: ${numConsecutiveFailedHeartbeats} / ${NUM_FAILED_HEARTBEATS_BEFORE_SWITCH}`);
-
-    if (numConsecutiveFailedHeartbeats > NUM_FAILED_HEARTBEATS_BEFORE_SWITCH) {
-      console.log('Taking over as parent process.');
-      setTimeout(poll, 1);
-      return;
-    }
-  } else {
-    console.log('Parent process is alive. Still on standby....');
-    numConsecutiveFailedHeartbeats = 0;
-  }
-  if (SHUTDOWN) return;
-
-  const newTimer = setTimeout(initHeartbeat, 5000);
-  setHeartbeatTimer(newTimer);
-};
-
 // Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {
   if (!OFFLINE_MODE) {
     if (process.env.DISABLE_BLOCKCHAIN_POLLER !== 'true') {
       if (process.env.HEARTBEAT_MODE === 'true') {
-        setTimeout(initHeartbeat, 1);
+        // Heartbeat mode
       } else {
         setTimeout(poll, 1);
       }

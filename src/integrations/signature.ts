@@ -17,6 +17,7 @@ export const RequiresSignaturePluginDetails: BackendIntegrationPlugin<NumberType
       return { success: false, error: 'Must be authenticated to claim' };
     }
 
+    console.log(adminInfo, context);
     if (adminInfo.cosmosAddress !== context.cosmosAddress) {
       return { success: false, error: 'Invalid address. Provided address does not match the address of the signed in user.' };
     }

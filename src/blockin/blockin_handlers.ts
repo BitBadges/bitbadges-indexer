@@ -249,7 +249,6 @@ export async function verifyBlockinAndGrantSessionCookie(
       const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(challenge.address));
       const discordSignInMethod = profileDoc.approvedSignInMethods?.discord;
 
-
       if (!discordSignInMethod || !req.session.discord) {
         return res
           .status(401)

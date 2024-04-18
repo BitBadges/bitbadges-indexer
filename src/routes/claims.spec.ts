@@ -3,6 +3,7 @@ import {
   BlockinAndGroup,
   BlockinAssetConditionGroup,
   CheckAndCompleteClaimRouteRequestBody,
+  ClaimApiCallInfo,
   ClaimIntegrationPluginType,
   IntegrationPluginDetails,
   NumberType,
@@ -18,13 +19,14 @@ import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
-import { AddressListModel, ClaimBuilderModel } from '../db/schemas';
+import { AddressListModel, ClaimBuilderModel, ExternalCallKeysModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { generateCodesFromSeed } from '../integrations/codes';
 import { getPlugin } from '../integrations/types';
 import { createExampleReqForAddress } from '../testutil/utils';
 import { findInDB } from '../db/queries';
 import { getDecryptedActionCodes } from './claims';
+import { connectToRpc } from '../poll';
 
 dotenv.config();
 
@@ -199,6 +201,17 @@ const mustOwnBadgesPlugin = (ownershipReqs: BlockinAssetConditionGroup<NumberTyp
     resetState: true
   };
 };
+const apiPlugin = (apiCalls: ClaimApiCallInfo[]): IntegrationPluginDetails<'api'> => {
+  return {
+    id: 'api',
+    publicParams: {
+      apiCalls
+    },
+    privateParams: {},
+    publicState: {},
+    resetState: true
+  };
+};
 
 describe('claims', () => {
   beforeAll(async () => {
@@ -209,6 +222,8 @@ describe('claims', () => {
     process.env.TEST_MODE = 'true';
 
     while (!MongoDB.readyState) {}
+
+    await connectToRpc();
   });
 
   afterAll(async () => {
@@ -326,6 +341,25 @@ describe('claims', () => {
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(2);
+  });
+
+  it('should not work with an invalid code', async () => {
+    const seedCode = crypto.randomBytes(32).toString('hex');
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), codesPlugin(10, seedCode)]);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {
+      codes: {
+        code: 'invalidCode'
+      }
+    };
+    await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+
+    const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
   it('should not exceed max uses with seed code', async () => {
@@ -677,6 +711,7 @@ describe('claims', () => {
     const res = await request(app)
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
       .send(body);
     console.log(res.body);
 
@@ -695,6 +730,103 @@ describe('claims', () => {
     expect(finalDoc.state.discord['123456789']).toBe(1);
   });
 
+  it('should handle discord usernames with discriminators', async () => {
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), discordPlugin(['testuser#1234'])]);
+    console.log(doc.action);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {
+      // discord: {
+      //   username: 'testuser',
+      //   discriminator: '1234'
+      // }
+    };
+
+    const resWithoutDiscriminator = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...createExampleReqForAddress(wallet.address).session,
+          discord: {
+            username: 'testuser',
+            id: '123456789',
+            discriminator: ''
+          }
+        })
+      )
+      .send(body);
+    console.log(resWithoutDiscriminator.body);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
+    expect(finalDoc.state.discord['123456789']).toBeFalsy();
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...createExampleReqForAddress(wallet.address).session,
+          discord: {
+            username: 'testuser',
+            id: '123456789',
+            discriminator: '1234'
+          }
+        })
+      )
+      .send(body);
+    console.log(res.body);
+
+    finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
+    expect(finalDoc.state.discord['123456789']).toBe(1);
+
+    await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+    console.log(res.body);
+
+    finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
+    expect(finalDoc.state.discord['123456789']).toBe(1);
+  });
+
+  it('should fail on invalid discord username not in list', async () => {
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), discordPlugin(['testuser'])]);
+    console.log(doc.action);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {
+      // discord: {
+      //   username: 'invaliduser'
+      // }
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set(
+        'x-mock-session',
+        JSON.stringify({
+          ...createExampleReqForAddress(wallet.address).session,
+          discord: {
+            username: 'invaliduser',
+            id: '123456789',
+            discriminator: ''
+          }
+        })
+      )
+      .send(body);
+    console.log(res.body);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
+  });
+
   it('should handle twitter usernames', async () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0), twitterPlugin(['testuser'])]);
     console.log(doc.action);
@@ -709,6 +841,7 @@ describe('claims', () => {
     const res = await request(app)
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
       .send(body);
     console.log(res.body);
 
@@ -719,6 +852,7 @@ describe('claims', () => {
     await request(app)
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
       .send(body);
     console.log(res.body);
 
@@ -743,6 +877,44 @@ describe('claims', () => {
     //Cant just be a random request from any generic user (the wallet.address user in this case)
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(0);
+  });
+
+  it('should fail if not signed in (or claiming on behalf of another user)', async () => {
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin(true)]);
+    console.log(doc.action);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {};
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .send(body);
+    console.log(res.body);
+
+    //Cant just be a random request from any generic user (the wallet.address user in this case)
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
+  });
+
+  it('should work w/ valid signature', async () => {
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin(true)]);
+    console.log(doc.action);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {};
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(body);
+    console.log(res.body);
+
+    //Cant just be a random request from any generic user (the wallet.address user in this case)
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
   });
 
   it('should work with mustOwnBadges', async () => {
@@ -904,6 +1076,23 @@ describe('claims', () => {
     expect(finalDoc.state.numUses.numUses).toBe(0);
   });
 
+  it('should not work with an invalid assignMethod', async () => {
+    const doc = await createClaimDoc([numUsesPlugin(10, 0, 'invalid' as any)]);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {};
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+
+    console.log(res.body);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
+  });
+
   it('should work with codesIdx assignMethod', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
     const codes = generateCodesFromSeed(seedCode, 10);
@@ -980,6 +1169,52 @@ describe('claims', () => {
 
     const finalDoc4 = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc4.state.numUses.numUses).toBe(2);
+  });
+
+  it('should fail on unknown whitelist ID', async () => {
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, undefined, 'unknown')]);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {};
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    console.log(res.body);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
+  });
+
+  it('should handle api calls - returns 0 on failure', async () => {
+    const doc = await createClaimDoc([
+      numUsesPlugin(10, 0),
+      apiPlugin([
+        {
+          name: 'Test',
+          userInputsSchema: [],
+          uri: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+        }
+      ])
+    ]);
+
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CheckAndCompleteClaimRouteRequestBody = {};
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+    console.log(res.body);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(0);
+
+    const keyDoc = await getFromDB(ExternalCallKeysModel, 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+    expect(keyDoc).toBeTruthy();
+    expect(keyDoc?.keys.length).toBeGreaterThan(0);
   });
 
   //TODO: Off-chain assignment checks

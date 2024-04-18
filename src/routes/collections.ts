@@ -49,7 +49,9 @@ import {
   type iApprovalTrackerDoc,
   type iGetBadgeActivityRouteSuccessResponse,
   type iGetCollectionBatchRouteSuccessResponse,
-  type iMerkleChallengeDoc
+  type iMerkleChallengeDoc,
+  ClaimDetails,
+  iClaimDetails
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
@@ -74,7 +76,6 @@ import {
   fetchTotalAndUnmintedBalancesQuery
 } from './activityHelpers';
 import { applyAddressListsToUserPermissions } from './balances';
-import { type ClaimDetails } from './claims';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
 
 const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
@@ -700,7 +701,7 @@ export const getClaimDetailsForFrontend = async (
   collectionId?: NumberType,
   listId?: string
 ) => {
-  const claimDetails: Array<ClaimDetails<bigint>> = [];
+  const claimDetails: Array<iClaimDetails<bigint>> = [];
   for (const doc of docs) {
     const decryptedPlugins = await getDecryptedPluginsAndPublicState(req, doc.plugins, doc.state, fetchPrivate, collectionId, listId);
 
@@ -712,7 +713,7 @@ export const getClaimDetailsForFrontend = async (
     });
   }
 
-  return claimDetails;
+  return claimDetails.map((x) => new ClaimDetails(x));
 };
 
 const getDecryptedPluginsAndPublicState = async (

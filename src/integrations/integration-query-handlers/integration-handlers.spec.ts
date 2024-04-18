@@ -46,6 +46,12 @@ describe('handleIntegrationQuery', () => {
     expect(response).toBeUndefined();
   });
 
+  it('should throw an error if user has not contributed to the specified repository - valid repo', async () => {
+    await expect(
+      handleGithubContributionsQuery({ github: { username: 'bob123', id: '123' }, repository: 'bitbadges/bitbadgeschain' })
+    ).rejects.toThrow();
+  });
+
   it('should throw an error if user does not does meet min-badge balance', async () => {
     await expect(
       handleIntegrationQuery({ __type: 'min-badge', cosmosAddress: 'cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu', minBalance: 200 })

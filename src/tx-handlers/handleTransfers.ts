@@ -77,7 +77,6 @@ export const handleTransfers = async (
         precalculateBalancesFromApproval: transfer.precalculateBalancesFromApproval,
         prioritizedApprovals: transfer.prioritizedApprovals,
         onlyCheckPrioritizedApprovals: transfer.onlyCheckPrioritizedApprovals,
-        zkProofSolutions: transfer.zkProofSolutions,
         initiatedBy: creator,
         txHash
       })

@@ -709,7 +709,6 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
             memo: '',
             initiatedBy: '',
             prioritizedApprovals: [],
-            zkProofSolutions: [],
             onlyCheckPrioritizedApprovals: false,
             precalculateBalancesFromApproval: {
               approvalId: '',

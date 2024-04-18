@@ -23,7 +23,27 @@ export const createExampleReqForAddress = (address: string) => {
       blockinParams: challengeParams,
       cosmosAddress: convertToCosmosAddress(address),
       address,
-      nonce: 'exampleNonce'
+      nonce: 'exampleNonce',
+      discord: {
+        username: 'testuser',
+        id: '123456789',
+        access_token: '',
+        discriminator: ''
+      },
+      twitter: {
+        username: 'testuser',
+        id: '123456789',
+        access_token: '',
+        access_token_secret: ''
+      },
+      github: {
+        username: 'testuser',
+        id: '123456789'
+      },
+      google: {
+        username: 'testuser',
+        id: '123456789'
+      }
     } as BlockinSession<bigint>
   } as MaybeAuthenticatedRequest<bigint>;
 };

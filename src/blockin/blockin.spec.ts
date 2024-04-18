@@ -1,25 +1,26 @@
 import request from 'supertest';
 import app, { server } from '../indexer';
 
+import {
+  BitBadgesApiRoutes,
+  BlockinChallengeParams,
+  GetClaimAlertsForCollectionRouteRequestBody,
+  GetSignInChallengeRouteSuccessResponse,
+  ProfileDoc,
+  UintRangeArray,
+  convertToCosmosAddress
+} from 'bitbadgesjs-sdk';
 import { ChallengeParams, createChallenge } from 'blockin';
 import dotenv from 'dotenv';
+import { ethers } from 'ethers';
 import mongoose from 'mongoose';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { connectToRpc } from '../poll';
-import { BlockinSession, MaybeAuthenticatedRequest, statement } from './blockin_handlers';
-import {
-  BitBadgesApiRoutes,
-  GetClaimAlertsForCollectionRouteRequestBody,
-  GetSignInChallengeRouteSuccessResponse,
-  BlockinChallengeParams,
-  UintRangeArray,
-  convertToCosmosAddress,
-  ProfileDoc
-} from 'bitbadgesjs-sdk';
-import { ethers } from 'ethers';
-import { CollectionModel, ProfileModel } from '../db/schemas';
 import { createExampleReqForAddress } from '../testutil/utils';
+import { AddressListModel, CollectionModel, ProfileModel } from '../db/schemas';
+import { statement, MaybeAuthenticatedRequest, BlockinSession } from './blockin_handlers';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
+import { findInDB } from '../db/queries';
 
 connectToRpc();
 dotenv.config();
@@ -618,6 +619,104 @@ describe('checkIfAuthenticated function', () => {
     expect(challengeRes.statusCode).toBe(401);
   });
 
+  it('should not work with invalid list asset params', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const session = createExampleReqForAddress(ethWallet.address);
+    if (!session.session.blockinParams) throw new Error('No blockinParams found in session');
+    const params = new BlockinChallengeParams<bigint>({
+      ...session.session.blockinParams,
+      assetOwnershipRequirements: {
+        assets: [
+          {
+            chain: 'BitBadges',
+            collectionId: 'BitBadges Lists',
+            assetIds: [{ start: 1n, end: 1000n }],
+            ownershipTimes: UintRangeArray.FullRanges(),
+            mustOwnAmounts: { start: 2n, end: 2n }
+          }
+        ],
+        options: { numMatchesForVerification: 1n }
+      }
+    });
+    const challenge = createChallenge(params);
+    const messageToSign = challenge;
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GenericVerifyRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: challenge, signature });
+    console.log(challengeRes.body);
+    expect(challengeRes.statusCode).toBe(401);
+    expect(challengeRes.body.errorMessage.includes('must be 0 or 1')).toBe(true);
+  });
+
+  it('should not work with invalid list asset params - start != end', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const session = createExampleReqForAddress(ethWallet.address);
+    if (!session.session.blockinParams) throw new Error('No blockinParams found in session');
+    const params = new BlockinChallengeParams<bigint>({
+      ...session.session.blockinParams,
+      assetOwnershipRequirements: {
+        assets: [
+          {
+            chain: 'BitBadges',
+            collectionId: 'BitBadges Lists',
+            assetIds: [{ start: 1n, end: 1000n }],
+            ownershipTimes: UintRangeArray.FullRanges(),
+            mustOwnAmounts: { start: 0n, end: 1n }
+          }
+        ],
+        options: { numMatchesForVerification: 1n }
+      }
+    });
+    const challenge = createChallenge(params);
+    const messageToSign = challenge;
+    console.log(JSON.stringify(messageToSign, null, 2));
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GenericVerifyRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: challenge, signature });
+    console.log(challengeRes.body);
+    expect(challengeRes.statusCode).toBe(401);
+    console.log('challengeRes.body.errorMessage', challengeRes.body.errorMessage);
+    expect(challengeRes.body.errorMessage.includes('must be the same')).toBe(true);
+  });
+
+  it('should not work with invalid IDs', async () => {
+    const ethWallet = ethers.Wallet.createRandom();
+    const session = createExampleReqForAddress(ethWallet.address);
+    if (!session.session.blockinParams) throw new Error('No blockinParams found in session');
+    const params = new BlockinChallengeParams<bigint>({
+      ...session.session.blockinParams,
+      assetOwnershipRequirements: {
+        assets: [
+          {
+            chain: 'BitBadges',
+            collectionId: 'BitBadges Lists',
+            assetIds: [{ start: 1n, end: 1000n }],
+            ownershipTimes: UintRangeArray.FullRanges(),
+            mustOwnAmounts: { start: 1n, end: 1n }
+          }
+        ],
+        options: { numMatchesForVerification: 1n }
+      }
+    });
+    const challenge = createChallenge(params);
+    const messageToSign = challenge;
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GenericVerifyRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: challenge, signature });
+    console.log(challengeRes.body);
+    expect(challengeRes.statusCode).toBe(401);
+    expect(challengeRes.body.errorMessage.includes('assetIds must be')).toBe(true);
+  });
+
   it('should work with unmet numMatchesForVerification > num assets', async () => {
     const ethWallet = ethers.Wallet.createRandom();
     const session = createExampleReqForAddress(ethWallet.address);
@@ -799,6 +898,40 @@ describe('checkIfAuthenticated function', () => {
     expect(challengeRes.statusCode).toBe(401);
   });
 
+  it('should work w/ stored address lists (non-reserved)', async () => {
+    const addressLists = await findInDB(AddressListModel, { query: { _docId: { $exists: true }, whitelist: true }, limit: 1 });
+    if (!addressLists.length) throw new Error('No address lists found');
+
+    const ethWallet = ethers.Wallet.createRandom();
+    const session = createExampleReqForAddress(ethWallet.address);
+    if (!session.session.blockinParams) throw new Error('No blockinParams found in session');
+    const list = addressLists[0];
+    const params = new BlockinChallengeParams<bigint>({
+      ...session.session.blockinParams,
+      assetOwnershipRequirements: {
+        assets: [
+          {
+            chain: 'BitBadges',
+            collectionId: 'BitBadges Lists',
+            assetIds: [list.listId],
+            ownershipTimes: UintRangeArray.FullRanges(),
+            mustOwnAmounts: { start: 0n, end: 0n } //the random address should not be in the whitelist
+          }
+        ]
+      }
+    });
+    const challenge = createChallenge(params);
+    const messageToSign = challenge;
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    const challengeRes = await request(app)
+      .post(BitBadgesApiRoutes.GenericVerifyRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: challenge, signature });
+    console.log(challengeRes.body);
+    expect(challengeRes.statusCode).toBe(200);
+  });
+
   it('should work with Ethereum assets', async () => {
     const ethWallet = ethers.Wallet.createRandom();
     const session = createExampleReqForAddress(ethWallet.address);
@@ -957,6 +1090,33 @@ describe('checkIfAuthenticated function', () => {
     }
   });
 
+  it('should not work with an invalid chain asset', async () => {
+    try {
+      await verifyBitBadgesAssets(
+        {
+          $and: [
+            {
+              assets: [
+                {
+                  chain: 'InvalidChain',
+                  collectionId: '0x9a7f0b7d4b6c1c3f3b6d4e6d5b6e6d5b6e6d5b6e',
+                  assetIds: ['1'],
+                  ownershipTimes: [],
+                  mustOwnAmounts: { start: 0n, end: 0n }
+                }
+              ]
+            }
+          ]
+        },
+        'cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu'
+      );
+
+      fail('Should not have been able to verify');
+    } catch (e) {
+      console.log(e);
+    }
+  });
+
   it('should work with sign ins and sign outs', async () => {
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
@@ -1071,5 +1231,26 @@ describe('checkIfAuthenticated function', () => {
       )
       .send({ message: messageToSign });
     expect(verifyRes.statusCode).toBe(401);
+  });
+
+  it('should fail without a previously fetched nonce', async () => {
+    // Mock session object with all required properties
+    // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
+    // Set up a mock session middleware
+    process.env.TEST_MODE = 'false';
+    const ethWallet = ethers.Wallet.createRandom();
+
+    const challenge = createExampleReqForAddress(ethWallet.address).session.blockinParams;
+    if (!challenge) throw new Error('No blockinParams found in session');
+
+    const messageToSign = createChallenge(challenge);
+    const signature = await ethWallet.signMessage(messageToSign);
+
+    const verifyRes = await request(app)
+      .post(BitBadgesApiRoutes.VerifySignInRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ message: messageToSign, signature });
+    expect(verifyRes.statusCode).toBe(401);
+    process.env.TEST_MODE = 'true';
   });
 });

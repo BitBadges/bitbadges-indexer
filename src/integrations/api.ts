@@ -61,32 +61,32 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
             }
           );
 
-          const authBodyDetails: any = {};
-          if (adminInfo.discord) {
-            authBodyDetails.discord = {
-              id: adminInfo.discord.id,
-              username: adminInfo.discord.username,
-              discriminator: adminInfo.discord.discriminator
+          //IMPORTANT: Don't send access tokens and other sensitive info
+          //adminInfo has such info and is used by the integration queries internally but should not be sent out
+
+          if (body.discord) {
+            body.discord = {
+              id: body.discord.id,
+              username: body.discord.username,
+              discriminator: body.discord.discriminator
             };
           }
-          if (adminInfo.twitter) {
-            authBodyDetails.twitter = { id: adminInfo.twitter.id, username: adminInfo.twitter.username };
+          if (body.twitter) {
+            body.twitter = { id: body.twitter.id, username: body.twitter.username };
           }
-          if (adminInfo.github) {
-            authBodyDetails.github = { id: adminInfo.github.id, username: adminInfo.github.username };
+          if (body.github) {
+            body.github = { id: body.github.id, username: body.github.username };
           }
-          if (adminInfo.google) {
-            authBodyDetails.google = { id: adminInfo.google.id, username: adminInfo.google.username };
+          if (body.google) {
+            body.google = { id: body.google.id, username: body.google.username };
           }
-          if (adminInfo.email) {
-            authBodyDetails.email = adminInfo.email;
+          if (body.email) {
+            body.email = body.email;
           }
 
           await axios.post(apiCall.uri, {
-            ...body,
             __key: randomKey,
-            // Don't send access tokens and other sensitive info
-            ...authBodyDetails
+            ...body
           });
         }
       } catch (e) {

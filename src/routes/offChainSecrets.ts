@@ -77,12 +77,15 @@ export const verifySecretsProof = async (
           throw new Error('Data integrity proof not verified');
         }
       } else {
+        console.log(body.dataIntegrityProof);
         const isProofVerified = await blsVerifyProof({
           proof: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signature, 'hex')),
           publicKey: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signer, 'hex')),
           messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8'))),
           nonce: Uint8Array.from(Buffer.from('nonce', 'utf8'))
         });
+
+        console.log(JSON.stringify(isProofVerified));
 
         if (!isProofVerified.verified) {
           throw new Error('Data integrity proof not verified');

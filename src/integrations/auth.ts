@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { type ClaimIntegrationPrivateParamsType, type ClaimIntegrationPublicParamsType, type NumberType } from 'bitbadgesjs-sdk';
 import { type BackendIntegrationPlugin, type ClaimIntegrationCustomBodyType } from './types';
 
@@ -176,53 +175,9 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<NumberType, 'discord
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
-    const params = publicParams.users?.length || publicParams.serverId ? publicParams : privateParams;
+    adminInfo.username = adminInfo.discriminator ? adminInfo.username + '#' + adminInfo.discriminator : adminInfo.username;
 
-    const maxUsesPerUser = publicParams.maxUsesPerUser || 0;
-
-    const serverId = params.serverId;
-    const discordInfo = adminInfo;
-    const userId = discordInfo.id;
-    const username = discordInfo.username;
-    const discriminator = discordInfo.discriminator ? Number(discordInfo.discriminator) : undefined;
-    const guildId = serverId;
-    const access_token = discordInfo.access_token;
-    if (!discordInfo.id || !discordInfo.username) {
-      return { success: false, error: 'Invalid discord ID' };
-    }
-
-    if (priorState[userId] && maxUsesPerUser > 0 && priorState[userId] >= maxUsesPerUser) {
-      return { success: false, error: 'Discord user already exceeded max uses' };
-    }
-
-    // Check if user ID is in list of whitelisted users (if applicable)
-    if (params.users && params.users.length > 0) {
-      const inList = params.users.some((user) => {
-        const split = user.split('#');
-        const targetIdentifier = split[0];
-        const targetDiscriminator = split.length > 1 ? Number(split[1]) : undefined;
-
-        return targetIdentifier === username && (discriminator ? discriminator === targetDiscriminator : true);
-      });
-
-      if (!inList) {
-        return { success: false, error: 'User not in list of whitelisted users.' };
-      }
-    }
-
-    if (guildId) {
-      // Use the access token to fetch user information
-      const userResponse = await axios.get('https://discord.com/api/users/@me/guilds/' + guildId + '/member', {
-        headers: {
-          Authorization: `Bearer ${access_token}`
-        }
-      });
-      if (!(userResponse.data && userResponse.data.user.id === userId)) {
-        return { success: false, error: 'User not in server' };
-      }
-    }
-
-    return { success: true, toSet: [{ $set: { [`state.discord.${userId}`]: 1 } }] };
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, adminInfo, 'discord');
   },
   getPublicState: () => {
     return {};

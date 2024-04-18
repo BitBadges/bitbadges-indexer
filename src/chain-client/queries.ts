@@ -184,8 +184,8 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
       getApprovalTracker: async (
         collectionId: string,
-        approvalId: string,
         approvalLevel: string,
+        approvalId: string,
         approverAddress: string,
         amountTrackerId: string,
         trackerType: string,
@@ -207,10 +207,10 @@ export function setupBadgesExtension(base: QueryClient): BadgesExtension {
 
       getChallengeTracker: async (
         collectionId: string,
+        approvalId: string,
         approvalLevel: string,
         approverAddress: string,
         challengeTrackerId: string,
-        approvalId: string,
         leafIndex: string
       ) => {
         const challengeTrackerData = new bitbadgesQuery.QueryGetChallengeTrackerRequest({

@@ -73,7 +73,7 @@ describe('queryClient', () => {
         );
       }
     }
-  }, 100000);
+  }, 0);
 
   it('all accounts should be indexed correctly', async () => {
     const queryClient = client.badgesQueryClient;
@@ -158,7 +158,7 @@ describe('queryClient', () => {
         // }, BigIntify)))
       }
     }
-  }, 100000);
+  }, 0);
 
   it('all challenges should be indexed correctly', async () => {
     const queryClient = client.badgesQueryClient;

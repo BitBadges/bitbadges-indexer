@@ -362,7 +362,6 @@ export const TransferActivitySchema = new Schema<TransferActivityDoc<JSPrimitive
   precalculateBalancesFromApproval: Schema.Types.Mixed,
   prioritizedApprovals: [Schema.Types.Mixed],
   onlyCheckPrioritizedApprovals: Boolean,
-  zkProofSolutions: [Schema.Types.Mixed],
   initiatedBy: String,
   txHash: String
 });
@@ -382,7 +381,6 @@ export const ClaimAlertSchema = new Schema<ClaimAlertDoc<JSPrimitiveNumberType>>
   _docId: String,
   _notificationsHandled: Boolean,
   from: String,
-  code: String, // String type for code
   cosmosAddresses: [String], // Array of string for cosmosAddresses
   collectionId: Schema.Types.Mixed, // Mixed type for collectionId (number type)
   timestamp: Schema.Types.Mixed, // Mixed type for timestamp (number type)

@@ -457,6 +457,82 @@ describe('get auth codes', () => {
     ).rejects.toThrow();
   });
 
+  it('should correctly throw on derived proof malformed', async () => {
+    const proof = await generateProof(['test']);
+    const derivedProof = await deriveProof(proof.keyPair, ['test'], proof.dataIntegrityProof);
+
+    const proofOfIssuance = {
+      message: '',
+      signature: '',
+      signer: ''
+    };
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
+    proofOfIssuance.message = proofOfIssuanceMessage;
+    proofOfIssuance.signature = proofOfIssuanceSignature;
+    proofOfIssuance.signer = ethWallet.address;
+
+    await expect(
+      verifySecretsProof(
+        address,
+        {
+          secretMessages: ['test'],
+          dataIntegrityProof: {
+            signature: Buffer.from('a' + derivedProof).toString('hex'),
+            signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
+          },
+          scheme: 'bbs',
+          messageFormat: 'plaintext',
+          name: 'test',
+          description: 'test',
+          image: 'test',
+          proofOfIssuance
+        },
+        true
+      )
+    ).rejects.toThrow();
+  }, 10000);
+
+  it('should correctly handle json messageFormat proofs verification', async () => {
+    const proof = await generateProof(['{"test": "test"}']);
+    const derivedProof = await deriveProof(proof.keyPair, ['{"test": "test"}'], proof.dataIntegrityProof);
+
+    const proofOfIssuance = {
+      message: '',
+      signature: '',
+      signer: ''
+    };
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
+    proofOfIssuance.message = proofOfIssuanceMessage;
+    proofOfIssuance.signature = proofOfIssuanceSignature;
+    proofOfIssuance.signer = ethWallet.address;
+
+    await expect(
+      verifySecretsProof(
+        address,
+        {
+          secretMessages: ['{"test": "test"}'],
+          dataIntegrityProof: {
+            signature: Buffer.from(derivedProof).toString('hex'),
+            signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
+          },
+          scheme: 'bbs',
+          messageFormat: 'json',
+          name: 'test',
+          description: 'test',
+          image: 'test',
+          proofOfIssuance
+        },
+        true
+      )
+    ).resolves.toBeUndefined();
+  });
+
   it('should update anchors correctly', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
@@ -655,6 +731,14 @@ describe('get auth codes', () => {
 
     const deleteResRoute = BitBadgesApiRoutes.DeleteSecretRoute();
     const deleteResBody: GetSecretRouteRequestBody = { secretId: getRes.body.secretId };
+
+    const invalidDeleteResAnotherUser = await request(app)
+      .post(deleteResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .send(deleteResBody);
+    expect(invalidDeleteResAnotherUser.status).toBe(500);
+
     const deleteRes = await request(app)
       .post(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -808,5 +892,49 @@ describe('get auth codes', () => {
     expect(secretsDoc2.image).toBe('test2');
     expect(secretsDoc2.updateHistory.length).toBe(3);
     expect(secretsDoc2.dataIntegrityProof.signature).toBe(Buffer.from(dataIntegrityProof2).toString('hex'));
+  });
+
+  it('should verify standard sig proofs (non BBS)', async () => {
+    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const body: CreateSecretRouteRequestBody = {
+      name: 'test',
+      description: 'test',
+      image: 'test',
+      secretMessages: ['test'],
+      type: 'credential',
+      scheme: 'standard',
+      messageFormat: 'plaintext',
+      proofOfIssuance: {
+        message: '',
+        signature: '',
+        signer: ''
+      },
+      dataIntegrityProof: {
+        signature: '',
+        signer: ''
+      }
+    };
+
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
+    body.proofOfIssuance = {
+      signer: ethWallet.address,
+      message: proofOfIssuanceMessage,
+      signature: proofOfIssuanceSignature
+    };
+
+    body.dataIntegrityProof = {
+      signature: await ethWallet.signMessage(body.secretMessages[0]),
+      signer: ethWallet.address
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
   });
 });
