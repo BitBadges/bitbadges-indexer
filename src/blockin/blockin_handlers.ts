@@ -1,7 +1,6 @@
 import {
   BalanceArray,
   BigIntify,
-  type SignOutRequestBody,
   SupportedChain,
   convertToCosmosAddress,
   getChainForAddress,
@@ -10,6 +9,7 @@ import {
   type GenericBlockinVerifyRouteRequestBody,
   type GetSignInChallengeRouteRequestBody,
   type NumberType,
+  type SignOutRequestBody,
   type VerifySignInRouteRequestBody,
   type iCheckSignInStatusRequestSuccessResponse,
   type iGetSignInChallengeRouteSuccessResponse,
@@ -249,7 +249,6 @@ export async function verifyBlockinAndGrantSessionCookie(
       const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(challenge.address));
       const discordSignInMethod = profileDoc.approvedSignInMethods?.discord;
 
-      console.log('discordSignInMethod', discordSignInMethod, req.session.discord);
 
       if (!discordSignInMethod || !req.session.discord) {
         return res
@@ -392,19 +391,25 @@ export async function genericBlockinVerify(body: GenericBlockinVerifyRouteReques
 
   const chain = getChainForAddress(constructChallengeObjectFromString(body.message, BigIntify).address);
   const chainDriver = getChainDriver(chain);
-  const verificationResponse = await verifyChallenge(
-    chainDriver,
-    body.message,
-    body.signature,
-    {
-      ...body.options,
-      balancesSnapshot: body.options?.balancesSnapshot,
-      beforeVerification: undefined
-    },
-    body.publicKey
-  );
-
-  return verificationResponse;
+  try {
+    const verificationResponse = await verifyChallenge(
+      chainDriver,
+      body.message,
+      body.signature,
+      {
+        ...body.options,
+        balancesSnapshot: body.options?.balancesSnapshot,
+        beforeVerification: undefined
+      },
+      body.publicKey
+    );
+    return verificationResponse;
+  } catch (err) {
+    return {
+      success: false,
+      message: err.message
+    };
+  }
 }
 
 export async function genericBlockinVerifyHandler(

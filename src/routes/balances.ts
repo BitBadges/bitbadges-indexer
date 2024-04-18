@@ -70,6 +70,7 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
   } else if (collection.balancesType === 'Off-Chain - Non-Indexed') {
     // We need to fetch from source directly
     const uri = collection.getOffChainBalancesMetadata()?.uri;
+    const originalUri = uri;
     const uriToFetch = uri?.replace('{address}', convertToCosmosAddress(cosmosAddress));
     if (!uriToFetch) {
       throw new Error('No URI to fetch found. URI must be present for non-indexed off-chain balances.');
@@ -78,7 +79,7 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
     if (uriToFetch === 'https://api.bitbadges.io/api/v0/ethFirstTx/' + cosmosAddress) {
       // Hardcoded to fetch locally instead of from source GET
       balancesRes = await getBalancesForEthFirstTx(cosmosAddress);
-    } else if (uriToFetch === 'https://api.bitbadges.io/placeholder/{address}') {
+    } else if (originalUri === 'https://api.bitbadges.io/placeholder/{address}') {
       const claimDocs = await findInDB(ClaimBuilderModel, { query: { collectionId: Number(collectionId) }, limit: 1 });
       if (claimDocs.length === 0) {
         throw new Error('No claim found');
@@ -107,7 +108,7 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
         apiDetails.privateParams
         // Everything else is N/A to non-indexed
       );
-
+      console.log(apiRes);
       balancesRes = {
         ...BlankUserBalance,
         _docId: collectionId + ':' + cosmosAddress,
@@ -125,8 +126,6 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
       const res = await fetchUriFromSource(uriToFetch);
       balancesRes = res?.balances;
     }
-
-    balancesRes = cleanBalanceArray(balancesRes);
   } else {
     const response = await getFromDB(BalanceModel, docId);
 
@@ -198,7 +197,7 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
   }
 
   // Check if valid array
-  const balances = cleanBalanceArray(balancesRes);
+  const balances = cleanBalanceArray(balancesRes.balances);
   return new BalanceDocWithDetails<NumberType>({
     ...BlankUserBalance,
     _docId: collectionId + ':' + cosmosAddress,

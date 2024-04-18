@@ -565,7 +565,6 @@ export async function executeListsActivityQuery(
 
   const hiddenLists = [...(profileInfo.hiddenLists ?? []), ...(complianceDoc?.addressLists.reported.map((x) => x.listId) ?? [])];
 
-  console.log(fetchPrivate);
   const queryFunc = async (currBookmark?: string) => {
     const paginationParams = await getQueryParamsFromBookmark(ListActivityModel, currBookmark, oldestFirst, 'timestamp', '_id');
     return await findInDB(ListActivityModel, {

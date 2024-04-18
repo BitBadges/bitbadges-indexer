@@ -313,7 +313,6 @@ export const checkAndCompleteClaim = async (
       }
 
       const codeToCheck = req.body.codes.code;
-      console.log(codes, codeToCheck);
       if (!codes.includes(codeToCheck)) {
         throw new Error('invalid code');
       }

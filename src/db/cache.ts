@@ -172,17 +172,6 @@ export async function fetchDocsForCache(
     const claimBuilderDocIds = [...new Set(_claimBuilderDocIds)].filter((id) => id.length > 0);
     const mapIds = [...new Set(_mapIds)].filter((id) => id.length > 0);
 
-    console.log(
-      _cosmosAddresses,
-      _collectionDocIds,
-      _balanceDocIds,
-      _claimDocIds,
-      _approvalTrackerIds,
-      _addressListIds,
-      _claimBuilderDocIds,
-      _mapIds
-    );
-
     const accountsData: AccountDocs = {};
     const collectionData: CollectionDocs = {};
     const balanceData: BalanceDocs = {};

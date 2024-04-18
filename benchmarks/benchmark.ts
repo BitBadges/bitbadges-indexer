@@ -1,5 +1,5 @@
 import axiosApi from 'axios';
-import { BitBadgesApiRoutes, GetAccountsRouteRequestBody, GetCollectionBatchRouteRequestBody } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, GetAccountsRouteRequestBody, GetCollectionBatchRouteRequestBody, GetSearchRouteRequestBody } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import https from 'https';
 
@@ -45,6 +45,8 @@ interface ApiBenchmarkDetails {
 }
 
 const NUM_RUNS_PER_BENCHMARK = 2;
+const TRY_ALL_COLLECTIONS = false;
+
 const apiBenchmarks: ApiBenchmarkDetails[] = [
   {
     name: 'Get Address Lists - Reserved',
@@ -60,25 +62,25 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
     },
     maxResponseTime: 12
   },
-  {
-    name: 'Get Address Lists - Not Reserved',
-    description: 'Get address lists',
-    route: BitBadgesApiRoutes.GetAddressListsRoute(),
-    body: {
-      listsToFetch: [
-        {
-          listId: 'sample-41acdb623fa09a2fcb4190aebdc22179d5901508538089a3610bbeec18a3a322',
-          viewsToFetch: [
-            {
-              viewId: 'sample-41acdb623fa09a2fcb4190aebdc22179d5901508538089a3610bbeec18a3a322',
-              viewType: 'listActivity',
-              bookmark: ''
-            }
-          ]
-        }
-      ]
-    }
-  },
+  // {
+  //   name: 'Get Address Lists - Not Reserved',
+  //   description: 'Get address lists',
+  //   route: BitBadgesApiRoutes.GetAddressListsRoute(),
+  //   body: {
+  //     listsToFetch: [
+  //       {
+  //         listId: 'sample-41acdb623fa09a2fcb4190aebdc22179d5901508538089a3610bbeec18a3a322',
+  //         viewsToFetch: [
+  //           {
+  //             viewId: 'sample-41acdb623fa09a2fcb4190aebdc22179d5901508538089a3610bbeec18a3a322',
+  //             viewType: 'listActivity',
+  //             bookmark: ''
+  //           }
+  //         ]
+  //       }
+  //     ]
+  //   }
+  // },
   {
     name: 'Browse - Featured',
     description: 'Get featured collections and profiles',
@@ -250,6 +252,24 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
         }
       ]
     } as GetAccountsRouteRequestBody
+  },
+  {
+    name: 'Search names',
+    description: 'Search names',
+    route: BitBadgesApiRoutes.GetSearchRoute('trev'),
+    body: {} as GetSearchRouteRequestBody
+  },
+  {
+    name: 'Search IDs',
+    description: 'Search IDs',
+    route: BitBadgesApiRoutes.GetSearchRoute('1'),
+    body: {} as GetSearchRouteRequestBody
+  },
+  {
+    name: 'Search non-ENS name',
+    description: 'Search non-ENS name',
+    route: BitBadgesApiRoutes.GetSearchRoute('dfadfasdfdfaasdfadsf'),
+    body: {} as GetSearchRouteRequestBody
   }
 ];
 
@@ -261,7 +281,7 @@ const nextCollectionId = status.data.status.nextCollectionId;
 const expandedApiBenchmarks: ApiBenchmarkDetails[] = [];
 for (const benchmark of apiBenchmarks) {
   if (benchmark.type === 'collection') {
-    if (benchmark.options?.tryAllCollections) {
+    if (benchmark.options?.tryAllCollections && TRY_ALL_COLLECTIONS) {
       for (let i = 1; i <= Number(nextCollectionId) - 1; i++) {
         expandedApiBenchmarks.push({
           ...benchmark,

@@ -671,8 +671,6 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     switch (typeUrl) {
       case '/maps.MsgCreateMap': {
         const newMapMsg = maps.MsgCreateMap.fromBinary(value);
-
-        console.log('newMapMsg', newMapMsg);
         await fetchDocsForCacheIfEmpty(docs, [], [], [], [], [], [], [], [newMapMsg.mapId]);
 
         docs.maps[newMapMsg.mapId] = new MapDoc<NumberType>({

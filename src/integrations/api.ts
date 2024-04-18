@@ -43,8 +43,6 @@ export const ApiPluginDetails: BackendIntegrationPlugin<NumberType, 'api'> = {
             __type: apiCall.uri.split('/').pop()
           });
         } else {
-          console.log('Calling API:', apiCall.uri);
-
           const keysDoc = await getFromDB(ExternalCallKeysModel, apiCall.uri);
           if (!keysDoc) {
             await insertToDB(ExternalCallKeysModel, { _docId: apiCall.uri, keys: [] });

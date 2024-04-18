@@ -32,7 +32,6 @@ export function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedSc
   // We need to check that a) the message was signed with the expected scope and b) the scope message matches.
   for (const expectedScopeLabel of expectedScopeLabels) {
     if (!checkScope(expectedScopeLabel, resources)) {
-      console.log('Expected scope not found', expectedScopeLabel);
       return false;
     }
   }
