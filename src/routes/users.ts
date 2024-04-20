@@ -67,7 +67,8 @@ import {
   executePrivateListsQuery,
   executeReviewsQuery,
   executeCreatedSecretsQuery,
-  executeReceivedSecretsQuery
+  executeReceivedSecretsQuery,
+  executeSentClaimAlertsQuery
 } from './userQueries';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
 
@@ -383,7 +384,7 @@ const getAdditionalUserInfo = async (
   }
 
   const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-  const isAuthenticated = !!checkIfAuthenticated(authReq, ['Profile']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+  const isAuthenticated = !!checkIfAuthenticated(authReq, ['Full Access']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
 
   const asyncOperations = [];
   for (const view of reqBody.viewsToFetch) {
@@ -419,6 +420,11 @@ const getAdditionalUserInfo = async (
       if (bookmark !== undefined) {
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
+      }
+    } else if (view.viewType === 'sentClaimAlerts') {
+      if (bookmark !== undefined) {
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
+        asyncOperations.push(async () => await executeSentClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'authCodes') {
       if (bookmark !== undefined) {
@@ -589,7 +595,7 @@ const getAdditionalUserInfo = async (
           hasMore: result.docs.length >= 25
         }
       };
-    } else if (viewKey === 'claimAlerts') {
+    } else if (viewKey === 'claimAlerts' || viewKey === 'sentClaimAlerts') {
       const result = results[i] as nano.MangoResponse<ClaimAlertDoc<bigint>>;
       views[viewId] = {
         ids: result.docs.map((x) => x._docId),
@@ -689,9 +695,9 @@ const getAdditionalUserInfo = async (
       responseObj.addressLists = [...responseObj.addressLists, ...result.docs]
         .map((x) => addressListsToPopulate.find((y) => y.listId === x.listId)!)
         .map((x) => new BitBadgesAddressList<bigint>(x));
-    } else if (viewKey === 'claimAlerts') {
+    } else if (viewKey === 'claimAlerts' || viewKey === 'sentClaimAlerts') {
       const result = results[i] as nano.MangoResponse<ClaimAlertDoc<bigint>>;
-      responseObj.claimAlerts = result.docs;
+      responseObj.claimAlerts = [...responseObj.claimAlerts, ...result.docs];
     } else if (viewKey === 'authCodes') {
       const result = results[i] as nano.MangoResponse<BlockinAuthSignatureDoc<bigint>>;
       responseObj.authCodes = result.docs;

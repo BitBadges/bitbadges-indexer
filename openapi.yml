@@ -127,14 +127,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetCollectionBatchRouteRequestBody'
+              $ref: '#/components/schemas/GetCollectionsRouteRequestBody'
       responses:
         '200':
           description: Success response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/iGetCollectionBatchRouteSuccessResponse'
+                $ref: '#/components/schemas/iGetCollectionsRouteSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequestResponse'
         '401':
@@ -3205,7 +3205,7 @@ components:
         challengeTrackerId:
           description: The challenge ID
           type: string
-        challengeLevel:
+        approvalLevel:
           enum:
             - collection
             - incoming
@@ -3214,13 +3214,13 @@ components:
           description: The challenge level (i.e. "collection", "incoming", "outgoing")
           type: string
         approverAddress:
-          description: The approver address (leave blank if challengeLevel = "collection")
+          description: The approver address (leave blank if approvalLevel = "collection")
           $ref: '#/components/schemas/CosmosAddress'
       required:
         - collectionId
         - approvalId
         - challengeTrackerId
-        - challengeLevel
+        - approvalLevel
         - approverAddress
       additionalProperties: false
       type: object
@@ -3241,7 +3241,7 @@ components:
         approvalId:
           description: The approval ID
           type: string
-        challengeLevel:
+        approvalLevel:
           enum:
             - collection
             - incoming
@@ -3250,7 +3250,7 @@ components:
           description: The challenge level (i.e. "collection", "incoming", "outgoing")
           type: string
         approverAddress:
-          description: The approver address (leave blank if challengeLevel = "collection")
+          description: The approver address (leave blank if approvalLevel = "collection")
           $ref: '#/components/schemas/CosmosAddress'
         usedLeafIndices:
           items:
@@ -3264,7 +3264,7 @@ components:
         - collectionId
         - challengeTrackerId
         - approvalId
-        - challengeLevel
+        - approvalLevel
         - approverAddress
         - usedLeafIndices
       additionalProperties: false
@@ -3278,7 +3278,7 @@ components:
         challengeTrackerId:
           description: The challenge ID
           type: string
-        challengeLevel:
+        approvalLevel:
           enum:
             - collection
             - incoming
@@ -3287,7 +3287,7 @@ components:
           description: The challenge level (i.e. "collection", "incoming", "outgoing")
           type: string
         approverAddress:
-          description: The approver address (leave blank if challengeLevel = "collection")
+          description: The approver address (leave blank if approvalLevel = "collection")
           $ref: '#/components/schemas/CosmosAddress'
         usedLeafIndices:
           items:
@@ -3299,7 +3299,7 @@ components:
       required:
         - collectionId
         - challengeTrackerId
-        - challengeLevel
+        - approvalLevel
         - approverAddress
         - usedLeafIndices
       additionalProperties: false
@@ -3712,11 +3712,11 @@ components:
             contain anything sensitive. It may be displayed to verifiers.
           type: string
           examples: *ref_8
-        viewers:
+        holders:
           items:
             type: string
           description: >-
-            Viewers for query purposes. These are the addresses that can query
+            holders for query purposes. These are the addresses that can query
             the secret.
           type: array
         anchors:
@@ -3751,7 +3751,7 @@ components:
         - name
         - image
         - description
-        - viewers
+        - holders
         - anchors
         - updateHistory
       additionalProperties: false
@@ -5196,7 +5196,7 @@ components:
           $ref: '#/components/schemas/MetadataFetchOptions'
       additionalProperties: false
       type: object
-    GetCollectionBatchRouteRequestBody:
+    GetCollectionsRouteRequestBody:
       properties:
         collectionsToFetch:
           items:
@@ -5216,7 +5216,7 @@ components:
         - collectionsToFetch
       additionalProperties: false
       type: object
-    iGetCollectionBatchRouteSuccessResponse:
+    iGetCollectionsRouteSuccessResponse:
       properties:
         collections:
           items:
@@ -6579,11 +6579,11 @@ components:
             contain anything sensitive. It may be displayed to verifiers.
           type: string
           examples: *ref_8
-        viewers:
+        holders:
           items:
             type: string
           description: >-
-            Viewers for query purposes. These are the addresses that can query
+            holders for query purposes. These are the addresses that can query
             the secret.
           type: array
         anchors:
@@ -6618,7 +6618,7 @@ components:
         - name
         - image
         - description
-        - viewers
+        - holders
         - anchors
         - updateHistory
       additionalProperties: false
@@ -6647,7 +6647,7 @@ components:
             secret. Anyone with the ID can query it, so keep this safe and
             secure.
           type: string
-        viewersToSet:
+        holdersToSet:
           items:
             properties:
               cosmosAddress:
@@ -6659,7 +6659,7 @@ components:
               - cosmosAddress
             additionalProperties: false
             type: object
-          description: You can approve specific viewers to view the secret.
+          description: You can approve specific holders to view the secret.
           type: array
         anchorsToAdd:
           items:
@@ -9397,11 +9397,11 @@ components:
             contain anything sensitive. It may be displayed to verifiers.
           type: string
           examples: *ref_8
-        viewers:
+        holders:
           items:
             type: string
           description: >-
-            Viewers for query purposes. These are the addresses that can query
+            holders for query purposes. These are the addresses that can query
             the secret.
           type: array
         anchors:
@@ -9431,7 +9431,7 @@ components:
         - name
         - image
         - description
-        - viewers
+        - holders
         - anchors
       additionalProperties: false
       type: object

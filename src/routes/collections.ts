@@ -37,7 +37,7 @@ import {
   type ErrorResponse,
   type GetAdditionalCollectionDetailsRequestBody,
   type GetBadgeActivityRouteRequestBody,
-  type GetCollectionBatchRouteRequestBody,
+  type GetCollectionsRouteRequestBody,
   type GetMetadataForCollectionRequestBody,
   type MetadataFetchOptions,
   type NumberType,
@@ -48,7 +48,7 @@ import {
   type iAddressList,
   type iApprovalTrackerDoc,
   type iGetBadgeActivityRouteSuccessResponse,
-  type iGetCollectionBatchRouteSuccessResponse,
+  type iGetCollectionsRouteSuccessResponse,
   type iMerkleChallengeDoc,
   ClaimDetails,
   iClaimDetails
@@ -895,7 +895,7 @@ export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActi
   }
 };
 
-export const getCollections = async (req: Request, res: Response<iGetCollectionBatchRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getCollections = async (req: Request, res: Response<iGetCollectionsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     if (req.body.collectionsToFetch.length > 100) {
       return res.status(400).send({
@@ -904,7 +904,7 @@ export const getCollections = async (req: Request, res: Response<iGetCollectionB
       });
     }
 
-    const reqBody = req.body as GetCollectionBatchRouteRequestBody;
+    const reqBody = req.body as GetCollectionsRouteRequestBody;
     const collectionResponses = await executeCollectionsQuery(req, reqBody.collectionsToFetch);
 
     return res.status(200).send({

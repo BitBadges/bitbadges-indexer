@@ -77,6 +77,11 @@ export const addBalancesToOffChainStorageHandler = async (
     if (BigInt(reqBody.collectionId) > 0) {
       const managerCheck = await checkIfManager(req, reqBody.collectionId);
       if (!managerCheck) throw new Error('You are not the manager of this collection');
+
+      const collectionDoc = await mustGetFromDB(CollectionModel, reqBody.collectionId.toString());
+      if (collectionDoc.balancesType !== 'Off-Chain - Indexed' && collectionDoc.balancesType !== 'Off-Chain - Non-Indexed') {
+        throw new Error('This collection is not an off-chain collection');
+      }
     }
 
     let result;
@@ -106,6 +111,7 @@ export const addBalancesToOffChainStorageHandler = async (
       if (BigInt(reqBody.collectionId) > 0) await refreshCollection(reqBody.collectionId.toString(), true);
     }
 
+    //TODO: This is not a good way to handle this. We should have a separate function to handle this.
     const docsToDelete = await findInDB(ClaimBuilderModel, {
       query: { collectionId: Number(reqBody.collectionId), _docId: { $nin: (reqBody.claims ?? []).map((claim) => claim.claimId) } }
     });

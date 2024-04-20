@@ -1,17 +1,20 @@
 import {
+  AddBalancesToOffChainStorageRouteRequestBody,
+  BigIntify,
   BitBadgesApiRoutes,
+  BitBadgesCollection,
   BlockinAndGroup,
-  BlockinAssetConditionGroup,
   CheckAndCompleteClaimRouteRequestBody,
-  ClaimApiCallInfo,
   ClaimIntegrationPluginType,
+  GetCollectionsRouteRequestBody,
+  IncrementedBalances,
   IntegrationPluginDetails,
   NumberType,
   UintRangeArray,
+  convertOffChainBalancesMap,
   convertToCosmosAddress,
   iAddressList,
-  iClaimBuilderDoc,
-  iUintRange
+  iClaimBuilderDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { AES } from 'crypto-js';
@@ -19,14 +22,27 @@ import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
-import { AddressListModel, ClaimBuilderModel, ExternalCallKeysModel } from '../db/schemas';
+import { findInDB } from '../db/queries';
+import { AddressListModel, ClaimBuilderModel, CollectionModel, ExternalCallKeysModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { generateCodesFromSeed } from '../integrations/codes';
 import { getPlugin } from '../integrations/types';
-import { createExampleReqForAddress } from '../testutil/utils';
-import { findInDB } from '../db/queries';
-import { getDecryptedActionCodes } from './claims';
 import { connectToRpc } from '../poll';
+import {
+  apiPlugin,
+  codesPlugin,
+  discordPlugin,
+  mustOwnBadgesPlugin,
+  numUsesPlugin,
+  passwordPlugin,
+  requiresProofOfAddressPlugin,
+  transferTimesPlugin,
+  twitterPlugin,
+  whitelistPlugin
+} from '../testutil/plugins';
+import { createExampleReqForAddress } from '../testutil/utils';
+import { getDecryptedActionCodes } from './claims';
+import axios from 'axios';
 
 dotenv.config();
 
@@ -58,159 +74,6 @@ const createClaimDoc = async (
   await insertToDB(ClaimBuilderModel, doc);
 
   return doc;
-};
-
-const numUsesPlugin = (
-  maxUses: number,
-  maxUsesPerAddress: number,
-  assignMethod: 'firstComeFirstServe' | 'codeIdx' = 'firstComeFirstServe'
-): IntegrationPluginDetails<'numUses'> => {
-  return {
-    id: 'numUses',
-    publicParams: {
-      maxUses,
-      maxUsesPerAddress,
-      assignMethod
-    },
-    privateParams: {},
-    publicState: getPlugin('numUses').getBlankPublicState()
-  };
-};
-
-const codesPlugin = (numCodes: number, seedCode: string): IntegrationPluginDetails<'codes'> => {
-  return {
-    id: 'codes',
-    publicParams: {
-      numCodes
-    },
-    privateParams: {
-      codes: [],
-      seedCode: AES.encrypt(seedCode, process.env.SYM_KEY ?? '').toString()
-    },
-    publicState: {
-      usedCodeIndices: []
-    },
-    resetState: true
-  };
-};
-
-const passwordPlugin = (password: string): IntegrationPluginDetails<'password'> => {
-  return {
-    id: 'password',
-    publicParams: {},
-    privateParams: {
-      password: AES.encrypt(password, process.env.SYM_KEY ?? '').toString()
-    },
-    publicState: {},
-    resetState: true
-  };
-};
-
-const transferTimesPlugin = (transferTimes: iUintRange<number>): IntegrationPluginDetails<'transferTimes'> => {
-  return {
-    id: 'transferTimes',
-    publicParams: {
-      transferTimes: UintRangeArray.From(transferTimes)
-    },
-    privateParams: {},
-    publicState: {},
-    resetState: true
-  };
-};
-
-const whitelistPlugin = (privateMode: boolean, list?: iAddressList, listId?: string): IntegrationPluginDetails<'whitelist'> => {
-  return {
-    id: 'whitelist',
-    publicParams: privateMode
-      ? {}
-      : {
-          list,
-          listId
-        },
-    privateParams: privateMode
-      ? {
-          list,
-          listId
-        }
-      : {},
-    publicState: {},
-    resetState: true
-  };
-};
-
-// const greaterThanXBADGEBalancePlugin = (greaterThan: number): IntegrationPluginDetails<'greaterThanXBADGEBalance'> => {
-//   return {
-//     id: 'greaterThanXBADGEBalance',
-//     publicParams: {
-//       minBalance: greaterThan
-//     },
-//     privateParams: {},
-//     publicState: {},
-//     resetState: true
-//   };
-// };
-
-const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'discord'> => {
-  return {
-    id: 'discord',
-    publicParams: {
-      hasPrivateList: false,
-      users: usernames,
-      maxUsesPerUser: 1
-    },
-    privateParams: {},
-    publicState: {},
-    resetState: true
-  };
-};
-
-const twitterPlugin = (usernames: string[]): IntegrationPluginDetails<'twitter'> => {
-  return {
-    id: 'twitter',
-    publicParams: {
-      hasPrivateList: false,
-      users: usernames,
-      maxUsesPerUser: 1
-    },
-    privateParams: {},
-    publicState: {},
-    resetState: true
-  };
-};
-
-const requiresProofOfAddressPlugin = (requiresProofOfAddress: boolean): IntegrationPluginDetails<'requiresProofOfAddress'> => {
-  return {
-    id: 'requiresProofOfAddress',
-    publicParams: {},
-    privateParams: {},
-    publicState: {},
-    resetState: true
-  };
-};
-
-const mustOwnBadgesPlugin = (ownershipReqs: BlockinAssetConditionGroup<NumberType>): IntegrationPluginDetails<'mustOwnBadges'> => {
-  return {
-    id: 'mustOwnBadges',
-    publicParams: {
-      ownershipRequirements: ownershipReqs
-    },
-    privateParams: {
-      ownershipRequirements: { $and: [] }
-    },
-    publicState: {},
-    resetState: true
-  };
-};
-const apiPlugin = (apiCalls: ClaimApiCallInfo[]): IntegrationPluginDetails<'api'> => {
-  return {
-    id: 'api',
-    publicParams: {
-      apiCalls
-    },
-    privateParams: {},
-    publicState: {},
-    resetState: true
-  };
 };
 
 describe('claims', () => {
@@ -862,7 +725,7 @@ describe('claims', () => {
   });
 
   it('should require signature', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin(true)]);
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin()]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -880,7 +743,7 @@ describe('claims', () => {
   });
 
   it('should fail if not signed in (or claiming on behalf of another user)', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin(true)]);
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin()]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -899,7 +762,7 @@ describe('claims', () => {
   });
 
   it('should work w/ valid signature', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin(true)]);
+    const doc = await createClaimDoc([numUsesPlugin(10, 0), requiresProofOfAddressPlugin()]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -1212,10 +1075,279 @@ describe('claims', () => {
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(0);
 
+    //TODO: This actually fails. Write a better test
     const keyDoc = await getFromDB(ExternalCallKeysModel, 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
     expect(keyDoc).toBeTruthy();
     expect(keyDoc?.keys.length).toBeGreaterThan(0);
   });
 
-  //TODO: Off-chain assignment checks
+  it('should work with off-chain balances and claims', async () => {
+    const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
+    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true } })
+      .lean()
+      .exec();
+
+    console.log([...new Set(collectionDocs.map((x) => x.collectionId))]);
+    console.log([...new Set(claimDocs.map((x) => x.collectionId))]);
+
+    let claimDocToUse = undefined;
+    let collectionDocToUse = undefined;
+    //Find match
+    for (const claimDoc of claimDocs) {
+      if (collectionDocs.find((x) => x.collectionId === claimDoc.collectionId)) {
+        claimDocToUse = claimDoc;
+        collectionDocToUse = collectionDocs.find((x) => x.collectionId === claimDoc.collectionId);
+        break;
+      }
+    }
+
+    if (!claimDocToUse || !collectionDocToUse) {
+      console.log('No claim docs found');
+      throw new Error('No claim docs found');
+    }
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: [
+        {
+          timelineTimes: UintRangeArray.FullRanges(),
+          manager: convertToCosmosAddress(wallet.address)
+        }
+      ]
+    });
+
+    const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
+    const body: AddBalancesToOffChainStorageRouteRequestBody = {
+      collectionId: collectionDocToUse.collectionId,
+      method: 'centralized',
+      claims: [
+        {
+          claimId: claimDocToUse._docId,
+          balancesToSet: new IncrementedBalances({
+            startBalances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }],
+            incrementBadgeIdsBy: 1n,
+            incrementOwnershipTimesBy: 0n
+          }),
+          plugins: [
+            {
+              ...numUsesPlugin(10, 0),
+              resetState: true
+            }
+          ]
+        },
+        {
+          claimId: claimDocToUse._docId + 'different id',
+          balancesToSet: new IncrementedBalances({
+            startBalances: [{ amount: 1n, badgeIds: [{ start: 2n, end: 2n }], ownershipTimes: UintRangeArray.FullRanges() }],
+            incrementBadgeIdsBy: 1n,
+            incrementOwnershipTimesBy: 0n
+          }),
+          plugins: [
+            {
+              ...numUsesPlugin(10, 0),
+              resetState: true
+            }
+          ]
+        }
+      ],
+      balances: {}
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(body);
+    console.log(res.body);
+    expect(res.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(claimDocToUse._docId, convertToCosmosAddress(wallet.address));
+    const claimBody: CheckAndCompleteClaimRouteRequestBody = {};
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(claimBody);
+    console.log(claimRes.body);
+    expect(claimRes.status).toBe(200);
+
+    const claimRes2 = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(claimBody);
+    console.log(claimRes2.body);
+    expect(claimRes2.status).toBe(200);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, claimDocToUse._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(2);
+
+    //sleep for 10s
+    await new Promise((r) => setTimeout(r, 10000));
+
+    const balancesUrl = collectionDocToUse.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri;
+    const balancesRes = await axios.get(balancesUrl);
+    console.log(balancesRes.data);
+    const balancesMap = convertOffChainBalancesMap(balancesRes.data, BigIntify);
+    console.log(balancesMap[convertToCosmosAddress(wallet.address)]);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)]).toBeTruthy();
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].amount).toBe(1n);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].badgeIds[0].start).toBe(1n);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].badgeIds[0].end).toBe(2n);
+
+    const otherClaimDoc = await mustGetFromDB(ClaimBuilderModel, claimDocToUse._docId + 'different id');
+    expect(otherClaimDoc.state.numUses.numUses).toBe(0);
+
+    //Delete the claims
+
+    const resetBody: AddBalancesToOffChainStorageRouteRequestBody = {
+      collectionId: collectionDocToUse.collectionId,
+      method: 'centralized',
+      claims: [
+        {
+          claimId: claimDocToUse._docId + 'different id',
+          balancesToSet: new IncrementedBalances({
+            startBalances: [{ amount: 1n, badgeIds: [{ start: 2n, end: 2n }], ownershipTimes: UintRangeArray.FullRanges() }],
+            incrementBadgeIdsBy: 1n,
+            incrementOwnershipTimesBy: 0n
+          }),
+          plugins: [
+            {
+              ...numUsesPlugin(10, 0),
+              resetState: true
+            }
+          ]
+        }
+      ],
+      balances: {}
+    };
+
+    const resetRes = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(resetBody);
+    console.log(resetRes.body);
+    expect(resetRes.status).toBe(200);
+
+    const resetDoc = await getFromDB(ClaimBuilderModel, claimDocToUse._docId);
+    expect(resetDoc).toBeUndefined();
+  }, 10000000);
+
+  it('should not reveal private params for off-chain balances', async () => {
+    const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
+    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true } })
+      .lean()
+      .exec();
+
+    console.log([...new Set(collectionDocs.map((x) => x.collectionId))]);
+    console.log([...new Set(claimDocs.map((x) => x.collectionId))]);
+
+    let claimDocToUse = undefined;
+    let collectionDocToUse = undefined;
+    //Find match
+    for (const claimDoc of claimDocs) {
+      if (collectionDocs.find((x) => x.collectionId === claimDoc.collectionId)) {
+        claimDocToUse = claimDoc;
+        collectionDocToUse = collectionDocs.find((x) => x.collectionId === claimDoc.collectionId);
+        break;
+      }
+    }
+
+    if (!claimDocToUse || !collectionDocToUse) {
+      console.log('No claim docs found');
+      throw new Error('No claim docs found');
+    }
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: [
+        {
+          timelineTimes: UintRangeArray.FullRanges(),
+          manager: convertToCosmosAddress(wallet.address)
+        }
+      ]
+    });
+
+    const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
+    const body: AddBalancesToOffChainStorageRouteRequestBody = {
+      collectionId: collectionDocToUse.collectionId,
+      method: 'centralized',
+      claims: [
+        {
+          claimId: claimDocToUse._docId,
+          balancesToSet: new IncrementedBalances({
+            startBalances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }],
+            incrementBadgeIdsBy: 1n,
+            incrementOwnershipTimesBy: 0n
+          }),
+          plugins: [
+            {
+              ...numUsesPlugin(10, 0),
+              resetState: true
+            },
+            {
+              ...passwordPlugin('password')
+            }
+          ]
+        }
+      ],
+      balances: {}
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(body);
+
+    console.log(res.body);
+    expect(res.status).toBe(200);
+
+    const getRoute = BitBadgesApiRoutes.GetCollectionsRoute();
+    const getBody: GetCollectionsRouteRequestBody = {
+      collectionsToFetch: [
+        {
+          collectionId: collectionDocToUse.collectionId,
+          fetchPrivateParams: false
+        }
+      ]
+    };
+
+    const getRes = await request(app)
+      .post(getRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(getBody);
+    console.log(getRes.body);
+
+    const collection = new BitBadgesCollection(getRes.body.collections[0]);
+    expect((collection.claims[0].plugins[1].privateParams as any)?.password).toBeUndefined();
+
+    const getRoute2 = BitBadgesApiRoutes.GetCollectionsRoute();
+    const getBody2: GetCollectionsRouteRequestBody = {
+      collectionsToFetch: [
+        {
+          collectionId: collectionDocToUse.collectionId,
+          fetchPrivateParams: true
+        }
+      ]
+    };
+
+    const getRes2 = await request(app)
+      .post(getRoute2)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(getBody2);
+
+    console.log(getRes2.body);
+
+    const collection2 = new BitBadgesCollection(getRes2.body.collections[0]);
+    expect((collection2.claims[0].plugins[1].privateParams as any)?.password).toBeTruthy();
+
+    const getRes3 = await request(app)
+      .post(getRoute2)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .send(getBody2);
+    expect(getRes3.status).toBeGreaterThan(400);
+  });
 });

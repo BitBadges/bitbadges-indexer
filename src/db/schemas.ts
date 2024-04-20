@@ -95,7 +95,7 @@ export const OffChainSecretsSchema = new Schema<SecretDoc<JSPrimitiveNumberType>
   scheme: String,
   secretMessages: [String],
   dataIntegrityProof: Schema.Types.Mixed,
-  viewers: [String],
+  holders: [String],
   name: String,
   image: String,
   description: String,
@@ -263,7 +263,7 @@ export const ChallengeSchema = new Schema<MerkleChallengeDoc<JSPrimitiveNumberTy
   collectionId: Schema.Types.Mixed, // Mixed type for collectionId (number type)
   approvalId: String, // String type for approvalId
   challengeTrackerId: String, // String type for challengeTrackerId
-  challengeLevel: String, // String type for challengeLevel
+  approvalLevel: String, // String type for approvalLevel
   approverAddress: String, // String type for approverAddress
   usedLeafIndices: [Schema.Types.Mixed] // Array of Mixed type for usedLeafIndices (number type)
 });

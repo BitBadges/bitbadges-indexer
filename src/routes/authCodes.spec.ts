@@ -623,7 +623,7 @@ describe('get auth codes', () => {
 
     const updateSecretBody2: UpdateSecretRouteRequestBody = {
       secretId: getRes.body.secretId,
-      viewersToSet: [
+      holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(address),
           delete: false
@@ -639,11 +639,11 @@ describe('get auth codes', () => {
     expect(updateRes2.status).toBe(200);
 
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
-    expect(secretsDoc2.viewers.length).toBe(1);
+    expect(secretsDoc2.holders.length).toBe(1);
 
     const updateSecretBody3: UpdateSecretRouteRequestBody = {
       secretId: getRes.body.secretId,
-      viewersToSet: [
+      holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(address),
           delete: true
@@ -659,7 +659,7 @@ describe('get auth codes', () => {
     expect(updateRes3.status).toBe(200);
 
     const secretsDoc3 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
-    expect(secretsDoc3.viewers.length).toBe(0);
+    expect(secretsDoc3.holders.length).toBe(0);
   });
 
   it('should delete secret', async () => {
@@ -892,6 +892,320 @@ describe('get auth codes', () => {
     expect(secretsDoc2.image).toBe('test2');
     expect(secretsDoc2.updateHistory.length).toBe(3);
     expect(secretsDoc2.dataIntegrityProof.signature).toBe(Buffer.from(dataIntegrityProof2).toString('hex'));
+  });
+
+  it('should not allow non-owners to update important fields', async () => {
+    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const keyPair = await generateBls12381G2KeyPair();
+    const body: CreateSecretRouteRequestBody = {
+      name: 'test',
+      description: 'test',
+      image: 'test',
+      secretMessages: ['test'],
+      type: 'credential',
+      scheme: 'bbs',
+      messageFormat: 'plaintext',
+      proofOfIssuance: {
+        message: '',
+        signature: '',
+        signer: ''
+      },
+      dataIntegrityProof: {
+        signature: '',
+        signer: Buffer.from(keyPair?.publicKey ?? '').toString('hex')
+      }
+    };
+
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
+    body.proofOfIssuance = {
+      message: proofOfIssuanceMessage,
+      signature: proofOfIssuanceSignature,
+      signer: ethWallet.address
+    };
+
+    const dataIntegrityProof = await blsSign({
+      keyPair: keyPair!,
+      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+    });
+    body.dataIntegrityProof = {
+      signature: Buffer.from(dataIntegrityProof).toString('hex'),
+      signer: Buffer.from(keyPair?.publicKey ?? '').toString('hex')
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
+    const updateSecretBody: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      name: 'test2',
+      description: 'test2',
+      image: 'test2'
+    };
+
+    const updateRes = await request(app)
+      .post(updateSecretRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .send(updateSecretBody);
+    expect(updateRes.status).toBeGreaterThan(400);
+
+    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc.name).toBe('test');
+    expect(secretsDoc.description).toBe('test');
+    expect(secretsDoc.image).toBe('test');
+
+    //No session
+    const updateRes2 = await request(app)
+      .post(updateSecretRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(updateSecretBody);
+    expect(updateRes2.status).toBeGreaterThan(400);
+
+    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc2.name).toBe('test');
+    expect(secretsDoc2.description).toBe('test');
+    expect(secretsDoc2.image).toBe('test');
+  });
+
+  it('should update anchors (owner only)', async () => {
+    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const keyPair = await generateBls12381G2KeyPair();
+    const body: CreateSecretRouteRequestBody = {
+      name: 'test',
+      description: 'test',
+      image: 'test',
+      secretMessages: ['test'],
+      type: 'credential',
+      scheme: 'bbs',
+      messageFormat: 'plaintext',
+      proofOfIssuance: {
+        message: '',
+        signature: '',
+        signer: ''
+      },
+      dataIntegrityProof: {
+        signature: '',
+        signer: Buffer.from(keyPair?.publicKey ?? '').toString('hex')
+      }
+    };
+
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
+    body.proofOfIssuance = {
+      message: proofOfIssuanceMessage,
+      signature: proofOfIssuanceSignature,
+      signer: ethWallet.address
+    };
+
+    const dataIntegrityProof = await blsSign({
+      keyPair: keyPair!,
+      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+    });
+    body.dataIntegrityProof = {
+      signature: Buffer.from(dataIntegrityProof).toString('hex'),
+      signer: Buffer.from(keyPair?.publicKey ?? '').toString('hex')
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
+    const updateSecretBody: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      anchorsToAdd: [
+        {
+          txHash: 'test'
+        }
+      ]
+    };
+
+    const updateRes = await request(app)
+      .post(updateSecretRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
+      .send(updateSecretBody);
+    expect(updateRes.status).toBe(200);
+
+    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc.anchors.length).toBe(1);
+
+    const updateSecretBody2: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      anchorsToAdd: [
+        {
+          txHash: 'test2'
+        }
+      ]
+    };
+
+    const updateRes2 = await request(app)
+      .post(updateSecretRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .send(updateSecretBody2);
+    expect(updateRes2.status).toBeGreaterThan(400);
+
+    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc2.anchors.length).toBe(1);
+
+    const updateSecretBody3: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      anchorsToAdd: [
+        {
+          txHash: 'test'
+        }
+      ]
+    };
+
+    const updateRes3 = await request(app)
+      .post(updateSecretRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(updateSecretBody3);
+    expect(updateRes3.status).toBeGreaterThan(400);
+  });
+
+  it('can add holders to secret (self add only)', async () => {
+    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const keyPair = await generateBls12381G2KeyPair();
+    const body: CreateSecretRouteRequestBody = {
+      name: 'test',
+      description: 'test',
+      image: 'test',
+      secretMessages: ['test'],
+      type: 'credential',
+      scheme: 'bbs',
+      messageFormat: 'plaintext',
+      proofOfIssuance: {
+        message: '',
+        signature: '',
+        signer: ''
+      },
+      dataIntegrityProof: {
+        signature: '',
+        signer: Buffer.from(keyPair?.publicKey ?? '').toString('hex')
+      }
+    };
+
+    const ethWallet = ethers.Wallet.createRandom();
+    const address = ethWallet.address;
+    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
+    body.proofOfIssuance = {
+      message: proofOfIssuanceMessage,
+      signature: proofOfIssuanceSignature,
+      signer: ethWallet.address
+    };
+
+    const dataIntegrityProof = await blsSign({
+      keyPair: keyPair!,
+      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+    });
+    body.dataIntegrityProof = {
+      signature: Buffer.from(dataIntegrityProof).toString('hex'),
+      signer: Buffer.from(keyPair?.publicKey ?? '').toString('hex')
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute;
+    const updateSecretBody: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      holdersToSet: [
+        {
+          cosmosAddress: convertToCosmosAddress(ethWallet.address),
+          delete: false
+        }
+      ]
+    };
+
+    const updateRes = await request(app)
+      .post(updateSecretRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
+      .send(updateSecretBody);
+    expect(updateRes.status).toBe(200);
+
+    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc.holders.length).toBe(1);
+
+    const updateSecretBody2: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      holdersToSet: [
+        {
+          cosmosAddress: convertToCosmosAddress(ethers.Wallet.createRandom().address),
+          delete: false
+        }
+      ]
+    };
+
+    const updateRes2 = await request(app)
+      .post(updateSecretRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .send(updateSecretBody2);
+    expect(updateRes2.status).toBeGreaterThan(400);
+
+    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc2.holders.length).toBe(1);
+
+    const updateSecretBody3: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      holdersToSet: [
+        {
+          cosmosAddress: convertToCosmosAddress(ethWallet.address),
+          delete: true
+        }
+      ]
+    };
+
+    const updateRes3 = await request(app)
+      .post(updateSecretRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(updateSecretBody3);
+    expect(updateRes3.status).toBeGreaterThan(400);
+
+    const secretsDoc3 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc3.holders.length).toBe(1);
+
+    //Test deletes
+    const updateSecretBody4: UpdateSecretRouteRequestBody = {
+      secretId: res.body.secretId,
+      holdersToSet: [
+        {
+          cosmosAddress: convertToCosmosAddress(ethWallet.address),
+          delete: true
+        }
+      ]
+    };
+
+    const updateRes4 = await request(app)
+      .post(updateSecretRoute())
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
+      .send(updateSecretBody4);
+    expect(updateRes4.status).toBe(200);
+
+    const secretsDoc4 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    expect(secretsDoc4.holders.length).toBe(0);
   });
 
   it('should verify standard sig proofs (non BBS)', async () => {

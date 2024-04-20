@@ -1,5 +1,5 @@
 import axiosApi from 'axios';
-import { BitBadgesApiRoutes, GetAccountsRouteRequestBody, GetCollectionBatchRouteRequestBody, GetSearchRouteRequestBody } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, GetAccountsRouteRequestBody, GetCollectionsRouteRequestBody, GetSearchRouteRequestBody } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import https from 'https';
 
@@ -122,7 +122,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
     options: {
       tryAllCollections: true
     },
-    route: BitBadgesApiRoutes.GetCollectionBatchRoute(),
+    route: BitBadgesApiRoutes.GetCollectionsRoute(),
     body: {
       collectionsToFetch: [
         {
@@ -134,7 +134,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           ]
         }
       ]
-    } as GetCollectionBatchRouteRequestBody
+    } as GetCollectionsRouteRequestBody
   },
   {
     name: 'Get collection w/ activity',
@@ -143,7 +143,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
     options: {
       tryAllCollections: true
     },
-    route: BitBadgesApiRoutes.GetCollectionBatchRoute(),
+    route: BitBadgesApiRoutes.GetCollectionsRoute(),
     body: {
       collectionsToFetch: [
         {
@@ -157,7 +157,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           ]
         }
       ]
-    } as GetCollectionBatchRouteRequestBody
+    } as GetCollectionsRouteRequestBody
   },
   {
     name: 'Get collection w/ owners',
@@ -166,7 +166,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
     options: {
       tryAllCollections: true
     },
-    route: BitBadgesApiRoutes.GetCollectionBatchRoute(),
+    route: BitBadgesApiRoutes.GetCollectionsRoute(),
     body: {
       collectionsToFetch: [
         {
@@ -180,7 +180,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           ]
         }
       ]
-    } as GetCollectionBatchRouteRequestBody
+    } as GetCollectionsRouteRequestBody
   },
   {
     name: 'Get account w/ all views',

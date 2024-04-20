@@ -120,7 +120,7 @@ export async function executeMerkleChallengeByIdsQuery(
 
   const docs = await Promise.all(
     challengeTrackerIdsToFetch.map(async (idObj) => {
-      const docId = `${collectionId}:${idObj.challengeLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.challengeTrackerId}`;
+      const docId = `${collectionId}:${idObj.approvalLevel}-${idObj.approverAddress}-${idObj.approvalId}-${idObj.challengeTrackerId}`;
       const res = await getFromDB(MerkleChallengeModel, docId);
 
       return (
@@ -129,7 +129,7 @@ export async function executeMerkleChallengeByIdsQuery(
           collectionId: Number(collectionId),
           approvalId: idObj.approvalId,
           challengeTrackerId: idObj.challengeTrackerId,
-          challengeLevel: idObj.challengeLevel,
+          approvalLevel: idObj.approvalLevel,
           approverAddress: idObj.approverAddress,
           usedLeafIndices: []
         }

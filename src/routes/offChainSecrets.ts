@@ -26,7 +26,7 @@ import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 
 export const verifySecretsProof = async (
   address: string,
-  body: Omit<iSecretsProof<NumberType>, 'createdBy' | 'anchors' | 'viewers' | 'updateHistory' | 'credential' | 'entropies'>,
+  body: Omit<iSecretsProof<NumberType>, 'createdBy' | 'anchors' | 'holders' | 'updateHistory' | 'credential' | 'entropies'>,
   derivedProof?: boolean
 ) => {
   const chain = getChainForAddress(address);
@@ -130,7 +130,7 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       createdBy: req.session.cosmosAddress,
       secretId: uniqueId,
       _docId: uniqueId,
-      viewers: [],
+      holders: [],
       anchors: [],
       updateHistory: [
         {
@@ -198,7 +198,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
 
     const doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
 
-    for (const viewerToAdd of reqBody.viewersToSet ?? []) {
+    for (const viewerToAdd of reqBody.holdersToSet ?? []) {
       const toAdd = !viewerToAdd.delete;
       const cosmosAddress = viewerToAdd.cosmosAddress;
       if (req.session.cosmosAddress !== doc.createdBy && req.session.cosmosAddress !== cosmosAddress) {
@@ -206,15 +206,15 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       }
 
       if (toAdd) {
-        if (doc.viewers.includes(cosmosAddress)) {
+        if (doc.holders.includes(cosmosAddress)) {
           throw new Error('Viewer already exists');
         }
-        doc.viewers.push(cosmosAddress);
+        doc.holders.push(cosmosAddress);
       } else {
-        if (!doc.viewers.includes(cosmosAddress)) {
+        if (!doc.holders.includes(cosmosAddress)) {
           throw new Error('Viewer does not exist');
         }
-        doc.viewers = doc.viewers.filter((v) => v !== cosmosAddress);
+        doc.holders = doc.holders.filter((v) => v !== cosmosAddress);
       }
     }
 
@@ -222,7 +222,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       reqBody.anchorsToAdd &&
       reqBody.anchorsToAdd.length > 0 &&
       req.session.cosmosAddress !== doc.createdBy &&
-      !doc.viewers.includes(req.session.cosmosAddress)
+      !doc.holders.includes(req.session.cosmosAddress)
     ) {
       throw new Error('Only the owner can update anchors');
     }

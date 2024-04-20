@@ -187,6 +187,8 @@ export const checkAndCompleteClaim = async (
       }
     }
 
+    console.log('Checking and completing claim', claimId, cosmosAddress);
+
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
       const pluginInstance = getPlugin(plugin.id);
@@ -391,22 +393,21 @@ const performBalanceClaimAction = async (doc: ClaimBuilderDoc<NumberType>) => {
 
   for (const claimDoc of allClaimDocsForCollection) {
     const entries = Object.entries(claimDoc?.state.numUses.claimedUsers);
-    // Sort by claimedUsers value
-    entries.sort((a: any, b: any) => Number(a[1]) - Number(b[1]));
 
     for (const entry of entries) {
       const currBalances = BalanceArray.From(balanceMap[entry[0]] ?? []);
-      const claimIdx = Number(entry[1]);
+      const idxs: number[] = (entry[1] as number[]).map((x) => Number(x));
+      for (const claimIdx of idxs) {
+        const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.startBalances ?? []);
+        balancesToAdd.applyIncrements(
+          claimDoc.action.balancesToSet?.incrementBadgeIdsBy ?? 0n,
+          claimDoc.action.balancesToSet?.incrementOwnershipTimesBy ?? 0n,
+          BigInt(claimIdx)
+        );
 
-      const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.startBalances ?? []);
-      balancesToAdd.applyIncrements(
-        claimDoc.action.balancesToSet?.incrementBadgeIdsBy ?? 0n,
-        claimDoc.action.balancesToSet?.incrementOwnershipTimesBy ?? 0n,
-        BigInt(claimIdx)
-      );
-
-      currBalances.addBalances(balancesToAdd);
-      balanceMap[entry[0]] = currBalances;
+        currBalances.addBalances(balancesToAdd);
+        balanceMap[entry[0]] = currBalances;
+      }
     }
   }
 

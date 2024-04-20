@@ -516,11 +516,11 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const approvalId = getAttributeValueByKey(event.attributes, 'approvalId') ?? '';
     const approverAddress = getAttributeValueByKey(event.attributes, 'approverAddress') ?? '';
     const collectionId = getAttributeValueByKey(event.attributes, 'collectionId') ?? '';
-    const challengeLevel =
-      (getAttributeValueByKey(event.attributes, 'challengeLevel') as 'collection' | 'incoming' | 'outgoing' | '' | undefined) ?? '';
+    const approvalLevel =
+      (getAttributeValueByKey(event.attributes, 'approvalLevel') as 'collection' | 'incoming' | 'outgoing' | '' | undefined) ?? '';
     const leafIndex = getAttributeValueByKey(event.attributes, 'leafIndex') ?? '';
 
-    const docId = `${collectionId}:${challengeLevel}-${approverAddress}-${approvalId}-${challengeTrackerId}`;
+    const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${challengeTrackerId}`;
     const currDoc = docs.merkleChallenges[docId];
     const newLeafIndices = currDoc ? currDoc.usedLeafIndices : [];
     newLeafIndices.push(BigIntify(leafIndex || 0n));
@@ -530,7 +530,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
       collectionId: collectionId ? BigIntify(collectionId) : 0n,
       challengeTrackerId: challengeTrackerId || '',
       approvalId: approvalId || '',
-      challengeLevel: challengeLevel || ('' as 'collection' | 'incoming' | 'outgoing' | ''),
+      approvalLevel: approvalLevel || ('' as 'collection' | 'incoming' | 'outgoing' | ''),
       approverAddress: approverAddress || '',
       usedLeafIndices: newLeafIndices
     });

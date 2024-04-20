@@ -173,7 +173,7 @@ describe('queryClient', () => {
         const challengeRes = await queryClient.badges.getChallengeTracker(
           indexedChallenge.collectionId.toString(),
           indexedChallenge.approvalId,
-          indexedChallenge.challengeLevel,
+          indexedChallenge.approvalLevel,
           indexedChallenge.approverAddress,
           indexedChallenge.challengeTrackerId,
           leafIndex.toString()
@@ -190,7 +190,7 @@ describe('queryClient', () => {
       const challengeRes = await queryClient.badges.getChallengeTracker(
         indexedChallenge.collectionId.toString(),
         indexedChallenge.approvalId,
-        indexedChallenge.challengeLevel,
+        indexedChallenge.approvalLevel,
         indexedChallenge.approverAddress,
         indexedChallenge.challengeTrackerId,
         '10000000000000000000000'

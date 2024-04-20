@@ -5,7 +5,8 @@ import {
   type TransferActivityDoc,
   type iBatchBadgeDetails,
   type iProfileDoc,
-  type iUintRange
+  type iUintRange,
+  ClaimAlertDoc
 } from 'bitbadgesjs-sdk';
 import { mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
@@ -389,6 +390,30 @@ export async function executeExplicitExcludedListsQuery(cosmosAddress: string, f
   return collectedRes;
 }
 
+export async function executeSentClaimAlertsQuery(cosmosAddress: string, bookmark?: string, oldestFirst?: boolean) {
+  if (QUERY_TIME_MODE) console.time('executeSentClaimAlertsQuery');
+
+  const queryFunc = async (currBookmark?: string) => {
+    const paginationParams = await getQueryParamsFromBookmark(ClaimAlertModel, currBookmark, oldestFirst, 'timestamp', '_id');
+    return await findInDB(ClaimAlertModel, {
+      query: {
+        from: cosmosAddress,
+        ...paginationParams
+      },
+      sort: { timestamp: oldestFirst ? 1 : -1, _id: -1 },
+      limit: 25
+    });
+  };
+
+  const filterFunc = async (viewDocs: ClaimAlertDoc<bigint>[]) => {
+    return viewDocs;
+  };
+
+  const res = await queryAndFilter(bookmark, queryFunc, filterFunc);
+  if (QUERY_TIME_MODE) console.timeEnd('executeSentClaimAlertsQuery');
+  return res;
+}
+
 export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: string, oldestFirst?: boolean) {
   if (QUERY_TIME_MODE) console.time('executeClaimAlertsQuery');
 
@@ -676,7 +701,7 @@ export async function executeReceivedSecretsQuery(cosmosAddress: string, bookmar
   const paginationParams = await getQueryParamsFromBookmark(OffChainSecretsModel, bookmark, false, 'secretId');
   const res = await findWithPagination(OffChainSecretsModel, {
     query: {
-      viewers: {
+      holders: {
         $elemMatch: {
           $eq: cosmosAddress
         }
