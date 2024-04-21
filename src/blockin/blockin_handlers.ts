@@ -247,27 +247,36 @@ export async function verifyBlockinAndGrantSessionCookie(
     const useWeb2SignIn = !body.signature;
     if (useWeb2SignIn) {
       const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(challenge.address));
-      const discordSignInMethod = profileDoc.approvedSignInMethods?.discord;
 
-      if (!discordSignInMethod || !req.session.discord) {
-        return res
-          .status(401)
-          .json({ success: false, errorMessage: 'You did not provide a valid signature and did not meet any of the other sign-in methods.' });
+      let approved = false;
+      const entries = Object.entries(profileDoc.approvedSignInMethods ?? {});
+      for (const [key, value] of entries) {
+        const sessionDetails = req.session[key as 'discord' | 'twitter' | 'github' | 'google' | 'reddit'];
+        if (sessionDetails) {
+          let discriminator: string | undefined = undefined;
+          const { id, username } = sessionDetails;
+          if (key === 'discord') {
+            discriminator = (sessionDetails as any).discriminator;
+          }
+
+          if (!id || !username) continue;
+
+          if (value.id === id && value.username === username) {
+            if (key === 'discord') {
+              if ((value as any).discriminator && Number((value as any).discriminator) !== Number(discriminator)) {
+                continue;
+              }
+              approved = true;
+              break;
+            } else if (key !== 'discord') {
+              approved = true;
+              break;
+            }
+          }
+        }
       }
 
-      const { id, username, discriminator } = req.session.discord;
-
-      if (!id || !username || !discriminator) {
-        return res
-          .status(401)
-          .json({ success: false, errorMessage: 'You did not provide a valid signature and did not meet any of the other sign-in methods.' });
-      }
-
-      if (
-        discordSignInMethod.id !== id ||
-        discordSignInMethod.username !== username ||
-        (discordSignInMethod.discriminator && Number(discordSignInMethod.discriminator) !== Number(discriminator))
-      ) {
+      if (!approved) {
         return res
           .status(401)
           .json({ success: false, errorMessage: 'You did not provide a valid signature and did not meet any of the other sign-in methods.' });
@@ -404,6 +413,7 @@ export async function genericBlockinVerify(body: GenericBlockinVerifyRouteReques
     );
     return verificationResponse;
   } catch (err) {
+    console.error(err);
     return {
       success: false,
       message: err.message
@@ -419,6 +429,7 @@ export async function genericBlockinVerifyHandler(
 
   try {
     const verificationResponse = await genericBlockinVerify(body);
+
     if (!verificationResponse.success) {
       return res.status(401).json({ success: false, errorMessage: `${verificationResponse.message} ` });
     }

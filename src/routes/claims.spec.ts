@@ -974,8 +974,6 @@ describe('claims', () => {
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
 
-    console.log(res.body);
-
     const actionCodes = getDecryptedActionCodes(finalDoc);
     const returnedCode = res.body.code;
 
@@ -1056,6 +1054,7 @@ describe('claims', () => {
       numUsesPlugin(10, 0),
       apiPlugin([
         {
+          method: 'GET',
           name: 'Test',
           userInputsSchema: [],
           uri: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'

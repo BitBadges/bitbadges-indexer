@@ -82,10 +82,32 @@ export const ApiPluginDetails: BackendIntegrationPlugin<'api'> = {
             body.email = body.email;
           }
 
-          await axios.post(apiCall.uri, {
-            __key: randomKey,
-            ...body
-          });
+          if (apiCall.method === 'GET') {
+            await axios.get(apiCall.uri, {
+              params: {
+                __key: randomKey,
+                ...body
+              }
+            });
+          } else if (apiCall.method === 'POST' || !apiCall.method) {
+            //default to POST
+            await axios.post(apiCall.uri, {
+              __key: randomKey,
+              ...body
+            });
+          } else if (apiCall.method === 'PUT') {
+            await axios.put(apiCall.uri, {
+              __key: randomKey,
+              ...body
+            });
+          } else if (apiCall.method === 'DELETE') {
+            await axios.delete(apiCall.uri, {
+              data: {
+                __key: randomKey,
+                ...body
+              }
+            });
+          }
         }
       } catch (e) {
         return { success: false, error: e.message };
