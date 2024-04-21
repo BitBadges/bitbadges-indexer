@@ -11,16 +11,41 @@ export const unsubscribeHandler = async (req: Request, res: Response) => {
       query: { 'notifications.emailVerification.token': req.params.token }
     });
     const doc = docs.length > 0 ? docs[0] : undefined;
-    if (!doc) {
-      throw new Error('Token not found');
+    if (doc) {
+      const newDoc = {
+        ...doc,
+        notifications: new NotificationPreferences({
+          email: '',
+          preferences: undefined,
+          emailVerification: {
+            token: undefined,
+            verified: false,
+            expiry: undefined
+          },
+          discord: doc.notifications?.discord
+        })
+      };
+
+      await insertToDB(ProfileModel, newDoc);
     }
 
-    const newDoc = {
-      ...doc,
-      notifications: new NotificationPreferences({})
-    };
+    const discordDocs = await findInDB(ProfileModel, {
+      query: { 'notifications.discord.token': req.params.token }
+    });
+    const discordDoc = discordDocs.length > 0 ? discordDocs[0] : undefined;
+    if (discordDoc) {
+      const newDiscordDoc = {
+        ...discordDoc,
+        notifications: new NotificationPreferences({
+          email: discordDoc.notifications?.email,
+          preferences: discordDoc.notifications?.preferences,
+          emailVerification: discordDoc.notifications?.emailVerification,
+          discord: undefined
+        })
+      };
 
-    await insertToDB(ProfileModel, newDoc);
+      await insertToDB(ProfileModel, newDiscordDoc);
+    }
 
     return res.status(200).send({
       success: true

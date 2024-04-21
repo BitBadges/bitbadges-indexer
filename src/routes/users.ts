@@ -802,8 +802,28 @@ export const updateAccountInfo = async (
       });
     }
 
-    newProfileInfo.notifications = profileInfo.notifications;
+    newProfileInfo.notifications = new NotificationPreferences({ ...profileInfo.notifications });
     if (reqBody.notifications) {
+      if (reqBody.notifications.discord !== undefined) {
+        newProfileInfo.notifications = newProfileInfo.notifications ?? new NotificationPreferences({});
+        newProfileInfo.notifications.discord = { ...reqBody.notifications.discord, token: profileInfo.notifications?.discord?.token ?? '' };
+
+        //Compare to current. If different, check session
+        const currId = profileInfo.notifications?.discord?.id;
+        console.log('currId', currId);
+        console.log('reqBody.notifications.discord.id', reqBody.notifications.discord.id);
+        if (reqBody.notifications.discord.id && currId !== reqBody.notifications.discord.id) {
+          if (req.session.discord.id !== reqBody.notifications.discord.id) {
+            return res.status(400).send({
+              errorMessage: 'Discord ID does not match your current connected Discord.'
+            });
+          }
+
+          const uniqueToken = crypto.randomBytes(32).toString('hex');
+          newProfileInfo.notifications.discord.token = uniqueToken;
+        }
+      }
+
       if (reqBody.notifications.email !== undefined) {
         newProfileInfo.notifications = newProfileInfo.notifications ?? new NotificationPreferences({});
         newProfileInfo.notifications.email = reqBody.notifications.email;

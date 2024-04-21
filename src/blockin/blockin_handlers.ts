@@ -260,18 +260,13 @@ export async function verifyBlockinAndGrantSessionCookie(
           }
 
           if (!id || !username) continue;
+          if (key === 'discord' && (value as any).discriminator && Number((value as any).discriminator) !== Number(discriminator)) {
+            continue;
+          }
 
           if (value.id === id && value.username === username) {
-            if (key === 'discord') {
-              if ((value as any).discriminator && Number((value as any).discriminator) !== Number(discriminator)) {
-                continue;
-              }
-              approved = true;
-              break;
-            } else if (key !== 'discord') {
-              approved = true;
-              break;
-            }
+            approved = true;
+            break;
           }
         }
       }

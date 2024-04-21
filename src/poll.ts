@@ -71,6 +71,7 @@ import { handleTransfers } from './tx-handlers/handleTransfers';
 import { getLoadBalancerId } from './utils/loadBalancer';
 import { unsetFollowCollection, initializeFollowProtocol } from './routes/follows';
 import { PushNotificationEmailHTML } from './routes/users';
+import * as Discord from 'discord.js';
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000;
 const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000;
@@ -145,19 +146,40 @@ enum NotificationType {
   ClaimAlert = 'claimAlert'
 }
 
+export async function sendPushNotificationToDiscord(user: string, message: string) {
+  try {
+    // Initialize Discord client
+    const client = new Discord.Client({
+      intents: ['Guilds', 'GuildMembers']
+    });
+
+    // Login to Discord with your bot token
+    await client.login(process.env.BOT_TOKEN);
+
+    // Find the user by their username and discriminator
+    const targetUser = await client.guilds.fetch('846474505189588992').then((guild) => {
+      return guild.members.fetch(user);
+    });
+
+    // If the user is found, send them a direct message
+    if (targetUser) {
+      await targetUser.send(message);
+      console.log(`Message sent to ${user}: ${message}`);
+    } else {
+      console.error(`User ${user} not found.`);
+    }
+
+    // Logout from Discord
+    await client.destroy();
+  } catch (error) {
+    console.error('Error sending Discord message:', error);
+  }
+}
+
 export async function sendPushNotification(address: string, type: string, message: string, docId: string, queueDoc?: QueueDoc<bigint>) {
   try {
     const profile = await getFromDB(ProfileModel, address);
     if (!profile) return;
-
-    if (!profile.notifications?.email) return;
-    if (!profile.notifications?.emailVerification?.verified) return;
-
-    const antiPhishingCode = profile.notifications.emailVerification.antiPhishingCode;
-    if (!antiPhishingCode) return;
-
-    const token = profile.notifications.emailVerification.token;
-    if (!token) return;
 
     let subject = '';
     switch (type) {
@@ -172,30 +194,45 @@ export async function sendPushNotification(address: string, type: string, messag
         break;
     }
 
-    const toReceiveListActivity = profile.notifications.preferences?.listActivity;
-    const toReceiveTransferActivity = profile.notifications.preferences?.transferActivity;
-    const toReceiveClaimAlerts = profile.notifications.preferences?.claimAlerts;
+    const toReceiveListActivity = profile.notifications?.preferences?.listActivity;
+    const toReceiveTransferActivity = profile.notifications?.preferences?.transferActivity;
+    const toReceiveClaimAlerts = profile.notifications?.preferences?.claimAlerts;
 
     if (type === NotificationType.List && !toReceiveListActivity) return;
     if (type === NotificationType.TransferActivity && !toReceiveTransferActivity) return;
     if (type === NotificationType.ClaimAlert && !toReceiveClaimAlerts) return;
 
-    const emails: Array<{
-      to: string;
-      from: string;
-      subject: string;
-      html: string;
-    }> = [
-      {
-        to: profile.notifications.email,
-        from: 'info@mail.bitbadges.io',
-        subject,
-        html: PushNotificationEmailHTML(message, antiPhishingCode, token)
-      }
-    ];
+    const antiPhishingCode = profile.notifications?.emailVerification?.antiPhishingCode ?? '';
 
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : '');
-    await sgMail.send(emails, true);
+    if (profile.notifications?.email) {
+      if (!profile.notifications?.emailVerification?.verified) return;
+
+      const token = profile.notifications.emailVerification.token;
+      if (!token) return;
+
+      const emails: Array<{
+        to: string;
+        from: string;
+        subject: string;
+        html: string;
+      }> = [
+        {
+          to: profile.notifications.email,
+          from: 'info@mail.bitbadges.io',
+          subject,
+          html: PushNotificationEmailHTML(message, antiPhishingCode, token)
+        }
+      ];
+
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : '');
+      await sgMail.send(emails, true);
+    }
+
+    if (profile.notifications?.discord && profile.notifications.discord.id) {
+      const discordUser = profile.notifications.discord.id;
+      const discordMessage = `**${subject}**\n\n${message}\n\nAnti-Phishing Code: ${antiPhishingCode}\n\nUnsubscribe?: Go to https://api.bitbadges.io/api/v0/unsubscribe/${profile.notifications.discord.token}`;
+      await sendPushNotificationToDiscord(discordUser, discordMessage);
+    }
   } catch (e) {
     const queueObj = queueDoc ?? {
       _docId: crypto.randomBytes(16).toString('hex'),
