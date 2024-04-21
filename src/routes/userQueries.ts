@@ -1,14 +1,14 @@
 import {
+  ClaimAlertDoc,
   UintRangeArray,
   type BalanceDoc,
   type NumberType,
   type TransferActivityDoc,
   type iBatchBadgeDetails,
   type iProfileDoc,
-  type iUintRange,
-  ClaimAlertDoc
+  type iUintRange
 } from 'bitbadgesjs-sdk';
-import { getManyFromDB, mustGetManyFromDB } from '../db/db';
+import { getManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import {
   AddressListModel,
