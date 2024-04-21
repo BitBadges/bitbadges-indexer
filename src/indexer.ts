@@ -380,18 +380,18 @@ app.post('/api/v0/faucet', authorizeBlockinRequest(['Full Access']), getTokensFr
 
 // Address Lists
 app.post('/api/v0/addressLists', getAddressLists);
-app.post('/api/v0/addressLists/create', authorizeBlockinRequest(['Address Lists']), createAddressLists);
-app.post('/api/v0/addressLists/update', authorizeBlockinRequest(['Address Lists']), updateAddressLists);
-app.post('/api/v0/addressLists/delete', authorizeBlockinRequest(['Address Lists']), deleteAddressLists);
+app.post('/api/v0/addressLists/create', authorizeBlockinRequest(['Create Address Lists']), createAddressLists);
+app.post('/api/v0/addressLists/update', authorizeBlockinRequest(['Update Address Lists']), updateAddressLists);
+app.post('/api/v0/addressLists/delete', authorizeBlockinRequest(['Delete Address Lists']), deleteAddressLists);
 
 // Blockin Auth Codes
 app.post('/api/v0/authCode', getAuthCode);
 app.post('/api/v0/authCode/create', createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
-app.post('/api/v0/authCode/delete', authorizeBlockinRequest(['Auth Codes']), deleteAuthCode);
+app.post('/api/v0/authCode/delete', authorizeBlockinRequest(['Delete Auth Codes']), deleteAuthCode);
 
 // Claim Alerts
-app.post('/api/v0/claimAlerts/send', websiteOnlyCors, authorizeBlockinRequest(['Claim Alerts']), sendClaimAlert);
-app.post('/api/v0/claimAlerts', authorizeBlockinRequest(['Claim Alerts']), getClaimAlertsForCollection);
+app.post('/api/v0/claimAlerts/send', websiteOnlyCors, authorizeBlockinRequest(['Send Claim Alerts']), sendClaimAlert);
+app.post('/api/v0/claimAlerts', authorizeBlockinRequest(['Read Claim Alerts']), getClaimAlertsForCollection);
 
 // Follow Protocol
 app.post('/api/v0/follow-protocol', getFollowDetails);
@@ -406,9 +406,9 @@ app.post('/api/v0/appleWalletPass', createPass);
 
 // Off-Chain Secret Sigs
 app.post('/api/v0/secret', getSecret);
-app.post('/api/v0/secret/create', authorizeBlockinRequest(['Secrets']), createSecret);
-app.post('/api/v0/secret/delete', authorizeBlockinRequest(['Secrets']), deleteSecret);
-app.post('/api/v0/secret/update', authorizeBlockinRequest(['Secrets']), updateSecret);
+app.post('/api/v0/secret/create', authorizeBlockinRequest(['Create Secrets']), createSecret);
+app.post('/api/v0/secret/delete', authorizeBlockinRequest(['Delete Secrets']), deleteSecret);
+app.post('/api/v0/secret/update', authorizeBlockinRequest(['Update Secrets']), updateSecret);
 
 app.post('/api/v0/externalCallKey', externalApiCallKeyCheckHandler);
 

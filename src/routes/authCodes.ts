@@ -25,12 +25,11 @@ export const createAuthCode = async (
 ) => {
   try {
     const reqBody = req.body as CreateBlockinAuthCodeRouteRequestBody;
+    if (!checkIfAuthenticated(req, ['Create Auth Codes'])) {
+      throw new Error('You must be authenticated with the correct scopes to create an auth code.');
+    }
 
     for (const proof of reqBody.secretsProofs || []) {
-      if (!checkIfAuthenticated(req, ['Secrets'])) {
-        throw new Error('You must be authenticated to create a code w/ a secrets proof.');
-      }
-
       await verifySecretsProof(req.session.address, proof, true);
     }
 

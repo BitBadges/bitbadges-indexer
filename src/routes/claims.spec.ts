@@ -1057,7 +1057,7 @@ describe('claims', () => {
           method: 'GET',
           name: 'Test',
           userInputsSchema: [],
-          uri: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+          uri: 'https://api.bitbadges.io/nonexistent'
         }
       ])
     ]);
@@ -1074,8 +1074,7 @@ describe('claims', () => {
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(0);
 
-    //TODO: This actually fails. Write a better test
-    const keyDoc = await getFromDB(ExternalCallKeysModel, 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+    const keyDoc = await getFromDB(ExternalCallKeysModel, 'https://api.bitbadges.io/nonexistent');
     expect(keyDoc).toBeTruthy();
     expect(keyDoc?.keys.length).toBeGreaterThan(0);
   });
@@ -1104,6 +1103,8 @@ describe('claims', () => {
       console.log('No claim docs found');
       throw new Error('No claim docs found');
     }
+
+    const currManagerTimeline = collectionDocToUse.managerTimeline;
 
     await insertToDB(CollectionModel, {
       ...collectionDocToUse,
@@ -1230,6 +1231,11 @@ describe('claims', () => {
 
     const resetDoc = await getFromDB(ClaimBuilderModel, claimDocToUse._docId);
     expect(resetDoc).toBeUndefined();
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: currManagerTimeline //Avoid side effects
+    });
   }, 10000000);
 
   it('should not reveal private params for off-chain balances', async () => {
@@ -1256,6 +1262,8 @@ describe('claims', () => {
       console.log('No claim docs found');
       throw new Error('No claim docs found');
     }
+
+    const currManagerTimeline = collectionDocToUse.managerTimeline;
 
     await insertToDB(CollectionModel, {
       ...collectionDocToUse,
@@ -1348,5 +1356,10 @@ describe('claims', () => {
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
       .send(getBody2);
     expect(getRes3.status).toBeGreaterThan(400);
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: currManagerTimeline //Avoid side effects
+    });
   });
 });

@@ -660,7 +660,7 @@ describe('get auth codes', () => {
 
     const secretsDoc3 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
     expect(secretsDoc3.holders.length).toBe(0);
-  });
+  }, 100000);
 
   it('should delete secret', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();

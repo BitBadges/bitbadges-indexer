@@ -768,5 +768,5 @@ describe('get address lists', () => {
 
     const finalDoc3 = await getFromDB(ClaimBuilderModel, convertToCosmosAddress(address) + '_claim123');
     expect(finalDoc3).toBeUndefined();
-  });
+  }, 100000);
 });

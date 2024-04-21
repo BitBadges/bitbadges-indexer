@@ -384,7 +384,6 @@ const getAdditionalUserInfo = async (
   }
 
   const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-  const isAuthenticated = !!checkIfAuthenticated(authReq, ['Full Access']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
 
   const asyncOperations = [];
   for (const view of reqBody.viewsToFetch) {
@@ -394,6 +393,8 @@ const getAdditionalUserInfo = async (
     const oldestFirst = view.oldestFirst;
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
+        const isAuthenticated =
+          !!checkIfAuthenticated(authReq, ['Read Address Lists']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
         asyncOperations.push(async () => await executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst, isAuthenticated));
       }
     } else if (view.viewType === 'transferActivity') {
@@ -418,17 +419,23 @@ const getAdditionalUserInfo = async (
       }
     } else if (view.viewType === 'claimAlerts') {
       if (bookmark !== undefined) {
+        const isAuthenticated =
+          !!checkIfAuthenticated(authReq, ['Read Claim Alerts']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'sentClaimAlerts') {
       if (bookmark !== undefined) {
+        const isAuthenticated =
+          !!checkIfAuthenticated(authReq, ['Read Claim Alerts']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeSentClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'authCodes') {
       if (bookmark !== undefined) {
-        if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
+        const isAuthenticated =
+          !!checkIfAuthenticated(authReq, ['Read Auth Codes']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch auth codes.');
         asyncOperations.push(async () => await executeAuthCodesQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'allLists') {
@@ -445,7 +452,9 @@ const getAdditionalUserInfo = async (
       }
     } else if (view.viewType === 'privateLists') {
       if (bookmark !== undefined) {
-        if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
+        const isAuthenticated =
+          !!checkIfAuthenticated(authReq, ['Read Address Lists']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch private lists.');
         asyncOperations.push(async () => await executePrivateListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'createdLists') {
@@ -454,11 +463,15 @@ const getAdditionalUserInfo = async (
       }
     } else if (view.viewType === 'createdSecrets') {
       if (bookmark !== undefined) {
+        const isAuthenticated =
+          !!checkIfAuthenticated(authReq, ['Read Secrets']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeCreatedSecretsQuery(cosmosAddress, bookmark));
       }
     } else if (view.viewType === 'receivedSecrets') {
       if (bookmark !== undefined) {
+        const isAuthenticated =
+          !!checkIfAuthenticated(authReq, ['Read Secrets']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeReceivedSecretsQuery(cosmosAddress, bookmark));
       }
