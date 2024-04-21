@@ -8,7 +8,7 @@ import {
   type iUintRange,
   ClaimAlertDoc
 } from 'bitbadgesjs-sdk';
-import { mustGetManyFromDB } from '../db/db';
+import { getManyFromDB, mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import {
   AddressListModel,
@@ -585,10 +585,10 @@ export async function executeListsActivityQuery(
 
     if (!fetchPrivate) {
       const listIds = [...new Set(viewDocs.map((x) => x.listId))];
-      const lists = await mustGetManyFromDB(AddressListModel, listIds);
+      const lists = await getManyFromDB(AddressListModel, listIds);
 
       viewDocs = viewDocs.filter((doc) => {
-        const list = lists.find((x) => x.listId === doc.listId);
+        const list = lists.find((x) => x && x.listId === doc.listId);
         return list && !list.private;
       });
     }
