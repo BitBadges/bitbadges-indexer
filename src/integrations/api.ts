@@ -5,6 +5,8 @@ import { ExternalCallKeysModel } from '../db/schemas';
 import { handleIntegrationQuery } from './integration-query-handlers/integration-handlers';
 import { type BackendIntegrationPlugin } from './types';
 
+axios.defaults.timeout = 10000;
+
 export const ApiPluginDetails: BackendIntegrationPlugin<'api'> = {
   id: 'api',
   metadata: {
@@ -34,7 +36,6 @@ export const ApiPluginDetails: BackendIntegrationPlugin<'api'> = {
       };
 
       try {
-        // TODO: timeout and handle correctly?
         if (apiCall.uri.startsWith('https://api.bitbadges.io/api/v0/integrations/query')) {
           await handleIntegrationQuery({
             ...body,

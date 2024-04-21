@@ -31,9 +31,8 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
       }
     }
 
-    // TODO: Support string-number queries
     if (BigInt(maxBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
-      throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
+      throw new Error('This collection has >2^53 badges. Such collections are not supported.');
     }
 
     const ownersRes = await findInDB(BalanceModel, {

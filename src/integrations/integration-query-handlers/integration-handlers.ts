@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { getAccountByAddress } from '../../routes/users';
 
+axios.defaults.timeout = 10000;
+
 export const handleIntegrationQuery = async (body: any) => {
   if (body.__type === 'github-contributions') {
     await handleGithubContributionsQuery(body);

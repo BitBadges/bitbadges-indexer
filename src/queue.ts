@@ -31,9 +31,9 @@ import { deleteMany, getFromDB, getManyFromDB, insertToDB, mustGetFromDB } from 
 import { findInDB } from './db/queries';
 import { BalanceModel, ErrorModel, FetchModel, QueueModel, RefreshModel } from './db/schemas';
 import { type DocsCache } from './db/types';
-import { LOAD_BALANCER_ID, TIME_MODE } from './indexer-vars';
+import { LOAD_BALANCER_ID } from './indexer-vars';
 import { getFromIpfs } from './ipfs/ipfs';
-import { QUEUE_TIME_MODE, sendPushNotification } from './poll';
+import { sendPushNotification } from './poll';
 import { getAddressListsFromDB } from './routes/utils';
 import { cleanApprovalInfo, cleanBalanceMap, cleanMetadata } from './utils/dataCleaners';
 import { getLoadBalancerId } from './utils/loadBalancer';
@@ -486,7 +486,6 @@ const MAX_NUM_ADDRESSES = 15000;
 export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, queueObj: QueueDoc<bigint>, block: bigint) => {
   const balanceMapHash = SHA256(JSON.stringify(balanceMap)).toString();
 
-  if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances');
   // Pretty much, this function is responsible for updating the balances docs in BalanceModel for off-chain balance JSONs
   // This is to make them compatible with our existing on-chain balances docs in BalanceModel
   // We treat it as at the beginning of this function, "Mint" holds all the balances (i.e. the balances of "Total") defined on-chain
@@ -723,8 +722,6 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
       }
     }
 
-    if (TIME_MODE && QUEUE_TIME_MODE) console.time('handleBalances - flush only');
-
     await flushCachedDocs(docs);
   } catch (e) {
     console.log(serializeError(e));
@@ -736,8 +733,6 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
     console.log('Error in handleBalances');
     throw e;
   }
-  if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances - flush only');
-  if (TIME_MODE && QUEUE_TIME_MODE) console.timeEnd('handleBalances');
 
   return docs; // For testing
 };

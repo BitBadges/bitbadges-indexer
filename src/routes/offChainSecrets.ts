@@ -178,8 +178,6 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       throw new Error('You are not the owner of this auth code.');
     }
 
-    // TODO: Do deletedAt like auth codes?
-
     await deleteMany(OffChainSecretsModel, [reqBody.secretId]);
 
     return res.status(200).send({ success: true });
@@ -196,27 +194,40 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
   try {
     const reqBody = req.body as UpdateSecretRouteRequestBody;
 
-    const doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
+    let doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
 
     for (const viewerToAdd of reqBody.holdersToSet ?? []) {
-      const toAdd = !viewerToAdd.delete;
       const cosmosAddress = viewerToAdd.cosmosAddress;
       if (req.session.cosmosAddress !== doc.createdBy && req.session.cosmosAddress !== cosmosAddress) {
         throw new Error('To update a viewer, you must be the owner or add yourself as a viewer.');
       }
-
-      if (toAdd) {
-        if (doc.holders.includes(cosmosAddress)) {
-          throw new Error('Viewer already exists');
-        }
-        doc.holders.push(cosmosAddress);
-      } else {
-        if (!doc.holders.includes(cosmosAddress)) {
-          throw new Error('Viewer does not exist');
-        }
-        doc.holders = doc.holders.filter((v) => v !== cosmosAddress);
-      }
     }
+
+    const holdersToAdd = reqBody.holdersToSet?.filter((v) => !v.delete).map((v) => v.cosmosAddress) ?? [];
+    const holdersToRemove = reqBody.holdersToSet?.filter((v) => v.delete).map((v) => v.cosmosAddress) ?? [];
+
+    //TODO: session?
+    const setters = [];
+    if (holdersToAdd.length > 0) {
+      setters.push({
+        $push: {
+          holders: { $each: holdersToAdd }
+        }
+      });
+    }
+    if (holdersToRemove.length > 0) {
+      setters.push({
+        $pull: {
+          holders: { $in: holdersToRemove }
+        }
+      });
+    }
+
+    for (const setter of setters) {
+      await OffChainSecretsModel.findOneAndUpdate({ _docId: reqBody.secretId }, setter).lean().exec();
+    }
+
+    doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
 
     if (
       reqBody.anchorsToAdd &&
@@ -241,7 +252,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       'messageFormat'
     ];
     if (req.session.cosmosAddress !== doc.createdBy && Object.keys(reqBody).some((k) => keysToUpdate.includes(k))) {
-      throw new Error('You are not the owner of this auth code, so you cannot update its core details.');
+      throw new Error('You are not the owner, so you cannot update its core details.');
     }
 
     doc.proofOfIssuance = reqBody.proofOfIssuance ?? doc.proofOfIssuance;

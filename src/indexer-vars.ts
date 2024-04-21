@@ -5,8 +5,6 @@ import { create } from 'ipfs-http-client';
 
 export const OFFLINE_MODE = false;
 
-export const TIME_MODE = process.env.TIME_MODE === 'true' || false;
-
 export const s3 = new S3({
   endpoint: 'https://nyc3.digitaloceanspaces.com',
   region: 'us-east-1',

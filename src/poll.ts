@@ -57,7 +57,6 @@ import {
 import { getStatus } from './db/status';
 import { type DocsCache } from './db/types';
 import { SHUTDOWN, client, setClient, setNotificationPollerTimer, setTimer, setUriPollerTimer } from './indexer';
-import { TIME_MODE } from './indexer-vars';
 import { getMapIdForQueueDb, handleQueueItems, pushMapFetchToQueue } from './queue';
 import { handleMsgCreateAddressLists } from './tx-handlers/handleMsgCreateAddressLists';
 import { handleMsgCreateCollection } from './tx-handlers/handleMsgCreateCollection';
@@ -105,12 +104,7 @@ export async function connectToRpc() {
   if (!client) throw new Error('Could not connect to any chain client');
 }
 
-export const QUEUE_TIME_MODE = process.env.QUEUE_TIME_MODE === 'true';
-
 export const pollUris = async () => {
-  if (TIME_MODE && QUEUE_TIME_MODE) {
-    console.time('pollUris');
-  }
   try {
     // We fetch initial status at beginning of block and do not write anything in DB until end of block
     // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
@@ -129,10 +123,6 @@ export const pollUris = async () => {
         }
       ]);
     }
-  }
-
-  if (TIME_MODE && QUEUE_TIME_MODE) {
-    console.timeEnd('pollUris');
   }
 
   if (SHUTDOWN) return;
@@ -276,9 +266,6 @@ export async function sendPushNotification(address: string, type: string, messag
 }
 
 export const pollNotifications = async () => {
-  if (TIME_MODE && QUEUE_TIME_MODE) {
-    console.time('pollNotifications');
-  }
   try {
     const transferActivityRes = await findInDB(TransferActivityModel, {
       query: { _notificationsHandled: { $exists: false } },
@@ -361,10 +348,6 @@ export const pollNotifications = async () => {
     }
   }
 
-  if (TIME_MODE && QUEUE_TIME_MODE) {
-    console.timeEnd('pollNotifications');
-  }
-
   if (SHUTDOWN) return;
 
   const newTimer = setTimeout(pollNotifications, notificationPollIntervalMs);
@@ -374,10 +357,6 @@ export const pollNotifications = async () => {
 export let complianceDoc: ComplianceDoc<bigint> | undefined;
 
 export const poll = async () => {
-  if (TIME_MODE && QUEUE_TIME_MODE) {
-    console.time('poll');
-  }
-
   try {
     // Connect to the chain client (this is first-time only)
     // This could be in init() but it is here in case indexer is started w/o the chain running
@@ -429,17 +408,17 @@ export const poll = async () => {
       try {
         // Handle printing of status if there was an outage
         if (outageTime) {
-          if (!TIME_MODE) process.stdout.write('\n');
+          process.stdout.write('\n');
           console.log(`Reconnected to chain at block ${status.block.height} after outage of ${new Date().getTime() - outageTime.getTime()} ms`);
         }
         outageTime = undefined;
 
         const processing = status.block.height + 1n;
-        if (!TIME_MODE) process.stdout.cursorTo(0);
+        process.stdout.cursorTo(0);
 
         const block: Block = await client.getBlock(Number(processing));
 
-        if (!TIME_MODE) process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`);
+        process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`);
         status.block.timestamp = BigInt(new Date(block.header.time).getTime());
 
         await handleBlock(block, status, docs, session);
@@ -472,12 +451,11 @@ export const poll = async () => {
         outageTime = outageTime ?? new Date();
         await connectToRpc();
 
-        if (!TIME_MODE) process.stdout.write('\n');
+        process.stdout.write('\n');
       } catch (e) {
-        if (!TIME_MODE) process.stdout.cursorTo(0);
-        if (!TIME_MODE) process.stdout.clearLine(1);
-        if (!TIME_MODE)
-          process.stdout.write(`Error connecting to chain client. ${outageTime ? `Outage Time: ${outageTime.toISOString()}` : ''} Retrying....`);
+        process.stdout.cursorTo(0);
+        process.stdout.clearLine(1);
+        process.stdout.write(`Error connecting to chain client. ${outageTime ? `Outage Time: ${outageTime.toISOString()}` : ''} Retrying....`);
       }
     }
 
@@ -495,9 +473,6 @@ export const poll = async () => {
     }
   }
 
-  if (TIME_MODE && QUEUE_TIME_MODE) {
-    console.timeEnd('poll');
-  }
   if (SHUTDOWN) return;
 
   const newTimer = setTimeout(poll, pollIntervalMs);
@@ -627,7 +602,7 @@ const getAttributeValueByKey = (attributes: Attribute[], key: string): string | 
 };
 
 const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCache, session: mongoose.ClientSession) => {
-  if (block.txs.length > 0 && !TIME_MODE) console.log('');
+  if (block.txs.length > 0) console.log('');
 
   // Handle each tx consecutively
   while (status.block.txIndex < block.txs.length) {

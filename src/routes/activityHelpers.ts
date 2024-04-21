@@ -27,13 +27,11 @@ export async function executeBadgeActivityQuery(
     }
   }
 
-  // TODO: Support string-number queries
   if (BigInt(maxBadgeId) > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
   }
 
   const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, false, 'timestamp', '_id');
-
   const query = {
     collectionId: Number(collectionId),
     balances: {

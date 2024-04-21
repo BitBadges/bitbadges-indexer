@@ -725,7 +725,6 @@ const getDecryptedPluginsAndPublicState = async (
   listId?: string
 ): Promise<Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>> => {
   if (includePrivateParams) {
-    //TODO: Should we have own scope for this?
     const auth = checkIfAuthenticated(req, ['Read Private Claim Data']);
     if (!auth) {
       throw new Error('You must be authenticated to fetch private params');

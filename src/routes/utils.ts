@@ -14,12 +14,12 @@ import {
   type iUserOutgoingApproval,
   type iUserOutgoingApprovalWithDetails
 } from 'bitbadgesjs-sdk';
-import { getManyFromDB, mustGetManyFromDB } from '../db/db';
+import { getManyFromDB } from '../db/db';
 import { AddressListModel, FetchModel } from '../db/schemas';
 import { complianceDoc } from '../poll';
+import { addBlankChallengeDetailsToCriteria } from './badges';
 import { mustFindAddressList } from './balances';
 import { executeListsActivityQueryForList } from './userQueries';
-import { addBlankChallengeDetailsToCriteria } from './badges';
 
 export async function getAddressListsFromDB(
   listsToFetch: Array<{
@@ -58,7 +58,7 @@ export async function getAddressListsFromDB(
   }
 
   if (listsToFetch.length > 0) {
-    const addressListDocs = await mustGetManyFromDB(
+    const addressListDocs = await getManyFromDB(
       AddressListModel,
       listsToFetch.map((x) => x.listId)
     );
@@ -72,7 +72,7 @@ export async function getAddressListsFromDB(
           )
         : { docs: [], bookmark: '' };
 
-      const doc = addressListDocs.find((x) => x.listId === listToFetch.listId);
+      const doc = addressListDocs.find((x) => x && x.listId === listToFetch.listId);
       if (doc) {
         addressLists.push(
           new BitBadgesAddressList<bigint>({
