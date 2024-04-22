@@ -51,7 +51,9 @@ import {
   type iGetCollectionsRouteSuccessResponse,
   type iMerkleChallengeDoc,
   ClaimDetails,
-  iClaimDetails
+  iClaimDetails,
+  CollectionMetadataTimelineWithDetails,
+  BadgeMetadataTimelineWithDetails
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
@@ -120,6 +122,7 @@ export async function executeAdditionalCollectionQueries(
     const collectionUri = collection.getCollectionMetadataTimelineValue()?.uri ?? '';
     const badgeMetadata = collection.getBadgeMetadataTimelineValue();
 
+    console.log('GETTING METADATA', collection.collectionId.toString(), collectionUri, badgeMetadata, query.metadataToFetch);
     promises.push(getMetadata(collection.collectionId.toString(), collectionUri, badgeMetadata, query.metadataToFetch));
 
     for (const view of query.viewsToFetch ?? []) {
@@ -430,7 +433,6 @@ export async function executeAdditionalCollectionQueries(
       merkleChallenges: [],
       approvalTrackers: [],
 
-      cachedBadgeMetadata: [],
       claims: [],
       views: {}
     });
@@ -600,14 +602,20 @@ export async function executeAdditionalCollectionQueries(
       (approvalTracker, index, self) => self.findIndex((t) => t._docId === approvalTracker._docId) === index
     );
 
+    console.log('METADATA RES', JSON.stringify(metadataRes.badgeMetadata));
     const appendedCollection = appendMetadataResToCollection(metadataRes, collectionToReturn);
-    collectionToReturn.cachedBadgeMetadata = appendedCollection.cachedBadgeMetadata;
-    collectionToReturn.cachedCollectionMetadata = appendedCollection.cachedCollectionMetadata;
+    collectionToReturn.badgeMetadataTimeline = appendedCollection.badgeMetadataTimeline;
+    collectionToReturn.collectionMetadataTimeline = appendedCollection.collectionMetadataTimeline;
+    console.log(JSON.stringify(collectionToReturn.badgeMetadataTimeline));
     if (query.handleAllAndAppendDefaults) {
       // Convert all timelines to handle all possible timeline time values
-      collectionToReturn.collectionMetadataTimeline = getFullCollectionMetadataTimeline(collectionToReturn.collectionMetadataTimeline);
-
-      collectionToReturn.badgeMetadataTimeline = getFullBadgeMetadataTimeline(collectionToReturn.badgeMetadataTimeline);
+      collectionToReturn.collectionMetadataTimeline = getFullCollectionMetadataTimeline(
+        collectionToReturn.collectionMetadataTimeline
+      ) as unknown as CollectionMetadataTimelineWithDetails<bigint>[];
+      collectionToReturn.badgeMetadataTimeline = getFullBadgeMetadataTimeline(
+        collectionToReturn.badgeMetadataTimeline
+      ) as unknown as BadgeMetadataTimelineWithDetails<bigint>[];
+      console.log('APPENDING DEFAULTS');
       collectionToReturn.isArchivedTimeline = getFullIsArchivedTimeline(collectionToReturn.isArchivedTimeline);
       collectionToReturn.offChainBalancesMetadataTimeline = getOffChainBalancesMetadataTimeline(collectionToReturn.offChainBalancesMetadataTimeline);
       collectionToReturn.customDataTimeline = getFullCustomDataTimeline(collectionToReturn.customDataTimeline);
@@ -1027,6 +1035,7 @@ const getMetadata = async (
         metadataId: BigInt(metadataId),
         uri,
         badgeIds,
+        customData: '',
         metadata: new Metadata({
           ...(badgeMetadataResultContent ?? Metadata.DefaultPlaceholderMetadata()),
           _isUpdating: result.updating,
@@ -1036,7 +1045,10 @@ const getMetadata = async (
       })
     );
   }
+
+  console.log('TO UPDATE', toUpdate, badgeMetadata);
   badgeMetadata = batchUpdateBadgeMetadata(badgeMetadata, toUpdate);
+  console.log('AFTER UPDATE', badgeMetadata);
 
   return {
     collectionMetadata: collectionMetadata?.clone(),
@@ -1053,9 +1065,23 @@ const appendMetadataResToCollection = (
 ) => {
   // Kinda hacky and inefficient, but metadataRes is the newest metadata, so we just overwrite existing metadata, if exists with same key
   const isCollectionMetadataResEmpty = !metadataRes.collectionMetadata || Object.keys(metadataRes.collectionMetadata).length === 0;
-  collection.cachedCollectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.cachedCollectionMetadata;
+  const cachedCollectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.getCollectionMetadata();
+
+  let cachedBadgeMetadata = collection.getCurrentBadgeMetadata();
   if (metadataRes.badgeMetadata) {
-    collection.cachedBadgeMetadata = batchUpdateBadgeMetadata(collection.cachedBadgeMetadata, metadataRes.badgeMetadata);
+    cachedBadgeMetadata = batchUpdateBadgeMetadata(cachedBadgeMetadata, metadataRes.badgeMetadata);
+  }
+
+  for (const timelineTime of collection.collectionMetadataTimeline) {
+    if (timelineTime.timelineTimes.searchIfExists(BigInt(Date.now()))) {
+      timelineTime.collectionMetadata.metadata = cachedCollectionMetadata;
+    }
+  }
+
+  for (const timelineTime of collection.badgeMetadataTimeline) {
+    if (timelineTime.timelineTimes.searchIfExists(BigInt(Date.now()))) {
+      timelineTime.badgeMetadata = cachedBadgeMetadata;
+    }
   }
 
   return collection;

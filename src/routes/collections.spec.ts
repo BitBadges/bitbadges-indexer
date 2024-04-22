@@ -68,9 +68,9 @@ describe('collections', () => {
       .send(body);
 
     expect(res.status).toBe(200);
-    expect(res.body.collections[0].cachedBadgeMetadata.length).toBeGreaterThan(0);
-
     const collection = new BitBadgesCollection(res.body.collections[0]);
+    expect(collection.getCurrentBadgeMetadata()).toBeGreaterThan(0);
+
     expect(collection.getBadgeMetadata(1n)).toBeDefined();
     expect(collection.getBadgeMetadata(10n)).toBeDefined();
 
@@ -97,9 +97,9 @@ describe('collections', () => {
       .send(body);
 
     expect(res.status).toBe(200);
-    expect(res.body.collections[0].cachedBadgeMetadata.length).toBeGreaterThan(0);
-
+    
     const collection = new BitBadgesCollection(res.body.collections[0]);
+    expect(collection.getCurrentBadgeMetadata()).toBeGreaterThan(0);
     // expect(collection.getBadgeMetadata(1n)).toBeDefined(); Bootstrapped order is way out of order
     expect(collection.getBadgeMetadata(2)).toBeDefined();
   });
