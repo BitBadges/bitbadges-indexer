@@ -195,6 +195,9 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchRouteS
       noCollections && noAddressLists ? Promise.resolve([]) : findInDB(FetchModel, { query: metadataQuery }),
       noAccounts ? Promise.resolve([]) : findInDB(AccountModel, { query: accountQuery }),
       noAddressLists ? Promise.resolve([]) : findInDB(AddressListModel, { query: addressListsQuery })
+
+      // TODO: Fetch Solana accounts by regex from profiles DB? If they are not in the accounts DB, we can't fetch them
+      // noAccounts ? Promise.resolve([]) : findInDB(AccountModel, { query: { solAddress: { $regex: `(?i)${searchValue}` } } })
     ]);
 
     const metadataResponseDocs = results[0];
