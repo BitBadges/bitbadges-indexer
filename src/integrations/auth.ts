@@ -167,7 +167,7 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
     stateless: false,
     scoped: true
   },
-  defaultState: {},
+  defaultState: {}, 
   encryptPrivateParams: (privateParams) => {
     return privateParams;
   },
@@ -175,9 +175,17 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
-    adminInfo.username = adminInfo.discriminator ? adminInfo.username + '#' + adminInfo.discriminator : adminInfo.username;
+    const username = Number(adminInfo.discriminator) ? adminInfo.username + '#' + adminInfo.discriminator : adminInfo.username;
 
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, adminInfo, 'discord');
+    return await GenericOauthValidateFunction(
+      publicParams,
+      privateParams,
+      customBody,
+      priorState,
+      globalState,
+      { ...adminInfo, username },
+      'discord'
+    );
   },
   getPublicState: () => {
     return {};

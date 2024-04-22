@@ -386,7 +386,7 @@ app.post('/api/v0/addressLists/delete', authorizeBlockinRequest(['Delete Address
 
 // Blockin Auth Codes
 app.post('/api/v0/authCode', getAuthCode);
-app.post('/api/v0/authCode/create', createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
+app.post('/api/v0/authCode/create', authorizeBlockinRequest(['Create Auth Codes']), createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
 app.post('/api/v0/authCode/delete', authorizeBlockinRequest(['Delete Auth Codes']), deleteAuthCode);
 
 // Claim Alerts

@@ -81,7 +81,8 @@ export function getActivityDocsForListUpdate(
   list: iAddressList,
   existingDoc: iAddressList | undefined,
   status: StatusDoc<NumberType>,
-  activityDocs: Array<ListActivityDoc<NumberType>>
+  activityDocs: Array<ListActivityDoc<NumberType>>,
+  creator: string
 ) {
   const existingAddresses = existingDoc?.addresses ?? [];
   const newAddressesNotInOld = list.addresses.filter((x) => !existingAddresses.includes(x));
@@ -93,6 +94,7 @@ export function getActivityDocsForListUpdate(
         _docId: crypto.randomBytes(32).toString('hex'),
         addresses: newAddressesNotInOld.map((x) => convertToCosmosAddress(x)),
         addedToList: true,
+        initiatedBy: creator,
         listId: list.listId,
         timestamp: Date.now(),
         block: status?.block.height ?? 0n
@@ -104,6 +106,7 @@ export function getActivityDocsForListUpdate(
     activityDocs.push(
       new ListActivityDoc({
         _docId: crypto.randomBytes(32).toString('hex'),
+        initiatedBy: creator,
         addresses: oldAddressesNotInNew.map((x) => convertToCosmosAddress(x)),
         addedToList: false,
         listId: list.listId,
@@ -243,7 +246,7 @@ const handleAddressListsUpdateAndCreate = async (
         })
       );
 
-      getActivityDocsForListUpdate(list, existingDoc, status, activityDocs);
+      getActivityDocsForListUpdate(list, existingDoc, status, activityDocs, cosmosAddress);
     }
 
     // TODO: Session?

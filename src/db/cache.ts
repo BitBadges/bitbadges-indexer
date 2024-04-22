@@ -390,6 +390,7 @@ export async function flushCachedDocs(
         listActivityDocs.push(
           new ListActivityDoc({
             _docId: crypto.randomBytes(16).toString('hex'),
+            initiatedBy: doc.createdBy,
             addresses: doc.addresses.map((x) => convertToCosmosAddress(x)),
             addedToList: true,
             listId: doc.listId,

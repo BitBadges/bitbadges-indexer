@@ -375,7 +375,7 @@ const addToAddressListAction = async (doc: ClaimBuilderDoc<NumberType>, cosmosAd
     .exec();
   const newDoc = await mustGetFromDB(AddressListModel, listId);
   const status = await getStatus();
-  getActivityDocsForListUpdate(newDoc, listDoc, status, activityDocs);
+  getActivityDocsForListUpdate(newDoc, listDoc, status, activityDocs, address);
   await insertMany(ListActivityModel, activityDocs);
 };
 

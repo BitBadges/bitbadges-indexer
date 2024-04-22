@@ -806,7 +806,14 @@ export const handleQueueItems = async (block: bigint) => {
 
   const promises = queueItems.map(async (queueObj) => {
     if (queueObj.emailMessage && queueObj.recipientAddress && queueObj.activityDocId && queueObj.notificationType) {
-      await sendPushNotification(queueObj.recipientAddress, queueObj.notificationType, queueObj.emailMessage, queueObj.activityDocId, queueObj);
+      await sendPushNotification(
+        queueObj.recipientAddress,
+        queueObj.notificationType,
+        queueObj.emailMessage,
+        queueObj.activityDocId,
+        undefined,
+        queueObj
+      );
     } else {
       await executeFunc(queueObj);
     }

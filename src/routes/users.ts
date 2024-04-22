@@ -800,6 +800,7 @@ export const updateAccountInfo = async (
       seenActivity: reqBody.seenActivity?.toString() ?? profileInfo.seenActivity,
       readme: reqBody.readme ?? profileInfo.readme,
       hiddenBadges: reqBody.hiddenBadges ?? profileInfo.hiddenBadges,
+      customLinks: reqBody.customLinks ?? profileInfo.customLinks,
       customPages: reqBody.customPages ?? profileInfo.customPages,
       watchlists: reqBody.watchlists ?? profileInfo.watchlists,
       hiddenLists: reqBody.hiddenLists ?? profileInfo.hiddenLists,

@@ -166,7 +166,14 @@ export async function sendPushNotificationToDiscord(user: string, message: strin
   }
 }
 
-export async function sendPushNotification(address: string, type: string, message: string, docId: string, queueDoc?: QueueDoc<bigint>) {
+export async function sendPushNotification(
+  address: string,
+  type: string,
+  message: string,
+  docId: string,
+  initiatedBy?: string,
+  queueDoc?: QueueDoc<bigint>
+) {
   try {
     const profile = await getFromDB(ProfileModel, address);
     if (!profile) return;
@@ -187,6 +194,9 @@ export async function sendPushNotification(address: string, type: string, messag
     const toReceiveListActivity = profile.notifications?.preferences?.listActivity;
     const toReceiveTransferActivity = profile.notifications?.preferences?.transferActivity;
     const toReceiveClaimAlerts = profile.notifications?.preferences?.claimAlerts;
+
+    const ignoreIfInitiator = profile.notifications?.preferences?.ignoreIfInitiator;
+    if (ignoreIfInitiator && initiatedBy && initiatedBy === address) return;
 
     if (type === NotificationType.List && !toReceiveListActivity) return;
     if (type === NotificationType.TransferActivity && !toReceiveTransferActivity) return;
@@ -281,12 +291,11 @@ export const pollNotifications = async () => {
     });
 
     for (const activityDoc of transferActivityRes) {
-      const initiatedBy = activityDoc.initiatedBy;
-      const addressesToNotify = [...activityDoc.from, ...activityDoc.to].filter((x) => x !== initiatedBy);
+      const addressesToNotify = [...activityDoc.from, ...activityDoc.to];
       const message = 'You have received badges';
 
       for (const address of addressesToNotify) {
-        await sendPushNotification(address, NotificationType.TransferActivity, message, activityDoc._docId);
+        await sendPushNotification(address, NotificationType.TransferActivity, message, activityDoc._docId, activityDoc.initiatedBy);
       }
     }
 
@@ -312,7 +321,7 @@ export const pollNotifications = async () => {
       }
 
       for (const address of addresses ?? []) {
-        await sendPushNotification(address, NotificationType.List, message, activityDoc._docId);
+        await sendPushNotification(address, NotificationType.List, message, activityDoc._docId, activityDoc.initiatedBy);
       }
     }
 

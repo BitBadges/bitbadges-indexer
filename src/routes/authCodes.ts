@@ -11,12 +11,12 @@ import {
   type iGetBlockinAuthCodeRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge } from 'blockin';
+import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { checkIfAuthenticated, genericBlockinVerify, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { genericBlockinVerify, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { insertToDB, mustGetFromDB } from '../db/db';
 import { BlockinAuthSignatureModel } from '../db/schemas';
-import crypto from 'crypto';
 import { verifySecretsProof } from './offChainSecrets';
 
 export const createAuthCode = async (
@@ -25,10 +25,6 @@ export const createAuthCode = async (
 ) => {
   try {
     const reqBody = req.body as CreateBlockinAuthCodeRouteRequestBody;
-    if (!checkIfAuthenticated(req, ['Create Auth Codes'])) {
-      throw new Error('You must be authenticated with the correct scopes to create an auth code.');
-    }
-
     for (const proof of reqBody.secretsProofs || []) {
       await verifySecretsProof(req.session.address, proof, true);
     }
