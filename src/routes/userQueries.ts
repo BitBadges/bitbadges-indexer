@@ -501,7 +501,7 @@ export async function executeCreatedByQuery(
 export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: string, oldestFirst?: boolean) {
   const paginationParams = await getQueryParamsFromBookmark(BlockinAuthSignatureModel, bookmark, oldestFirst, 'createdAt');
   const res = await findWithPagination(BlockinAuthSignatureModel, {
-    query: { cosmosAddress, ...paginationParams },
+    query: { cosmosAddress, deletedAt: { $exists: false }, ...paginationParams },
     sort: { createdAt: oldestFirst ? 1 : -1 },
     limit: 25
   });
