@@ -1,8 +1,8 @@
 import {
+  AddressList,
   AddressListDoc,
   ListActivityDoc,
   convertToCosmosAddress,
-  type iClaimBuilderDoc,
   type DeleteAddressListsRouteRequestBody,
   type ErrorResponse,
   type GetAddressListsRouteRequestBody,
@@ -11,24 +11,24 @@ import {
   type StatusDoc,
   type UpdateAddressListsRouteRequestBody,
   type iAddressList,
+  type iClaimBuilderDoc,
   type iDeleteAddressListsRouteSuccessResponse,
   type iGetAddressListsRouteSuccessResponse,
-  type iUpdateAddressListsRouteSuccessResponse,
-  AddressList
+  type iUpdateAddressListsRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { encryptPlugins } from '../integrations/types';
 import { checkIfAuthenticated, returnUnauthorized, type AuthenticatedRequest, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
 import { deleteMany, getFromDB, insertMany, mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, ListActivityModel } from '../db/schemas';
 import { getStatus } from '../db/status';
+import { encryptPlugins } from '../integrations/types';
 import { Plugins } from './claims';
 import { getClaimDetailsForFrontend } from './collections';
-import { getAddressListsFromDB } from './utils';
 import { assertPluginsUpdateIsValid } from './ipfs';
+import { getAddressListsFromDB } from './utils';
 
 export const deleteAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
@@ -145,10 +145,11 @@ const handleAddressListsUpdateAndCreate = async (
         throw new Error('List ID must start with ' + prefix);
       }
 
-      const cosmosAddresses = list.addresses.map((x) => convertToCosmosAddress(x));
-      if (cosmosAddresses.length !== new Set(cosmosAddresses).size) {
-        throw new Error('Duplicate addresses found in list');
-      }
+      //TODO: Allow duplicates or not?
+      // const cosmosAddresses = list.addresses.map((x) => convertToCosmosAddress(x));
+      // if (cosmosAddresses.length !== new Set(cosmosAddresses).size) {
+      //   throw new Error('Duplicate addresses found in list');
+      // }
     }
 
     const status = await getStatus();
