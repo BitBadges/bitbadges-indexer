@@ -1,18 +1,15 @@
 import {
-  type ApprovalInfoDetails,
   ApprovalTrackerDoc,
   BadgeMetadataDetails,
+  BadgeMetadataTimelineWithDetails,
   BalanceArray,
   BalanceDocWithDetails,
   BigIntify,
   BitBadgesCollection,
-  type ChallengeDetails,
-  type ClaimBuilderDoc,
-  type ClaimIntegrationPluginType,
+  ClaimDetails,
   CollectionApprovalWithDetails,
+  CollectionMetadataTimelineWithDetails,
   CollectionPermissionsWithDetails,
-  type IntegrationPluginDetails,
-  type IntegrationPluginParams,
   MerkleChallengeDoc,
   Metadata,
   UintRangeArray,
@@ -20,25 +17,28 @@ import {
   UserIncomingApprovalWithDetails,
   UserOutgoingApprovalWithDetails,
   UserPermissionsWithDetails,
-  getBadgeIdsForMetadataId,
   getFullBadgeMetadataTimeline,
   getFullCollectionMetadataTimeline,
   getFullCustomDataTimeline,
   getFullIsArchivedTimeline,
   getFullManagerTimeline,
   getFullStandardsTimeline,
-  getMetadataIdForBadgeId,
-  getMetadataIdsForUri,
   getOffChainBalancesMetadataTimeline,
-  getUrisForMetadataIds,
+  iClaimDetails,
+  type ApprovalInfoDetails,
   type BadgeMetadata,
   type BalanceDoc,
+  type ChallengeDetails,
+  type ClaimBuilderDoc,
+  type ClaimIntegrationPluginType,
   type CollectionDoc,
   type ErrorResponse,
   type GetAdditionalCollectionDetailsRequestBody,
   type GetBadgeActivityRouteRequestBody,
   type GetCollectionsRouteRequestBody,
   type GetMetadataForCollectionRequestBody,
+  type IntegrationPluginDetails,
+  type IntegrationPluginParams,
   type MetadataFetchOptions,
   type NumberType,
   type PaginationInfo,
@@ -50,13 +50,13 @@ import {
   type iGetBadgeActivityRouteSuccessResponse,
   type iGetCollectionsRouteSuccessResponse,
   type iMerkleChallengeDoc,
-  ClaimDetails,
-  iClaimDetails
+  GO_MAX_UINT_64,
+  CollectionMetadataDetails
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
-import { type MaybeAuthenticatedRequest, checkIfAuthenticated, checkIfManager } from '../blockin/blockin_handlers';
+import { checkIfAuthenticated, checkIfManager, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
 import { PageVisitsDoc } from '../db/docs';
 import { findInDB } from '../db/queries';
@@ -430,13 +430,12 @@ export async function executeAdditionalCollectionQueries(
       merkleChallenges: [],
       approvalTrackers: [],
 
-      cachedBadgeMetadata: [],
       claims: [],
       views: {}
     });
 
     const metadataRes = responses[currPromiseIdx++] as {
-      collectionMetadata: Metadata<bigint>;
+      collectionMetadata: CollectionMetadataDetails<bigint>;
       badgeMetadata: Array<BadgeMetadataDetails<bigint>>;
     };
 
@@ -601,13 +600,16 @@ export async function executeAdditionalCollectionQueries(
     );
 
     const appendedCollection = appendMetadataResToCollection(metadataRes, collectionToReturn);
-    collectionToReturn.cachedBadgeMetadata = appendedCollection.cachedBadgeMetadata;
-    collectionToReturn.cachedCollectionMetadata = appendedCollection.cachedCollectionMetadata;
+    collectionToReturn.badgeMetadataTimeline = appendedCollection.badgeMetadataTimeline;
+    collectionToReturn.collectionMetadataTimeline = appendedCollection.collectionMetadataTimeline;
     if (query.handleAllAndAppendDefaults) {
       // Convert all timelines to handle all possible timeline time values
-      collectionToReturn.collectionMetadataTimeline = getFullCollectionMetadataTimeline(collectionToReturn.collectionMetadataTimeline);
-
-      collectionToReturn.badgeMetadataTimeline = getFullBadgeMetadataTimeline(collectionToReturn.badgeMetadataTimeline);
+      collectionToReturn.collectionMetadataTimeline = getFullCollectionMetadataTimeline(
+        collectionToReturn.collectionMetadataTimeline
+      ) as unknown as CollectionMetadataTimelineWithDetails<bigint>[];
+      collectionToReturn.badgeMetadataTimeline = getFullBadgeMetadataTimeline(
+        collectionToReturn.badgeMetadataTimeline
+      ) as unknown as BadgeMetadataTimelineWithDetails<bigint>[];
       collectionToReturn.isArchivedTimeline = getFullIsArchivedTimeline(collectionToReturn.isArchivedTimeline);
       collectionToReturn.offChainBalancesMetadataTimeline = getOffChainBalancesMetadataTimeline(collectionToReturn.offChainBalancesMetadataTimeline);
       collectionToReturn.customDataTimeline = getFullCustomDataTimeline(collectionToReturn.customDataTimeline);
@@ -927,70 +929,120 @@ const getMetadata = async (
 ) => {
   const badgeUris = _badgeUris.map((x) => x.clone());
   const doNotFetchCollectionMetadata = fetchOptions?.doNotFetchCollectionMetadata;
-  const metadataIds = fetchOptions?.metadataIds ? fetchOptions.metadataIds : [];
   const urisToFetch = fetchOptions?.uris ? fetchOptions.uris : [];
   const badgeIdsToFetch = fetchOptions?.badgeIds ? fetchOptions.badgeIds : [];
 
-  let uris: string[] = [];
-  let metadataIdsToFetch: NumberType[] = [];
+  let uris: {
+    onChainUri: string;
+    toFetchUri: string;
+  }[] = [];
 
-  if (!doNotFetchCollectionMetadata && collectionUri) uris.push(collectionUri);
-  for (const uri of urisToFetch) {
-    uris.push(uri);
-    metadataIdsToFetch.push(...getMetadataIdsForUri(uri, badgeUris));
+  if (!doNotFetchCollectionMetadata && collectionUri) {
+    uris.push({
+      onChainUri: collectionUri,
+      toFetchUri: collectionUri
+    });
   }
 
-  for (const metadataId of metadataIds) {
-    const metadataIdCastedAsUintRange = metadataId as UintRange<NumberType>;
-    const metadataIdCastedAsNumber = metadataId as NumberType;
-    if (typeof metadataId === 'object' && metadataIdCastedAsUintRange.start && metadataIdCastedAsUintRange.end) {
-      const start = BigInt(metadataIdCastedAsUintRange.start);
-      const end = BigInt(metadataIdCastedAsUintRange.end);
-      for (let i = start; i <= end; i++) {
-        metadataIdsToFetch.push(i);
-        uris.push(...getUrisForMetadataIds([BigInt(i)], collectionUri, badgeUris));
+  for (const uri of urisToFetch) {
+    const placeholderUri = uri;
+    let onChainUri = '';
+    for (const badgeUri of badgeUris) {
+      const hasPlaceholder = badgeUri.uri.includes('{id}');
+
+      if (!hasPlaceholder && badgeUri.uri === placeholderUri) {
+        onChainUri = badgeUri.uri;
+        break;
+      } else {
+        const beforeIdStr = badgeUri.uri.split('{id}')[0];
+        const afterIdStr = badgeUri.uri.split('{id}')[1];
+
+        if (placeholderUri.startsWith(beforeIdStr) && placeholderUri.endsWith(afterIdStr)) {
+          //Handle edge case where the placeholder is not a number
+          try {
+            BigInt(placeholderUri.replace(beforeIdStr, '').replace(afterIdStr, ''));
+          } catch (e) {
+            continue;
+          }
+
+          onChainUri = badgeUri.uri;
+          break;
+        }
       }
-    } else {
-      metadataIdsToFetch.push(metadataIdCastedAsNumber);
-      uris.push(...getUrisForMetadataIds([BigInt(metadataIdCastedAsNumber)], collectionUri, badgeUris));
+    }
+
+    if (onChainUri) {
+      uris.push({
+        onChainUri: onChainUri,
+        toFetchUri: uri
+      });
     }
   }
 
   for (const badgeId of badgeIdsToFetch) {
     const badgeIdCastedAsUintRange = badgeId as UintRange<NumberType>;
     const badgeIdCastedAsNumber = badgeId as NumberType;
+    let badgeIdsLeft: UintRangeArray<bigint> = new UintRangeArray<bigint>();
+
     if (typeof badgeId === 'object' && badgeIdCastedAsUintRange.start && badgeIdCastedAsUintRange.end) {
-      let badgeIdsLeft = UintRangeArray.From([badgeIdCastedAsUintRange]).convert(BigIntify);
-
-      // Get URIs for each badgeID
-      while (badgeIdsLeft.length > 0) {
-        // Intuition: Start with the first singular badgeID -> fetch its metadata ID / URI -> if it shares with other badge IDs, we mark those handled as well
-
-        const currBadgeUintRange = badgeIdsLeft[0];
-
-        const metadataId = getMetadataIdForBadgeId(BigInt(currBadgeUintRange.start), badgeUris);
-        if (metadataId === -1) break;
-
-        metadataIdsToFetch.push(metadataId);
-        uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
-
-        const otherMatchingBadgeUintRanges = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
-        const [remaining] = badgeIdsLeft.getOverlapDetails(otherMatchingBadgeUintRanges);
-        badgeIdsLeft = remaining;
-        badgeIdsLeft.sortAndMerge();
-      }
+      badgeIdsLeft = UintRangeArray.From([badgeIdCastedAsUintRange]).convert(BigIntify);
     } else {
-      const metadataId = getMetadataIdForBadgeId(BigInt(badgeIdCastedAsNumber), badgeUris);
-      if (metadataId === -1) break;
+      badgeIdsLeft = UintRangeArray.From([{ start: badgeIdCastedAsNumber, end: badgeIdCastedAsNumber }]).convert(BigIntify);
+    }
 
-      uris.push(...getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris));
-      metadataIdsToFetch.push(metadataId);
+    const allBadgeIdsInMetadata = UintRangeArray.From<bigint>(badgeUris.map((x) => x.badgeIds).flat());
+    allBadgeIdsInMetadata.sortAndMerge();
+    const allBadgeIdsNotInMetadata = allBadgeIdsInMetadata.toInverted({ start: 1n, end: GO_MAX_UINT_64 });
+    badgeIdsLeft.remove(allBadgeIdsNotInMetadata);
+    badgeIdsLeft.sortAndMerge();
+
+    //Get URIs for each badgeID
+    while (badgeIdsLeft.length > 0) {
+      // Intuition: Start with the first singular badgeID -> fetch its metadata ID / URI -> if it shares with other badge IDs, we mark those handled as well
+      const currBadgeUintRange = badgeIdsLeft[0];
+      const allMatchingBadgeUintRanges = UintRangeArray.From({ start: currBadgeUintRange.start, end: currBadgeUintRange.start });
+
+      let handled = false;
+      for (const badgeUri of badgeUris) {
+        //We should always have one badge ID match in the badge metadata
+        if (badgeUri.badgeIds.searchIfExists(BigInt(currBadgeUintRange.start))) {
+          handled = true;
+
+          //If it has a placeholder, we need to replace it with the badge ID and thus it only applies to this specific badge ID
+          //Else, it applies to all badge IDs that correspond to the same URI
+          if (badgeUri.uri.includes('{id}')) {
+            uris.push({
+              onChainUri: badgeUri.uri,
+              toFetchUri: badgeUri.uri.replace('{id}', currBadgeUintRange.start.toString())
+            });
+            badgeIdsLeft.remove(allMatchingBadgeUintRanges);
+            badgeIdsLeft.sortAndMerge();
+          } else {
+            uris.push({
+              onChainUri: badgeUri.uri,
+              toFetchUri: badgeUri.uri
+            });
+            allMatchingBadgeUintRanges.push(...UintRangeArray.From(badgeUri.badgeIds).convert(BigIntify));
+            allMatchingBadgeUintRanges.sortAndMerge();
+            badgeIdsLeft.remove(allMatchingBadgeUintRanges);
+            badgeIdsLeft.sortAndMerge();
+          }
+
+          break; //First match only
+        }
+      }
+
+      // This metadata does not contain the badge ID requested
+      // This should never be the case bc we handle out of bounds badge IDs at the top of the function
+      if (!handled) {
+        throw new Error('Badge ID not found. Requested a badge ID not found in the badge metadata.');
+      }
+
+      badgeIdsLeft.sortAndMerge();
     }
   }
 
   uris = [...new Set(uris)];
-  metadataIdsToFetch = metadataIdsToFetch.map((id) => BigInt(id));
-  metadataIdsToFetch = [...new Set(metadataIdsToFetch)];
 
   if (uris.length > 250) {
     throw new Error(
@@ -998,10 +1050,14 @@ const getMetadata = async (
     );
   }
 
-  const results = await fetchUrisFromDbAndAddToQueueIfEmpty(uris, collectionId.toString());
+  const results = await fetchUrisFromDbAndAddToQueueIfEmpty(
+    uris.map((x) => x.toFetchUri),
+    collectionId.toString()
+  );
 
   let collectionMetadata: Metadata<bigint> | undefined;
   if (!doNotFetchCollectionMetadata) {
+    //We pushed the collection URI first
     const collectionMetadataResult = results[0];
     const collectionMetadataResultContent = results[0].content as Metadata<bigint>;
     if (collectionMetadataResult) {
@@ -1016,17 +1072,42 @@ const getMetadata = async (
 
   let badgeMetadata: Array<BadgeMetadataDetails<bigint>> = [];
   const toUpdate: Array<BadgeMetadataDetails<bigint>> = [];
-  for (const metadataId of metadataIdsToFetch) {
-    const uri = getUrisForMetadataIds([BigInt(metadataId)], collectionUri, badgeUris)[0];
-    const badgeIds = getBadgeIdsForMetadataId(BigInt(metadataId), badgeUris);
-    const resultIdx = uris.indexOf(uri);
+  for (const { onChainUri: uri, toFetchUri: fetchedUri } of uris) {
+    const placeholderReplaced = fetchedUri !== uri;
+
+    const badgeIds = UintRangeArray.From<bigint>([]);
+    for (const badgeUri of badgeUris) {
+      //If on-chain URIs match, we can push the corresponding metadata and badgeIds
+      if (badgeUri.uri === uri) {
+        if (!placeholderReplaced) {
+          badgeIds.push(...badgeUri.badgeIds);
+        } else {
+          //Find the badge ID that corresponds to the fetched URI (the replaced one)
+          const beforeIdStr = badgeUri.uri.split('{id}')[0];
+          const afterIdStr = badgeUri.uri.split('{id}')[1];
+
+          if (fetchedUri.startsWith(beforeIdStr) && fetchedUri.endsWith(afterIdStr)) {
+            const replacedId = fetchedUri.replace(beforeIdStr, '').replace(afterIdStr, '');
+            try {
+              BigInt(replacedId);
+            } catch (e) {
+              continue;
+            }
+            badgeIds.push({ start: BigInt(replacedId), end: BigInt(replacedId) });
+          }
+        }
+      }
+    }
+
+    const resultIdx = uris.findIndex((x) => x.toFetchUri === fetchedUri);
     const result = results[resultIdx];
     const badgeMetadataResultContent = result.content as Metadata<bigint>;
     toUpdate.push(
       new BadgeMetadataDetails({
-        metadataId: BigInt(metadataId),
         uri,
+        fetchedUri,
         badgeIds,
+        customData: '',
         metadata: new Metadata({
           ...(badgeMetadataResultContent ?? Metadata.DefaultPlaceholderMetadata()),
           _isUpdating: result.updating,
@@ -1036,26 +1117,48 @@ const getMetadata = async (
       })
     );
   }
+
   badgeMetadata = batchUpdateBadgeMetadata(badgeMetadata, toUpdate);
 
   return {
-    collectionMetadata: collectionMetadata?.clone(),
+    collectionMetadata: new CollectionMetadataDetails({
+      uri: collectionUri,
+      fetchedUri: collectionUri,
+      customData: '',
+      metadata: collectionMetadata
+        ? new Metadata({
+            ...collectionMetadata?.clone()
+          })
+        : undefined
+    }),
     badgeMetadata: badgeMetadata.map((x) => x.clone())
   };
 };
 
 const appendMetadataResToCollection = (
   metadataRes: {
-    collectionMetadata?: Metadata<bigint>;
+    collectionMetadata?: CollectionMetadataDetails<bigint>;
     badgeMetadata?: Array<BadgeMetadataDetails<bigint>>;
   },
   collection: BitBadgesCollection<bigint> | BitBadgesCollection<bigint>
 ) => {
-  // Kinda hacky and inefficient, but metadataRes is the newest metadata, so we just overwrite existing metadata, if exists with same key
-  const isCollectionMetadataResEmpty = !metadataRes.collectionMetadata || Object.keys(metadataRes.collectionMetadata).length === 0;
-  collection.cachedCollectionMetadata = !isCollectionMetadataResEmpty ? metadataRes.collectionMetadata : collection.cachedCollectionMetadata;
+  let cachedBadgeMetadata = collection.getCurrentBadgeMetadata();
   if (metadataRes.badgeMetadata) {
-    collection.cachedBadgeMetadata = batchUpdateBadgeMetadata(collection.cachedBadgeMetadata, metadataRes.badgeMetadata);
+    cachedBadgeMetadata = batchUpdateBadgeMetadata(cachedBadgeMetadata, metadataRes.badgeMetadata);
+  }
+
+  if (metadataRes.collectionMetadata) {
+    for (const timelineTime of collection.collectionMetadataTimeline) {
+      if (timelineTime.timelineTimes.searchIfExists(BigInt(Date.now()))) {
+        timelineTime.collectionMetadata = metadataRes.collectionMetadata;
+      }
+    }
+  }
+
+  for (const timelineTime of collection.badgeMetadataTimeline) {
+    if (timelineTime.timelineTimes.searchIfExists(BigInt(Date.now()))) {
+      timelineTime.badgeMetadata = cachedBadgeMetadata;
+    }
   }
 
   return collection;

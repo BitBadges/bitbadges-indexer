@@ -77,16 +77,12 @@ export const verifySecretsProof = async (
           throw new Error('Data integrity proof not verified');
         }
       } else {
-        console.log(body.dataIntegrityProof);
         const isProofVerified = await blsVerifyProof({
           proof: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signature, 'hex')),
           publicKey: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signer, 'hex')),
           messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8'))),
           nonce: Uint8Array.from(Buffer.from('nonce', 'utf8'))
         });
-
-        console.log(JSON.stringify(isProofVerified));
-
         if (!isProofVerified.verified) {
           throw new Error('Data integrity proof not verified');
         }
@@ -111,16 +107,19 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     let image = reqBody.image;
 
     if (reqBody.image.startsWith('data:')) {
-      const { collectionMetadataResult } = await addMetadataToIpfs({
-        name: reqBody.name,
-        description: reqBody.description,
-        image: reqBody.image
-      });
-      if (!collectionMetadataResult) {
+      const { results } = await addMetadataToIpfs([
+        {
+          name: reqBody.name,
+          description: reqBody.description,
+          image: reqBody.image
+        }
+      ]);
+      if (!results?.[0]) {
         throw new Error('Error adding metadata to IPFS');
       }
 
-      const res = await getFromIpfs(collectionMetadataResult.cid);
+      const result = results[0];
+      const res = await getFromIpfs(result.cid);
       const metadata = JSON.parse(res.file.toString());
 
       image = metadata.image;

@@ -824,8 +824,6 @@ export const updateAccountInfo = async (
 
         //Compare to current. If different, check session
         const currId = profileInfo.notifications?.discord?.id;
-        console.log('currId', currId);
-        console.log('reqBody.notifications.discord.id', reqBody.notifications.discord.id);
         if (reqBody.notifications.discord.id && currId !== reqBody.notifications.discord.id) {
           if (req.session.discord.id !== reqBody.notifications.discord.id) {
             return res.status(400).send({

@@ -60,8 +60,6 @@ export async function verifyBitBadgesAssets(
         }
       }
 
-      console.log(JSON.stringify(asset));
-
       // Validate BitBadges
       if (asset.chain === 'BitBadges' && asset.collectionId !== 'BitBadges Lists') {
         if (!asset.assetIds.every((x) => typeof x === 'object' && BigInt(x.start) >= 0 && BigInt(x.end) >= 0)) {

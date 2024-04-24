@@ -76,7 +76,6 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
       throw new Error('No URI to fetch found. URI must be present for non-indexed off-chain balances.');
     }
 
-    console.log(uriToFetch, originalUri);
     if (uriToFetch === 'https://api.bitbadges.io/api/v0/ethFirstTx/' + cosmosAddress) {
       // Hardcoded to fetch locally instead of from source GET
       const fetchedBalances = await getBalancesForEthFirstTx(cosmosAddress);
@@ -116,7 +115,7 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
         apiDetails.privateParams
         // Everything else is N/A to non-indexed
       );
-      console.log(apiRes);
+
       balancesRes = {
         ...BlankUserBalance,
         _docId: collectionId + ':' + cosmosAddress,
