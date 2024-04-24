@@ -210,19 +210,27 @@ export const addMetadataToIpfsHandler = async (
   const reqBody = req.body as AddMetadataToIpfsRouteRequestBody;
 
   try {
+    if (!reqBody.metadata) {
+      throw new Error('No metadata provided');
+    }
+
+    if (reqBody.metadata.length === 0) {
+      return res.status(200).send({ results: [] });
+    }
+
     const size = Buffer.byteLength(JSON.stringify(req.body));
 
     await checkIpfsTotals(req.session.cosmosAddress, size);
 
-    const { collectionMetadataResult, badgeMetadataResults } = await addMetadataToIpfs(reqBody.collectionMetadata, reqBody.badgeMetadata);
+    const { results } = await addMetadataToIpfs(reqBody.metadata);
 
-    if (!collectionMetadataResult && badgeMetadataResults.length === 0) {
+    if (results.length === 0) {
       throw new Error('No result received');
     }
 
     await updateIpfsTotals(req.session.cosmosAddress, size);
 
-    return res.status(200).send({ collectionMetadataResult, badgeMetadataResults });
+    return res.status(200).send({ results });
   } catch (e) {
     console.error(e);
     return res.status(500).send({

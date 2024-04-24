@@ -1,13 +1,16 @@
 import {
+  QueueDoc,
   type ErrorResponse,
-  type iFetchMetadataDirectlyRouteSuccessResponse,
   type FetchMetadataDirectlyRouteRequestBody,
-  type NumberType
+  type NumberType,
+  type iFetchMetadataDirectlyRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
+import crypto from 'crypto';
 import { type Request, type Response } from 'express';
-import { fetchUriFromSource } from '../queue';
-import { getFromDB } from '../db/db';
+import { getFromDB, mustGetFromDB } from '../db/db';
 import { FetchModel } from '../db/schemas';
+import { getStatus } from '../db/status';
+import { fetchUriFromSourceAndUpdateDb } from '../queue';
 
 export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMetadataDirectlyRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
@@ -18,6 +21,7 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMe
       throw new Error('You can only fetch up to 100 metadata at a time.');
     }
 
+    const status = await getStatus();
     const promises = [];
     for (const uri of uris) {
       promises.push(async () => {
@@ -25,7 +29,22 @@ export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMe
         const fetchDoc = await getFromDB(FetchModel, uri);
 
         if (!fetchDoc) {
-          metadataRes = await fetchUriFromSource(uri);
+          await fetchUriFromSourceAndUpdateDb(
+            uri,
+            new QueueDoc({
+              _docId: crypto.randomBytes(32).toString('hex'),
+              uri,
+              collectionId: 0n,
+              loadBalanceId: 0n,
+              refreshRequestTime: 1n,
+              numRetries: 0n,
+              lastFetchedAt: 0n
+            }),
+            status.block.height
+          );
+
+          const newFetchDoc = await mustGetFromDB(FetchModel, uri);
+          metadataRes = newFetchDoc?.content;
         } else {
           metadataRes = fetchDoc.content;
         }

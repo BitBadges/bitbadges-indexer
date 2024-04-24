@@ -187,8 +187,6 @@ export const checkAndCompleteClaim = async (
       }
     }
 
-    console.log('Checking and completing claim', claimId, cosmosAddress);
-
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
       const pluginInstance = getPlugin(plugin.id);

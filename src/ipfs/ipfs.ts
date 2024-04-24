@@ -4,6 +4,7 @@ import {
   ApprovalInfoDetails,
   ChallengeDetails,
   FetchDoc,
+  iCollectionMetadataDetails,
   type NumberType,
   type iBadgeMetadataDetails,
   type iChallengeDetails,
@@ -127,12 +128,11 @@ export const addBalancesToOffChainStorage = async (
 };
 
 export const addMetadataToIpfs = async (
-  collectionMetadata?: iMetadata<NumberType>,
-  _individualBadgeMetadata?: Array<iBadgeMetadataDetails<NumberType>> | Array<iMetadata<NumberType>>
+  _metadata?: Array<iBadgeMetadataDetails<NumberType>> | Array<iMetadata<NumberType> | iCollectionMetadataDetails<NumberType>>
 ) => {
   const badgeMetadata: Array<iMetadata<NumberType>> = [];
-  if (_individualBadgeMetadata) {
-    for (const item of _individualBadgeMetadata) {
+  if (_metadata) {
+    for (const item of _metadata) {
       const currItemCastedAsDetails = item as iBadgeMetadataDetails<NumberType>;
       const currItemCastedAsMetadata = item as iMetadata<NumberType>;
 
@@ -147,13 +147,6 @@ export const addMetadataToIpfs = async (
   }
 
   const imageFiles = [];
-  if (collectionMetadata?.image && collectionMetadata.image.startsWith('data:')) {
-    const blob = await dataUrlToFile(collectionMetadata.image);
-    imageFiles.push({
-      content: new Uint8Array(blob)
-    });
-  }
-
   for (const metadata of badgeMetadata) {
     if (metadata.image && metadata.image.startsWith('data:')) {
       const blob = await dataUrlToFile(metadata.image);
@@ -172,13 +165,6 @@ export const addMetadataToIpfs = async (
     const imageResults = await Promise.all(promises);
     const cids = imageResults.map((x) => x.cid.toString());
 
-    if (collectionMetadata?.image && collectionMetadata.image.startsWith('data:')) {
-      const result = cids.shift();
-      if (result) {
-        collectionMetadata.image = 'ipfs://' + result;
-      }
-    }
-
     for (const metadata of badgeMetadata) {
       if (metadata.image && metadata.image.startsWith('data:')) {
         const result = cids.shift();
@@ -188,12 +174,6 @@ export const addMetadataToIpfs = async (
   }
 
   const files: Array<{ path?: string; content: Uint8Array; name?: string }> = [];
-  if (collectionMetadata) {
-    files.push({
-      content: uint8ArrayFromString(JSON.stringify(collectionMetadata))
-    });
-  }
-
   for (const metadata of badgeMetadata) {
     files.push({
       content: uint8ArrayFromString(JSON.stringify(metadata))
@@ -212,7 +192,7 @@ export const addMetadataToIpfs = async (
         _docId: `ipfs://${result.cid.toString()}`,
         fetchedAt: BigInt(Date.now()),
         fetchedAtBlock: status.block.height,
-        content: idx === 0 && collectionMetadata ? collectionMetadata : badgeMetadata[collectionMetadata ? idx - 1 : idx],
+        content: badgeMetadata[idx],
         db: 'Metadata',
         isPermanent: true
       })
@@ -223,10 +203,9 @@ export const addMetadataToIpfs = async (
 
   const promiseResults = await Promise.all(promises);
 
-  const collectionMetadataResult = collectionMetadata ? promiseResults.shift() : undefined;
   const badgeMetadataResults = promiseResults;
 
-  return { collectionMetadataResult, badgeMetadataResults };
+  return { results: badgeMetadataResults };
 };
 
 export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(

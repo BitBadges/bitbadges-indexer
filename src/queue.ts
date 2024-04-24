@@ -385,7 +385,7 @@ export const pushCollectionFetchToQueue = async (
 
     for (let i = 1; i <= maxIdx; i++) {
       const uris = getUrisForMetadataIds([BigInt(i)], '', badgeMetadata); // Can be "" bc metadataId is never 0
-      const uri = uris[0];
+      const uri = uris?.[0];
       if (uri) {
         const loadBalanceId = deterministicEntropy
           ? getLoadBalancerId(

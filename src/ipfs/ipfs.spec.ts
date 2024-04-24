@@ -30,12 +30,11 @@ describe('addMetadataToIpfs', () => {
     });
 
     // // Act
-    const result = await addMetadataToIpfs(collectionMetadata, [collectionMetadata, collectionMetadata, collectionMetadata]);
+    const result = await addMetadataToIpfs([collectionMetadata, collectionMetadata, collectionMetadata]);
     const resultObj = { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' };
 
     expect(result).toEqual({
-      badgeMetadataResults: [resultObj, resultObj, resultObj],
-      collectionMetadataResult: resultObj
+      results: [resultObj, resultObj, resultObj]
     });
   }, 30000);
 
@@ -46,10 +45,12 @@ describe('addMetadataToIpfs', () => {
       image: ''
     });
 
-    const result = await addMetadataToIpfs(collectionMetadata);
-    expect(result.collectionMetadataResult).toEqual({
-      cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB'
-    });
+    const result = await addMetadataToIpfs([collectionMetadata]);
+    expect(result.results).toEqual([
+      {
+        cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB'
+      }
+    ]);
   }, 30000);
 
   it('should work with just badge metadata', async () => {
@@ -59,8 +60,8 @@ describe('addMetadataToIpfs', () => {
       image: ''
     });
 
-    const result = await addMetadataToIpfs(undefined, [collectionMetadata, collectionMetadata, collectionMetadata]);
-    expect(result.badgeMetadataResults).toEqual([
+    const result = await addMetadataToIpfs([collectionMetadata, collectionMetadata, collectionMetadata]);
+    expect(result.results).toEqual([
       { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
       { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
       { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' }
@@ -70,7 +71,7 @@ describe('addMetadataToIpfs', () => {
   it('should work with no metadata', async () => {
     const result = await addMetadataToIpfs();
 
-    expect(result).toEqual({ badgeMetadataResults: [], collectionMetadataResult: undefined });
+    expect(result).toEqual({ results: [] });
   }, 30000);
 
   it('should work with an image', async () => {
@@ -80,8 +81,8 @@ describe('addMetadataToIpfs', () => {
       description: 'Description 1',
       image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAk'
     });
-    const result = await addMetadataToIpfs(collectionMetadata);
-    const cid = result.collectionMetadataResult?.cid;
+    const result = await addMetadataToIpfs([collectionMetadata]);
+    const cid = result.results[0]?.cid;
     if (!cid) {
       throw new Error('No CID');
     }
