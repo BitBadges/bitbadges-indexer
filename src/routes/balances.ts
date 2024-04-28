@@ -214,7 +214,7 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
   // Check if valid array
   const balances = cleanBalanceArray(balancesRes.balances);
   return new BalanceDocWithDetails<NumberType>({
-    ...BlankUserBalance,
+    ...balancesRes,
     _docId: collectionId + ':' + cosmosAddress,
     collectionId,
     cosmosAddress: _cosmosAddress,
