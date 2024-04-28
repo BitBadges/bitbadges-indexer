@@ -91,7 +91,8 @@ export async function addToIpfs({
     if (result.cid) {
       results.push({ cid: result.cid.toString(), uri: `ipfs://${result.cid.toString()}` });
       if (!skipCache) {
-        const content = JSON.parse(data[i].content as string);
+        const contentToStore = JSON.parse(data[i].content as string);
+
         fetchDocPromises.push(
           insertToDB(
             FetchModel,
@@ -99,7 +100,7 @@ export async function addToIpfs({
               _docId: `ipfs://${result.cid.toString()}`,
               fetchedAt: BigInt(Date.now()),
               fetchedAtBlock: status.block.height,
-              content: content,
+              content: contentToStore,
               db,
               isPermanent: true
             })
@@ -236,9 +237,7 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
     const results = await addToIpfs({
       data: convertedDetails.map((x) => ({
         path: '',
-        content: JSON.stringify({
-          challengeDetails: x
-        })
+        content: JSON.stringify(x)
       })),
       db: 'ChallengeInfo'
     });
