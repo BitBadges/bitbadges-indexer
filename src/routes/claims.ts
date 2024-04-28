@@ -423,15 +423,22 @@ const performBalanceClaimAction = async (doc: iClaimBuilderDoc<NumberType>) => {
   }
 
   const currBalances = BalanceArray.From(balanceMap[mostRecentAddress] ?? []).convert(BigIntify);
-  const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.startBalances ?? []).convert(BigIntify);
-  balancesToAdd.applyIncrements(
-    BigInt(claimDoc.action.balancesToSet?.incrementBadgeIdsBy ?? 0n),
-    BigInt(claimDoc.action.balancesToSet?.incrementOwnershipTimesBy ?? 0n),
-    BigInt(mostRecentIdx)
-  );
 
-  currBalances.addBalances(balancesToAdd);
-  balanceMap[mostRecentAddress] = currBalances;
+  if (claimDoc.action.balancesToSet?.incrementedBalances.startBalances.length) {
+    const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.incrementedBalances.startBalances ?? []).convert(BigIntify);
+    balancesToAdd.applyIncrements(
+      BigInt(claimDoc.action.balancesToSet?.incrementedBalances.incrementBadgeIdsBy ?? 0n),
+      BigInt(claimDoc.action.balancesToSet?.incrementedBalances.incrementOwnershipTimesBy ?? 0n),
+      BigInt(mostRecentIdx)
+    );
+
+    currBalances.addBalances(balancesToAdd);
+    balanceMap[mostRecentAddress] = currBalances;
+  } else if (claimDoc.action.balancesToSet?.manualBalances.length) {
+    const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.manualBalances?.[mostRecentIdx].balances ?? []).convert(BigIntify);
+    currBalances.addBalances(balancesToAdd);
+    balanceMap[mostRecentAddress] = currBalances;
+  }
 
   const collection = await getFromDB(CollectionModel, collectionId.toString());
   const currUriPath = collection?.offChainBalancesMetadataTimeline

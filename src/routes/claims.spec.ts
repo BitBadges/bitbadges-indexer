@@ -11,6 +11,7 @@ import {
   IncrementedBalances,
   IntegrationPluginDetails,
   NumberType,
+  PredeterminedBalances,
   UintRangeArray,
   convertOffChainBalancesMap,
   convertToCosmosAddress,
@@ -853,7 +854,7 @@ describe('claims', () => {
   });
 
   it('should work with BitbAdges lists', async () => {
-    const lists = await findInDB(AddressListModel, { query: {}, limit: 1 });
+    const lists = await findInDB(AddressListModel, { query: { whitelist: true }, limit: 1 });
     const listId = lists[0]._docId;
 
     const doc = await createClaimDoc([
@@ -878,7 +879,7 @@ describe('claims', () => {
     ]);
     console.log(doc.action);
 
-    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const route = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(doc._docId, convertToCosmosAddress(ethers.Wallet.createRandom().address));
     const body: CheckAndCompleteClaimRouteRequestBody = {};
 
     const res = await request(app)
@@ -887,6 +888,9 @@ describe('claims', () => {
       .send(body);
 
     console.log(res.body);
+
+    const listDoc = await mustGetFromDB(AddressListModel, listId);
+    console.log(listDoc);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
@@ -1125,10 +1129,21 @@ describe('claims', () => {
       claims: [
         {
           claimId: claimDocToUse._docId,
-          balancesToSet: new IncrementedBalances({
-            startBalances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }],
-            incrementBadgeIdsBy: 1n,
-            incrementOwnershipTimesBy: 0n
+          balancesToSet: new PredeterminedBalances({
+            incrementedBalances: new IncrementedBalances({
+              startBalances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }],
+              incrementBadgeIdsBy: 1n,
+              incrementOwnershipTimesBy: 0n
+            }),
+            manualBalances: [],
+            orderCalculationMethod: {
+              useOverallNumTransfers: true,
+              useMerkleChallengeLeafIndex: false,
+              usePerFromAddressNumTransfers: false,
+              usePerInitiatedByAddressNumTransfers: false,
+              usePerToAddressNumTransfers: false,
+              challengeTrackerId: ''
+            }
           }),
           plugins: [
             {
@@ -1139,10 +1154,21 @@ describe('claims', () => {
         },
         {
           claimId: claimDocToUse._docId + 'different id',
-          balancesToSet: new IncrementedBalances({
-            startBalances: [{ amount: 1n, badgeIds: [{ start: 2n, end: 2n }], ownershipTimes: UintRangeArray.FullRanges() }],
-            incrementBadgeIdsBy: 1n,
-            incrementOwnershipTimesBy: 0n
+          balancesToSet: new PredeterminedBalances({
+            manualBalances: [],
+            orderCalculationMethod: {
+              useOverallNumTransfers: true,
+              useMerkleChallengeLeafIndex: false,
+              usePerFromAddressNumTransfers: false,
+              usePerInitiatedByAddressNumTransfers: false,
+              usePerToAddressNumTransfers: false,
+              challengeTrackerId: ''
+            },
+            incrementedBalances: new IncrementedBalances({
+              startBalances: [{ amount: 1n, badgeIds: [{ start: 2n, end: 2n }], ownershipTimes: UintRangeArray.FullRanges() }],
+              incrementBadgeIdsBy: 1n,
+              incrementOwnershipTimesBy: 0n
+            })
           }),
           plugins: [
             {
@@ -1207,10 +1233,21 @@ describe('claims', () => {
       claims: [
         {
           claimId: claimDocToUse._docId + 'different id',
-          balancesToSet: new IncrementedBalances({
-            startBalances: [{ amount: 1n, badgeIds: [{ start: 2n, end: 2n }], ownershipTimes: UintRangeArray.FullRanges() }],
-            incrementBadgeIdsBy: 1n,
-            incrementOwnershipTimesBy: 0n
+          balancesToSet: new PredeterminedBalances({
+            manualBalances: [],
+            orderCalculationMethod: {
+              useOverallNumTransfers: true,
+              useMerkleChallengeLeafIndex: false,
+              usePerFromAddressNumTransfers: false,
+              usePerInitiatedByAddressNumTransfers: false,
+              usePerToAddressNumTransfers: false,
+              challengeTrackerId: ''
+            },
+            incrementedBalances: new IncrementedBalances({
+              startBalances: [{ amount: 1n, badgeIds: [{ start: 2n, end: 2n }], ownershipTimes: UintRangeArray.FullRanges() }],
+              incrementBadgeIdsBy: 1n,
+              incrementOwnershipTimesBy: 0n
+            })
           }),
           plugins: [
             {
@@ -1285,10 +1322,21 @@ describe('claims', () => {
       claims: [
         {
           claimId: claimDocToUse._docId,
-          balancesToSet: new IncrementedBalances({
-            startBalances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }],
-            incrementBadgeIdsBy: 1n,
-            incrementOwnershipTimesBy: 0n
+          balancesToSet: new PredeterminedBalances({
+            incrementedBalances: new IncrementedBalances({
+              startBalances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }],
+              incrementBadgeIdsBy: 1n,
+              incrementOwnershipTimesBy: 0n
+            }),
+            manualBalances: [],
+            orderCalculationMethod: {
+              useOverallNumTransfers: true,
+              useMerkleChallengeLeafIndex: false,
+              usePerFromAddressNumTransfers: false,
+              usePerInitiatedByAddressNumTransfers: false,
+              usePerToAddressNumTransfers: false,
+              challengeTrackerId: ''
+            }
           }),
           plugins: [
             {

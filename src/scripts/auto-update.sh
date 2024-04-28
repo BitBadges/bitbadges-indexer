@@ -35,13 +35,14 @@ update_bitbadges_indexer() {
 
 # Main function
 main() {
-    echo "Updating Nginx..."
-    update_nginx
-    echo "Nginx updated successfully."
-
     echo "Updating bitbadges-indexer service..."
     update_bitbadges_indexer $1
     echo "bitbadges-indexer service updated successfully."
+
+
+    echo "Updating Nginx..."
+    update_nginx
+    echo "Nginx updated successfully."
 }
 
 # Run the main function

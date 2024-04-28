@@ -3,7 +3,7 @@ import {
   deepCopyPrimitives,
   iClaimBuilderDoc,
   iClaimDetails,
-  iIncrementedBalances,
+  iPredeterminedBalances,
   validateCollectionApprovalsUpdate,
   type AddApprovalDetailsToOffChainStorageRouteRequestBody,
   type AddBalancesToOffChainStorageRouteRequestBody,
@@ -97,7 +97,7 @@ export const updateClaimDocs = async (
   oldClaimQuery: Record<string, any>,
   newClaims: Array<iClaimDetails<NumberType>>,
   context: (claim: iClaimDetails<NumberType>) => {
-    action: { codes?: string[]; seedCode?: string; balancesToSet?: iIncrementedBalances<NumberType>; listId?: string };
+    action: { codes?: string[]; seedCode?: string; balancesToSet?: iPredeterminedBalances<NumberType>; listId?: string };
     createdBy: string;
     collectionId: NumberType;
     docClaimed: boolean;
