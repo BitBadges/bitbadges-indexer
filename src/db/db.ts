@@ -62,7 +62,9 @@ import {
   PageVisitsDoc,
   type ReportDoc,
   type iBrowseDoc,
-  type iPageVisitsDoc
+  type iPageVisitsDoc,
+  DigitalOceanBalancesDoc,
+  iDigitalOceanBalancesDoc
 } from './docs';
 import {
   AccountModel,
@@ -99,7 +101,8 @@ import {
   ExternalCallKeysModel,
   type KeysDoc,
   OffChainSecretsModel,
-  MapModel
+  MapModel,
+  DigitalOceanBalancesModel
 } from './schemas';
 
 const { SHA256 } = crypto;
@@ -354,6 +357,8 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new SecretDoc(doc as iSecretDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === MapModel.modelName) {
       convertedDoc = new MapDoc(doc as iMapDoc<NumberType>).convert(convertFunction);
+    } else if (model.modelName === DigitalOceanBalancesModel.modelName) {
+      convertedDoc = new DigitalOceanBalancesDoc(doc as iDigitalOceanBalancesDoc<NumberType>).convert(convertFunction);
     }
 
     if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);

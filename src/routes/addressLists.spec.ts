@@ -18,6 +18,7 @@ import { MongoDB, getFromDB, mustGetFromDB } from '../db/db';
 import app, { gracefullyShutdown } from '../indexer';
 import { numUsesPlugin } from '../testutil/plugins';
 import { createExampleReqForAddress } from '../testutil/utils';
+import { connectToRpc } from '../poll';
 
 dotenv.config();
 
@@ -25,7 +26,7 @@ const wallet = ethers.Wallet.createRandom();
 const address = wallet.address;
 
 describe('get address lists', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.DISABLE_API = 'false';
     process.env.DISABLE_URI_POLLER = 'true';
     process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
@@ -33,6 +34,8 @@ describe('get address lists', () => {
     process.env.TEST_MODE = 'true';
 
     while (!MongoDB.readyState) {}
+
+    await connectToRpc();
   });
 
   afterAll(async () => {
@@ -717,6 +720,7 @@ describe('get address lists', () => {
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(updateBody);
+    console.log(updateRes.body);
     expect(updateRes.status).toBe(200);
 
     const getRes5 = await request(app)
@@ -767,6 +771,7 @@ describe('get address lists', () => {
     expect(updateRes3.status).toBe(200);
 
     const finalDoc3 = await getFromDB(ClaimBuilderModel, convertToCosmosAddress(address) + '_claim123');
-    expect(finalDoc3).toBeUndefined();
+    expect(finalDoc3).toBeDefined();
+    expect(finalDoc3?.deletedAt).toBeTruthy();
   }, 100000);
 });

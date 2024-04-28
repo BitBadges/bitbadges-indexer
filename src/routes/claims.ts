@@ -1,8 +1,9 @@
 import {
   BalanceArray,
+  BigIntify,
   convertToCosmosAddress,
   mustConvertToCosmosAddress,
-  type ClaimBuilderDoc,
+  ClaimBuilderDoc,
   type ClaimIntegrationPluginType,
   type ErrorResponse,
   type GetClaimsRouteRequestBody,
@@ -10,14 +11,22 @@ import {
   type NumberType,
   type iCheckAndCompleteClaimRouteSuccessResponse,
   type iGetClaimsRouteSuccessResponse,
-  type iOffChainBalancesMap
+  iClaimBuilderDoc
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { setMockSessionIfTestMode, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { AddressListModel, ClaimBuilderModel, CollectionModel, ExternalCallKeysModel, ListActivityModel, ProfileModel } from '../db/schemas';
+import {
+  AddressListModel,
+  ClaimBuilderModel,
+  CollectionModel,
+  DigitalOceanBalancesModel,
+  ExternalCallKeysModel,
+  ListActivityModel,
+  ProfileModel
+} from '../db/schemas';
 import { getStatus } from '../db/status';
 import { ApiPluginDetails } from '../integrations/api';
 import { DiscordPluginDetails, EmailPluginDetails, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from '../integrations/auth';
@@ -70,7 +79,7 @@ export const getClaimsHandler = async (
 ) => {
   try {
     const reqBody = req.body as GetClaimsRouteRequestBody;
-    const query = { docClaimed: true, _docId: { $in: reqBody.claimIds } };
+    const query = { docClaimed: true, _docId: { $in: reqBody.claimIds }, deletedAt: { $exists: false } };
     const docs = await findInDB(ClaimBuilderModel, { query });
 
     const claims = await getClaimDetailsForFrontend(req, docs);
@@ -120,7 +129,7 @@ export const checkAndCompleteClaim = async (
     setMockSessionIfTestMode(req);
 
     const claimId = req.params.claimId;
-    const query = { _docId: claimId, docClaimed: true };
+    const query = { _docId: claimId, docClaimed: true, deletedAt: { $exists: false } };
 
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
     const context: ContextInfo = Object.freeze({
@@ -130,10 +139,10 @@ export const checkAndCompleteClaim = async (
 
     const claimBuilderDocResponse = await findInDB(ClaimBuilderModel, { query, limit: 1 });
     if (claimBuilderDocResponse.length === 0) {
-      throw new Error('No password doc found');
+      throw new Error('No doc found');
     }
-    const claimBuilderDoc = claimBuilderDocResponse[0];
 
+    const claimBuilderDoc = claimBuilderDocResponse[0];
     if (claimBuilderDoc.manualDistribution) {
       throw new Error('This claim is for manual distribution only. BitBadges does not handle any distribution for this claim.');
     }
@@ -351,6 +360,14 @@ export const checkAndCompleteClaim = async (
   }
 };
 
+export const getDecryptedActionSeedCode = (doc: ClaimBuilderDoc<NumberType>) => {
+  const decryptedInfo = getPlugin('codes').decryptPrivateParams({
+    codes: doc.action.codes ?? [],
+    seedCode: doc.action.seedCode ?? ''
+  });
+  return decryptedInfo.seedCode;
+};
+
 export const getDecryptedActionCodes = (doc: ClaimBuilderDoc<NumberType>) => {
   const maxUses = getPluginParamsAndState('numUses', doc.plugins)?.publicParams.maxUses ?? 0;
   const decryptedInfo = getPlugin('codes').decryptPrivateParams({
@@ -382,32 +399,39 @@ const distributeCodeAction = (doc: ClaimBuilderDoc<NumberType>, currCodeIdx: Num
   return codes[Number(currCodeIdx)];
 };
 
-const performBalanceClaimAction = async (doc: ClaimBuilderDoc<NumberType>) => {
+const performBalanceClaimAction = async (doc: iClaimBuilderDoc<NumberType>) => {
   const collectionId = doc.collectionId.toString();
 
-  const allClaimDocsForCollection = await findInDB(ClaimBuilderModel, { query: { collectionId: Number(collectionId), docClaimed: true } });
+  const claimDoc = doc;
+  const currBalancesDoc = await getFromDB(DigitalOceanBalancesModel, collectionId.toString());
+  const balanceMap = currBalancesDoc?.balances ?? {};
 
-  const balanceMap: iOffChainBalancesMap<NumberType> = {};
-
-  for (const claimDoc of allClaimDocsForCollection) {
-    const entries = Object.entries(claimDoc?.state.numUses.claimedUsers);
-
-    for (const entry of entries) {
-      const currBalances = BalanceArray.From(balanceMap[entry[0]] ?? []);
-      const idxs: number[] = (entry[1] as number[]).map((x) => Number(x));
-      for (const claimIdx of idxs) {
-        const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.startBalances ?? []);
-        balancesToAdd.applyIncrements(
-          claimDoc.action.balancesToSet?.incrementBadgeIdsBy ?? 0n,
-          claimDoc.action.balancesToSet?.incrementOwnershipTimesBy ?? 0n,
-          BigInt(claimIdx)
-        );
-
-        currBalances.addBalances(balancesToAdd);
-        balanceMap[entry[0]] = currBalances;
+  const entries = Object.entries(claimDoc?.state.numUses.claimedUsers);
+  let mostRecentAddress = '';
+  let mostRecentIdx = -1;
+  for (const entry of entries) {
+    const idxs: number[] = (entry[1] as number[]).map((x) => Number(x));
+    for (const claimIdx of idxs) {
+      if (claimIdx > mostRecentIdx) {
+        mostRecentIdx = claimIdx;
+        mostRecentAddress = entry[0];
       }
     }
   }
+  if (!mostRecentAddress || mostRecentIdx === -1) {
+    throw new Error('No most recent address found');
+  }
+
+  const currBalances = BalanceArray.From(balanceMap[mostRecentAddress] ?? []).convert(BigIntify);
+  const balancesToAdd = BalanceArray.From(claimDoc.action.balancesToSet?.startBalances ?? []).convert(BigIntify);
+  balancesToAdd.applyIncrements(
+    BigInt(claimDoc.action.balancesToSet?.incrementBadgeIdsBy ?? 0n),
+    BigInt(claimDoc.action.balancesToSet?.incrementOwnershipTimesBy ?? 0n),
+    BigInt(mostRecentIdx)
+  );
+
+  currBalances.addBalances(balancesToAdd);
+  balanceMap[mostRecentAddress] = currBalances;
 
   const collection = await getFromDB(CollectionModel, collectionId.toString());
   const currUriPath = collection?.offChainBalancesMetadataTimeline

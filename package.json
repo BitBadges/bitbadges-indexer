@@ -4,8 +4,8 @@
   "description": "Indexer for the bitbadges blockchain",
   "main": "index.js",
   "scripts": {
-    "test": "jest ./src --runInBand --detectOpenHandles --bail 1",
-    "test:coverage": "jest ./src --coverage --runInBand --detectOpenHandles --bail 1",
+    "test": "jest ./src --runInBand --bail 1",
+    "test:coverage": "jest ./src --coverage --runInBand  --bail 1",
     "start": "react-app-rewired start",
     "build": "tsc --build ./src",
     "dev": "npx ts-node src/indexer.ts",

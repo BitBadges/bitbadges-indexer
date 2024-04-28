@@ -87,7 +87,15 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
         balances: fetchedBalances
       };
     } else if (originalUri === 'https://api.bitbadges.io/placeholder/{address}') {
-      const claimDocs = await findInDB(ClaimBuilderModel, { query: { collectionId: Number(collectionId) }, limit: 1 });
+      const claimDocs = await findInDB(ClaimBuilderModel, {
+        query: {
+          collectionId: Number(collectionId),
+          deletedAt: {
+            $exists: false
+          }
+        },
+        limit: 1
+      });
       if (claimDocs.length === 0) {
         throw new Error('No claim found');
       }

@@ -1,7 +1,6 @@
 import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import axios from 'axios';
 import {
-  ApprovalInfoDetails,
   ChallengeDetails,
   FetchDoc,
   iCollectionMetadataDetails,
@@ -12,11 +11,10 @@ import {
   type iOffChainBalancesMap
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
-import last from 'it-last';
 import { TextDecoder } from 'node:util';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
-import { getFromDB, insertToDB } from '../db/db';
-import { FetchModel, OffChainUrlModel } from '../db/schemas';
+import { getFromDB, getManyFromDB, insertToDB } from '../db/db';
+import { DigitalOceanBalancesModel, FetchModel, OffChainUrlModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { ipfsClient, s3 } from '../indexer-vars';
 
@@ -27,27 +25,10 @@ export const getFromIpfs = async (path: string): Promise<{ file: string }> => {
 
   // Make sure fetch doesn't take longer than timeout
 
-  const timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000;
-
-  const timeoutPromise = new Promise((resolve, reject) =>
-    setTimeout(() => {
-      reject(new Error('Fetch operation timed out'));
-    }, timeout)
-  );
-
   const decoder = new TextDecoder();
   let fileContents = '';
   const fetchPromise = (async () => {
-    // Do not exceed FETCH_TIMEOUT
-
-    // start timer
-    const start = Date.now();
-
     for await (const file of getRes) {
-      if (Date.now() - start > timeout) {
-        throw new Error('Fetch operation timed out');
-      }
-
       const chunk = decoder.decode(file);
       fileContents += chunk;
     }
@@ -55,7 +36,7 @@ export const getFromIpfs = async (path: string): Promise<{ file: string }> => {
     return { file: fileContents };
   })();
 
-  const res = await Promise.race([fetchPromise, timeoutPromise]);
+  const res = await fetchPromise;
   return res as { file: string };
 };
 
@@ -65,6 +46,76 @@ export async function dataUrlToFile(dataUrl: string): Promise<ArrayBuffer> {
   return blob;
 }
 
+export async function addToIpfs({
+  data,
+  db,
+  skipCache = false
+}: {
+  data: { path: string; content: string | Uint8Array }[];
+  db: 'ApprovalInfo' | 'Metadata' | 'Balances' | 'ChallengeInfo';
+  skipCache?: boolean;
+}) {
+  if (data.length === 0) return [];
+
+  const results: { cid: string; uri: string }[] = [];
+  const promises = [];
+
+  const docIdsToFetch = [];
+  for (const { path, content } of data) {
+    const uint8Content = typeof content === 'string' ? uint8ArrayFromString(content) : content;
+    const hashResult = await ipfsClient.add({ path, content: uint8Content }, { onlyHash: true });
+    const hash = hashResult.cid.toString();
+    docIdsToFetch.push(`ipfs://${hash}`);
+  }
+
+  const fetchDocs = await getManyFromDB(FetchModel, docIdsToFetch);
+
+  for (let i = 0; i < data.length; i++) {
+    const fetchDoc = fetchDocs[i];
+    const { path, content } = data[i];
+    const uint8Content = typeof content === 'string' ? uint8ArrayFromString(content) : content;
+    const existingDoc = fetchDoc;
+    if (existingDoc) {
+      const hash = existingDoc._docId.split('ipfs://')[1];
+      promises.push(Promise.resolve({ cid: hash }));
+      continue;
+    }
+    promises.push(ipfsClient.add({ path, content: uint8Content }));
+  }
+
+  const ipfsResults = await Promise.all(promises);
+  const fetchDocPromises = [];
+  const status = await getStatus();
+  for (let i = 0; i < ipfsResults.length; i++) {
+    const result = ipfsResults[i];
+    if (result.cid) {
+      results.push({ cid: result.cid.toString(), uri: `ipfs://${result.cid.toString()}` });
+      if (!skipCache) {
+        const content = JSON.parse(data[i].content as string);
+        fetchDocPromises.push(
+          insertToDB(
+            FetchModel,
+            new FetchDoc({
+              _docId: `ipfs://${result.cid.toString()}`,
+              fetchedAt: BigInt(Date.now()),
+              fetchedAtBlock: status.block.height,
+              content: content,
+              db,
+              isPermanent: true
+            })
+          )
+        );
+      }
+    } else {
+      results.push({ cid: '', uri: '' });
+    }
+  }
+
+  await Promise.all(fetchDocPromises);
+
+  return results;
+}
+
 export const addBalancesToOffChainStorage = async (
   balances: iOffChainBalancesMap<NumberType>,
   method: 'ipfs' | 'centralized',
@@ -72,31 +123,8 @@ export const addBalancesToOffChainStorage = async (
   urlPath?: string
 ) => {
   if (method === 'ipfs') {
-    const files = [];
-    files.push({
-      path: '',
-      content: uint8ArrayFromString(JSON.stringify(balances))
-    });
-
-    const status = await getStatus();
-
-    const result = await last(ipfsClient.addAll(files));
-    if (result) {
-      await insertToDB(
-        FetchModel,
-        new FetchDoc({
-          _docId: `ipfs://${result.cid.toString()}`,
-          fetchedAt: BigInt(Date.now()),
-          fetchedAtBlock: status.block.height,
-          content: balances,
-          db: 'Balances',
-          isPermanent: true
-        })
-      );
-      return { cid: result.cid.toString() };
-    } else {
-      return undefined;
-    }
+    const results = await addToIpfs({ data: [{ path: '', content: JSON.stringify(balances) }], db: 'Balances' });
+    return results[0];
   } else {
     const binaryData = JSON.stringify(balances);
     const randomBytes = crypto.randomBytes(32);
@@ -121,6 +149,17 @@ export const addBalancesToOffChainStorage = async (
     };
     await s3.send(new PutObjectCommand(params));
 
+    //TODO: We should probably handle this better on genesis (collectionId = 0)
+    // We have two cases we are trying tohandle here:
+    //  1. User creates collection w/ balances manually defined -> we don't need the doc at all (currently) bc its only used for reproducing claims
+    //  2. User creates collection w/ claims -> balances will be blank until the first claim is made (then this gets added)
+    if (BigInt(collectionId) > 0) {
+      await insertToDB(DigitalOceanBalancesModel, {
+        _docId: Number(collectionId).toString(),
+        balances: balances
+      });
+    }
+
     const location = 'https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/' + path;
 
     return { uri: location };
@@ -130,7 +169,7 @@ export const addBalancesToOffChainStorage = async (
 export const addMetadataToIpfs = async (
   _metadata?: Array<iBadgeMetadataDetails<NumberType>> | Array<iMetadata<NumberType> | iCollectionMetadataDetails<NumberType>>
 ) => {
-  const badgeMetadata: Array<iMetadata<NumberType>> = [];
+  const metadataArr: Array<iMetadata<NumberType>> = [];
   if (_metadata) {
     for (const item of _metadata) {
       const currItemCastedAsDetails = item as iBadgeMetadataDetails<NumberType>;
@@ -142,140 +181,70 @@ export const addMetadataToIpfs = async (
       } else {
         badgeMetadataItem = currItemCastedAsMetadata;
       }
-      badgeMetadata.push(badgeMetadataItem);
+      metadataArr.push(badgeMetadataItem);
     }
   }
 
+  const imagesToUpload = metadataArr.filter((x) => x.image && x.image.startsWith('data:'));
   const imageFiles = [];
-  for (const metadata of badgeMetadata) {
-    if (metadata.image && metadata.image.startsWith('data:')) {
-      const blob = await dataUrlToFile(metadata.image);
-      imageFiles.push({
-        content: new Uint8Array(blob)
-      });
-    }
-  }
-
-  if (imageFiles.length > 0) {
-    const promises = [];
-    for (const imageFile of imageFiles) {
-      promises.push(ipfsClient.add(imageFile));
-    }
-
-    const imageResults = await Promise.all(promises);
-    const cids = imageResults.map((x) => x.cid.toString());
-
-    for (const metadata of badgeMetadata) {
-      if (metadata.image && metadata.image.startsWith('data:')) {
-        const result = cids.shift();
-        if (result) metadata.image = 'ipfs://' + result;
-      }
-    }
-  }
-
-  const files: Array<{ path?: string; content: Uint8Array; name?: string }> = [];
-  for (const metadata of badgeMetadata) {
-    files.push({
-      content: uint8ArrayFromString(JSON.stringify(metadata))
+  for (const metadata of imagesToUpload) {
+    const blob = await dataUrlToFile(metadata.image);
+    imageFiles.push({
+      content: new Uint8Array(blob)
     });
   }
-
-  // Was being weird with .addAll so we are doing it one by one here...
-  // Should probably look into it in the future
-  const status = await getStatus();
-
-  const promises = files.map(async (file, idx) => {
-    const result = await ipfsClient.add(file);
-    await insertToDB(
-      FetchModel,
-      new FetchDoc({
-        _docId: `ipfs://${result.cid.toString()}`,
-        fetchedAt: BigInt(Date.now()),
-        fetchedAtBlock: status.block.height,
-        content: badgeMetadata[idx],
-        db: 'Metadata',
-        isPermanent: true
-      })
-    );
-
-    return { cid: result.cid.toString() };
+  const imageResults = await addToIpfs({
+    data: imageFiles.map((x) => ({ path: '', content: x.content })),
+    db: 'Metadata',
+    skipCache: true
+  });
+  const metadataWithImages = metadataArr.map((x) => {
+    if (x.image && x.image.startsWith('data:')) {
+      const result = imageResults.shift();
+      if (result) x.image = 'ipfs://' + result.cid;
+    }
+    return x;
   });
 
-  const promiseResults = await Promise.all(promises);
-
-  const badgeMetadataResults = promiseResults;
-
-  return { results: badgeMetadataResults };
+  const results = await addToIpfs({ data: metadataWithImages.map((x) => ({ path: '', content: JSON.stringify(x) })), db: 'Metadata' });
+  return { results };
 };
 
 export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
   name: string,
   description: string,
-  challengeDetails?: iChallengeDetails<T>
-): Promise<[string, string | undefined] | undefined> => {
+  challengeDetails?: iChallengeDetails<T>[]
+): Promise<[string, string[]] | undefined> => {
   // Remove preimages and passwords from challengeDetails
-  let convertedDetails: ChallengeDetails<T> | undefined;
+  let convertedDetails: ChallengeDetails<T>[] | undefined;
 
   if (challengeDetails) {
-    convertedDetails = new ChallengeDetails<T>({
-      ...challengeDetails,
-      preimages: undefined,
-      seedCode: undefined
+    convertedDetails = challengeDetails.map((challengeDetail) => {
+      return new ChallengeDetails<T>({
+        ...challengeDetail,
+        preimages: undefined,
+        seedCode: undefined
+      });
     });
   }
 
-  const files = [];
-  files.push({
-    path: '',
-    content: uint8ArrayFromString(JSON.stringify({ name, description }))
-  });
+  const metadataResults = await addToIpfs({ data: [{ path: '', content: JSON.stringify({ name, description }) }], db: 'ApprovalInfo' });
+  const metadataResult = metadataResults[0];
+  if (!metadataResult) return undefined;
 
-  const result = await last(ipfsClient.addAll(files));
-  if (!result) return undefined;
-
-  const status = await getStatus();
-
-  const content = new ApprovalInfoDetails({
-    name,
-    description
-  });
-
-  await insertToDB(
-    FetchModel,
-    new FetchDoc<NumberType>({
-      _docId: `ipfs://${result.cid.toString()}`,
-      fetchedAt: BigInt(Date.now()),
-      fetchedAtBlock: status.block.height,
-      content,
-      db: 'ApprovalInfo',
-      isPermanent: true
-    })
-  );
-
-  let challengeResult;
   if (convertedDetails) {
-    const files = [];
-    files.push({
-      path: '',
-      content: uint8ArrayFromString(JSON.stringify({ challengeDetails: convertedDetails }))
+    const results = await addToIpfs({
+      data: convertedDetails.map((x) => ({
+        path: '',
+        content: JSON.stringify({
+          challengeDetails: x
+        })
+      })),
+      db: 'ChallengeInfo'
     });
 
-    const challengeContent = new ChallengeDetails<T>(convertedDetails);
-    challengeResult = await last(ipfsClient.addAll(files));
-    if (!challengeResult) return undefined;
-
-    await insertToDB(
-      FetchModel,
-      new FetchDoc<NumberType>({
-        _docId: `ipfs://${challengeResult.cid.toString()}`,
-        fetchedAt: BigInt(Date.now()),
-        fetchedAtBlock: status.block.height,
-        content: challengeContent,
-        db: 'ChallengeInfo',
-        isPermanent: true
-      })
-    );
+    return [metadataResult.cid.toString(), results.map((x) => x.cid.toString())];
+  } else {
+    return [metadataResult.cid.toString(), []];
   }
-
-  return [result.cid.toString(), challengeResult?.cid.toString()];
 };

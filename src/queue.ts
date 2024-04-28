@@ -678,46 +678,35 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
         if (docBalancesCopy[key]?.balances && docBalancesCopy[key]?.balances.equalBalances(val.balances)) {
           delete docs.balances[key];
         } else {
-          const balances = val.balances;
-          // We want to include any updated badges that now have zero balance
-          // (e.g. going from [x1 ID 1] -> [x1 of ID 2], we want to display x0 of ID 1 and x1 of ID 2)
-
+          // Off-chain balances are a little weirder than normal because there is no "transfer" (from -> to)
+          // It is just a balance update for an address.
+          // We could display (address -> Mint) transfers but we instead just display the balance update for the address with negatives (mint -> address)
+          const newBalances = val.balances;
           const prevBalances = docBalancesCopy[key]?.balances ?? new BalanceArray();
-          const inOldButNotNew = subtractBalances(balances, prevBalances, true).filter((x) => x.amount > 0n);
+          const balanceDiffs = subtractBalances(prevBalances, newBalances, true);
 
-          // These values are not in the new (x0 amount)
-          // We want to add them to the balances doc with amount 0
-          if (inOldButNotNew.length > 0) {
-            balances.push(
-              ...inOldButNotNew.map((x) => {
-                return {
-                  ...x,
-                  amount: 0n
-                };
-              })
-            );
+          if (balanceDiffs.length > 0) {
+            const newActivity = new TransferActivityDoc<bigint>({
+              _docId: crypto.randomBytes(16).toString('hex'),
+              from: 'Mint',
+              to: [val.cosmosAddress],
+              collectionId: BigInt(val.collectionId),
+              balances: balanceDiffs,
+              timestamp: BigInt(Date.now()),
+              memo: '',
+              initiatedBy: '',
+              prioritizedApprovals: [],
+              onlyCheckPrioritizedApprovals: false,
+              precalculateBalancesFromApproval: {
+                approvalId: '',
+                approvalLevel: '',
+                approverAddress: ''
+              },
+              block
+            });
+
+            docs.activityToAdd.push(newActivity);
           }
-
-          const newActivity = new TransferActivityDoc<bigint>({
-            _docId: crypto.randomBytes(16).toString('hex'),
-            from: 'Mint',
-            to: [val.cosmosAddress],
-            collectionId: BigInt(val.collectionId),
-            balances,
-            timestamp: BigInt(Date.now()),
-            memo: '',
-            initiatedBy: '',
-            prioritizedApprovals: [],
-            onlyCheckPrioritizedApprovals: false,
-            precalculateBalancesFromApproval: {
-              approvalId: '',
-              approvalLevel: '',
-              approverAddress: ''
-            },
-            block
-          });
-
-          docs.activityToAdd.push(newActivity);
         }
       }
     }

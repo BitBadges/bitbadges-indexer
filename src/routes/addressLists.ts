@@ -11,7 +11,6 @@ import {
   type StatusDoc,
   type UpdateAddressListsRouteRequestBody,
   type iAddressList,
-  type iClaimBuilderDoc,
   type iDeleteAddressListsRouteSuccessResponse,
   type iGetAddressListsRouteSuccessResponse,
   type iUpdateAddressListsRouteSuccessResponse
@@ -24,10 +23,8 @@ import { deleteMany, getFromDB, insertMany, mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, ListActivityModel } from '../db/schemas';
 import { getStatus } from '../db/status';
-import { encryptPlugins } from '../integrations/types';
-import { Plugins } from './claims';
 import { getClaimDetailsForFrontend } from './collections';
-import { assertPluginsUpdateIsValid } from './ipfs';
+import { ClaimType, deleteOldClaims, updateClaimDocs } from './ipfs';
 import { getAddressListsFromDB } from './utils';
 
 export const deleteAddressLists = async (
@@ -54,6 +51,8 @@ export const deleteAddressLists = async (
     }
 
     // TODO: session?
+
+    //This is slightly different bc this isn't just a soft delete (the address list is actually deleted)
     const docs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': { $in: listIds } } });
     await deleteMany(
       AddressListModel,
@@ -61,9 +60,10 @@ export const deleteAddressLists = async (
     );
 
     if (docs.length > 0) {
-      await deleteMany(
+      //TODO: hard delete?
+      await insertMany(
         ClaimBuilderModel,
-        docs.map((x) => x._docId)
+        docs.map((x) => ({ ...x, deletedAt: Date.now() }))
       );
     }
 
@@ -154,10 +154,7 @@ const handleAddressListsUpdateAndCreate = async (
 
     const status = await getStatus();
     const docs: Array<AddressListDoc<NumberType>> = [];
-
     const activityDocs: Array<ListActivityDoc<NumberType>> = [];
-    const claimBuilderDocs: Array<iClaimBuilderDoc<NumberType>> = [];
-    const claimDocsToDelete: string[] = [];
     for (const list of lists) {
       const existingDoc = await getFromDB(AddressListModel, list.listId);
       if (isCreation && existingDoc) {
@@ -168,53 +165,19 @@ const handleAddressListsUpdateAndCreate = async (
         throw new Error('List with ID ' + list.listId + ' does not exist.');
       }
 
-      for (const claim of list.claims) {
-        const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': list.listId, _docId: claim.claimId }, limit: 1 });
-        const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
-
-        const hasExistingClaim = claimDocs.length > 0;
-        const existingClaim = claimDocs?.[0];
-        const state: Record<string, object> = {};
-        for (let i = 0; i < encryptedPlugins.length; i++) {
-          const encryptedPlugin = encryptedPlugins[i];
-          const passedInPlugin = claim.plugins[i];
-          const id = encryptedPlugin.id;
-
-          state[id] = Plugins[id].defaultState;
-          if (hasExistingClaim && !passedInPlugin.resetState) {
-            state[id] = existingClaim.state[id];
+      const query = { 'action.listId': list.listId };
+      await updateClaimDocs(req, ClaimType.AddressList, query, list.claims, () => {
+        return {
+          createdBy: req.session.cosmosAddress,
+          collectionId: '-1',
+          docClaimed: true,
+          cid: '',
+          action: {
+            listId: list.listId
           }
-        }
-
-        if (!hasExistingClaim) {
-          claimBuilderDocs.push({
-            _docId: claim.claimId,
-            createdBy: req.session.cosmosAddress,
-            collectionId: '-1',
-            docClaimed: true,
-            cid: '',
-            action: {
-              listId: list.listId
-            },
-            state,
-            plugins: encryptedPlugins ?? []
-          });
-        } else {
-          assertPluginsUpdateIsValid(existingClaim.plugins, encryptedPlugins);
-          claimBuilderDocs.push({
-            ...existingClaim,
-            state,
-            plugins: encryptedPlugins ?? []
-          });
-        }
-      }
-
-      // Delete all old claims that are not in the new stuff
-      const claimDocs = await findInDB(ClaimBuilderModel, {
-        query: { 'action.listId': list.listId, _docId: { $nin: list.claims.map((x) => x.claimId) } }
+        };
       });
-      const docIdsToDelete = claimDocs.map((x) => x._docId);
-      claimDocsToDelete.push(...docIdsToDelete);
+      await deleteOldClaims(ClaimType.AddressList, query, list.claims);
 
       if (existingDoc) {
         if (existingDoc.createdBy !== cosmosAddress) {
@@ -253,8 +216,6 @@ const handleAddressListsUpdateAndCreate = async (
     // TODO: Session?
     await insertMany(AddressListModel, docs);
     await insertMany(ListActivityModel, activityDocs);
-    await insertMany(ClaimBuilderModel, claimBuilderDocs);
-    await deleteMany(ClaimBuilderModel, claimDocsToDelete);
 
     return res.status(200).send({});
   } catch (e) {
@@ -317,7 +278,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
         }
       }
 
-      const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': doc.listId } });
+      const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': doc.listId, deletedAt: { $exists: false } } });
       doc.claims = await getClaimDetailsForFrontend(req, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
     }
 

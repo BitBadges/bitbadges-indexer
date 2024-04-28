@@ -199,7 +199,7 @@ export const handleMsgUniversalUpdateCollection = async (
     collection.isArchivedTimeline = msg.isArchivedTimeline ?? [];
   }
 
-  await handleApprovals(docs, collection, status, msg.collectionId === 0n);
+  await handleApprovals(docs, collection, status, msg);
 
   docs.refreshes[collection.collectionId.toString()] = new RefreshDoc({
     _docId: collection.collectionId.toString(),
@@ -218,8 +218,12 @@ export const handleMsgUniversalUpdateCollection = async (
   const uri = collection.offChainBalancesMetadataTimeline?.[0]?.offChainBalancesMetadata?.uri;
 
   const toClaimIndexed =
-    uri && uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/') && customData === uri.split('/').pop();
-  const toClaimNonIndexed = uri && uri.startsWith('https://api.bitbadges.io/placeholder/{address}') && customData;
+    uri &&
+    uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/') &&
+    customData === uri.split('/').pop() &&
+    collection.balancesType === 'Off-Chain - Indexed';
+  const toClaimNonIndexed =
+    uri && uri.startsWith('https://api.bitbadges.io/placeholder/{address}') && customData && collection.balancesType === 'Off-Chain - Non-Indexed';
 
   if (toClaimIndexed || toClaimNonIndexed) {
     const existingDoc = await getFromDB(OffChainUrlModel, customData);
@@ -230,9 +234,12 @@ export const handleMsgUniversalUpdateCollection = async (
       });
     }
 
+    // This is for off-chain balance types
     // If we just claimed the customData or already claimed, we can claim all others with the balances
     if (!existingDoc || BigInt(existingDoc.collectionId) === collection.collectionId) {
-      const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, { query: { cid: customData, docClaimed: false } });
+      const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, {
+        query: { cid: customData, docClaimed: false, deletedAt: { $exists: false } }
+      });
       for (const doc of existingClaimBuilderDocs) {
         doc.collectionId = collection.collectionId;
         doc.docClaimed = true;

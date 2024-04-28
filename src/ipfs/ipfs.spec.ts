@@ -3,9 +3,10 @@ import { addMetadataToIpfs, getFromIpfs } from './ipfs'; // Import your module a
 import mongoose from 'mongoose';
 import { MongoDB } from '../db/db';
 import { server } from '../indexer';
+import { connectToRpc } from '../poll';
 
 describe('addMetadataToIpfs', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.DISABLE_API = 'false';
     process.env.DISABLE_URI_POLLER = 'true';
     process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
@@ -13,6 +14,8 @@ describe('addMetadataToIpfs', () => {
     process.env.TEST_MODE = 'true';
 
     while (!MongoDB.readyState) {}
+
+    await connectToRpc();
   });
 
   afterAll(async () => {
@@ -31,7 +34,7 @@ describe('addMetadataToIpfs', () => {
 
     // // Act
     const result = await addMetadataToIpfs([collectionMetadata, collectionMetadata, collectionMetadata]);
-    const resultObj = { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' };
+    const resultObj = { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' };
 
     expect(result).toEqual({
       results: [resultObj, resultObj, resultObj]
@@ -48,7 +51,8 @@ describe('addMetadataToIpfs', () => {
     const result = await addMetadataToIpfs([collectionMetadata]);
     expect(result.results).toEqual([
       {
-        cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB'
+        cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB',
+        uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB'
       }
     ]);
   }, 30000);
@@ -62,9 +66,9 @@ describe('addMetadataToIpfs', () => {
 
     const result = await addMetadataToIpfs([collectionMetadata, collectionMetadata, collectionMetadata]);
     expect(result.results).toEqual([
-      { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
-      { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
-      { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' }
+      { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
+      { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
+      { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' }
     ]);
   }, 30000);
 

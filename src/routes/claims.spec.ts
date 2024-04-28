@@ -1,3 +1,4 @@
+import axios from 'axios';
 import {
   AddBalancesToOffChainStorageRouteRequestBody,
   BigIntify,
@@ -16,17 +17,12 @@ import {
   iAddressList,
   iClaimBuilderDoc
 } from 'bitbadgesjs-sdk';
-import crypto from 'crypto';
-import { AES } from 'crypto-js';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
-import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, CollectionModel, ExternalCallKeysModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
-import { generateCodesFromSeed } from '../integrations/codes';
-import { getPlugin } from '../integrations/types';
 import { connectToRpc } from '../poll';
 import {
   apiPlugin,
@@ -41,8 +37,12 @@ import {
   whitelistPlugin
 } from '../testutil/plugins';
 import { createExampleReqForAddress } from '../testutil/utils';
+import { AES } from 'crypto-js';
+import { findInDB } from '../db/queries';
+import { generateCodesFromSeed } from '../integrations/codes';
+import { getPlugin } from '../integrations/types';
 import { getDecryptedActionCodes } from './claims';
-import axios from 'axios';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -1081,7 +1081,7 @@ describe('claims', () => {
 
   it('should work with off-chain balances and claims', async () => {
     const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
-    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true } })
+    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true }, deletedAt: { $exists: false } })
       .lean()
       .exec();
 
@@ -1103,6 +1103,8 @@ describe('claims', () => {
       console.log('No claim docs found');
       throw new Error('No claim docs found');
     }
+
+    console.log(claimDocToUse);
 
     const currManagerTimeline = collectionDocToUse.managerTimeline;
 
@@ -1230,7 +1232,8 @@ describe('claims', () => {
     expect(resetRes.status).toBe(200);
 
     const resetDoc = await getFromDB(ClaimBuilderModel, claimDocToUse._docId);
-    expect(resetDoc).toBeUndefined();
+    expect(resetDoc).toBeDefined();
+    expect(resetDoc?.deletedAt).toBeTruthy();
 
     await insertToDB(CollectionModel, {
       ...collectionDocToUse,
@@ -1240,7 +1243,7 @@ describe('claims', () => {
 
   it('should not reveal private params for off-chain balances', async () => {
     const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
-    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true } })
+    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true }, deletedAt: { $exists: false } })
       .lean()
       .exec();
 

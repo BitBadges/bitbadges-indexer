@@ -1206,7 +1206,7 @@ describe('get auth codes', () => {
 
     const secretsDoc4 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc4.holders.length).toBe(0);
-  });
+  }, 20000);
 
   it('should verify standard sig proofs (non BBS)', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();

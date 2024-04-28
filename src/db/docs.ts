@@ -78,6 +78,34 @@ export class PageVisitsDoc<T extends NumberType> extends BaseNumberTypeClass<Pag
   }
 }
 
+export interface iDigitalOceanBalancesDoc<T extends NumberType> extends Doc {
+  balances: Record<string, iBalance<T>[]>;
+}
+
+export class DigitalOceanBalancesDoc<T extends NumberType>
+  extends BaseNumberTypeClass<DigitalOceanBalancesDoc<T>>
+  implements iDigitalOceanBalancesDoc<T>
+{
+  _id?: string;
+  _docId: string;
+  balances: Record<string, BalanceArray<T>>;
+
+  constructor(doc: iDigitalOceanBalancesDoc<T>) {
+    super();
+    this._id = doc._id;
+    this._docId = doc._docId;
+    this.balances = Object.fromEntries(
+      Object.entries(doc.balances).map(([key, value]) => {
+        return [key, BalanceArray.From(value)];
+      })
+    );
+  }
+
+  convert<U extends NumberType>(convertFunction: (val: NumberType) => U): DigitalOceanBalancesDoc<U> {
+    return super.convert(convertFunction) as DigitalOceanBalancesDoc<U>;
+  }
+}
+
 export interface iBrowseDoc<T extends NumberType> extends Doc {
   collections: Record<string, T[]>;
   addressLists: Record<string, string[]>;

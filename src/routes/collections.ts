@@ -8,8 +8,10 @@ import {
   BitBadgesCollection,
   ClaimDetails,
   CollectionApprovalWithDetails,
+  CollectionMetadataDetails,
   CollectionMetadataTimelineWithDetails,
   CollectionPermissionsWithDetails,
+  GO_MAX_UINT_64,
   MerkleChallengeDoc,
   Metadata,
   UintRangeArray,
@@ -49,9 +51,7 @@ import {
   type iApprovalTrackerDoc,
   type iGetBadgeActivityRouteSuccessResponse,
   type iGetCollectionsRouteSuccessResponse,
-  type iMerkleChallengeDoc,
-  GO_MAX_UINT_64,
-  CollectionMetadataDetails
+  type iMerkleChallengeDoc
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
@@ -76,6 +76,7 @@ import {
   fetchTotalAndUnmintedBalancesQuery
 } from './activityHelpers';
 import { applyAddressListsToUserPermissions } from './balances';
+import { getDecryptedActionSeedCode } from './claims';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
 
 const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
@@ -634,7 +635,7 @@ export async function executeAdditionalCollectionQueries(
     // Perform off-chain claims query (on-chain ones are handled below with approval fetches)
     if (collectionToReturn.balancesType !== 'Standard') {
       const docs = await findInDB(ClaimBuilderModel, {
-        query: { collectionId: Number(collectionToReturn.collectionId), docClaimed: true }
+        query: { collectionId: Number(collectionToReturn.collectionId), docClaimed: true, deletedAt: { $exists: false } }
       });
 
       const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionToReturn.collectionId);
@@ -676,7 +677,7 @@ export async function executeAdditionalCollectionQueries(
         merkleChallenge.challengeInfoDetails.challengeDetails = claimFetch.content as ChallengeDetails<bigint>;
         const challengeTrackerId = merkleChallenge.challengeTrackerId;
         const docs = await findInDB(ClaimBuilderModel, {
-          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: challengeTrackerId }
+          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: challengeTrackerId, deletedAt: { $exists: false } }
         });
         if (docs.length > 0) {
           const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, collectionRes.collectionId);
@@ -696,6 +697,25 @@ export async function executeAdditionalCollectionQueries(
   return collectionResponses;
 }
 
+const getDecryptedInfo = async (
+  req: MaybeAuthenticatedRequest<NumberType>,
+  doc: ClaimBuilderDoc<bigint>,
+  plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
+  state: any,
+  fetchPrivate?: boolean,
+  collectionId?: NumberType,
+  listId?: string
+) => {
+  const decryptedPlugins = await getDecryptedPluginsAndPublicState(req, plugins, state, fetchPrivate, collectionId, listId);
+
+  await checkIfAuthenticatedForPrivateParams(req, fetchPrivate, collectionId, listId);
+
+  return {
+    plugins: decryptedPlugins,
+    seedCode: fetchPrivate ? getDecryptedActionSeedCode(doc) : undefined
+  };
+};
+
 export const getClaimDetailsForFrontend = async (
   req: MaybeAuthenticatedRequest<NumberType>,
   docs: Array<ClaimBuilderDoc<bigint>>,
@@ -705,27 +725,28 @@ export const getClaimDetailsForFrontend = async (
 ) => {
   const claimDetails: Array<iClaimDetails<bigint>> = [];
   for (const doc of docs) {
-    const decryptedPlugins = await getDecryptedPluginsAndPublicState(req, doc.plugins, doc.state, fetchPrivate, collectionId, listId);
+    const decryptedInfo = await getDecryptedInfo(req, doc, doc.plugins, doc.state, fetchPrivate, collectionId, listId);
+    const decryptedPlugins = decryptedInfo.plugins;
+    const seedCode = decryptedInfo.seedCode;
 
     claimDetails.push({
       claimId: doc._docId,
       balancesToSet: doc.action.balancesToSet,
       plugins: decryptedPlugins,
-      manualDistribution: doc.manualDistribution
+      manualDistribution: doc.manualDistribution,
+      seedCode
     });
   }
 
   return claimDetails.map((x) => new ClaimDetails(x));
 };
 
-const getDecryptedPluginsAndPublicState = async (
+const checkIfAuthenticatedForPrivateParams = async (
   req: MaybeAuthenticatedRequest<NumberType>,
-  plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
-  state: any,
   includePrivateParams?: boolean,
   collectionId?: NumberType,
   listId?: string
-): Promise<Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>> => {
+) => {
   if (includePrivateParams) {
     const auth = checkIfAuthenticated(req, ['Read Private Claim Data']);
     if (!auth) {
@@ -736,7 +757,7 @@ const getDecryptedPluginsAndPublicState = async (
       throw new Error('You must provide either a collectionId or listId to fetch private params');
     }
 
-    if (collectionId) {
+    if (collectionId && Number(collectionId) > 0) {
       const manager = await checkIfManager(req, collectionId ?? 0);
       if (!manager) {
         throw new Error('You must be a manager to fetch private params');
@@ -754,6 +775,17 @@ const getDecryptedPluginsAndPublicState = async (
       }
     }
   }
+};
+
+export const getDecryptedPluginsAndPublicState = async (
+  req: MaybeAuthenticatedRequest<NumberType>,
+  plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
+  state: any,
+  includePrivateParams?: boolean,
+  collectionId?: NumberType,
+  listId?: string
+): Promise<Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>> => {
+  await checkIfAuthenticatedForPrivateParams(req, includePrivateParams, collectionId, listId);
 
   return plugins.map((x) => {
     const pluginInstance = getPlugin(x.id);

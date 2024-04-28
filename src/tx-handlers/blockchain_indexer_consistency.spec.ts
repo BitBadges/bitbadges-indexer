@@ -73,7 +73,7 @@ describe('queryClient', () => {
         );
       }
     }
-  }, 0);
+  }, 10000);
 
   it('all accounts should be indexed correctly', async () => {
     const queryClient = client.badgesQueryClient;

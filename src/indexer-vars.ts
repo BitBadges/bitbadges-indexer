@@ -26,5 +26,5 @@ export const ipfsClient = create({
   headers: {
     authorization: auth
   },
-  timeout: process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000
+  timeout: process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000
 });
