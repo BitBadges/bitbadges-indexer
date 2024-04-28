@@ -11,10 +11,10 @@ update_nginx() {
 update_bitbadges_indexer() {
     sudo systemctl stop bitbadges-indexer
     cd /root/bitbadges-indexer
-    rm ./server.cert
-    rm ./server.key
-    cp /etc/nginx/ssl/server.cert ./
-    cp /etc/nginx/ssl/server.key ./
+    rm /etc/nginx/ssl/server.cert
+    rm /etc/nginx/ssl/server.key
+    cp ./server.cert /etc/nginx/ssl/
+    cp ./server.key /etc/nginx/ssl/
     git reset --hard
     git pull
     npm install
