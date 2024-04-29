@@ -9,7 +9,10 @@ import {
   type NumberType,
   type iAddressList,
   type iGetBadgeBalanceByAddressRouteSuccessResponse,
-  type iUserPermissions
+  type iUserPermissions,
+  iBalanceDocWithDetails,
+  iApprovalInfoDetails,
+  iChallengeDetails
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -17,10 +20,11 @@ import { getFromDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { BalanceModel, ClaimBuilderModel, CollectionModel } from '../db/schemas';
 import { getPlugin, getPluginParamsAndState } from '../integrations/types';
-import { fetchUriFromSource } from '../queue';
+import { fetchUriFromSource, fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import { cleanBalanceArray } from '../utils/dataCleaners';
 import { getBalancesForEthFirstTx } from './ethFirstTx';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
+import { addChallengeDetailsToCriteria } from './badges';
 
 export function mustFind<T>(arr: T[], callbackFunc: (x: T) => boolean) {
   const found = arr.find(callbackFunc);
@@ -187,6 +191,17 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
       false
     );
 
+    const urisToFetch = [
+      ...[response]?.flatMap((x) => x?.incomingApprovals.map((y) => y.uri)),
+      ...[response]?.flatMap((x) => x?.outgoingApprovals.map((y) => y.uri)),
+      ...[response]?.flatMap((x) => x?.incomingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.map((z) => z.uri))),
+      ...[response]?.flatMap((x) => x?.outgoingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.map((z) => z.uri)))
+    ]
+      .filter((x) => x)
+      .filter((x, i, arr) => arr.indexOf(x) === i) as string[];
+
+    const results = await fetchUrisFromDbAndAddToQueueIfEmpty(urisToFetch, collectionId.toString());
+
     const balanceToReturn = response ?? {
       collectionId,
       cosmosAddress: _cosmosAddress,
@@ -201,10 +216,28 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
       _docId: collectionId + ':' + cosmosAddress
     };
 
-    const balanceToReturnConverted = {
+    const balanceToReturnConverted: iBalanceDocWithDetails<NumberType> = {
       ...balanceToReturn,
-      incomingApprovals: appendSelfInitiatedIncomingApprovalToApprovals(balanceToReturn, addressLists, _cosmosAddress),
-      outgoingApprovals: appendSelfInitiatedOutgoingApprovalToApprovals(balanceToReturn, addressLists, _cosmosAddress),
+      incomingApprovals: appendSelfInitiatedIncomingApprovalToApprovals(balanceToReturn, addressLists, _cosmosAddress).map((x) => {
+        return {
+          ...x,
+          details: results.find((y) => y.uri === x.uri)?.content as iApprovalInfoDetails | undefined,
+          approvalCriteria: addChallengeDetailsToCriteria(
+            x.approvalCriteria,
+            results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+          )
+        };
+      }),
+      outgoingApprovals: appendSelfInitiatedOutgoingApprovalToApprovals(balanceToReturn, addressLists, _cosmosAddress).map((x) => {
+        return {
+          ...x,
+          details: results.find((y) => y.uri === x.uri)?.content as iApprovalInfoDetails | undefined,
+          approvalCriteria: addChallengeDetailsToCriteria(
+            x.approvalCriteria,
+            results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+          )
+        };
+      }),
       userPermissions: applyAddressListsToUserPermissions(balanceToReturn.userPermissions, addressLists)
     };
 

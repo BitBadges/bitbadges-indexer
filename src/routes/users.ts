@@ -9,12 +9,12 @@ import {
   EmailVerificationStatus,
   NotificationPreferences,
   ProfileDoc,
-  type SecretDoc,
   SupportedChain,
   convertToBtcAddress,
   convertToCosmosAddress,
   convertToEthAddress,
   getChainForAddress,
+  iApprovalInfoDetails,
   type AccountFetchDetails,
   type AddressListDoc,
   type BalanceDoc,
@@ -26,27 +26,29 @@ import {
   type NumberType,
   type PaginationInfo,
   type ReviewDoc,
+  type SecretDoc,
   type TransferActivityDoc,
   type UpdateAccountInfoRouteRequestBody,
   type iAccountDoc,
   type iGetAccountsRouteSuccessResponse,
   type iProfileDoc,
-  type iUpdateAccountInfoRouteSuccessResponse
+  type iUpdateAccountInfoRouteSuccessResponse,
+  iChallengeDetails
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import type nano from 'nano';
 import { serializeError } from 'serialize-error';
-import { findInDB } from '../db/queries';
 import {
   checkIfAuthenticated,
+  setMockSessionIfTestMode,
   type AuthenticatedRequest,
-  type MaybeAuthenticatedRequest,
-  setMockSessionIfTestMode
+  type MaybeAuthenticatedRequest
 } from '../blockin/blockin_handlers';
 import { type CleanedCosmosAccountInformation } from '../chain-client/queries';
 import { deleteMany, getFromDB, getManyFromDB, insertToDB } from '../db/db';
-import { AccountModel, ProfileModel, UsernameModel } from '../db/schemas';
+import { findInDB } from '../db/queries';
+import { AccountModel, FetchModel, ProfileModel, UsernameModel } from '../db/schemas';
 import { client } from '../indexer';
 import { s3 } from '../indexer-vars';
 import { connectToRpc } from '../poll';
@@ -59,18 +61,19 @@ import {
   executeCollectedQuery,
   executeCreatedByQuery,
   executeCreatedListsQuery,
+  executeCreatedSecretsQuery,
   executeExplicitExcludedListsQuery,
   executeExplicitIncludedListsQuery,
   executeListsActivityQuery,
   executeListsQuery,
   executeManagingQuery,
   executePrivateListsQuery,
-  executeReviewsQuery,
-  executeCreatedSecretsQuery,
   executeReceivedSecretsQuery,
+  executeReviewsQuery,
   executeSentClaimAlertsQuery
 } from './userQueries';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
+import { addChallengeDetailsToCriteria } from './badges';
 
 type AccountFetchOptions = AccountFetchDetails;
 
@@ -478,6 +481,8 @@ const getAdditionalUserInfo = async (
     }
   }
 
+  let urisToFetch: string[] = [];
+
   const results = await Promise.all(asyncOperations.map(async (operation) => await operation()));
   const addressListIdsToFetch: Array<{ collectionId?: NumberType; listId: string }> = [];
   for (let i = 0; i < results.length; i++) {
@@ -499,6 +504,15 @@ const getAdditionalUserInfo = async (
     } else if (viewKey === 'badgesCollected') {
       const result = results[i] as nano.MangoResponse<BalanceDoc<bigint>>;
       for (const balance of result.docs) {
+        urisToFetch = [
+          ...[balance].flatMap((x) => x.incomingApprovals.map((y) => y.uri)),
+          ...[balance].flatMap((x) => x.outgoingApprovals.map((y) => y.uri)),
+          ...[balance].flatMap((x) => x.incomingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.map((z) => z.uri))),
+          ...[balance].flatMap((x) => x.outgoingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.map((z) => z.uri)))
+        ]
+          .filter((x) => x)
+          .filter((x, i, arr) => arr.indexOf(x) === i) as string[];
+
         for (const incoming of balance.incomingApprovals) {
           addressListIdsToFetch.push({
             listId: incoming.fromListId,
@@ -661,6 +675,9 @@ const getAdditionalUserInfo = async (
     }
   }
 
+  // const claimFetchResults = await fetchUrisFromDbAndAddToQueueIfEmpty(urisToFetch, ''); //TODO:
+  const claimFetchResults = await getManyFromDB(FetchModel, urisToFetch);
+
   const responseObj: GetAdditionalUserInfoRes = {
     collected: [],
     activity: [],
@@ -680,16 +697,35 @@ const getAdditionalUserInfo = async (
     } else if (viewKey === 'badgesCollected') {
       const result = results[i] as nano.MangoResponse<BalanceDoc<bigint>>;
       responseObj.collected = [...responseObj.collected, ...result.docs].map((collected) => {
-        const newIncomingApprovals = appendSelfInitiatedIncomingApprovalToApprovals(collected, addressListsToPopulate, cosmosAddress);
-        const newOutgoingApprovals = appendSelfInitiatedOutgoingApprovalToApprovals(collected, addressListsToPopulate, cosmosAddress);
+        const newIncomingApprovals = appendSelfInitiatedIncomingApprovalToApprovals(collected, addressListsToPopulate, cosmosAddress).map((x) => {
+          return {
+            ...x,
+            details: claimFetchResults.find((y) => y?._docId === x.uri)?.content as iApprovalInfoDetails | undefined,
+            approvalCriteria: addChallengeDetailsToCriteria(
+              x.approvalCriteria,
+              claimFetchResults as ({ uri: string; content: iChallengeDetails<NumberType> | undefined } | undefined)[]
+            )
+          };
+        });
+        const newOutgoingApprovals = appendSelfInitiatedOutgoingApprovalToApprovals(collected, addressListsToPopulate, cosmosAddress).map((x) => {
+          return {
+            ...x,
+            details: claimFetchResults.find((y) => y?._docId === x.uri)?.content as iApprovalInfoDetails | undefined,
+            approvalCriteria: addChallengeDetailsToCriteria(
+              x.approvalCriteria,
+              claimFetchResults as ({ uri: string; content: iChallengeDetails<NumberType> | undefined } | undefined)[]
+            )
+          };
+        });
+
         const newUserPermissions = applyAddressListsToUserPermissions(collected.userPermissions, addressListsToPopulate);
 
-        return new BalanceDocWithDetails<bigint>({
+        return new BalanceDocWithDetails<NumberType>({
           ...collected,
           incomingApprovals: newIncomingApprovals,
           outgoingApprovals: newOutgoingApprovals,
           userPermissions: newUserPermissions
-        });
+        }).convert(BigIntify);
       });
     } else if (viewKey === 'transferActivity') {
       const result = results[i] as nano.MangoResponse<TransferActivityDoc<bigint>>;
@@ -922,7 +958,6 @@ export const updateAccountInfo = async (
     });
   }
 };
-
 export const VerificationEmailHTML = (emailToken: string, antiPhishingCode: string) => {
   return `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">

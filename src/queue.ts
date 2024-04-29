@@ -62,6 +62,10 @@ const { SHA256 } = CryptoJS;
 
 // Upon fetch request, check in RefreshModel if it is to be refreshed
 export const fetchUrisFromDbAndAddToQueueIfEmpty = async (uris: string[], collectionId: string) => {
+  if (uris.length === 0) {
+    return [];
+  }
+
   for (const uri of uris) {
     const isValidUri = Joi.string().uri().validate(uri);
     if (isValidUri.error) {

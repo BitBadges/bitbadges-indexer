@@ -51,7 +51,9 @@ import {
   type iApprovalTrackerDoc,
   type iGetBadgeActivityRouteSuccessResponse,
   type iGetCollectionsRouteSuccessResponse,
-  type iMerkleChallengeDoc
+  type iMerkleChallengeDoc,
+  iApprovalInfoDetails,
+  iChallengeDetails
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
@@ -78,6 +80,7 @@ import {
 import { applyAddressListsToUserPermissions } from './balances';
 import { getDecryptedActionSeedCode } from './claims';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
+import { addChallengeDetailsToCriteria } from './badges';
 
 const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
 
@@ -314,6 +317,34 @@ export async function executeAdditionalCollectionQueries(
       if (uri) urisToFetch.push(uri);
     }
 
+    for (const idx of balanceResIdxs) {
+      const balanceRes = responses[idx] as {
+        docs: Array<BalanceDoc<bigint>>;
+        pagination: PaginationInfo;
+      };
+      for (const balanceDoc of balanceRes.docs) {
+        for (const transfer of balanceDoc.incomingApprovals) {
+          const uri = transfer.uri;
+          if (uri) urisToFetch.push(uri);
+        }
+
+        for (const transfer of balanceDoc.outgoingApprovals) {
+          const uri = transfer.uri;
+          if (uri) urisToFetch.push(uri);
+        }
+
+        for (const merkleChallenge of balanceDoc.incomingApprovals.flatMap((x) => x.approvalCriteria?.merkleChallenges ?? [])) {
+          const uri = merkleChallenge.uri;
+          if (uri) urisToFetch.push(uri);
+        }
+
+        for (const merkleChallenge of balanceDoc.outgoingApprovals.flatMap((x) => x.approvalCriteria?.merkleChallenges ?? [])) {
+          const uri = merkleChallenge.uri;
+          if (uri) urisToFetch.push(uri);
+        }
+      }
+    }
+
     if (urisToFetch.length > 0) {
       claimFetchesPromises.push(
         fetchUrisFromDbAndAddToQueueIfEmpty(
@@ -327,6 +358,7 @@ export async function executeAdditionalCollectionQueries(
   const addressListsPromise = getAddressListsFromDB(addressListIdsToFetch, false);
 
   const [addressLists, claimFetches] = await Promise.all([addressListsPromise, Promise.all(claimFetchesPromises)]);
+  const claimFetchesFlat = claimFetches.flat();
 
   const badgeIdsFetched = new Array<UintRangeArray<bigint>>();
   for (const query of collectionQueries) {
@@ -449,46 +481,26 @@ export async function executeAdditionalCollectionQueries(
             incomingApprovals: doc.incomingApprovals.map((x) => {
               return new UserIncomingApprovalWithDetails({
                 ...x,
+                details: claimFetchesFlat.find((y) => y.uri === x.uri) as iApprovalInfoDetails | undefined,
                 fromList: addressLists.find((z) => z.listId === x.fromListId) as iAddressList,
                 initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList,
-                approvalCriteria: {
-                  ...x.approvalCriteria,
-                  merkleChallenges:
-                    x.approvalCriteria?.merkleChallenges?.map((y) => {
-                      return {
-                        ...y,
-                        challengeInfoDetails: {
-                          challengeDetails: {
-                            leaves: [],
-                            isHashed: false
-                          }
-                        }
-                      };
-                    }) ?? []
-                }
-              });
+                approvalCriteria: addChallengeDetailsToCriteria(
+                  x.approvalCriteria,
+                  claimFetchesFlat as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+                )
+              }).convert(BigIntify);
             }),
             outgoingApprovals: doc.outgoingApprovals.map((x) => {
               return new UserOutgoingApprovalWithDetails({
                 ...x,
+                details: claimFetchesFlat.find((y) => y.uri === x.uri) as iApprovalInfoDetails | undefined,
                 toList: addressLists.find((z) => z.listId === x.toListId) as iAddressList,
                 initiatedByList: addressLists.find((z) => z.listId === x.initiatedByListId) as iAddressList,
-                approvalCriteria: {
-                  ...x.approvalCriteria,
-                  merkleChallenges:
-                    x.approvalCriteria?.merkleChallenges?.map((y) => {
-                      return {
-                        ...y,
-                        challengeInfoDetails: {
-                          challengeDetails: {
-                            leaves: [],
-                            isHashed: false
-                          }
-                        }
-                      };
-                    }) ?? []
-                }
-              });
+                approvalCriteria: addChallengeDetailsToCriteria(
+                  x.approvalCriteria,
+                  claimFetchesFlat as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+                )
+              }).convert(BigIntify);
             }),
             userPermissions: new UserPermissionsWithDetails({
               ...doc.userPermissions,
@@ -652,7 +664,7 @@ export async function executeAdditionalCollectionQueries(
 
   // Append fetched approval details
   const pageVisitsPromises = [];
-  const claimFetchesFlat = claimFetches.flat();
+
   for (let i = 0; i < collectionResponses.length; i++) {
     const collectionRes = collectionResponses[i];
     const query = collectionQueries[i];
