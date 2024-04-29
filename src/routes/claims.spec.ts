@@ -1,5 +1,6 @@
 import axios from 'axios';
 import {
+  AddApprovalDetailsToOffChainStorageRouteRequestBody,
   AddBalancesToOffChainStorageRouteRequestBody,
   BigIntify,
   BitBadgesApiRoutes,
@@ -7,9 +8,11 @@ import {
   BlockinAndGroup,
   CheckAndCompleteClaimRouteRequestBody,
   ClaimIntegrationPluginType,
+  CollectionApproval,
   GetCollectionsRouteRequestBody,
   IncrementedBalances,
   IntegrationPluginDetails,
+  MsgUniversalUpdateCollection,
   NumberType,
   PredeterminedBalances,
   UintRangeArray,
@@ -18,12 +21,18 @@ import {
   iAddressList,
   iClaimBuilderDoc
 } from 'bitbadgesjs-sdk';
+import crypto from 'crypto';
+import { AES, SHA256 } from 'crypto-js';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
+import { signAndBroadcast } from '../testutil/broadcastUtils';
 import request from 'supertest';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, CollectionModel, ExternalCallKeysModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
+import { generateCodesFromSeed } from '../integrations/codes';
+import { getPlugin } from '../integrations/types';
 import { connectToRpc } from '../poll';
 import {
   apiPlugin,
@@ -38,17 +47,14 @@ import {
   whitelistPlugin
 } from '../testutil/plugins';
 import { createExampleReqForAddress } from '../testutil/utils';
-import { AES } from 'crypto-js';
-import { findInDB } from '../db/queries';
-import { generateCodesFromSeed } from '../integrations/codes';
-import { getPlugin } from '../integrations/types';
 import { getDecryptedActionCodes } from './claims';
-import crypto from 'crypto';
 
 dotenv.config();
 
 const wallet = ethers.Wallet.createRandom();
 const address = wallet.address;
+
+const sampleMsgCreateCollection = require('../setup/bootstrapped-collections//19_zkp.json');
 
 const createClaimDoc = async (
   plugins: IntegrationPluginDetails<ClaimIntegrationPluginType>[],
@@ -81,7 +87,7 @@ describe('claims', () => {
   beforeAll(async () => {
     process.env.DISABLE_API = 'false';
     process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
+    process.env.DISABLE_BLOCKCHAIN_POLLER = 'false';
     process.env.DISABLE_NOTIFICATION_POLLER = 'true';
     process.env.TEST_MODE = 'true';
 
@@ -1278,6 +1284,130 @@ describe('claims', () => {
     });
   }, 10000000);
 
+  it('should work with off-chain manual balances and claims', async () => {
+    const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
+    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true }, deletedAt: { $exists: false } })
+      .lean()
+      .exec();
+
+    console.log([...new Set(collectionDocs.map((x) => x.collectionId))]);
+    console.log([...new Set(claimDocs.map((x) => x.collectionId))]);
+
+    let claimDocToUse = undefined;
+    let collectionDocToUse = undefined;
+    //Find match
+    for (const claimDoc of claimDocs) {
+      if (collectionDocs.find((x) => x.collectionId === claimDoc.collectionId)) {
+        claimDocToUse = claimDoc;
+        collectionDocToUse = collectionDocs.find((x) => x.collectionId === claimDoc.collectionId);
+        break;
+      }
+    }
+
+    if (!claimDocToUse || !collectionDocToUse) {
+      console.log('No claim docs found');
+      throw new Error('No claim docs found');
+    }
+
+    console.log(claimDocToUse);
+
+    const currManagerTimeline = collectionDocToUse.managerTimeline;
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: [
+        {
+          timelineTimes: UintRangeArray.FullRanges(),
+          manager: convertToCosmosAddress(wallet.address)
+        }
+      ]
+    });
+
+    const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
+    const body: AddBalancesToOffChainStorageRouteRequestBody = {
+      collectionId: collectionDocToUse.collectionId,
+      method: 'centralized',
+      claims: [
+        {
+          claimId: claimDocToUse._docId,
+          balancesToSet: new PredeterminedBalances({
+            incrementedBalances: new IncrementedBalances({
+              startBalances: [],
+              incrementBadgeIdsBy: 0n,
+              incrementOwnershipTimesBy: 0n
+            }),
+            manualBalances: [
+              { balances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }] },
+              { balances: [{ amount: 1n, badgeIds: [{ start: 100n, end: 100n }], ownershipTimes: UintRangeArray.FullRanges() }] }
+            ],
+            orderCalculationMethod: {
+              useOverallNumTransfers: true,
+              useMerkleChallengeLeafIndex: false,
+              usePerFromAddressNumTransfers: false,
+              usePerInitiatedByAddressNumTransfers: false,
+              usePerToAddressNumTransfers: false,
+              challengeTrackerId: ''
+            }
+          }),
+          plugins: [
+            {
+              ...numUsesPlugin(10, 0),
+              resetState: true
+            }
+          ]
+        }
+      ],
+      balances: {}
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(claimDocToUse._docId, convertToCosmosAddress(wallet.address));
+    const claimBody: CheckAndCompleteClaimRouteRequestBody = {};
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(claimBody);
+    console.log(claimRes.body);
+    expect(claimRes.status).toBe(200);
+
+    const claimRes2 = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(claimBody);
+    console.log(claimRes2.body);
+    expect(claimRes2.status).toBe(200);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, claimDocToUse._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(2);
+
+    //sleep for 10s
+    await new Promise((r) => setTimeout(r, 10000));
+
+    const balancesUrl = collectionDocToUse.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri;
+    const balancesRes = await axios.get(balancesUrl);
+    console.log(balancesRes.data);
+    const balancesMap = convertOffChainBalancesMap(balancesRes.data, BigIntify);
+    console.log(balancesMap[convertToCosmosAddress(wallet.address)]);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)]).toBeTruthy();
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].amount).toBe(1n);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].badgeIds[0].start).toBe(1n);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].badgeIds[0].end).toBe(1n);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].badgeIds[1].start).toBe(100n);
+    expect(balancesMap[convertToCosmosAddress(wallet.address)][0].badgeIds[1].end).toBe(100n);
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: currManagerTimeline //Avoid side effects
+    });
+  }, 10000000);
+
   it('should not reveal private params for off-chain balances', async () => {
     const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
     const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true }, deletedAt: { $exists: false } })
@@ -1413,4 +1543,161 @@ describe('claims', () => {
       managerTimeline: currManagerTimeline //Avoid side effects
     });
   });
+
+  it('should create on-chain claims correctly and claim it', async () => {
+    const seedCode = crypto.randomBytes(32).toString('hex');
+    const route = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
+    const body: AddApprovalDetailsToOffChainStorageRouteRequestBody = {
+      approvalDetails: [
+        {
+          name: 'test',
+          description: 'hajkdsfkasd',
+          challengeInfoDetails: [
+            {
+              challengeDetails: {
+                leaves: generateCodesFromSeed(seedCode, 10).map((x) => SHA256(x).toString()),
+                preimages: generateCodesFromSeed(seedCode, 10),
+                numLeaves: 10,
+                isHashed: true
+              },
+              claim: {
+                claimId: crypto.randomBytes(32).toString('hex'),
+                seedCode: seedCode,
+                plugins: [
+                  {
+                    ...numUsesPlugin(10, 0),
+                    resetState: true
+                  },
+                  {
+                    ...codesPlugin(10, crypto.randomBytes(32).toString('hex'))
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+
+    console.log(res.body);
+    expect(res.status).toBe(200);
+
+    const msg = new MsgUniversalUpdateCollection<NumberType>({
+      ...sampleMsgCreateCollection,
+      creator: convertToCosmosAddress(wallet.address),
+      managerTimeline: [
+        {
+          timelineTimes: UintRangeArray.FullRanges(),
+          manager: convertToCosmosAddress(wallet.address)
+        }
+      ],
+      collectionApprovals: [
+        new CollectionApproval({
+          fromListId: 'Mint',
+          toListId: 'All',
+          initiatedByListId: 'All',
+          transferTimes: UintRangeArray.FullRanges(),
+          badgeIds: UintRangeArray.FullRanges(),
+          ownershipTimes: UintRangeArray.FullRanges(),
+          approvalId: crypto.randomBytes(32).toString('hex'),
+          approvalCriteria: {
+            merkleChallenges: [
+              {
+                //Don't care about core details now
+                root: 'fhjadsfkja',
+                expectedProofLength: 2n,
+                uri: '',
+                customData: '',
+                useCreatorAddressAsLeaf: false,
+                maxUsesPerLeaf: 1n,
+
+                //We do care about these
+                challengeTrackerId: body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? ''
+              }
+            ]
+          }
+        })
+      ],
+      collectionPermissions: {
+        ...sampleMsgCreateCollection.collectionPermissions,
+        canUpdateCollectionApprovals: [
+          {
+            fromListId: 'All',
+            toListId: 'All',
+            initiatedByListId: 'All',
+            approvalId: 'All',
+            ownershipTimes: UintRangeArray.FullRanges(),
+            badgeIds: UintRangeArray.FullRanges(),
+            transferTimes: UintRangeArray.FullRanges(),
+
+            permanentlyForbiddenTimes: UintRangeArray.FullRanges(),
+            permanentlyPermittedTimes: []
+          }
+        ]
+      }
+    })
+      .convert(BigIntify)
+      .toProto();
+
+    const txRes = await signAndBroadcast([msg], wallet);
+    console.log(txRes);
+
+    //Sleep 10 seconds to allow it to claim
+    await new Promise((r) => setTimeout(r, 10000));
+
+    const claimDoc = await mustGetFromDB(ClaimBuilderModel, body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '');
+    expect(Number(claimDoc.collectionId)).toBeGreaterThan(0);
+    expect(claimDoc.docClaimed).toBeTruthy();
+    expect(claimDoc.trackerDetails).toBeTruthy();
+    expect(claimDoc.trackerDetails?.challengeTrackerId).toBe(body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '');
+
+    //Try and update it (even though on-chain permissions disallow it)
+    const route2 = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
+    const body2: AddApprovalDetailsToOffChainStorageRouteRequestBody = {
+      approvalDetails: [
+        {
+          name: 'test',
+          description: 'hajkdsfkasd',
+          challengeInfoDetails: [
+            {
+              challengeDetails: {
+                leaves: generateCodesFromSeed(seedCode, 10).map((x) => SHA256(x).toString()),
+                preimages: generateCodesFromSeed(seedCode, 10),
+                numLeaves: 10,
+                isHashed: true
+              },
+              claim: {
+                claimId: body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '',
+                seedCode: seedCode,
+                plugins: [
+                  {
+                    ...numUsesPlugin(10, 0)
+                  },
+                  {
+                    ...codesPlugin(10, crypto.randomBytes(32).toString('hex')),
+
+                    resetState: true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const res2 = await request(app)
+      .post(route2)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body2);
+    console.log(res2.body);
+    expect(res2.status).toBeGreaterThan(400);
+  }, 100000);
 });
