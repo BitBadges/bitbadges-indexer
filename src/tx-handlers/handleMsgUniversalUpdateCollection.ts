@@ -199,7 +199,7 @@ export const handleMsgUniversalUpdateCollection = async (
     collection.isArchivedTimeline = msg.isArchivedTimeline ?? [];
   }
 
-  await handleApprovals(docs, collection, status, msg);
+  await handleApprovals(docs, collection.collectionApprovals, collection.collectionId, status, msg, collection);
 
   docs.refreshes[collection.collectionId.toString()] = new RefreshDoc({
     _docId: collection.collectionId.toString(),

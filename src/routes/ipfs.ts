@@ -159,9 +159,26 @@ export const updateClaimDocs = async (
 
       //In the case of on-chain collections, we need to check if the user has permission to update the claim (we use the on-chain collection permissions)
       if (claimType == ClaimType.OnChain) {
-        const collections = await executeCollectionsQuery({} as Request, [{ collectionId: existingDoc.collectionId }]);
-        const collection = collections[0];
-        const currApprovals = collection.collectionApprovals;
+        const currApprovals = [];
+        const updatePermissions = [];
+        if (existingDoc.trackerDetails?.approvalLevel === 'collection') {
+          const isManager = await checkIfManager(req, existingDoc.collectionId);
+          if (!isManager) {
+            throw new Error("Permission error: You don't have permission to update this claim");
+          }
+          const collections = await executeCollectionsQuery({} as Request, [{ collectionId: existingDoc.collectionId }]);
+          const collection = collections[0];
+          currApprovals.push(...collection.collectionApprovals);
+          updatePermissions.push(...collection.collectionPermissions.canUpdateCollectionApprovals);
+        } else {
+          const approverAddress = existingDoc.trackerDetails?.approverAddress;
+          if (approverAddress !== req.session.cosmosAddress) {
+            throw new Error("Permission error: You don't have permission to update this claim");
+          }
+
+          //TODO: Handle user approvals and permissions (casted to collection)
+        }
+
         const newApprovals = currApprovals.map((x) => {
           if (!existingDoc.trackerDetails) {
             throw new Error('Existing claim does not have tracker details');
@@ -186,7 +203,7 @@ export const updateClaimDocs = async (
 
           return x;
         });
-        const err = validateCollectionApprovalsUpdate(currApprovals, newApprovals, collection.collectionPermissions.canUpdateCollectionApprovals);
+        const err = validateCollectionApprovalsUpdate(currApprovals, newApprovals, updatePermissions);
         if (err) {
           throw new Error("Permission error: You don't have permission to update this claim");
         }

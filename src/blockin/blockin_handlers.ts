@@ -83,6 +83,10 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
 export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]): boolean {
   setMockSessionIfTestMode(req);
 
+  if (!req || req.session == null) {
+    return false;
+  }
+
   if (expectedScopes != null) {
     if (!hasScopes(req, expectedScopes)) {
       return false;

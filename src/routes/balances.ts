@@ -12,7 +12,9 @@ import {
   type iUserPermissions,
   iBalanceDocWithDetails,
   iApprovalInfoDetails,
-  iChallengeDetails
+  iChallengeDetails,
+  ClaimDetails,
+  GetBadgeBalanceByAddressRouteRequestBody
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -25,6 +27,8 @@ import { cleanBalanceArray } from '../utils/dataCleaners';
 import { getBalancesForEthFirstTx } from './ethFirstTx';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
 import { addChallengeDetailsToCriteria } from './badges';
+import { getClaimDetailsForFrontend } from './collections';
+import { MaybeAuthenticatedRequest } from 'src/blockin/blockin_handlers';
 
 export function mustFind<T>(arr: T[], callbackFunc: (x: T) => boolean) {
   const found = arr.find(callbackFunc);
@@ -62,7 +66,12 @@ export const applyAddressListsToUserPermissions = <T extends NumberType>(
   });
 };
 
-export const getBalanceForAddress = async (collectionId: number, _cosmosAddress: string) => {
+export const getBalanceForAddress = async (
+  req: MaybeAuthenticatedRequest<NumberType>,
+  collectionId: number,
+  _cosmosAddress: string,
+  options?: GetBadgeBalanceByAddressRouteRequestBody | undefined
+) => {
   const cosmosAddress = `${convertToCosmosAddress(_cosmosAddress).toString()}`;
   const docId = `${collectionId}:${cosmosAddress}`;
   const collection = await mustGetFromDB(CollectionModel, collectionId.toString());
@@ -200,6 +209,29 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
       .filter((x) => x)
       .filter((x, i, arr) => arr.indexOf(x) === i) as string[];
 
+    const claimIds = [
+      ...[response].flatMap((x) => x?.incomingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.flatMap((z) => z.challengeTrackerId))),
+      ...[response].flatMap((x) => x?.outgoingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.flatMap((z) => z.challengeTrackerId)))
+    ]
+      .filter((x) => x)
+      .filter((x, i, arr) => arr.indexOf(x) === i) as string[];
+
+    const docs = await findInDB(ClaimBuilderModel, {
+      query: {
+        collectionId: Number(collectionId),
+        docClaimed: true,
+        cid: {
+          $in: claimIds
+        },
+        deletedAt: { $exists: false }
+      }
+    });
+
+    let claimDetails: Array<ClaimDetails<bigint>> = [];
+    if (docs.length > 0) {
+      claimDetails = await getClaimDetailsForFrontend(req, docs, options?.fetchPrivateParams, collectionId);
+    }
+
     const results = await fetchUrisFromDbAndAddToQueueIfEmpty(urisToFetch, collectionId.toString());
 
     const balanceToReturn = response ?? {
@@ -224,7 +256,8 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
           details: results.find((y) => y.uri === x.uri)?.content as iApprovalInfoDetails | undefined,
           approvalCriteria: addChallengeDetailsToCriteria(
             x.approvalCriteria,
-            results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+            results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[],
+            claimDetails
           )
         };
       }),
@@ -234,7 +267,8 @@ export const getBalanceForAddress = async (collectionId: number, _cosmosAddress:
           details: results.find((y) => y.uri === x.uri)?.content as iApprovalInfoDetails | undefined,
           approvalCriteria: addChallengeDetailsToCriteria(
             x.approvalCriteria,
-            results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+            results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[],
+            claimDetails
           )
         };
       }),
@@ -260,7 +294,7 @@ export const getBadgeBalanceByAddress = async (
   res: Response<iGetBadgeBalanceByAddressRouteSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
-    const balanceToReturnConverted = await getBalanceForAddress(Number(req.params.collectionId), req.params.cosmosAddress);
+    const balanceToReturnConverted = await getBalanceForAddress(req, Number(req.params.collectionId), req.params.cosmosAddress, req.body);
     return res.status(200).send(balanceToReturnConverted.convert(Stringify));
   } catch (e) {
     console.error(e);

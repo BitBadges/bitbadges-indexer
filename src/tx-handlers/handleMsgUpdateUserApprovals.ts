@@ -4,6 +4,7 @@ import { fetchDocsForCacheIfEmpty } from '../db/cache';
 import { handleNewAccountByAddress } from './handleNewAccount';
 import { recursivelyDeleteFalseProperties } from './handleMsgUniversalUpdateCollection';
 import { type DocsCache } from '../db/types';
+import { handleUserApprovals } from './approvalInfo';
 
 export const handleMsgUpdateUserApprovals = async (
   msg: MsgUpdateUserApprovals<bigint>,
@@ -53,6 +54,8 @@ export const handleMsgUpdateUserApprovals = async (
   if (msg.updateOutgoingApprovals) {
     balancesDoc.outgoingApprovals = msg.outgoingApprovals ?? [];
   }
+
+  await handleUserApprovals(docs, status, msg);
 
   if (msg.updateUserPermissions) {
     balancesDoc.userPermissions = msg.userPermissions ?? UserPermissions.InitEmpty();

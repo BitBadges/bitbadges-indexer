@@ -1,40 +1,56 @@
 import {
   ChallengeTrackerIdDetails,
-  ClaimAlertDoc,
   ClaimBuilderDoc,
-  convertToCosmosAddress,
+  CollectionApproval,
+  MsgUniversalUpdateCollection,
+  MsgUpdateUserApprovals,
+  UserIncomingApproval,
+  UserOutgoingApproval,
   type CollectionDoc,
-  type StatusDoc,
-  MsgUniversalUpdateCollection
+  type StatusDoc
 } from 'bitbadgesjs-sdk';
 import { findInDB } from '../db/queries';
 import { ClaimBuilderModel } from '../db/schemas';
 import { type DocsCache } from '../db/types';
-import { getFromIpfs } from '../ipfs/ipfs';
 import { getApprovalInfoIdForQueueDb, pushApprovalInfoFetchToQueue } from '../queue';
 import { getLoadBalancerId } from '../utils/loadBalancer';
 
+export const handleUserApprovals = async (docs: DocsCache, status: StatusDoc<bigint>, msg: MsgUpdateUserApprovals<bigint>): Promise<void> => {
+  if (msg.updateIncomingApprovals) {
+    await handleApprovals(docs, msg.incomingApprovals ?? [], msg.collectionId, status, msg, undefined, 'incoming', msg.creator);
+  }
+
+  if (msg.updateOutgoingApprovals) {
+    await handleApprovals(docs, msg.outgoingApprovals ?? [], msg.collectionId, status, msg, undefined, 'outgoing', msg.creator);
+  }
+};
+
 export const handleApprovals = async (
   docs: DocsCache,
-  collectionDoc: CollectionDoc<bigint>,
+  approvals: CollectionApproval<bigint>[] | UserIncomingApproval<bigint>[] | UserOutgoingApproval<bigint>[],
+  collectionId: bigint,
   status: StatusDoc<bigint>,
-  msg: MsgUniversalUpdateCollection<bigint>
+  msg: MsgUniversalUpdateCollection<bigint> | MsgUpdateUserApprovals<bigint>,
+  collectionDoc?: CollectionDoc<bigint>,
+  approvalLevel = 'collection',
+  approverAddress = ''
 ): Promise<void> => {
   // Handle claim objects
   // Note we only handle each unique URI once per collection, even if there is multiple claims with the same (thus you can't duplicate passwords for the same URI)
   const handledUris: string[] = [];
-  let idx = 0;
-  for (const approval of collectionDoc.collectionApprovals) {
+  for (const approval of approvals) {
     const approvalCriteria = approval.approvalCriteria;
     const merkleChallenges = approvalCriteria?.merkleChallenges;
     if (approval?.uri) {
       if (!handledUris.includes(approval.uri)) {
         handledUris.push(approval.uri);
 
-        const entropy = status.block.height + '-' + status.block.txIndex;
-        const claimDocId = getApprovalInfoIdForQueueDb(entropy, collectionDoc.collectionId.toString(), approval.uri.toString());
+        if (collectionDoc) {
+          const entropy = status.block.height + '-' + status.block.txIndex;
+          const claimDocId = getApprovalInfoIdForQueueDb(entropy, collectionId.toString(), approval.uri.toString());
 
-        await pushApprovalInfoFetchToQueue(docs, collectionDoc, approval.uri, getLoadBalancerId(claimDocId), status.block.timestamp, entropy);
+          await pushApprovalInfoFetchToQueue(docs, collectionDoc, approval.uri, getLoadBalancerId(claimDocId), status.block.timestamp, entropy);
+        }
       }
     }
 
@@ -51,10 +67,11 @@ export const handleApprovals = async (
           deletedAt: { $exists: false },
           docClaimed: true,
           'trackerDetails.challengeTrackerId': cid,
-          'trackerDetails.collectionId': Number(collectionDoc.collectionId),
+          'trackerDetails.collectionId': Number(collectionId),
           'trackerDetails.approvalId': approval.approvalId,
-          'trackerDetails.approvalLevel': 'collection',
-          'trackerDetails.approverAddress': ''
+
+          'trackerDetails.approvalLevel': approvalLevel,
+          'trackerDetails.approverAddress': approverAddress
         }
       });
       if (existingDoc.length > 0) {
@@ -74,38 +91,15 @@ export const handleApprovals = async (
         docs.claimBuilderDocs[convertedDoc._docId] = new ClaimBuilderDoc({
           ...convertedDoc,
           docClaimed: true,
-          collectionId: collectionDoc.collectionId,
+          collectionId: collectionId,
           trackerDetails: new ChallengeTrackerIdDetails({
-            collectionId: collectionDoc.collectionId,
+            collectionId: collectionId,
             approvalId: approval.approvalId,
             challengeTrackerId: cid,
-            approvalLevel: 'collection',
-            approverAddress: ''
+            approvalLevel: approvalLevel as 'collection' | 'incoming' | 'outgoing',
+            approverAddress
           })
         });
-
-        if (merkleChallenge?.useCreatorAddressAsLeaf) {
-          const res = await getFromIpfs(cid);
-          const convertedDoc = JSON.parse(res.file);
-
-          if (convertedDoc.challengeDetails?.isHashed === false) {
-            const addresses = convertedDoc.challengeDetails?.leaves.map((leaf: string) => convertToCosmosAddress(leaf));
-
-            const orderMatters = approvalCriteria?.predeterminedBalances?.orderCalculationMethod?.useMerkleChallengeLeafIndex;
-            docs.claimAlertsToAdd.push(
-              new ClaimAlertDoc({
-                from: '',
-                _docId: `${collectionDoc.collectionId}:${status.block.height}-${status.block.txIndex}-${idx}`,
-                timestamp: status.block.timestamp,
-                block: status.block.height,
-                collectionId: collectionDoc.collectionId,
-                cosmosAddresses: addresses,
-                message: `You have been whitelisted to claim badges from collection ${collectionDoc.collectionId}! ${orderMatters ? `You have been reserved specific badges which are only claimable to you. Your claim number is #${idx + 1}` : ''}`
-              })
-            );
-            idx++;
-          }
-        }
       }
     }
   }

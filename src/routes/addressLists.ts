@@ -165,6 +165,16 @@ const handleAddressListsUpdateAndCreate = async (
         throw new Error('List with ID ' + list.listId + ' does not exist.');
       }
 
+      if (existingDoc) {
+        if (existingDoc.createdBy !== cosmosAddress) {
+          throw new Error('You are not the owner of list with ID ' + list.listId);
+        }
+
+        if (existingDoc.whitelist !== list.whitelist) {
+          throw new Error('You cannot change from a whitelist to a blacklist or vice versa.');
+        }
+      }
+
       const query = { 'action.listId': list.listId };
       await updateClaimDocs(req, ClaimType.AddressList, query, list.claims, () => {
         return {
@@ -178,16 +188,6 @@ const handleAddressListsUpdateAndCreate = async (
         };
       });
       await deleteOldClaims(ClaimType.AddressList, query, list.claims);
-
-      if (existingDoc) {
-        if (existingDoc.createdBy !== cosmosAddress) {
-          throw new Error('You are not the owner of list with ID ' + list.listId);
-        }
-
-        if (existingDoc.whitelist !== list.whitelist) {
-          throw new Error('You cannot change from a whitelist to a blacklist or vice versa.');
-        }
-      }
 
       docs.push(
         new AddressListDoc<NumberType>({

@@ -1,5 +1,7 @@
 import {
   iApprovalInfoDetails,
+  iChallengeDetails,
+  iMerkleChallenge,
   type ErrorResponse,
   type GetOwnersForBadgeRouteRequestBody,
   type NumberType,
@@ -8,16 +10,16 @@ import {
   type iGetOwnersForBadgeRouteSuccessResponse,
   type iIncomingApprovalCriteria,
   type iOutgoingApprovalCriteria,
-  iChallengeDetails,
-  iMerkleChallenge
+  ClaimDetails
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { BalanceModel } from '../db/schemas';
+import { BalanceModel, ClaimBuilderModel } from '../db/schemas';
 import { fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import { applyAddressListsToUserPermissions } from './balances';
+import { getClaimDetailsForFrontend } from './collections';
 import { getAddressListsFromDB } from './utils';
 
 export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersForBadgeRouteSuccessResponse<NumberType> | ErrorResponse>) => {
@@ -109,6 +111,29 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
       .filter((x) => x)
       .filter((x, i, arr) => arr.indexOf(x) === i) as string[];
 
+    const claimIds = [
+      ...ownersRes.flatMap((x) => x.incomingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.flatMap((z) => z.challengeTrackerId))),
+      ...ownersRes.flatMap((x) => x.outgoingApprovals.flatMap((y) => y.approvalCriteria?.merkleChallenges?.flatMap((z) => z.challengeTrackerId)))
+    ]
+      .filter((x) => x)
+      .filter((x, i, arr) => arr.indexOf(x) === i) as string[];
+
+    const docs = await findInDB(ClaimBuilderModel, {
+      query: {
+        collectionId: Number(req.params.collectionId),
+        docClaimed: true,
+        cid: {
+          $in: claimIds
+        },
+        deletedAt: { $exists: false }
+      }
+    });
+
+    let claimDetails: Array<ClaimDetails<bigint>> = [];
+    if (docs.length > 0) {
+      claimDetails = await getClaimDetailsForFrontend(req, docs, false, req.params.collectionId); // TODO: fetch private?
+    }
+
     const results = await fetchUrisFromDbAndAddToQueueIfEmpty(urisToFetch, req.params.collectionId);
 
     return res.status(200).send({
@@ -123,7 +148,8 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
               initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList,
               approvalCriteria: addChallengeDetailsToCriteria(
                 y.approvalCriteria,
-                results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+                results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[],
+                claimDetails
               )
             };
           }),
@@ -135,7 +161,8 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
               initiatedByList: addressLists.find((list) => list.listId === y.initiatedByListId) as iAddressList,
               approvalCriteria: addChallengeDetailsToCriteria(
                 y.approvalCriteria,
-                results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[]
+                results as { uri: string; content: iChallengeDetails<NumberType> | undefined }[],
+                claimDetails
               )
             };
           }),
@@ -158,7 +185,8 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
 
 export function addChallengeDetailsToCriteria(
   approvalCriteria?: iApprovalCriteria<bigint> | iIncomingApprovalCriteria<bigint> | iOutgoingApprovalCriteria<bigint>,
-  results?: ({ uri: string; content: iChallengeDetails<NumberType> | undefined } | undefined)[]
+  results?: ({ uri: string; content: iChallengeDetails<NumberType> | undefined } | undefined)[],
+  claimDetails?: Array<ClaimDetails<NumberType>>
 ) {
   if (!approvalCriteria) return approvalCriteria;
 
@@ -171,7 +199,8 @@ export function addChallengeDetailsToCriteria(
           challengeDetails: results?.find((x) => x?.uri === y.uri)?.content ?? {
             leaves: [],
             isHashed: false
-          }
+          },
+          claim: claimDetails?.find((x) => x.claimId === y.challengeTrackerId) //TODO: We should have more checks here to avoid assigning a claim to the wrong challenge
         }
       };
     })
