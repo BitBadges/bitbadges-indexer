@@ -10,6 +10,14 @@ update_bitbadges_indexer() {
     npm install
     npm run build
     sudo systemctl restart bitbadges-poller
+
+    rm /etc/nginx/ssl/server.cert
+    rm /etc/nginx/ssl/server.key
+    cp ./server.cert /etc/nginx/ssl/
+    cp ./server.key /etc/nginx/ssl/
+    sudo apt update
+    sudo apt upgrade -y nginx
+    sudo systemctl restart nginx
 }
 
 # Main function
