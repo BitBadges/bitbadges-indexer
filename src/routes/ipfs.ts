@@ -14,7 +14,8 @@ import {
   type NumberType,
   type iAddApprovalDetailsToOffChainStorageRouteSuccessResponse,
   type iAddBalancesToOffChainStorageRouteSuccessResponse,
-  type iAddMetadataToIpfsRouteSuccessResponse
+  type iAddMetadataToIpfsRouteSuccessResponse,
+  iChallengeTrackerIdDetails
 } from 'bitbadgesjs-sdk';
 import { Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -97,11 +98,17 @@ export const updateClaimDocs = async (
   oldClaimQuery: Record<string, any>,
   newClaims: Array<iClaimDetails<NumberType>>,
   context: (claim: iClaimDetails<NumberType>) => {
-    action: { codes?: string[]; seedCode?: string; balancesToSet?: iPredeterminedBalances<NumberType>; listId?: string };
+    action: {
+      codes?: string[];
+      seedCode?: string;
+      balancesToSet?: iPredeterminedBalances<NumberType>;
+      listId?: string;
+    };
     createdBy: string;
     collectionId: NumberType;
     docClaimed: boolean;
     cid: string;
+    trackerDetails?: iChallengeTrackerIdDetails<NumberType>;
   }
 ) => {
   const queryBuilder = constructQuery(claimType, oldClaimQuery);
@@ -133,12 +140,13 @@ export const updateClaimDocs = async (
     // If we have the existing doc, we simply need to update the plugins and keep the state.
     // Else, we need to create a new doc with the plugins and the default state.
     if (existingDoc) {
+      console.log(existingDoc);
       const decryptedExistingPlugins = await getDecryptedPluginsAndPublicState(
         req,
         existingDoc.plugins,
         existingDoc.state,
         true,
-        existingDoc.collectionId,
+        existingDoc.trackerDetails,
         existingDoc.action?.listId
       );
 
@@ -147,7 +155,7 @@ export const updateClaimDocs = async (
         encryptedPlugins,
         existingDoc.state, //Doesnt matter since we check resetState are all false
         true,
-        existingDoc.collectionId,
+        existingDoc.trackerDetails,
         existingDoc.action?.listId
       );
 
@@ -213,7 +221,7 @@ export const updateClaimDocs = async (
 
       claimDocsToSet.push({
         ...existingDoc, //Keep all other context
-        action: context(claim).action, //Action can potentially be updated
+        action: context(claim).action, //Action is the only thing that can potentially change
         state,
         plugins: encryptedPlugins ?? [],
         deletedAt: undefined
@@ -330,6 +338,13 @@ export const addBalancesToOffChainStorageHandler = async (
           createdBy: req.session.cosmosAddress,
           collectionId: reqBody.collectionId.toString(),
           docClaimed: BigInt(reqBody.collectionId) > 0,
+          trackerDetails: {
+            approvalId: '',
+            approvalLevel: 'collection',
+            approverAddress: '',
+            collectionId: reqBody.collectionId.toString(),
+            challengeTrackerId: cid
+          },
           cid: cid.toString()
         };
       });

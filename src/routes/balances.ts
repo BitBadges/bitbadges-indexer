@@ -227,9 +227,12 @@ export const getBalanceForAddress = async (
       }
     });
 
-    let claimDetails: Array<ClaimDetails<bigint>> = [];
+    const claimDetails: Array<ClaimDetails<bigint>> = [];
     if (docs.length > 0) {
-      claimDetails = await getClaimDetailsForFrontend(req, docs, options?.fetchPrivateParams, collectionId);
+      for (const doc of docs) {
+        const newClaimDetails = await getClaimDetailsForFrontend(req, [doc], options?.fetchPrivateParams, doc.trackerDetails);
+        claimDetails.push(...newClaimDetails);
+      }
     }
 
     const results = await fetchUrisFromDbAndAddToQueueIfEmpty(urisToFetch, collectionId.toString());

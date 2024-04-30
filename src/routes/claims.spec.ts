@@ -13,9 +13,12 @@ import {
   IncrementedBalances,
   IntegrationPluginDetails,
   MsgUniversalUpdateCollection,
+  MsgUpdateUserApprovals,
   NumberType,
+  Numberify,
   PredeterminedBalances,
   UintRangeArray,
+  UserOutgoingApproval,
   convertOffChainBalancesMap,
   convertToCosmosAddress,
   iAddressList,
@@ -25,7 +28,6 @@ import crypto from 'crypto';
 import { AES, SHA256 } from 'crypto-js';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
-import { signAndBroadcast } from '../testutil/broadcastUtils';
 import request from 'supertest';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
@@ -48,13 +50,14 @@ import {
 } from '../testutil/plugins';
 import { createExampleReqForAddress } from '../testutil/utils';
 import { getDecryptedActionCodes } from './claims';
+import { signAndBroadcast } from '../testutil/broadcastUtils';
 
 dotenv.config();
 
 const wallet = ethers.Wallet.createRandom();
 const address = wallet.address;
 
-const sampleMsgCreateCollection = require('../setup/bootstrapped-collections//19_zkp.json');
+const sampleMsgCreateCollection = require('../setup/bootstrapped-collections/19_zkp.json');
 
 const createClaimDoc = async (
   plugins: IntegrationPluginDetails<ClaimIntegrationPluginType>[],
@@ -1216,7 +1219,7 @@ describe('claims', () => {
     expect(finalDoc.state.numUses.numUses).toBe(2);
 
     //sleep for 10s
-    await new Promise((r) => setTimeout(r, 10000));
+    await new Promise((r) => setTimeout(r, 4000));
 
     const balancesUrl = collectionDocToUse.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri;
     const balancesRes = await axios.get(balancesUrl);
@@ -1388,7 +1391,7 @@ describe('claims', () => {
     expect(finalDoc.state.numUses.numUses).toBe(2);
 
     //sleep for 10s
-    await new Promise((r) => setTimeout(r, 10000));
+    await new Promise((r) => setTimeout(r, 4000));
 
     const balancesUrl = collectionDocToUse.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri;
     const balancesRes = await axios.get(balancesUrl);
@@ -1545,6 +1548,7 @@ describe('claims', () => {
   });
 
   it('should create on-chain claims correctly and claim it', async () => {
+    const wallet = ethers.Wallet.createRandom();
     const seedCode = crypto.randomBytes(32).toString('hex');
     const route = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
     const body: AddApprovalDetailsToOffChainStorageRouteRequestBody = {
@@ -1649,7 +1653,7 @@ describe('claims', () => {
     console.log(txRes);
 
     //Sleep 10 seconds to allow it to claim
-    await new Promise((r) => setTimeout(r, 10000));
+    await new Promise((r) => setTimeout(r, 4000));
 
     const claimDoc = await mustGetFromDB(ClaimBuilderModel, body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '');
     expect(Number(claimDoc.collectionId)).toBeGreaterThan(0);
@@ -1699,5 +1703,372 @@ describe('claims', () => {
       .send(body2);
     console.log(res2.body);
     expect(res2.status).toBeGreaterThan(400);
+  }, 100000);
+
+  it('should allow updates if on-chain permissions allow', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const seedCode = crypto.randomBytes(32).toString('hex');
+    const route = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
+    const body: AddApprovalDetailsToOffChainStorageRouteRequestBody = {
+      approvalDetails: [
+        {
+          name: 'test',
+          description: 'hajkdsfkasd',
+          challengeInfoDetails: [
+            {
+              challengeDetails: {
+                leaves: generateCodesFromSeed(seedCode, 10).map((x) => SHA256(x).toString()),
+                preimages: generateCodesFromSeed(seedCode, 10),
+                numLeaves: 10,
+                isHashed: true
+              },
+              claim: {
+                claimId: crypto.randomBytes(32).toString('hex'),
+                seedCode: seedCode,
+                plugins: [
+                  {
+                    ...numUsesPlugin(10, 0),
+                    resetState: true
+                  },
+                  {
+                    ...codesPlugin(10, crypto.randomBytes(32).toString('hex'))
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+
+    console.log(res.body);
+    expect(res.status).toBe(200);
+
+    const msg = new MsgUniversalUpdateCollection<NumberType>({
+      ...sampleMsgCreateCollection,
+      creator: convertToCosmosAddress(wallet.address),
+      managerTimeline: [
+        {
+          timelineTimes: UintRangeArray.FullRanges(),
+          manager: convertToCosmosAddress(wallet.address)
+        }
+      ],
+      collectionApprovals: [
+        new CollectionApproval({
+          fromListId: 'Mint',
+          toListId: 'All',
+          initiatedByListId: 'All',
+          transferTimes: UintRangeArray.FullRanges(),
+          badgeIds: UintRangeArray.FullRanges(),
+          ownershipTimes: UintRangeArray.FullRanges(),
+          approvalId: crypto.randomBytes(32).toString('hex'),
+          approvalCriteria: {
+            merkleChallenges: [
+              {
+                //Don't care about core details now
+                root: 'fhjadsfkja',
+                expectedProofLength: 2n,
+                uri: '',
+                customData: '',
+                useCreatorAddressAsLeaf: false,
+                maxUsesPerLeaf: 1n,
+
+                //We do care about these
+                challengeTrackerId: body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? ''
+              }
+            ]
+          }
+        })
+      ],
+      collectionPermissions: {
+        ...sampleMsgCreateCollection.collectionPermissions,
+        canUpdateCollectionApprovals: [] //none meaning neutral and allowed
+      }
+    })
+      .convert(BigIntify)
+      .toProto();
+
+    const txRes = await signAndBroadcast([msg], wallet);
+    console.log(txRes);
+
+    //Sleep 10 seconds to allow it to claim
+    await new Promise((r) => setTimeout(r, 4000));
+
+    const claimDoc = await mustGetFromDB(ClaimBuilderModel, body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '');
+    expect(Number(claimDoc.collectionId)).toBeGreaterThan(0);
+    expect(claimDoc.docClaimed).toBeTruthy();
+    expect(claimDoc.trackerDetails).toBeTruthy();
+    expect(claimDoc.trackerDetails?.challengeTrackerId).toBe(body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '');
+
+    //Try and update it (even though on-chain permissions disallow it)
+    const route2 = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
+    const body2: AddApprovalDetailsToOffChainStorageRouteRequestBody = {
+      approvalDetails: [
+        {
+          name: 'test',
+          description: 'hajkdsfkasd',
+          challengeInfoDetails: [
+            {
+              challengeDetails: {
+                leaves: generateCodesFromSeed(seedCode, 10).map((x) => SHA256(x).toString()),
+                preimages: generateCodesFromSeed(seedCode, 10),
+                numLeaves: 10,
+                isHashed: true
+              },
+              claim: {
+                claimId: body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '',
+                seedCode: seedCode,
+                plugins: [
+                  {
+                    ...numUsesPlugin(10, 0)
+                  },
+                  {
+                    ...codesPlugin(10, crypto.randomBytes(32).toString('hex')),
+
+                    resetState: true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const res2 = await request(app)
+      .post(route2)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body2);
+    console.log(res2.body);
+    expect(res2.status).toBe(200);
+
+    //Non-manager attempts to update it
+    const res3 = await request(app)
+      .post(route2)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body2);
+    console.log(res3.body);
+    expect(res3.status).toBeGreaterThan(400);
+  }, 100000);
+
+  it('should create outgoing claims correctly', async () => {
+    const wallet = ethers.Wallet.createRandom();
+    const managerWallet = ethers.Wallet.createRandom();
+    const seedCode = crypto.randomBytes(32).toString('hex');
+    const route = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
+    const body: AddApprovalDetailsToOffChainStorageRouteRequestBody = {
+      approvalDetails: [
+        {
+          name: 'test',
+          description: 'hajkdsfkasd',
+          challengeInfoDetails: [
+            {
+              challengeDetails: {
+                leaves: generateCodesFromSeed(seedCode, 10).map((x) => SHA256(x).toString()),
+                preimages: generateCodesFromSeed(seedCode, 10),
+                numLeaves: 10,
+                isHashed: true
+              },
+              claim: {
+                claimId: crypto.randomBytes(32).toString('hex'),
+                seedCode: seedCode,
+                plugins: [
+                  {
+                    ...numUsesPlugin(10, 0),
+                    resetState: true
+                  },
+                  {
+                    ...codesPlugin(10, crypto.randomBytes(32).toString('hex'))
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+
+    console.log(res.body);
+    expect(res.status).toBe(200);
+
+    const msg = new MsgUniversalUpdateCollection<NumberType>({
+      ...sampleMsgCreateCollection,
+      creator: convertToCosmosAddress(managerWallet.address),
+      managerTimeline: [
+        {
+          timelineTimes: UintRangeArray.FullRanges(),
+          manager: convertToCosmosAddress(managerWallet.address)
+        }
+      ],
+      collectionApprovals: [
+        new CollectionApproval({
+          fromListId: 'All',
+          toListId: 'All',
+          initiatedByListId: 'All',
+          transferTimes: UintRangeArray.FullRanges(),
+          badgeIds: UintRangeArray.FullRanges(),
+          ownershipTimes: UintRangeArray.FullRanges(),
+          approvalId: crypto.randomBytes(32).toString('hex')
+        })
+      ],
+      collectionPermissions: {
+        ...sampleMsgCreateCollection.collectionPermissions,
+        canUpdateCollectionApprovals: [
+          {
+            fromListId: 'All',
+            toListId: 'All',
+            initiatedByListId: 'All',
+            approvalId: 'All',
+            ownershipTimes: UintRangeArray.FullRanges(),
+            badgeIds: UintRangeArray.FullRanges(),
+            transferTimes: UintRangeArray.FullRanges(),
+
+            permanentlyForbiddenTimes: UintRangeArray.FullRanges(),
+            permanentlyPermittedTimes: []
+          }
+        ]
+      }
+    })
+      .convert(BigIntify)
+      .toProto();
+
+    const txRes = await signAndBroadcast([msg], managerWallet);
+    console.log(txRes);
+
+    const msgResponse = txRes.data;
+    let collectionId = 0;
+    if (
+      msgResponse.tx_response.logs[0]?.events[0]?.attributes[0]?.key === 'action' &&
+      msgResponse.tx_response.logs[0]?.events[0]?.attributes[0]?.value === '/badges.MsgUniversalUpdateCollection'
+    ) {
+      const collectionIdStr = msgResponse.tx_response.logs[0]?.events[1].attributes.find((attr: any) => attr.key === 'collectionId')?.value;
+      if (collectionIdStr) {
+        collectionId = Numberify(collectionIdStr);
+      }
+    }
+    const approvalMsg = new MsgUpdateUserApprovals<NumberType>({
+      creator: convertToCosmosAddress(wallet.address),
+      collectionId: collectionId,
+      updateOutgoingApprovals: true,
+      outgoingApprovals: [
+        new UserOutgoingApproval({
+          toListId: 'All',
+          initiatedByListId: 'All',
+          transferTimes: UintRangeArray.FullRanges(),
+          badgeIds: UintRangeArray.FullRanges(),
+          ownershipTimes: UintRangeArray.FullRanges(),
+          approvalId: crypto.randomBytes(32).toString('hex'),
+          approvalCriteria: {
+            merkleChallenges: [
+              {
+                //Don't care about core details now
+                root: 'fhjadsfkja',
+                expectedProofLength: 2n,
+                uri: '',
+                customData: '',
+                useCreatorAddressAsLeaf: false,
+                maxUsesPerLeaf: 1n,
+
+                //We do care about these
+                challengeTrackerId: body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? ''
+              }
+            ]
+          }
+        })
+      ],
+      updateAutoApproveSelfInitiatedIncomingTransfers: false,
+      updateAutoApproveSelfInitiatedOutgoingTransfers: false,
+      updateIncomingApprovals: false,
+      updateUserPermissions: false,
+      userPermissions: {
+        canUpdateAutoApproveSelfInitiatedIncomingTransfers: [],
+        canUpdateAutoApproveSelfInitiatedOutgoingTransfers: [],
+        canUpdateIncomingApprovals: [],
+        canUpdateOutgoingApprovals: []
+      },
+      autoApproveSelfInitiatedIncomingTransfers: false,
+      autoApproveSelfInitiatedOutgoingTransfers: false,
+      incomingApprovals: []
+    }).toProto();
+
+    const txRes2 = await signAndBroadcast([approvalMsg], wallet);
+    console.log(txRes2);
+
+    //Sleep 10 seconds to allow it to claim
+    await new Promise((r) => setTimeout(r, 4000));
+
+    const claimDoc = await mustGetFromDB(ClaimBuilderModel, body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '');
+    expect(Number(claimDoc.collectionId)).toBeGreaterThan(0);
+    expect(claimDoc.docClaimed).toBeTruthy();
+    expect(claimDoc.trackerDetails).toBeTruthy();
+    expect(claimDoc.trackerDetails?.challengeTrackerId).toBe(body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '');
+    expect(claimDoc.trackerDetails?.approvalLevel).toBe('outgoing');
+    expect(claimDoc.trackerDetails?.approverAddress).toBe(convertToCosmosAddress(wallet.address));
+
+    //Try and update it (on-chain permissions allow it)
+    const route2 = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
+    const body2: AddApprovalDetailsToOffChainStorageRouteRequestBody = {
+      approvalDetails: [
+        {
+          name: 'test',
+          description: 'hajkdsfkasd',
+          challengeInfoDetails: [
+            {
+              challengeDetails: {
+                leaves: generateCodesFromSeed(seedCode, 10).map((x) => SHA256(x).toString()),
+                preimages: generateCodesFromSeed(seedCode, 10),
+                numLeaves: 10,
+                isHashed: true
+              },
+              claim: {
+                claimId: body.approvalDetails[0].challengeInfoDetails?.[0].claim?.claimId ?? '',
+                seedCode: seedCode,
+                plugins: [
+                  {
+                    ...numUsesPlugin(10, 0)
+                  },
+                  {
+                    ...codesPlugin(10, crypto.randomBytes(32).toString('hex')),
+
+                    resetState: true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const res2 = await request(app)
+      .post(route2)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body2);
+    console.log(res2.body);
+    expect(res2.status).toBe(200);
+
+    //Try another user
+    const res3 = await request(app)
+      .post(route2)
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body2);
+    console.log(res3.body);
+    expect(res3.status).toBeGreaterThan(400);
   }, 100000);
 });

@@ -129,9 +129,12 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
       }
     });
 
-    let claimDetails: Array<ClaimDetails<bigint>> = [];
+    const claimDetails: Array<ClaimDetails<bigint>> = [];
     if (docs.length > 0) {
-      claimDetails = await getClaimDetailsForFrontend(req, docs, false, req.params.collectionId); // TODO: fetch private?
+      for (const doc of docs) {
+        const newClaimDetails = await getClaimDetailsForFrontend(req, [doc], false, doc.trackerDetails);
+        claimDetails.push(...newClaimDetails);
+      }
     }
 
     const results = await fetchUrisFromDbAndAddToQueueIfEmpty(urisToFetch, req.params.collectionId);

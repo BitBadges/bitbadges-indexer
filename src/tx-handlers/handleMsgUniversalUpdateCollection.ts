@@ -243,6 +243,13 @@ export const handleMsgUniversalUpdateCollection = async (
       for (const doc of existingClaimBuilderDocs) {
         doc.collectionId = collection.collectionId;
         doc.docClaimed = true;
+        doc.trackerDetails = {
+          approvalId: '',
+          approvalLevel: 'collection',
+          approverAddress: '',
+          collectionId: collection.collectionId,
+          challengeTrackerId: customData
+        };
         await insertToDB(ClaimBuilderModel, doc);
       }
     }
