@@ -8,6 +8,7 @@ import {
   BlockinAndGroup,
   CheckAndCompleteClaimRouteRequestBody,
   ClaimIntegrationPluginType,
+  ClaimIntegrationPrivateStateType,
   CollectionApproval,
   GetCollectionsRouteRequestBody,
   IncrementedBalances,
@@ -1412,6 +1413,162 @@ describe('claims', () => {
     });
   }, 10000000);
 
+  it('should get private state correctly', async () => {
+    const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
+    const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true }, deletedAt: { $exists: false } })
+      .lean()
+      .exec();
+
+    console.log([...new Set(collectionDocs.map((x) => x.collectionId))]);
+    console.log([...new Set(claimDocs.map((x) => x.collectionId))]);
+
+    let claimDocToUse = undefined;
+    let collectionDocToUse = undefined;
+    //Find match
+    for (const claimDoc of claimDocs) {
+      if (collectionDocs.find((x) => x.collectionId === claimDoc.collectionId)) {
+        claimDocToUse = claimDoc;
+        collectionDocToUse = collectionDocs.find((x) => x.collectionId === claimDoc.collectionId);
+        break;
+      }
+    }
+
+    if (!claimDocToUse || !collectionDocToUse) {
+      console.log('No claim docs found');
+      throw new Error('No claim docs found');
+    }
+
+    const currManagerTimeline = collectionDocToUse.managerTimeline;
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: [
+        {
+          timelineTimes: UintRangeArray.FullRanges(),
+          manager: convertToCosmosAddress(wallet.address)
+        }
+      ]
+    });
+
+    const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
+    const body: AddBalancesToOffChainStorageRouteRequestBody = {
+      collectionId: collectionDocToUse.collectionId,
+      method: 'centralized',
+      claims: [
+        {
+          claimId: claimDocToUse._docId,
+          balancesToSet: new PredeterminedBalances({
+            incrementedBalances: new IncrementedBalances({
+              startBalances: [{ amount: 1n, badgeIds: [{ start: 1n, end: 1n }], ownershipTimes: UintRangeArray.FullRanges() }],
+              incrementBadgeIdsBy: 1n,
+              incrementOwnershipTimesBy: 0n
+            }),
+            manualBalances: [],
+            orderCalculationMethod: {
+              useOverallNumTransfers: true,
+              useMerkleChallengeLeafIndex: false,
+              usePerFromAddressNumTransfers: false,
+              usePerInitiatedByAddressNumTransfers: false,
+              usePerToAddressNumTransfers: false,
+              challengeTrackerId: ''
+            }
+          }),
+          plugins: [
+            {
+              ...numUsesPlugin(10, 0),
+              resetState: true
+            },
+            {
+              ...discordPlugin([])
+            }
+          ]
+        }
+      ],
+      balances: {}
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(body);
+
+    console.log(res.body);
+    expect(res.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(claimDocToUse._docId, convertToCosmosAddress(wallet.address));
+    const claimBody: CheckAndCompleteClaimRouteRequestBody = {
+      // discord: {
+      //   username: 'testuser'
+      // }
+    };
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(claimBody);
+    console.log(claimRes.body);
+
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, claimDocToUse._docId);
+    expect(finalDoc.state.numUses.numUses).toBe(1);
+    expect(finalDoc.state.discord.ids['123456789']).toBe(1);
+
+    const getRoute = BitBadgesApiRoutes.GetCollectionsRoute();
+    const getBody: GetCollectionsRouteRequestBody = {
+      collectionsToFetch: [
+        {
+          collectionId: collectionDocToUse.collectionId,
+          fetchPrivateParams: false
+        }
+      ]
+    };
+
+    const getRes = await request(app)
+      .post(getRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(getBody);
+    console.log(getRes.body);
+
+    const collection = new BitBadgesCollection(getRes.body.collections[0]);
+    expect((collection.claims[0].plugins[1].privateParams as any)?.password).toBeUndefined();
+    expect(collection.claims[0].plugins[1].privateState as any).toBeFalsy();
+
+    const getRoute2 = BitBadgesApiRoutes.GetCollectionsRoute();
+    const getBody2: GetCollectionsRouteRequestBody = {
+      collectionsToFetch: [
+        {
+          collectionId: collectionDocToUse.collectionId,
+          fetchPrivateParams: true
+        }
+      ]
+    };
+
+    const getRes2 = await request(app)
+      .post(getRoute2)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(getBody2);
+
+    console.log(getRes2.body);
+
+    const collection2 = new BitBadgesCollection(getRes2.body.collections[0]);
+    expect((collection2.claims[0].plugins[1].privateState as ClaimIntegrationPrivateStateType<'discord'>)?.ids['123456789']).toBe(1);
+    expect((collection2.claims[0].plugins[1].privateState as ClaimIntegrationPrivateStateType<'discord'>)?.usernames['testuser']).toBe('123456789');
+
+    const getRes3 = await request(app)
+      .post(getRoute2)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
+      .send(getBody2);
+    expect(getRes3.status).toBeGreaterThan(400);
+
+    await insertToDB(CollectionModel, {
+      ...collectionDocToUse,
+      managerTimeline: currManagerTimeline //Avoid side effects
+    });
+  });
+
   it('should not reveal private params for off-chain balances', async () => {
     const collectionDocs = await CollectionModel.find({ balancesType: 'Off-Chain - Indexed' }).lean().exec();
     const claimDocs = await ClaimBuilderModel.find({ 'action.balancesToSet': { $exists: true }, deletedAt: { $exists: false } })
@@ -1513,6 +1670,7 @@ describe('claims', () => {
 
     const collection = new BitBadgesCollection(getRes.body.collections[0]);
     expect((collection.claims[0].plugins[1].privateParams as any)?.password).toBeUndefined();
+    expect(collection.claims[0].plugins[1].privateState as any).toBeFalsy();
 
     const getRoute2 = BitBadgesApiRoutes.GetCollectionsRoute();
     const getBody2: GetCollectionsRouteRequestBody = {

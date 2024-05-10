@@ -131,11 +131,7 @@ export const createAuthCode = async (
       redirectUri: reqBody.redirectUri
     });
 
-    if (reqBody.redirectUri) {
-      return res.redirect(`${reqBody.redirectUri}?code=${uniqueId}&state=${reqBody.state}`);
-    } else {
-      return res.status(200).send({ code: uniqueId });
-    }
+    return res.status(200).send({ code: uniqueId });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
