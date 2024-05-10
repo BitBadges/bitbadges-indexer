@@ -10,14 +10,17 @@ import {
 } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { checkIfManager, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { checkIfManager, type AuthenticatedRequest, MaybeAuthenticatedRequest, checkIfAuthenticated } from '../blockin/blockin_handlers';
 import { getStatus } from '../db/status';
 import { insertToDB } from '../db/db';
 import { ClaimAlertModel } from '../db/schemas';
 import { findInDB } from '../db/queries';
 import crypto from 'crypto';
 
-export const sendClaimAlert = async (req: AuthenticatedRequest<NumberType>, res: Response<iSendClaimAlertsRouteSuccessResponse | ErrorResponse>) => {
+export const sendClaimAlert = async (
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response<iSendClaimAlertsRouteSuccessResponse | ErrorResponse>
+) => {
   try {
     const reqBody = req.body as SendClaimAlertsRouteRequestBody;
 
@@ -31,10 +34,25 @@ export const sendClaimAlert = async (req: AuthenticatedRequest<NumberType>, res:
         }
       }
 
+      if (req.session.cosmosAddress) {
+        const authenticated = checkIfAuthenticated(req, ['Send Claim Alerts']);
+        if (!authenticated) {
+          return res.status(401).send({
+            errorMessage: 'To send claim alerts from ' + req.session.cosmosAddress + ', you must be authenticated with the Send Claim Alerts scope.'
+          });
+        }
+      }
+
+      if (!claimAlert.message || claimAlert.message.length > 1000) {
+        return res.status(400).send({
+          errorMessage: 'Claim alert message must be between 1 and 1000 characters.'
+        });
+      }
+
       const id = crypto.randomBytes(32).toString('hex');
       const status = await getStatus();
       const doc = new ClaimAlertDoc<NumberType>({
-        from: req.session.cosmosAddress,
+        from: req.session.cosmosAddress || '',
         _docId: `${claimAlert.collectionId}:${id}`,
         timestamp: Number(Date.now()),
         collectionId: Number(claimAlert.collectionId),

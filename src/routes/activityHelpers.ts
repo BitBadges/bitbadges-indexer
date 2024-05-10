@@ -1,5 +1,6 @@
 import {
   ApprovalTrackerDoc,
+  convertToCosmosAddress,
   type ErrorResponse,
   type NumberType,
   type iAmountTrackerIdDetails,
@@ -14,7 +15,8 @@ import { getQueryParamsFromBookmark, pageSize, getPaginationInfoToReturn, findWi
 export async function executeBadgeActivityQuery(
   collectionId: string,
   badgeId: string,
-  bookmark?: string
+  bookmark?: string,
+  specificAddress?: string
 ): Promise<iGetBadgeActivityRouteSuccessResponse<NumberType> | ErrorResponse> {
   const totalSupplys = await mustGetFromDB(BalanceModel, `${collectionId}:Total`);
 
@@ -31,6 +33,17 @@ export async function executeBadgeActivityQuery(
     throw new Error('This collection has so many badges that it exceeds the maximum safe integer for our database. Please contact us for support.');
   }
 
+  let addrQuery = {};
+  if (specificAddress) {
+    if (specificAddress !== 'Mint') {
+      specificAddress = convertToCosmosAddress(specificAddress);
+    }
+
+    addrQuery = {
+      $or: [{ from: specificAddress }, { to: { $elemMatch: { $eq: specificAddress } } }, { initiatedBy: specificAddress }]
+    };
+  }
+
   const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, false, 'timestamp', '_id');
   const query = {
     collectionId: Number(collectionId),
@@ -43,7 +56,7 @@ export async function executeBadgeActivityQuery(
         }
       }
     },
-    ...paginationParams
+    $and: addrQuery ? [{ ...addrQuery }, { ...paginationParams }] : [{ ...paginationParams }]
   };
 
   const docs = await findInDB(TransferActivityModel, {
@@ -51,16 +64,28 @@ export async function executeBadgeActivityQuery(
     sort: { timestamp: -1, _id: -1 },
     limit: pageSize
   });
+
   return {
     activity: docs,
     pagination: getPaginationInfoToReturn(docs)
   };
 }
 
-export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean) {
+export async function executeCollectionActivityQuery(collectionId: string, bookmark?: string, oldestFirst?: boolean, specificAddress?: string) {
   const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, bookmark, oldestFirst, 'timestamp', '_id');
+  let addrQuery = {};
+  if (specificAddress) {
+    if (specificAddress !== 'Mint') {
+      specificAddress = convertToCosmosAddress(specificAddress);
+    }
+
+    addrQuery = {
+      $or: [{ from: specificAddress }, { to: { $elemMatch: { $eq: specificAddress } } }, { initiatedBy: specificAddress }]
+    };
+  }
+
   return await findWithPagination(TransferActivityModel, {
-    query: { collectionId: Number(collectionId), ...paginationParams },
+    query: { collectionId: Number(collectionId), $and: addrQuery ? [{ ...addrQuery }, { ...paginationParams }] : [{ ...paginationParams }] },
     sort: { timestamp: -1, _id: -1 },
     limit: pageSize
   });

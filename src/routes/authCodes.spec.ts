@@ -13,11 +13,12 @@ import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
 import { getFromDB, MongoDB, mustGetFromDB } from '../db/db';
-import { OffChainSecretsModel } from '../db/schemas';
+import { AuthAppModel, OffChainSecretsModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { createExampleReqForAddress } from '../testutil/utils';
-import { verifySecretsProof } from './offChainSecrets';
+import { verifySecretsProofSignatures } from 'bitbadgesjs-sdk';
 import { connectToRpc } from '../poll';
+import { findInDB } from '../db/queries';
 
 dotenv.config();
 
@@ -26,6 +27,8 @@ const address = wallet.address;
 const exampleSession = createExampleReqForAddress(address).session;
 const message = exampleSession.blockin ?? '';
 let signature = '';
+
+const proofOfIssuancePlaceholder = 'I approve the issuance of secrets signed with BBS+ INSERT_HERE as my own.\n\n';
 
 //Note a lot of the verification lofic is in the Blockin tests
 
@@ -72,7 +75,11 @@ describe('get auth codes', () => {
 
   it('should not create auth code in storage without correct scope', async () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
     const body: CreateBlockinAuthCodeRouteRequestBody = {
+      options: {},
+      clientId,
       message,
       signature,
       name: 'test',
@@ -118,7 +125,11 @@ describe('get auth codes', () => {
 
   it('should create auth code in storage', async () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
     const body: CreateBlockinAuthCodeRouteRequestBody = {
+      options: {},
+      clientId,
       message,
       signature,
       name: 'test',
@@ -132,7 +143,8 @@ describe('get auth codes', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const authCodeId = res.body.id;
+    const authCodeId = res.body.code;
+    console.log(res.body);
 
     const invalidSigRes = await request(app)
       .post(route)
@@ -142,14 +154,15 @@ describe('get auth codes', () => {
     expect(invalidSigRes.status).toBe(500);
 
     const getResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getResBody: GetBlockinAuthCodeRouteRequestBody = { id: authCodeId };
+    const getResBody: GetBlockinAuthCodeRouteRequestBody = { code: authCodeId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(getResBody);
+    console.log(getRes);
     expect(getRes.status).toBe(200);
-    expect(getRes.body.message).toBeDefined();
+    expect(getRes.body.blockin.message).toBeDefined();
 
     const invalidGetRes = await request(app)
       .post(getResRoute)
@@ -165,7 +178,7 @@ describe('get auth codes', () => {
     expect(unauthorizedDeleteRes.status).toBe(401);
 
     const deleteResRoute = BitBadgesApiRoutes.DeleteAuthCodeRoute();
-    const deleteResBody: DeleteBlockinAuthCodeRouteRequestBody = { id: authCodeId };
+    const deleteResBody: DeleteBlockinAuthCodeRouteRequestBody = { code: authCodeId };
     const deleteRes = await request(app)
       .post(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -176,7 +189,11 @@ describe('get auth codes', () => {
 
   it('should not allow deleting an unowned auth code', async () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
     const body: CreateBlockinAuthCodeRouteRequestBody = {
+      options: {},
+      clientId,
       message,
       signature,
       name: 'test',
@@ -190,10 +207,10 @@ describe('get auth codes', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const authCodeId = res.body.id;
+    const authCodeId = res.body.code;
 
     const deleteResRoute = BitBadgesApiRoutes.DeleteAuthCodeRoute();
-    const deleteResBody: DeleteBlockinAuthCodeRouteRequestBody = { id: authCodeId };
+    const deleteResBody: DeleteBlockinAuthCodeRouteRequestBody = { code: authCodeId };
     const deleteRes = await request(app)
       .post(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -210,7 +227,11 @@ describe('get auth codes', () => {
 
   it('should check signature before creating auth code', async () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
     const body: CreateBlockinAuthCodeRouteRequestBody = {
+      options: {},
+      clientId,
       message,
       signature: 'invalid',
       name: 'test',
@@ -247,9 +268,9 @@ describe('get auth codes', () => {
       }
     };
 
-    const ethWallet = ethers.Wallet.createRandom();
+    const ethWallet = wallet;
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       signer: ethWallet.address,
@@ -293,7 +314,11 @@ describe('get auth codes', () => {
     expect(getRes.body.secretId).toBeDefined();
 
     const createAuthCodeRoute = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
     const createAuthCodeBody: CreateBlockinAuthCodeRouteRequestBody = {
+      clientId,
+      options: {},
       message,
       signature,
       name: 'test',
@@ -308,10 +333,17 @@ describe('get auth codes', () => {
       messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8'))),
       nonce: Uint8Array.from(Buffer.from('nonce', 'utf8'))
     });
+    const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
+    const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
+
     createAuthCodeBody.secretsProofs = [
       {
         ...getRes.body,
-        proofOfIssuance: getRes.body.proofOfIssuance,
+        proofOfIssuance: {
+          message: newProofOfIssuanceMessage,
+          signature: newProofOfIssuanceSignature,
+          signer: ethWallet.address
+        },
         dataIntegrityProof: {
           signature: Buffer.from(derivedProof).toString('hex'),
           signer: Buffer.from(keyPair?.publicKey ?? '').toString('hex')
@@ -320,26 +352,27 @@ describe('get auth codes', () => {
       }
     ];
 
-    await verifySecretsProof(address, createAuthCodeBody.secretsProofs[0], true);
+    await verifySecretsProofSignatures(createAuthCodeBody.secretsProofs[0], true);
 
     const authCodeRes = await request(app)
       .post(createAuthCodeRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(createAuthCodeBody);
+    console.log(authCodeRes.body);
     expect(authCodeRes.status).toBe(200);
 
     const getAuthCodeResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getAuthCodeResBody: GetBlockinAuthCodeRouteRequestBody = { id: authCodeRes.body.id };
+    const getAuthCodeResBody: GetBlockinAuthCodeRouteRequestBody = { code: authCodeRes.body.code };
     const getAuthCodeRes = await request(app)
       .post(getAuthCodeResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(getAuthCodeResBody);
     expect(getAuthCodeRes.status).toBe(200);
-    expect(getAuthCodeRes.body.message).toBeDefined();
-    expect(getAuthCodeRes.body.secretsProofs).toBeDefined();
-    expect(getAuthCodeRes.body.secretsProofs.length).toBe(1);
+    expect(getAuthCodeRes.body.blockin.message).toBeDefined();
+    expect(getAuthCodeRes.body.blockin.secretsProofs).toBeDefined();
+    expect(getAuthCodeRes.body.blockin.secretsProofs.length).toBe(1);
   });
 
   it('should fail w/ invalid proofs', async () => {
@@ -354,14 +387,15 @@ describe('get auth codes', () => {
     };
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     proofOfIssuance.message = proofOfIssuanceMessage;
     proofOfIssuance.signature = proofOfIssuanceSignature;
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsProof(address, {
+      verifySecretsProofSignatures({
+        createdBy: convertToCosmosAddress(address),
         secretMessages: ['test'],
         dataIntegrityProof: {
           signature: 'invalid',
@@ -377,7 +411,8 @@ describe('get auth codes', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsProof(address, {
+      verifySecretsProofSignatures({
+        createdBy: convertToCosmosAddress(address),
         secretMessages: ['test'],
         dataIntegrityProof: {
           signature: Buffer.from(derivedProof).toString('hex'), //using derived proof as orig proof
@@ -393,9 +428,9 @@ describe('get auth codes', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsProof(
-        address,
+      verifySecretsProofSignatures(
         {
+          createdBy: convertToCosmosAddress(address),
           secretMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
@@ -413,9 +448,9 @@ describe('get auth codes', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      verifySecretsProof(
-        address,
+      verifySecretsProofSignatures(
         {
+          createdBy: convertToCosmosAddress(address),
           secretMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
@@ -437,9 +472,9 @@ describe('get auth codes', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsProof(
-        address,
+      verifySecretsProofSignatures(
         {
+          createdBy: convertToCosmosAddress(address),
           secretMessages: [],
           dataIntegrityProof: {
             signature: Buffer.from(proof.dataIntegrityProof).toString('hex'),
@@ -468,16 +503,16 @@ describe('get auth codes', () => {
     };
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     proofOfIssuance.message = proofOfIssuanceMessage;
     proofOfIssuance.signature = proofOfIssuanceSignature;
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsProof(
-        address,
+      verifySecretsProofSignatures(
         {
+          createdBy: convertToCosmosAddress(address),
           secretMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from('a' + derivedProof).toString('hex'),
@@ -505,17 +540,16 @@ describe('get auth codes', () => {
       signer: ''
     };
     const ethWallet = ethers.Wallet.createRandom();
-    const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     proofOfIssuance.message = proofOfIssuanceMessage;
     proofOfIssuance.signature = proofOfIssuanceSignature;
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsProof(
-        address,
+      verifySecretsProofSignatures(
         {
+          createdBy: convertToCosmosAddress(ethWallet.address),
           secretMessages: ['{"test": "test"}'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
@@ -557,7 +591,7 @@ describe('get auth codes', () => {
 
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       message: proofOfIssuanceMessage,
@@ -686,7 +720,7 @@ describe('get auth codes', () => {
 
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       message: proofOfIssuanceMessage,
@@ -774,7 +808,7 @@ describe('get auth codes', () => {
 
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       message: proofOfIssuanceMessage,
@@ -866,6 +900,9 @@ describe('get auth codes', () => {
       messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
 
+    const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair2?.publicKey ?? '').toString('hex'));
+    const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
+
     const updateSecretBody3: UpdateSecretRouteRequestBody = {
       secretId: getRes.body.secretId,
       name: 'test2',
@@ -874,6 +911,11 @@ describe('get auth codes', () => {
       dataIntegrityProof: {
         signature: Buffer.from(dataIntegrityProof2).toString('hex'),
         signer: Buffer.from(keyPair2?.publicKey ?? '').toString('hex')
+      },
+      proofOfIssuance: {
+        message: newProofOfIssuanceMessage,
+        signature: newProofOfIssuanceSignature,
+        signer: ethWallet.address
       }
     };
 
@@ -882,7 +924,7 @@ describe('get auth codes', () => {
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(updateSecretBody3);
-
+    console.log(updateRes3.body);
     expect(updateRes3.status).toBe(200);
 
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
@@ -918,7 +960,7 @@ describe('get auth codes', () => {
 
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       message: proofOfIssuanceMessage,
@@ -999,7 +1041,7 @@ describe('get auth codes', () => {
 
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       message: proofOfIssuanceMessage,
@@ -1102,7 +1144,7 @@ describe('get auth codes', () => {
 
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       message: proofOfIssuanceMessage,
@@ -1231,7 +1273,7 @@ describe('get auth codes', () => {
 
     const ethWallet = ethers.Wallet.createRandom();
     const address = ethWallet.address;
-    const proofOfIssuanceMessage = 'test';
+    const proofOfIssuanceMessage = 'proof of issuance is not needed';
     const proofOfIssuanceSignature = await ethWallet.signMessage(proofOfIssuanceMessage);
     body.proofOfIssuance = {
       signer: ethWallet.address,

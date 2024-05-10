@@ -54,7 +54,8 @@ import {
   type iMerkleChallengeDoc,
   iApprovalInfoDetails,
   iChallengeDetails,
-  iChallengeTrackerIdDetails
+  iChallengeTrackerIdDetails,
+  convertToCosmosAddress
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
@@ -132,7 +133,9 @@ export async function executeAdditionalCollectionQueries(
       const oldestFirst = view.oldestFirst;
       if (view.viewType === 'transferActivity') {
         if (bookmark !== undefined) {
-          promises.push(executeCollectionActivityQuery(`${query.collectionId}`, bookmark, oldestFirst));
+          promises.push(
+            executeCollectionActivityQuery(`${query.collectionId}`, bookmark, oldestFirst, convertToCosmosAddress(view.cosmosAddress ?? ''))
+          );
         }
       } else if (view.viewType === 'reviews') {
         if (bookmark !== undefined) {
@@ -827,7 +830,8 @@ export const getDecryptedPluginsAndPublicState = async (
       id: pluginDetails.id,
       publicParams: pluginDetails.publicParams,
       privateParams: includePrivateParams ? pluginInstance.decryptPrivateParams(pluginDetails.privateParams) : {},
-      publicState: pluginInstance.getPublicState(state[x.id])
+      publicState: pluginInstance.getPublicState(state[x.id]),
+      privateState: includePrivateParams ? pluginInstance.getPrivateState?.(state[x.id]) : undefined
     };
   });
 };
@@ -946,7 +950,7 @@ export async function executeCollectionsQuery(req: Request, collectionQueries: C
 export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActivityRouteSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as GetBadgeActivityRouteRequestBody;
-    const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqBody.bookmark);
+    const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqBody.bookmark, reqBody.cosmosAddress);
 
     return res.json(activityRes);
   } catch (e) {

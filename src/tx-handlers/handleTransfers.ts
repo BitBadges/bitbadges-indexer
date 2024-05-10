@@ -76,7 +76,6 @@ export const handleTransfers = async (
         memo: transfer.memo,
         precalculateBalancesFromApproval: transfer.precalculateBalancesFromApproval,
         prioritizedApprovals: transfer.prioritizedApprovals,
-        onlyCheckPrioritizedApprovals: transfer.onlyCheckPrioritizedApprovals,
         initiatedBy: creator,
         txHash
       })

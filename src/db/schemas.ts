@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/comma-dangle */
 import {
+  AuthAppDoc,
   type AccountDoc,
   type ActivityDoc,
   type AddressListDoc,
@@ -49,7 +50,8 @@ import {
   type iReviewDoc,
   type iSecretDoc,
   type iStatusDoc,
-  type iTransferActivityDoc
+  type iTransferActivityDoc,
+  iAuthAppDoc
 } from 'bitbadgesjs-sdk';
 import mongoose from 'mongoose';
 import {
@@ -319,6 +321,17 @@ export const ComplianceSchema = new Schema<ComplianceDoc<JSPrimitiveNumberType>>
   accounts: Schema.Types.Mixed // Mixed type for accounts
 });
 
+export const AuthAppSchema = new Schema<AuthAppDoc>({
+  name: String,
+  image: String,
+  description: String,
+  clientId: String,
+  clientSecret: String,
+  redirectUris: [String],
+  createdBy: String,
+  _docId: String
+});
+
 export const BlockinAuthSignatureSchema = new Schema<BlockinAuthSignatureDoc<JSPrimitiveNumberType>>({
   _docId: String,
   signature: String, // String type for signature
@@ -329,7 +342,10 @@ export const BlockinAuthSignatureSchema = new Schema<BlockinAuthSignatureDoc<JSP
   params: Schema.Types.Mixed, // Mixed type for params (ChallengeParams type)
   createdAt: Schema.Types.Mixed, // Mixed type for createdAt (number type)
   deletedAt: Schema.Types.Mixed, // Mixed type for deletedAt (number type)
-  secretsProofs: [Schema.Types.Mixed] // Array of Mixed type for secretsProofs
+  secretsProofs: [Schema.Types.Mixed], // Array of Mixed type for secretsProofs,
+  clientId: String, // String type for clientId
+  otherSignIns: Schema.Types.Mixed, // Mixed type for otherSignIns
+  redirectUri: String // String type for redirectUri
 });
 
 export const FollowDetailsSchema = new Schema<FollowDetailsDoc<JSPrimitiveNumberType>>({
@@ -348,6 +364,7 @@ export const ListActivitySchema = new Schema<ListActivityDoc<JSPrimitiveNumberTy
   listId: String,
   addedToList: Boolean,
   addresses: [String],
+  initiatedBy: String,
   timestamp: Schema.Types.Mixed,
   block: Schema.Types.Mixed,
   txHash: String
@@ -365,7 +382,6 @@ export const TransferActivitySchema = new Schema<TransferActivityDoc<JSPrimitive
   memo: String,
   precalculateBalancesFromApproval: Schema.Types.Mixed,
   prioritizedApprovals: [Schema.Types.Mixed],
-  onlyCheckPrioritizedApprovals: Boolean,
   initiatedBy: String,
   txHash: String
 });
@@ -411,7 +427,12 @@ export const BrowseSchema = new Schema({
 export const ApiKeySchema = new Schema({
   _docId: String,
   numRequests: Number,
-  lastRequest: Number
+  lastRequest: Number,
+  label: String,
+  intendedUse: String,
+  cosmosAddress: String,
+  createdAt: Number,
+  expiry: Number
 });
 
 export const ErrorSchema = new Schema({
@@ -459,6 +480,7 @@ export const DigitalOceanBalancesModel = mongoose.model<DigitalOceanBalancesDoc<
   'digital-ocean-balances',
   DigitalOceanBalancesSchema
 );
+export const AuthAppModel = mongoose.model<AuthAppDoc>('auth-apps', AuthAppSchema);
 export const MapModel = mongoose.model<MapDoc<JSPrimitiveNumberType>>('maps', MapSchema);
 export const OffChainSecretsModel = mongoose.model<SecretDoc<JSPrimitiveNumberType>>('secrets', OffChainSecretsSchema);
 export const BrowseModel = mongoose.model<BrowseDoc<JSPrimitiveNumberType>>('browse', BrowseSchema);
@@ -495,140 +517,144 @@ export const ExternalCallKeysModel = mongoose.model('external-call-keys', Extern
 export type TypedInterfaceFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType>, U extends NumberType = bigint> =
   T extends DigitalOceanBalancesDoc<JSPrimitiveNumberType>
     ? iDigitalOceanBalancesDoc<U>
-    : T extends StatusDoc<JSPrimitiveNumberType>
-      ? iStatusDoc<U>
-      : T extends AccountDoc<JSPrimitiveNumberType>
-        ? iAccountDoc<U>
-        : T extends CollectionDoc<JSPrimitiveNumberType>
-          ? iCollectionDoc<U>
-          : T extends BlockinAuthSignatureDoc<JSPrimitiveNumberType>
-            ? iBlockinAuthSignatureDoc<U>
-            : T extends BalanceDoc<JSPrimitiveNumberType>
-              ? iBalanceDoc<U>
-              : T extends MerkleChallengeDoc<JSPrimitiveNumberType>
-                ? iMerkleChallengeDoc<U>
-                : T extends FetchDoc<JSPrimitiveNumberType>
-                  ? iFetchDoc<U>
-                  : T extends QueueDoc<JSPrimitiveNumberType>
-                    ? iQueueDoc<U>
-                    : T extends RefreshDoc<JSPrimitiveNumberType>
-                      ? iRefreshDoc<U>
-                      : T extends ClaimBuilderDoc<JSPrimitiveNumberType>
-                        ? iClaimBuilderDoc<U>
-                        : T extends TransferActivityDoc<JSPrimitiveNumberType>
-                          ? iTransferActivityDoc<U>
-                          : T extends ReviewDoc<JSPrimitiveNumberType>
-                            ? iReviewDoc<U>
-                            : T extends IPFSTotalsDoc<JSPrimitiveNumberType>
-                              ? iIPFSTotalsDoc<U>
-                              : T extends AirdropDoc<JSPrimitiveNumberType>
-                                ? iAirdropDoc<U>
-                                : T extends AddressListDoc<JSPrimitiveNumberType>
-                                  ? iAddressListDoc<U>
-                                  : T extends ApprovalTrackerDoc<JSPrimitiveNumberType>
-                                    ? iApprovalTrackerDoc<U>
-                                    : T extends ClaimAlertDoc<JSPrimitiveNumberType>
-                                      ? iClaimAlertDoc<U>
-                                      : T extends ComplianceDoc<JSPrimitiveNumberType>
-                                        ? iComplianceDoc<U>
-                                        : T extends FollowDetailsDoc<JSPrimitiveNumberType>
-                                          ? iFollowDetailsDoc<U>
-                                          : T extends BrowseDoc<JSPrimitiveNumberType>
-                                            ? iBrowseDoc<U>
-                                            : T extends ListActivityDoc<JSPrimitiveNumberType>
-                                              ? iListActivityDoc<U>
-                                              : T extends PageVisitsDoc<JSPrimitiveNumberType>
-                                                ? iPageVisitsDoc<U>
-                                                : T extends SecretDoc<JSPrimitiveNumberType>
-                                                  ? iSecretDoc<U>
-                                                  : T extends ProfileDoc<JSPrimitiveNumberType>
-                                                    ? iProfileDoc<U>
-                                                    : T extends ErrorDoc
-                                                      ? ErrorDoc
-                                                      : T extends ApiKeyDoc
-                                                        ? ApiKeyDoc
-                                                        : T extends ReportDoc
-                                                          ? ReportDoc
-                                                          : T extends EthTxCountDoc
-                                                            ? EthTxCountDoc
-                                                            : T extends OffChainUrlDoc
-                                                              ? OffChainUrlDoc
-                                                              : T extends UsernameDoc
-                                                                ? UsernameDoc
-                                                                : T extends KeysDoc
-                                                                  ? KeysDoc
-                                                                  : T extends MapDoc<JSPrimitiveNumberType>
-                                                                    ? iMapDoc<U>
-                                                                    : never;
+    : T extends AuthAppDoc
+      ? iAuthAppDoc
+      : T extends StatusDoc<JSPrimitiveNumberType>
+        ? iStatusDoc<U>
+        : T extends AccountDoc<JSPrimitiveNumberType>
+          ? iAccountDoc<U>
+          : T extends CollectionDoc<JSPrimitiveNumberType>
+            ? iCollectionDoc<U>
+            : T extends BlockinAuthSignatureDoc<JSPrimitiveNumberType>
+              ? iBlockinAuthSignatureDoc<U>
+              : T extends BalanceDoc<JSPrimitiveNumberType>
+                ? iBalanceDoc<U>
+                : T extends MerkleChallengeDoc<JSPrimitiveNumberType>
+                  ? iMerkleChallengeDoc<U>
+                  : T extends FetchDoc<JSPrimitiveNumberType>
+                    ? iFetchDoc<U>
+                    : T extends QueueDoc<JSPrimitiveNumberType>
+                      ? iQueueDoc<U>
+                      : T extends RefreshDoc<JSPrimitiveNumberType>
+                        ? iRefreshDoc<U>
+                        : T extends ClaimBuilderDoc<JSPrimitiveNumberType>
+                          ? iClaimBuilderDoc<U>
+                          : T extends TransferActivityDoc<JSPrimitiveNumberType>
+                            ? iTransferActivityDoc<U>
+                            : T extends ReviewDoc<JSPrimitiveNumberType>
+                              ? iReviewDoc<U>
+                              : T extends IPFSTotalsDoc<JSPrimitiveNumberType>
+                                ? iIPFSTotalsDoc<U>
+                                : T extends AirdropDoc<JSPrimitiveNumberType>
+                                  ? iAirdropDoc<U>
+                                  : T extends AddressListDoc<JSPrimitiveNumberType>
+                                    ? iAddressListDoc<U>
+                                    : T extends ApprovalTrackerDoc<JSPrimitiveNumberType>
+                                      ? iApprovalTrackerDoc<U>
+                                      : T extends ClaimAlertDoc<JSPrimitiveNumberType>
+                                        ? iClaimAlertDoc<U>
+                                        : T extends ComplianceDoc<JSPrimitiveNumberType>
+                                          ? iComplianceDoc<U>
+                                          : T extends FollowDetailsDoc<JSPrimitiveNumberType>
+                                            ? iFollowDetailsDoc<U>
+                                            : T extends BrowseDoc<JSPrimitiveNumberType>
+                                              ? iBrowseDoc<U>
+                                              : T extends ListActivityDoc<JSPrimitiveNumberType>
+                                                ? iListActivityDoc<U>
+                                                : T extends PageVisitsDoc<JSPrimitiveNumberType>
+                                                  ? iPageVisitsDoc<U>
+                                                  : T extends SecretDoc<JSPrimitiveNumberType>
+                                                    ? iSecretDoc<U>
+                                                    : T extends ProfileDoc<JSPrimitiveNumberType>
+                                                      ? iProfileDoc<U>
+                                                      : T extends ErrorDoc
+                                                        ? ErrorDoc
+                                                        : T extends ApiKeyDoc
+                                                          ? ApiKeyDoc
+                                                          : T extends ReportDoc
+                                                            ? ReportDoc
+                                                            : T extends EthTxCountDoc
+                                                              ? EthTxCountDoc
+                                                              : T extends OffChainUrlDoc
+                                                                ? OffChainUrlDoc
+                                                                : T extends UsernameDoc
+                                                                  ? UsernameDoc
+                                                                  : T extends KeysDoc
+                                                                    ? KeysDoc
+                                                                    : T extends MapDoc<JSPrimitiveNumberType>
+                                                                      ? iMapDoc<U>
+                                                                      : never;
 
 export type TypedDocFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType>, U extends NumberType = bigint> =
   T extends DigitalOceanBalancesDoc<JSPrimitiveNumberType>
     ? DigitalOceanBalancesDoc<U>
-    : T extends StatusDoc<JSPrimitiveNumberType>
-      ? StatusDoc<U>
-      : T extends AccountDoc<JSPrimitiveNumberType>
-        ? AccountDoc<U>
-        : T extends CollectionDoc<JSPrimitiveNumberType>
-          ? CollectionDoc<U>
-          : T extends BalanceDoc<JSPrimitiveNumberType>
-            ? BalanceDoc<U>
-            : T extends MerkleChallengeDoc<JSPrimitiveNumberType>
-              ? MerkleChallengeDoc<U>
-              : T extends FetchDoc<JSPrimitiveNumberType>
-                ? FetchDoc<U>
-                : T extends QueueDoc<JSPrimitiveNumberType>
-                  ? QueueDoc<U>
-                  : T extends RefreshDoc<JSPrimitiveNumberType>
-                    ? RefreshDoc<U>
-                    : T extends BlockinAuthSignatureDoc<JSPrimitiveNumberType>
-                      ? BlockinAuthSignatureDoc<U>
-                      : T extends ClaimBuilderDoc<JSPrimitiveNumberType>
-                        ? ClaimBuilderDoc<U>
-                        : T extends TransferActivityDoc<JSPrimitiveNumberType>
-                          ? TransferActivityDoc<U>
-                          : T extends ReviewDoc<JSPrimitiveNumberType>
-                            ? ReviewDoc<U>
-                            : T extends IPFSTotalsDoc<JSPrimitiveNumberType>
-                              ? IPFSTotalsDoc<U>
-                              : T extends AirdropDoc<JSPrimitiveNumberType>
-                                ? AirdropDoc<U>
-                                : T extends AddressListDoc<JSPrimitiveNumberType>
-                                  ? AddressListDoc<U>
-                                  : T extends ApprovalTrackerDoc<JSPrimitiveNumberType>
-                                    ? ApprovalTrackerDoc<U>
-                                    : T extends ClaimAlertDoc<JSPrimitiveNumberType>
-                                      ? ClaimAlertDoc<U>
-                                      : T extends ComplianceDoc<JSPrimitiveNumberType>
-                                        ? ComplianceDoc<U>
-                                        : T extends FollowDetailsDoc<JSPrimitiveNumberType>
-                                          ? FollowDetailsDoc<U>
-                                          : T extends BrowseDoc<JSPrimitiveNumberType>
-                                            ? BrowseDoc<U>
-                                            : T extends SecretDoc<JSPrimitiveNumberType>
-                                              ? SecretDoc<U>
-                                              : T extends ListActivityDoc<JSPrimitiveNumberType>
-                                                ? ListActivityDoc<U>
-                                                : T extends PageVisitsDoc<JSPrimitiveNumberType>
-                                                  ? PageVisitsDoc<U>
-                                                  : T extends ProfileDoc<JSPrimitiveNumberType>
-                                                    ? ProfileDoc<U>
-                                                    : T extends ApiKeyDoc
-                                                      ? ApiKeyDoc
-                                                      : T extends ErrorDoc
-                                                        ? ErrorDoc
-                                                        : T extends ReportDoc
-                                                          ? ReportDoc
-                                                          : T extends EthTxCountDoc
-                                                            ? EthTxCountDoc
-                                                            : T extends OffChainUrlDoc
-                                                              ? OffChainUrlDoc
-                                                              : T extends UsernameDoc
-                                                                ? UsernameDoc
-                                                                : T extends KeysDoc
-                                                                  ? KeysDoc
-                                                                  : T extends MapDoc<JSPrimitiveNumberType>
-                                                                    ? MapDoc<U>
-                                                                    : never;
+    : T extends AuthAppDoc
+      ? AuthAppDoc
+      : T extends StatusDoc<JSPrimitiveNumberType>
+        ? StatusDoc<U>
+        : T extends AccountDoc<JSPrimitiveNumberType>
+          ? AccountDoc<U>
+          : T extends CollectionDoc<JSPrimitiveNumberType>
+            ? CollectionDoc<U>
+            : T extends BalanceDoc<JSPrimitiveNumberType>
+              ? BalanceDoc<U>
+              : T extends MerkleChallengeDoc<JSPrimitiveNumberType>
+                ? MerkleChallengeDoc<U>
+                : T extends FetchDoc<JSPrimitiveNumberType>
+                  ? FetchDoc<U>
+                  : T extends QueueDoc<JSPrimitiveNumberType>
+                    ? QueueDoc<U>
+                    : T extends RefreshDoc<JSPrimitiveNumberType>
+                      ? RefreshDoc<U>
+                      : T extends BlockinAuthSignatureDoc<JSPrimitiveNumberType>
+                        ? BlockinAuthSignatureDoc<U>
+                        : T extends ClaimBuilderDoc<JSPrimitiveNumberType>
+                          ? ClaimBuilderDoc<U>
+                          : T extends TransferActivityDoc<JSPrimitiveNumberType>
+                            ? TransferActivityDoc<U>
+                            : T extends ReviewDoc<JSPrimitiveNumberType>
+                              ? ReviewDoc<U>
+                              : T extends IPFSTotalsDoc<JSPrimitiveNumberType>
+                                ? IPFSTotalsDoc<U>
+                                : T extends AirdropDoc<JSPrimitiveNumberType>
+                                  ? AirdropDoc<U>
+                                  : T extends AddressListDoc<JSPrimitiveNumberType>
+                                    ? AddressListDoc<U>
+                                    : T extends ApprovalTrackerDoc<JSPrimitiveNumberType>
+                                      ? ApprovalTrackerDoc<U>
+                                      : T extends ClaimAlertDoc<JSPrimitiveNumberType>
+                                        ? ClaimAlertDoc<U>
+                                        : T extends ComplianceDoc<JSPrimitiveNumberType>
+                                          ? ComplianceDoc<U>
+                                          : T extends FollowDetailsDoc<JSPrimitiveNumberType>
+                                            ? FollowDetailsDoc<U>
+                                            : T extends BrowseDoc<JSPrimitiveNumberType>
+                                              ? BrowseDoc<U>
+                                              : T extends SecretDoc<JSPrimitiveNumberType>
+                                                ? SecretDoc<U>
+                                                : T extends ListActivityDoc<JSPrimitiveNumberType>
+                                                  ? ListActivityDoc<U>
+                                                  : T extends PageVisitsDoc<JSPrimitiveNumberType>
+                                                    ? PageVisitsDoc<U>
+                                                    : T extends ProfileDoc<JSPrimitiveNumberType>
+                                                      ? ProfileDoc<U>
+                                                      : T extends ApiKeyDoc
+                                                        ? ApiKeyDoc
+                                                        : T extends ErrorDoc
+                                                          ? ErrorDoc
+                                                          : T extends ReportDoc
+                                                            ? ReportDoc
+                                                            : T extends EthTxCountDoc
+                                                              ? EthTxCountDoc
+                                                              : T extends OffChainUrlDoc
+                                                                ? OffChainUrlDoc
+                                                                : T extends UsernameDoc
+                                                                  ? UsernameDoc
+                                                                  : T extends KeysDoc
+                                                                    ? KeysDoc
+                                                                    : T extends MapDoc<JSPrimitiveNumberType>
+                                                                      ? MapDoc<U>
+                                                                      : never;
 
 export type BitBadgesDoc<T extends NumberType> =
   | TransferActivityDoc<T>
@@ -664,7 +690,8 @@ export type BitBadgesDoc<T extends NumberType> =
   | KeysDoc
   | SecretDoc<T>
   | MapDoc<T>
-  | DigitalOceanBalancesDoc<T>;
+  | DigitalOceanBalancesDoc<T>
+  | AuthAppDoc;
 
 export type iBitBadgesDoc<T extends NumberType> =
   | iTransferActivityDoc<T>
@@ -700,4 +727,5 @@ export type iBitBadgesDoc<T extends NumberType> =
   | KeysDoc
   | iSecretDoc<T>
   | iMapDoc<T>
-  | iDigitalOceanBalancesDoc<T>;
+  | iDigitalOceanBalancesDoc<T>
+  | iAuthAppDoc;

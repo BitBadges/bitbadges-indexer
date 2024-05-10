@@ -86,11 +86,6 @@ passport.deserializeUser(function (user, cb) {
   });
 });
 
-/**
- * This is to handle setting session in storage NOT for authenticating a request.
- *
- * We don't use the default setup because it overwrites our Blockin sessions.
- */
 export const discordCallbackHandler = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('discord', async function (err: Error, user: any) {
     if (err) {

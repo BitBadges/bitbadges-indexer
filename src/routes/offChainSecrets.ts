@@ -1,105 +1,34 @@
-import { blsVerify, blsVerifyProof } from '@mattrglobal/bbs-signatures';
 import {
-  type DeleteSecretRouteRequestBody,
-  type GetSecretRouteRequestBody,
   UpdateHistory,
+  verifySecretsProofSignatures,
+  type CreateSecretRouteRequestBody,
+  type DeleteSecretRouteRequestBody,
+  type ErrorResponse,
+  type GetSecretRouteRequestBody,
+  type NumberType,
   type UpdateSecretRouteRequestBody,
-  getChainForAddress,
+  type iCreateSecretRouteSuccessResponse,
   type iDeleteSecretRouteSuccessResponse,
   type iGetSecretRouteSuccessResponse,
-  type iSecretsProof,
-  type iUpdateSecretRouteSuccessResponse,
-  type CreateSecretRouteRequestBody,
-  type ErrorResponse,
-  type NumberType,
-  type iCreateSecretRouteSuccessResponse
+  type iUpdateSecretRouteSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { getChainDriver } from '../blockin/blockin';
 import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { OffChainSecretsModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 
-export const verifySecretsProof = async (
-  address: string,
-  body: Omit<iSecretsProof<NumberType>, 'createdBy' | 'anchors' | 'holders' | 'updateHistory' | 'credential' | 'entropies'>,
-  derivedProof?: boolean
-) => {
-  const chain = getChainForAddress(address);
-
-  if (!body.secretMessages.length || body.secretMessages.some((m) => !m)) {
-    throw new Error('Messages are required and cannot be empty');
-  }
-
-  if (body.messageFormat === 'json') {
-    for (const message of body.secretMessages) {
-      try {
-        JSON.parse(message);
-      } catch (e) {
-        throw new Error('Message is not valid JSON');
-      }
-    }
-  }
-
-  // Check data integrity proof
-  if (body.dataIntegrityProof) {
-    if (body.scheme === 'standard') {
-      await getChainDriver(chain).verifySignature(
-        address,
-        body.secretMessages[0],
-        body.dataIntegrityProof.signature,
-        body.dataIntegrityProof.publicKey
-      );
-    } else if (body.scheme === 'bbs') {
-      if (!body.proofOfIssuance?.message || !body.proofOfIssuance.signature) {
-        throw new Error('Proof of issuance is required for BBS scheme');
-      }
-
-      await getChainDriver(chain).verifySignature(
-        address,
-        body.proofOfIssuance.message,
-        body.proofOfIssuance.signature,
-        body.proofOfIssuance.publicKey
-      );
-
-      if (!derivedProof) {
-        const isProofVerified = await blsVerify({
-          signature: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signature, 'hex')),
-          publicKey: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signer, 'hex')),
-          messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
-        });
-
-        if (!isProofVerified.verified) {
-          throw new Error('Data integrity proof not verified');
-        }
-      } else {
-        const isProofVerified = await blsVerifyProof({
-          proof: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signature, 'hex')),
-          publicKey: Uint8Array.from(Buffer.from(body.dataIntegrityProof.signer, 'hex')),
-          messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8'))),
-          nonce: Uint8Array.from(Buffer.from('nonce', 'utf8'))
-        });
-        if (!isProofVerified.verified) {
-          throw new Error('Data integrity proof not verified');
-        }
-      }
-    } else {
-      throw new Error('Invalid scheme');
-    }
-  } else {
-    throw new Error('Data integrity proof is required');
-  }
-};
-
 export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretRouteSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as CreateSecretRouteRequestBody;
 
-    await verifySecretsProof(req.session.address, reqBody);
+    await verifySecretsProofSignatures({
+      ...reqBody,
+      createdBy: req.session.cosmosAddress
+    });
 
     const uniqueId = crypto.randomBytes(32).toString('hex');
 
@@ -264,7 +193,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     doc.image = reqBody.image ?? doc.image;
     doc.description = reqBody.description ?? doc.description;
 
-    await verifySecretsProof(req.session.address, doc);
+    await verifySecretsProofSignatures(doc);
 
     const status = await getStatus();
     doc.updateHistory.push(

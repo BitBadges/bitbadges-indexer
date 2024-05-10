@@ -1219,6 +1219,43 @@ paths:
             type: string
       security:
         - apiKey: [] # This specifies that an API key is required for authentication
+  /auth/verifyAssetsGeneric:
+    post:
+      operationId: verifyAssetsGeneric
+      summary: Verify Asset Ownership (Generic)
+      tags:
+        - Authentication Codes
+        - API Authentication
+        - Balances
+      description: A generic route for verifying custom asset ownership requirements.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericVerifyAssetsRouteRequestBody'
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iGenericVerifyAssetsRouteSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      parameters:
+        - name: x-api-key
+          in: header
+          description: BitBadges API Key for authentication
+          required: true
+          schema:
+            type: string
+      security:
+        - apiKey: [] # This specifies that an API key is required for authentication
   /sendClaimAlerts:
     post:
       operationId: sendClaimAlert

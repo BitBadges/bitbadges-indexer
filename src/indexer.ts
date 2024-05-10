@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
+import { SocialConnectionInfo, SocialConnections, type ErrorResponse, NumberType } from 'bitbadgesjs-sdk';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
@@ -23,7 +23,9 @@ import {
   getChallenge,
   removeBlockinSessionCookie,
   verifyBlockinAndGrantSessionCookie,
-  type BlockinSession
+  type BlockinSession,
+  AuthenticatedRequest,
+  genericBlockinVerifyAssetsHandler
 } from './blockin/blockin_handlers';
 import { type IndexerStargateClient } from './chain-client/indexer_stargateclient';
 import { insertToDB, mustGetFromDB } from './db/db';
@@ -55,6 +57,9 @@ import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
+import { findInDB } from './db/queries';
+import crypto from 'crypto';
+import { getAuthApps, createAuthApp, deleteAuthApp, updateAuthApp } from './routes/authApps';
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config();
@@ -147,13 +152,19 @@ app.use(async (req, res, next) => {
 
       const doc = await mustGetFromDB(ApiKeyModel, apiKey as string);
 
+      if (doc.expiry < Date.now()) {
+        throw new Error('Unauthorized request. API key has expired.');
+      }
+
       const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
       if (lastRequestWasYesterday) {
         doc.numRequests = 0;
       }
 
-      if (doc.numRequests > 10000) {
-        throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+      if (doc.tier === 'standard') {
+        if (doc.numRequests > 10000) {
+          throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+        }
       }
 
       next();
@@ -364,6 +375,7 @@ app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
 app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
 app.post('/api/v0/auth/status', checkifSignedInHandler);
 app.post('/api/v0/auth/genericVerify', genericBlockinVerifyHandler);
+app.post('/api/v0/auth/genericVerifyAssets', genericBlockinVerifyAssetsHandler);
 
 // Fetch arbitrary metadata - bitbadges.io only
 app.post('/api/v0/metadata', websiteOnlyCors, fetchMetadataDirectly);
@@ -390,7 +402,7 @@ app.post('/api/v0/authCode/create', authorizeBlockinRequest(['Create Auth Codes'
 app.post('/api/v0/authCode/delete', authorizeBlockinRequest(['Delete Auth Codes']), deleteAuthCode);
 
 // Claim Alerts
-app.post('/api/v0/claimAlerts/send', websiteOnlyCors, authorizeBlockinRequest(['Send Claim Alerts']), sendClaimAlert);
+app.post('/api/v0/claimAlerts/send', sendClaimAlert);
 app.post('/api/v0/claimAlerts', authorizeBlockinRequest(['Read Claim Alerts']), getClaimAlertsForCollection);
 
 // Follow Protocol
@@ -402,7 +414,7 @@ app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 // Maps
 app.post('/api/v0/maps', getMaps);
 
-app.post('/api/v0/appleWalletPass', createPass);
+app.post('/api/v0/appleWalletPass', authorizeBlockinRequest(['Full Access']), createPass);
 
 // Off-Chain Secret Sigs
 app.post('/api/v0/secret', getSecret);
@@ -410,10 +422,72 @@ app.post('/api/v0/secret/create', authorizeBlockinRequest(['Create Secrets']), c
 app.post('/api/v0/secret/delete', authorizeBlockinRequest(['Delete Secrets']), deleteSecret);
 app.post('/api/v0/secret/update', authorizeBlockinRequest(['Update Secrets']), updateSecret);
 
+// Auth Apps
+app.post('/api/v0/authApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), getAuthApps);
+app.post('/api/v0/authApp/create', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createAuthApp);
+app.post('/api/v0/authApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteAuthApp);
+app.post('/api/v0/authApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateAuthApp);
+
 app.post('/api/v0/externalCallKey', externalApiCallKeyCheckHandler);
 
 app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
+
+app.post(
+  '/api/v0/apiKeys/create',
+  websiteOnlyCors,
+  authorizeBlockinRequest(['Full Access']),
+  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+    try {
+      const cosmosAddress = req.session.cosmosAddress;
+      const currApiKeys = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 50 });
+
+      if (currApiKeys.filter((key) => key.expiry > Date.now()).length > 5) {
+        return res.status(400).send({
+          error: 'Too many active API keys',
+          errorMessage: 'You have too many active API keys. Current limit is 5 per user.'
+        });
+      }
+
+      const newKey = crypto.randomBytes(64).toString('hex');
+      await insertToDB(ApiKeyModel, {
+        cosmosAddress,
+        label: req.body.label ?? '',
+        intendedUse: req.body.intendedUse ?? '',
+        _docId: newKey,
+        numRequests: 0,
+        lastRequest: 0,
+        createdAt: Date.now(),
+        expiry: Date.now() + 1000 * 60 * 60 * 24 * 365,
+        tier: 'standard'
+      });
+      return res.status(200).send({ key: newKey });
+    } catch (e) {
+      return res.status(500).send({
+        error: serializeError(e),
+        errorMessage: e.message
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/v0/apiKeys',
+  websiteOnlyCors,
+  authorizeBlockinRequest(['Full Access']),
+  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+    try {
+      const cosmosAddress = req.session.cosmosAddress;
+      const docs = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 100 });
+      return res.status(200).json({ docs });
+    } catch (e) {
+      return res.status(500).send({
+        error: serializeError(e),
+        errorMessage: e.message
+      });
+    }
+  }
+);
 
 // Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

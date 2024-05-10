@@ -11,7 +11,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
     stateless: false,
     scoped: true
   },
-  defaultState: {},
+  defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
     return privateParams;
   },
@@ -24,12 +24,19 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
   getPublicState: () => {
     return {};
   },
+  getPrivateState: (currState: any) => {
+    return GenericOauthGetPrivateState(currState);
+  },
   getBlankPublicState() {
     return {};
   }
 };
 
 type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email';
+
+export const GenericOauthGetPrivateState = (currState: any) => {
+  return currState;
+};
 
 export const GenericOauthValidateFunction = async <P extends OauthType>(
   publicParams: ClaimIntegrationPublicParamsType<P>,
@@ -55,11 +62,16 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
   if (oauthInfo.id.includes('[dot]')) {
     return { success: false, error: 'Invalid reserved sequence in ID ([dot])' };
   }
-
   // Handle "." in oauthInfo.id
   oauthInfo.id = oauthInfo.id.replace(/\./g, '[dot]');
 
-  if (priorState[oauthInfo.id] && maxUsesPerUser > 0 && priorState[oauthInfo.id] >= maxUsesPerUser) {
+  if (oauthInfo.username.includes('[dot]')) {
+    return { success: false, error: 'Invalid reserved sequence in username ([dot])' };
+  }
+  // Handle "." in oauthInfo.username
+  oauthInfo.username = oauthInfo.username.replace(/\./g, '[dot]');
+
+  if (priorState.ids[oauthInfo.id] && maxUsesPerUser > 0 && priorState.ids[oauthInfo.id] >= maxUsesPerUser) {
     return { success: false, error: 'User already exceeded max uses' };
   }
 
@@ -70,7 +82,13 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
     }
   }
 
-  return { success: true, toSet: [{ $set: { [`state.${pluginId}.${oauthInfo.id}`]: 1 } }] };
+  return {
+    success: true,
+    toSet: [
+      { $set: { [`state.${pluginId}.ids.${oauthInfo.id}`]: 1 } },
+      { $set: { [`state.${pluginId}.usernames.${oauthInfo.username}`]: oauthInfo.id } }
+    ]
+  };
 };
 
 export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
@@ -83,7 +101,7 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
     stateless: false,
     scoped: true
   },
-  defaultState: {},
+  defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
     return privateParams;
   },
@@ -95,6 +113,9 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
   },
   getPublicState: () => {
     return {};
+  },
+  getPrivateState: (currState: any) => {
+    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState() {
     return {};
@@ -111,7 +132,7 @@ export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
     stateless: false,
     scoped: true
   },
-  defaultState: {},
+  defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
     return privateParams;
   },
@@ -123,6 +144,9 @@ export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
   },
   getPublicState: () => {
     return {};
+  },
+  getPrivateState: (currState: any) => {
+    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState() {
     return {};
@@ -139,7 +163,7 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
     stateless: false,
     scoped: true
   },
-  defaultState: {},
+  defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
     return privateParams;
   },
@@ -151,6 +175,9 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
   },
   getPublicState: () => {
     return {};
+  },
+  getPrivateState: (currState: any) => {
+    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState() {
     return {};
@@ -167,7 +194,7 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
     stateless: false,
     scoped: true
   },
-  defaultState: {}, 
+  defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
     return privateParams;
   },
@@ -189,6 +216,9 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
   },
   getPublicState: () => {
     return {};
+  },
+  getPrivateState: (currState: any) => {
+    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState: () => {
     return {};

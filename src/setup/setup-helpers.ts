@@ -11,6 +11,7 @@ import {
   ApiKeySchema,
   ApprovalTrackerModel,
   ApprovalTrackerSchema,
+  AuthAppModel,
   BalanceModel,
   BalanceSchema,
   BlockinAuthSignatureModel,
@@ -70,6 +71,7 @@ import {
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(AuthAppModel.collection.name);
   await MongoDB.dropCollection(BrowseModel.collection.name);
   await MongoDB.dropCollection(MapModel.collection.name);
   await MongoDB.dropCollection(ExternalCallKeysModel.collection.name);
@@ -109,8 +111,14 @@ export async function initStatus(): Promise<void> {
   if (process.env.BITBADGES_API_KEY === undefined) throw new Error('BITBADGES_API_KEY env var not set');
   await insertToDB(ApiKeyModel, {
     _docId: process.env.BITBADGES_API_KEY,
+    cosmosAddress: '',
     numRequests: 0,
-    lastRequest: 0
+    lastRequest: 0,
+    label: 'default',
+    intendedUse: 'default',
+    createdAt: 0,
+    expiry: Number.MAX_SAFE_INTEGER,
+    tier: 'unlimited'
   });
 
   await insertToDB(StatusModel, {

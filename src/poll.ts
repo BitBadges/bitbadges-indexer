@@ -624,7 +624,6 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
 
   // We currently don't read any end blockers (only tx events)
   // const events: StringEvent[] = await client.getEndBlockEvents(block.header.height)
-  // if (0 < events.length) console.log("HAS EVENTS")
   // await handleEvents(events, status, docs)
 };
 

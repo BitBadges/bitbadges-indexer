@@ -101,7 +101,7 @@ describe('claims', () => {
 
   afterAll(async () => {
     await gracefullyShutdown();
-  });
+  }, 100000);
 
   it('should create claim in storage', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
@@ -590,7 +590,7 @@ describe('claims', () => {
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
-    expect(finalDoc.state.discord['123456789']).toBe(1);
+    expect(finalDoc.state.discord.ids['123456789']).toBe(1);
 
     await request(app)
       .post(route)
@@ -600,7 +600,7 @@ describe('claims', () => {
 
     finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
-    expect(finalDoc.state.discord['123456789']).toBe(1);
+    expect(finalDoc.state.discord.ids['123456789']).toBe(1);
   });
 
   it('should handle discord usernames with discriminators', async () => {
@@ -634,7 +634,7 @@ describe('claims', () => {
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(0);
-    expect(finalDoc.state.discord['123456789']).toBeFalsy();
+    expect(finalDoc.state.discord.ids['123456789']).toBeFalsy();
 
     const res = await request(app)
       .post(route)
@@ -655,7 +655,7 @@ describe('claims', () => {
 
     finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
-    expect(finalDoc.state.discord['123456789']).toBe(1);
+    expect(finalDoc.state.discord.ids['123456789']).toBe(1);
 
     await request(app)
       .post(route)
@@ -665,7 +665,7 @@ describe('claims', () => {
 
     finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
-    expect(finalDoc.state.discord['123456789']).toBe(1);
+    expect(finalDoc.state.discord.ids['123456789']).toBe(1);
   });
 
   it('should fail on invalid discord username not in list', async () => {
@@ -720,7 +720,7 @@ describe('claims', () => {
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
-    expect(finalDoc.state.twitter['123456789']).toBe(1);
+    expect(finalDoc.state.twitter.ids['123456789']).toBe(1);
 
     await request(app)
       .post(route)
@@ -731,7 +731,7 @@ describe('claims', () => {
 
     finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(1);
-    expect(finalDoc.state.twitter['123456789']).toBe(1);
+    expect(finalDoc.state.twitter.ids['123456789']).toBe(1);
   });
 
   it('should require signature', async () => {
@@ -1067,10 +1067,11 @@ describe('claims', () => {
       numUsesPlugin(10, 0),
       apiPlugin([
         {
+          id: 'custom',
           method: 'GET',
           name: 'Test',
           userInputsSchema: [],
-          uri: 'https://api.bitbadges.io/nonexistent'
+          uri: 'https://jkdsahfjkasdfjhlkasdfjhslkdaf.com/nonexistent'
         }
       ])
     ]);
@@ -1087,7 +1088,7 @@ describe('claims', () => {
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(finalDoc.state.numUses.numUses).toBe(0);
 
-    const keyDoc = await getFromDB(ExternalCallKeysModel, 'https://api.bitbadges.io/nonexistent');
+    const keyDoc = await getFromDB(ExternalCallKeysModel, 'https://jkdsahfjkasdfjhlkasdfjhslkdaf.com/nonexistent');
     expect(keyDoc).toBeTruthy();
     expect(keyDoc?.keys.length).toBeGreaterThan(0);
   });

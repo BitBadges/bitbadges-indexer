@@ -42,6 +42,10 @@ export const ApiPluginDetails: BackendIntegrationPlugin<'api'> = {
             __type: apiCall.uri.split('/').pop()
           });
         } else {
+          if (apiCall.uri.includes('localhost') || apiCall.uri.includes('api.bitbadges.io')) {
+            throw new Error('Cannot call localhost or BitBadges API.');
+          }
+
           const keysDoc = await getFromDB(ExternalCallKeysModel, apiCall.uri);
           if (!keysDoc) {
             await insertToDB(ExternalCallKeysModel, { _docId: apiCall.uri, keys: [] });

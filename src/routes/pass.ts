@@ -1,8 +1,10 @@
-import { BigIntify } from 'bitbadgesjs-sdk';
-import { constructChallengeObjectFromString } from 'blockin';
-import { type Request, type Response } from 'express';
+import { type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { mustGetFromDB } from '../db/db';
+import { BlockinAuthSignatureModel } from '../db/schemas';
+import { AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { NumberType, convertToCosmosAddress } from 'bitbadgesjs-sdk';
 // For running tests (TS bugs out)
 // import { PKPass } from 'passkit-generator';
 
@@ -15,11 +17,17 @@ const wwdr = fs.readFileSync(path.join(certDirectory, 'wwdr.pem'));
 const signerCert = fs.readFileSync(path.join(certDirectory, 'signerCert.pem'));
 const signerKey = fs.readFileSync(path.join(certDirectory, 'signerKey.key'));
 
-export const createPass = async (req: Request, res: Response<any>) => {
+export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Response<any>) => {
   try {
-    const { name, description, signature, message } = req.body;
+    const { code } = req.body;
 
-    const passID = signature;
+    const authCodeDoc = await mustGetFromDB(BlockinAuthSignatureModel, code);
+    if (convertToCosmosAddress(authCodeDoc.params.address) !== req.session.cosmosAddress) {
+      return res.status(401).send({ errorMessage: 'Unauthorized' });
+    }
+
+    const { params, name, description } = authCodeDoc;
+    const passID = code;
 
     const pass = await PKPass.from(
       {
@@ -56,7 +64,7 @@ export const createPass = async (req: Request, res: Response<any>) => {
       });
     }
 
-    const challengeParams = constructChallengeObjectFromString(message, BigIntify);
+    const challengeParams = params;
     if (challengeParams.expirationDate) {
       pass.setExpirationDate(new Date(challengeParams.expirationDate));
     }

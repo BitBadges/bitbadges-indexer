@@ -9,7 +9,7 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
     description: 'A whitelist challenge',
     image: 'https://bitbadges.s3.amazonaws.com/whitelist.png',
     createdBy: 'BitBadges',
-    stateless: false,
+    stateless: true,
     scoped: true
   },
   defaultState: {},
@@ -30,19 +30,19 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
       }
 
       const addressList = new BitBadgesAddressList(addressListRes[0]);
-      if (!addressList.checkAddress(context.cosmosAddress)) {
+      if (!addressList.checkAddress(targetUser)) {
         return { success: false, error: 'User not in list of whitelisted users.' };
       }
     }
 
     if (params.list) {
       const addressList = new AddressList(params.list);
-      if (!addressList.checkAddress(context.cosmosAddress)) {
+      if (!addressList.checkAddress(targetUser)) {
         return { success: false, error: 'User not in list of whitelisted users.' };
       }
     }
 
-    return { success: true, toSet: [{ $set: { [`state.whitelist.${targetUser}`]: 1 } }] };
+    return { success: true };
   },
   getPublicState: () => {
     return {};

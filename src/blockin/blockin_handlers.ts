@@ -1,10 +1,12 @@
 import {
   BalanceArray,
   BigIntify,
+  GenericVerifyAssetsRouteRequestBody,
   SupportedChain,
   convertToCosmosAddress,
   getChainForAddress,
   isAddressValid,
+  verifySecretsProofSignatures,
   type ErrorResponse,
   type GenericBlockinVerifyRouteRequestBody,
   type GetSignInChallengeRouteRequestBody,
@@ -396,7 +398,8 @@ export async function genericBlockinVerify(body: GenericBlockinVerifyRouteReques
     }
   }
 
-  const chain = getChainForAddress(constructChallengeObjectFromString(body.message, BigIntify).address);
+  const address = constructChallengeObjectFromString(body.message, BigIntify).address;
+  const chain = getChainForAddress(address);
   const chainDriver = getChainDriver(chain);
   try {
     const verificationResponse = await verifyChallenge(
@@ -410,7 +413,15 @@ export async function genericBlockinVerify(body: GenericBlockinVerifyRouteReques
       },
       body.publicKey
     );
-    return verificationResponse;
+    if (verificationResponse.success) {
+      for (const proof of body.secretsProofs ?? []) {
+        await verifySecretsProofSignatures(proof, true);
+      }
+
+      return verificationResponse;
+    } else {
+      return verificationResponse;
+    }
   } catch (err) {
     console.error(err);
     return {
@@ -428,6 +439,44 @@ export async function genericBlockinVerifyHandler(
 
   try {
     const verificationResponse = await genericBlockinVerify(body);
+
+    if (!verificationResponse.success) {
+      return res.status(401).json({ success: false, errorMessage: `${verificationResponse.message} ` });
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(401).json({ success: false, errorMessage: `${err.message} ` });
+  }
+}
+
+export async function genericBlockinVerifyAssetsHandler(
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response<iVerifySignInRouteSuccessResponse | ErrorResponse>
+) {
+  const body = req.body as GenericVerifyAssetsRouteRequestBody;
+
+  try {
+    const cosmosAddress = convertToCosmosAddress(body.cosmosAddress);
+
+    const dummyChallengeParams: ChallengeParams<NumberType> = {
+      domain: 'https://bitbadges.io',
+      statement,
+      address: cosmosAddress,
+      uri: 'https://bitbadges.io',
+      nonce: '*',
+      expirationDate: undefined,
+      notBefore: undefined,
+      resources: [],
+      assetOwnershipRequirements: body.assetOwnershipRequirements
+    };
+
+    const verificationResponse = await genericBlockinVerify({
+      message: createChallenge(dummyChallengeParams),
+      signature: '',
+      options: { skipSignatureVerification: true, skipTimestampVerification: true }
+    });
 
     if (!verificationResponse.success) {
       return res.status(401).json({ success: false, errorMessage: `${verificationResponse.message} ` });

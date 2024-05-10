@@ -21,7 +21,6 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
 
   // If we already have an account doc with an acct number and public key, we don't need to do anything
   const _accountDoc = docs.accounts[`${cosmosAddress}`];
-  // TODO: Does this eventually write even if unchanged?
   if (_accountDoc && _accountDoc.accountNumber > 0n && _accountDoc.publicKey) {
     // if we have a valid solana address for the first time, we add it to the account doc
     // note that the chain checks this is the correct address (matches signer key)

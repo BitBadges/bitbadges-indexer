@@ -19,7 +19,7 @@ import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { checkIfAuthenticated, returnUnauthorized, type AuthenticatedRequest, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
-import { deleteMany, getFromDB, insertMany, mustGetManyFromDB } from '../db/db';
+import { MongoDB, deleteMany, getFromDB, insertMany, mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, ListActivityModel } from '../db/schemas';
 import { getStatus } from '../db/status';
@@ -50,21 +50,30 @@ export const deleteAddressLists = async (
       }
     }
 
-    // TODO: session?
-
-    //This is slightly different bc this isn't just a soft delete (the address list is actually deleted)
-    const docs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': { $in: listIds } } });
-    await deleteMany(
-      AddressListModel,
-      docsToDelete.map((x) => x._docId)
-    );
-
-    if (docs.length > 0) {
-      //TODO: hard delete?
-      await insertMany(
-        ClaimBuilderModel,
-        docs.map((x) => ({ ...x, deletedAt: Date.now() }))
+    const session = await MongoDB.startSession();
+    session.startTransaction();
+    try {
+      //This is slightly different bc this isn't just a soft delete (the address list is actually deleted)
+      const docs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': { $in: listIds } }, session });
+      await deleteMany(
+        AddressListModel,
+        docsToDelete.map((x) => x._docId),
+        session
       );
+
+      if (docs.length > 0) {
+        await insertMany(
+          ClaimBuilderModel,
+          docs.map((x) => ({ ...x, deletedAt: Date.now() })),
+          session
+        );
+      }
+      await session.commitTransaction();
+    } catch (e) {
+      await session.abortTransaction();
+      throw e;
+    } finally {
+      await session.endSession();
     }
 
     return res.status(200).send();
@@ -84,9 +93,27 @@ export function getActivityDocsForListUpdate(
   activityDocs: Array<ListActivityDoc<NumberType>>,
   creator: string
 ) {
-  const existingAddresses = existingDoc?.addresses ?? [];
-  const newAddressesNotInOld = list.addresses.filter((x) => !existingAddresses.includes(x));
-  const oldAddressesNotInNew = existingAddresses.filter((x) => !list.addresses.includes(x));
+  let oldAddresses = existingDoc?.addresses ?? [];
+  let newAddresses = list.addresses;
+
+  //Find duplicates, accounting for frequency
+  const duplicates = [];
+  for (const address of oldAddresses) {
+    if (newAddresses.includes(address)) {
+      duplicates.push(address);
+      const idx = newAddresses.findIndex((x) => x !== address);
+      newAddresses = newAddresses.slice(0, idx).concat(newAddresses.slice(idx + 1));
+    }
+  }
+
+  //Remove duplicates from old addresses accounting for frequency
+  for (const duplicate of duplicates) {
+    const idx = oldAddresses.findIndex((x) => x !== duplicate);
+    oldAddresses = oldAddresses.slice(0, idx).concat(oldAddresses.slice(idx + 1));
+  }
+
+  const newAddressesNotInOld = newAddresses;
+  const oldAddressesNotInNew = oldAddresses;
 
   if (newAddressesNotInOld.length > 0) {
     activityDocs.push(
@@ -153,69 +180,87 @@ const handleAddressListsUpdateAndCreate = async (
     }
 
     const status = await getStatus();
-    const docs: Array<AddressListDoc<NumberType>> = [];
-    const activityDocs: Array<ListActivityDoc<NumberType>> = [];
-    for (const list of lists) {
-      const existingDoc = await getFromDB(AddressListModel, list.listId);
-      if (isCreation && existingDoc) {
-        throw new Error('List with ID ' + list.listId + ' already exists.');
-      }
 
-      if (isUpdate && !existingDoc) {
-        throw new Error('List with ID ' + list.listId + ' does not exist.');
-      }
-
-      if (existingDoc) {
-        if (existingDoc.createdBy !== cosmosAddress) {
-          throw new Error('You are not the owner of list with ID ' + list.listId);
+    const session = await MongoDB.startSession();
+    session.startTransaction();
+    try {
+      const docs: Array<AddressListDoc<NumberType>> = [];
+      const activityDocs: Array<ListActivityDoc<NumberType>> = [];
+      for (const list of lists) {
+        const existingDoc = await getFromDB(AddressListModel, list.listId);
+        if (isCreation && existingDoc) {
+          throw new Error('List with ID ' + list.listId + ' already exists.');
         }
 
-        if (existingDoc.whitelist !== list.whitelist) {
-          throw new Error('You cannot change from a whitelist to a blacklist or vice versa.');
+        if (isUpdate && !existingDoc) {
+          throw new Error('List with ID ' + list.listId + ' does not exist.');
         }
-      }
 
-      const query = { 'action.listId': list.listId };
-      await updateClaimDocs(req, ClaimType.AddressList, query, list.claims, () => {
-        return {
-          createdBy: req.session.cosmosAddress,
-          collectionId: '-1',
-          docClaimed: true,
-          cid: '',
-          action: {
-            listId: list.listId
+        if (existingDoc) {
+          if (existingDoc.createdBy !== cosmosAddress) {
+            throw new Error('You are not the owner of list with ID ' + list.listId);
           }
-        };
-      });
-      await deleteOldClaims(ClaimType.AddressList, query, list.claims);
 
-      docs.push(
-        new AddressListDoc<NumberType>({
-          ...existingDoc,
-          ...list,
-          _docId: list.listId,
-          createdBlock: existingDoc?.createdBlock ?? status.block.height,
-          createdBy: existingDoc?.createdBy ?? cosmosAddress,
-          lastUpdated: status.block.timestamp,
-          addresses: list.addresses.map((x) => convertToCosmosAddress(x)),
-          updateHistory: [
-            ...(existingDoc?.updateHistory ?? []),
-            {
-              block: status.block.height,
-              blockTimestamp: status.block.timestamp,
-              txHash: '',
-              timestamp: Date.now()
-            }
-          ]
-        })
-      );
+          if (existingDoc.whitelist !== list.whitelist) {
+            throw new Error('You cannot change from a whitelist to a blacklist or vice versa.');
+          }
+        }
 
-      getActivityDocsForListUpdate(list, existingDoc, status, activityDocs, cosmosAddress);
+        const query = { 'action.listId': list.listId };
+        await updateClaimDocs(
+          req,
+          ClaimType.AddressList,
+          query,
+          list.claims,
+          () => {
+            return {
+              createdBy: req.session.cosmosAddress,
+              collectionId: '-1',
+              docClaimed: true,
+              cid: '',
+              action: {
+                listId: list.listId
+              }
+            };
+          },
+          session
+        );
+        await deleteOldClaims(ClaimType.AddressList, query, list.claims, session);
+
+        docs.push(
+          new AddressListDoc<NumberType>({
+            ...existingDoc,
+            ...list,
+            _docId: list.listId,
+            createdBlock: existingDoc?.createdBlock ?? status.block.height,
+            createdBy: existingDoc?.createdBy ?? cosmosAddress,
+            lastUpdated: status.block.timestamp,
+            addresses: list.addresses.map((x) => convertToCosmosAddress(x)),
+            updateHistory: [
+              ...(existingDoc?.updateHistory ?? []),
+              {
+                block: status.block.height,
+                blockTimestamp: status.block.timestamp,
+                txHash: '',
+                timestamp: Date.now()
+              }
+            ]
+          })
+        );
+
+        getActivityDocsForListUpdate(list, existingDoc, status, activityDocs, cosmosAddress);
+      }
+
+      await insertMany(AddressListModel, docs, session);
+      await insertMany(ListActivityModel, activityDocs, session);
+
+      await session.commitTransaction();
+    } catch (e) {
+      await session.abortTransaction();
+      throw e;
+    } finally {
+      await session.endSession();
     }
-
-    // TODO: Session?
-    await insertMany(AddressListModel, docs);
-    await insertMany(ListActivityModel, activityDocs);
 
     return res.status(200).send({});
   } catch (e) {

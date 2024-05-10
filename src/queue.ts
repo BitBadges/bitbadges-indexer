@@ -153,6 +153,10 @@ export const fetchUriFromSource = async (uri: string) => {
     const _res = await getFromIpfs(uri.replace('ipfs://', ''));
     res = JSON.parse(_res.file);
   } else {
+    if (uri.includes('localhost') || uri.includes('api.bitbadges.io')) {
+      throw new Error('Cannot call localhost or BitBadges API.');
+    }
+
     const ownDigitalOceanSpaces = uri.startsWith('https://bitbadges-balances.nyc3.digitaloceanspaces.com');
     const options = ownDigitalOceanSpaces
       ? {
@@ -700,7 +704,6 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
               memo: '',
               initiatedBy: '',
               prioritizedApprovals: [],
-              onlyCheckPrioritizedApprovals: false,
               precalculateBalancesFromApproval: {
                 approvalId: '',
                 approvalLevel: '',

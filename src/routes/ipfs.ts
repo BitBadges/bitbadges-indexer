@@ -29,6 +29,7 @@ import { cleanBalanceMap } from '../utils/dataCleaners';
 import { Plugins } from './claims';
 import { executeCollectionsQuery, getDecryptedPluginsAndPublicState } from './collections';
 import { refreshCollection } from './refresh';
+import mongoose from 'mongoose';
 
 const IPFS_UPLOAD_BYTES_LIMIT = 1000000000; // 1GB
 
@@ -109,7 +110,8 @@ export const updateClaimDocs = async (
     docClaimed: boolean;
     cid: string;
     trackerDetails?: iChallengeTrackerIdDetails<NumberType>;
-  }
+  },
+  session?: mongoose.ClientSession
 ) => {
   const queryBuilder = constructQuery(claimType, oldClaimQuery);
 
@@ -120,7 +122,7 @@ export const updateClaimDocs = async (
     }
 
     const query = { docClaimed: true, _docId: claim.claimId, ...queryBuilder };
-    const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1 });
+    const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1, session });
     const existingDoc = existingDocRes.length > 0 ? existingDocRes[0] : undefined;
     const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
     const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
@@ -238,11 +240,16 @@ export const updateClaimDocs = async (
   }
 
   if (claimDocsToSet.length > 0) {
-    await insertMany(ClaimBuilderModel, claimDocsToSet);
+    await insertMany(ClaimBuilderModel, claimDocsToSet, session);
   }
 };
 
-export const deleteOldClaims = async (claimType: ClaimType, oldClaimQuery: Record<string, any>, newClaims: Array<iClaimDetails<NumberType>>) => {
+export const deleteOldClaims = async (
+  claimType: ClaimType,
+  oldClaimQuery: Record<string, any>,
+  newClaims: Array<iClaimDetails<NumberType>>,
+  session?: mongoose.ClientSession
+) => {
   const query = constructQuery(claimType, oldClaimQuery);
 
   const docsToDelete = await findInDB(ClaimBuilderModel, {
@@ -250,7 +257,8 @@ export const deleteOldClaims = async (claimType: ClaimType, oldClaimQuery: Recor
       deletedAt: { $exists: false },
       _docId: { $nin: (newClaims ?? []).map((claim) => claim.claimId) },
       ...query
-    }
+    },
+    session
   });
 
   if (docsToDelete.length > 0) {
@@ -261,7 +269,8 @@ export const deleteOldClaims = async (claimType: ClaimType, oldClaimQuery: Recor
           ...doc,
           deletedAt: BigInt(Date.now())
         };
-      })
+      }),
+      session
     );
   }
 };

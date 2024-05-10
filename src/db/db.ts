@@ -3,28 +3,32 @@ import {
   AddressListDoc,
   AirdropDoc,
   ApprovalTrackerDoc,
+  AuthAppDoc,
   BalanceDoc,
   BigIntify,
   BlockinAuthSignatureDoc,
   ClaimAlertDoc,
+  ClaimBuilderDoc,
   CollectionDoc,
   ComplianceDoc,
-  type ErrorDoc,
   FetchDoc,
   FollowDetailsDoc,
   IPFSTotalsDoc,
-  type JSPrimitiveNumberType,
   ListActivityDoc,
+  MapDoc,
   MerkleChallengeDoc,
-  type NumberType,
   NumberifyIfPossible,
-  ClaimBuilderDoc,
   ProfileDoc,
   QueueDoc,
   RefreshDoc,
   ReviewDoc,
+  SecretDoc,
   StatusDoc,
   TransferActivityDoc,
+  iAuthAppDoc,
+  type ErrorDoc,
+  type JSPrimitiveNumberType,
+  type NumberType,
   type iAccountDoc,
   type iAddressListDoc,
   type iAirdropDoc,
@@ -32,39 +36,37 @@ import {
   type iBalanceDoc,
   type iBlockinAuthSignatureDoc,
   type iClaimAlertDoc,
+  type iClaimBuilderDoc,
   type iCollectionDoc,
   type iComplianceDoc,
   type iFetchDoc,
-  type iSecretDoc,
   type iFollowDetailsDoc,
   type iIPFSTotalsDoc,
   type iListActivityDoc,
+  type iMapDoc,
   type iMerkleChallengeDoc,
-  type iClaimBuilderDoc,
   type iProfileDoc,
   type iQueueDoc,
   type iRefreshDoc,
   type iReviewDoc,
+  type iSecretDoc,
   type iStatusDoc,
-  type iTransferActivityDoc,
-  SecretDoc,
-  MapDoc,
-  type iMapDoc
+  type iTransferActivityDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto-js';
 import { config } from 'dotenv';
 import mongoose from 'mongoose';
 import {
-  type ApiKeyDoc,
   BrowseDoc,
+  DigitalOceanBalancesDoc,
+  PageVisitsDoc,
+  iDigitalOceanBalancesDoc,
+  type ApiKeyDoc,
   type EthTxCountDoc,
   type OffChainUrlDoc,
-  PageVisitsDoc,
   type ReportDoc,
   type iBrowseDoc,
-  type iPageVisitsDoc,
-  DigitalOceanBalancesDoc,
-  iDigitalOceanBalancesDoc
+  type iPageVisitsDoc
 } from './docs';
 import {
   AccountModel,
@@ -72,23 +74,27 @@ import {
   AirdropModel,
   ApiKeyModel,
   ApprovalTrackerModel,
+  AuthAppModel,
   BalanceModel,
-  type BitBadgesDoc,
   BlockinAuthSignatureModel,
   BrowseModel,
   ClaimAlertModel,
+  ClaimBuilderModel,
   CollectionModel,
   ComplianceModel,
+  DigitalOceanBalancesModel,
   ErrorModel,
   EthTxCountModel,
+  ExternalCallKeysModel,
   FetchModel,
   FollowDetailsModel,
   IPFSTotalsModel,
   ListActivityModel,
+  MapModel,
   MerkleChallengeModel,
+  OffChainSecretsModel,
   OffChainUrlModel,
   PageVisitsModel,
-  ClaimBuilderModel,
   ProfileModel,
   QueueModel,
   RefreshModel,
@@ -96,13 +102,10 @@ import {
   ReviewModel,
   StatusModel,
   TransferActivityModel,
-  type TypedDocFromModel,
-  type TypedInterfaceFromModel,
-  ExternalCallKeysModel,
+  type BitBadgesDoc,
   type KeysDoc,
-  OffChainSecretsModel,
-  MapModel,
-  DigitalOceanBalancesModel
+  type TypedDocFromModel,
+  type TypedInterfaceFromModel
 } from './schemas';
 
 const { SHA256 } = crypto;
@@ -359,6 +362,8 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new MapDoc(doc as iMapDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === DigitalOceanBalancesModel.modelName) {
       convertedDoc = new DigitalOceanBalancesDoc(doc as iDigitalOceanBalancesDoc<NumberType>).convert(convertFunction);
+    } else if (model.modelName === AuthAppModel.modelName) {
+      convertedDoc = new AuthAppDoc(doc as iAuthAppDoc).convert(convertFunction);
     }
 
     if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);

@@ -30,7 +30,9 @@
       "merkleProofs": [],
       "memo": "",
       "prioritizedApprovals": [],
-      "onlyCheckPrioritizedApprovals": false,
+      "onlyCheckPrioritizedCollectionApprovals": false,
+      "onlyCheckPrioritizedIncomingApprovals": false,
+      "onlyCheckPrioritizedOutgoingApprovals": false,
       "zkProofSolutions": [
         {
           "proof": "{\n\t\t\t\t\t\t\t\"pi_a\": [\n\t\t\t\t\t\t\t \"15280415993796597666813636493043784530691061101504618964413605220785439881335\",\n\t\t\t\t\t\t\t \"675563788996052368699527111569929717352978256610453492975963571932469065914\",\n\t\t\t\t\t\t\t \"1\"\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"pi_b\": [\n\t\t\t\t\t\t\t [\n\t\t\t\t\t\t\t\t\"13271940717404841760534790023945884845854169265312102895125858252700907827176\",\n\t\t\t\t\t\t\t\t\"591918590265443693515148586084694063044314117360908071728035775984509485618\"\n\t\t\t\t\t\t\t ],\n\t\t\t\t\t\t\t [\n\t\t\t\t\t\t\t\t\"1321184000365240114236816479208164217123473043443213174227113077515267780427\",\n\t\t\t\t\t\t\t\t\"9588815572669609102065114656724798374518140131116623313758405358680261499082\"\n\t\t\t\t\t\t\t ],\n\t\t\t\t\t\t\t [\n\t\t\t\t\t\t\t\t\"1\",\n\t\t\t\t\t\t\t\t\"0\"\n\t\t\t\t\t\t\t ]\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"pi_c\": [\n\t\t\t\t\t\t\t \"20270283025961949711733235392141938263044103713056685530615033679931520723664\",\n\t\t\t\t\t\t\t \"8871872070133185879918010372399365027368084761154313139928014267382902159344\",\n\t\t\t\t\t\t\t \"1\"\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"protocol\": \"groth16\",\n\t\t\t\t\t\t\t\"curve\": \"bn128\"\n\t\t\t\t\t\t }",

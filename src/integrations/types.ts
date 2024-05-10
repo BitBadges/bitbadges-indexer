@@ -1,4 +1,5 @@
 import {
+  ClaimIntegrationPrivateStateType,
   type ClaimIntegrationPluginType,
   type ClaimIntegrationPrivateParamsType,
   type ClaimIntegrationPublicParamsType,
@@ -43,6 +44,7 @@ export interface BackendIntegrationPlugin<P extends ClaimIntegrationPluginType> 
   ) => Promise<{ success: boolean; error?: string; toSet?: object[]; data?: any }>;
   defaultState: any;
   getPublicState: (currState: any) => ClaimIntegrationPublicStateType<P>;
+  getPrivateState?: (currState: any) => ClaimIntegrationPrivateStateType<P>;
   getBlankPublicState: () => ClaimIntegrationPublicStateType<P>;
   decryptPrivateParams: (privateParams: ClaimIntegrationPrivateParamsType<P>) => ClaimIntegrationPrivateParamsType<P>;
   encryptPrivateParams: (privateParams: ClaimIntegrationPrivateParamsType<P>) => ClaimIntegrationPrivateParamsType<P>;
