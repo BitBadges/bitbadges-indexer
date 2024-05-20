@@ -2,11 +2,11 @@ import {
   ClaimAlertDoc,
   type ErrorResponse,
   convertToCosmosAddress,
-  type iGetClaimAlertsForCollectionRouteSuccessResponse,
-  type iSendClaimAlertsRouteSuccessResponse,
-  type GetClaimAlertsForCollectionRouteRequestBody,
+  type iGetClaimAlertsForCollectionSuccessResponse,
+  type iSendClaimAlertsSuccessResponse,
+  type GetClaimAlertsForCollectionBody,
   type NumberType,
-  type SendClaimAlertsRouteRequestBody
+  type SendClaimAlertsBody
 } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -17,12 +17,9 @@ import { ClaimAlertModel } from '../db/schemas';
 import { findInDB } from '../db/queries';
 import crypto from 'crypto';
 
-export const sendClaimAlert = async (
-  req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iSendClaimAlertsRouteSuccessResponse | ErrorResponse>
-) => {
+export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSendClaimAlertsSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as SendClaimAlertsRouteRequestBody;
+    const reqBody = req.body as SendClaimAlertsBody;
 
     for (const claimAlert of reqBody.claimAlerts) {
       if (claimAlert.collectionId && Number(claimAlert.collectionId) !== 0) {
@@ -69,17 +66,17 @@ export const sendClaimAlert = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding claim alert.'
+      errorMessage: e.message || 'Error adding claim alert.'
     });
   }
 };
 
 export async function getClaimAlertsForCollection(
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iGetClaimAlertsForCollectionRouteSuccessResponse<NumberType> | ErrorResponse>
+  res: Response<iGetClaimAlertsForCollectionSuccessResponse<NumberType> | ErrorResponse>
 ) {
   try {
-    const reqBody = req.body as GetClaimAlertsForCollectionRouteRequestBody;
+    const reqBody = req.body as GetClaimAlertsForCollectionBody;
 
     const collectionId = Number(reqBody.collectionId);
 
@@ -105,7 +102,7 @@ export async function getClaimAlertsForCollection(
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting claim alerts.'
+      errorMessage: e.message || 'Error getting claim alerts.'
     });
   }
 }

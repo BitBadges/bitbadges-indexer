@@ -27,7 +27,8 @@ import {
   type ComplianceDoc,
   type StatusDoc,
   type iBalance,
-  type AddressListDoc
+  type AddressListDoc,
+  UsedLeafStatus
 } from 'bitbadgesjs-sdk';
 import * as tx from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
 import * as bank from 'bitbadgesjs-sdk/dist/proto/cosmos/bank/v1beta1/tx_pb';
@@ -533,6 +534,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
   }
 
   if (getAttributeValueByKey(event.attributes, 'challengeTrackerId')) {
+    const creator = mustGetAttributeValueByKey(event.attributes, 'creator');
     const challengeTrackerId = getAttributeValueByKey(event.attributes, 'challengeTrackerId') ?? '';
     const approvalId = getAttributeValueByKey(event.attributes, 'approvalId') ?? '';
     const approverAddress = getAttributeValueByKey(event.attributes, 'approverAddress') ?? '';
@@ -544,7 +546,7 @@ const handleEvent = async (event: StringEvent, status: StatusDoc<bigint>, docs: 
     const docId = `${collectionId}:${approvalLevel}-${approverAddress}-${approvalId}-${challengeTrackerId}`;
     const currDoc = docs.merkleChallenges[docId];
     const newLeafIndices = currDoc ? currDoc.usedLeafIndices : [];
-    newLeafIndices.push(BigIntify(leafIndex || 0n));
+    newLeafIndices.push(new UsedLeafStatus({ leafIndex: BigIntify(leafIndex || 0n), usedBy: creator }));
 
     docs.merkleChallenges[docId] = new MerkleChallengeDoc({
       _docId: docId,

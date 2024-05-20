@@ -16,12 +16,11 @@ export const handleMsgTransferBadges = async (
     msg.collectionId = BigInt(status.nextCollectionId - 1n);
   }
 
-  const collectionIdString = `${msg.collectionId}`;
-
   await fetchDocsForCacheIfEmpty(docs, [msg.creator], [msg.collectionId], [], [], [], [], [], []);
   await handleNewAccountByAddress(msg.creator, docs);
 
   // Safe to cast because MsgTransferBadge can only be called if the collection exists
+  const collectionIdString = `${msg.collectionId}`;
   const collectionDoc = docs.collections[collectionIdString];
   if (!collectionDoc) throw new Error(`Collection ${collectionIdString} does not exist`);
 

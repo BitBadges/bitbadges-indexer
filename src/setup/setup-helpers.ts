@@ -31,8 +31,6 @@ import {
   ErrorSchema,
   EthTxCountModel,
   EthTxCountSchema,
-  ExternalCallKeysModel,
-  ExternalCallKeysSchema,
   FetchModel,
   FetchSchema,
   FollowDetailsModel,
@@ -50,6 +48,7 @@ import {
   OffChainUrlSchema,
   PageVisitsModel,
   PageVisitsSchema,
+  PluginModel,
   ProfileModel,
   ProfileSchema,
   QueueModel,
@@ -67,14 +66,15 @@ import {
   UsernameModel,
   UsernameSchema
 } from '../db/schemas';
+import { PluginPresetType } from 'bitbadgesjs-sdk';
 
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(PluginModel.collection.name);
   await MongoDB.dropCollection(AuthAppModel.collection.name);
   await MongoDB.dropCollection(BrowseModel.collection.name);
   await MongoDB.dropCollection(MapModel.collection.name);
-  await MongoDB.dropCollection(ExternalCallKeysModel.collection.name);
   await MongoDB.dropCollection(UsernameModel.collection.name);
   await MongoDB.dropCollection(ApiKeyModel.collection.name);
   await MongoDB.dropCollection(FetchModel.collection.name);
@@ -178,7 +178,158 @@ export async function initStatus(): Promise<void> {
       earnable: []
     }
   });
+
+  await insertToDB(PluginModel, {
+    _docId: 'min-badge',
+    createdBy: '',
+    pluginId: 'min-badge',
+    requiresSessions: false,
+    requiresUserInputs: false,
+    duplicatesAllowed: false,
+    autoCompleteCompatible: true,
+    metadata: {
+      name: 'Min $BADGE',
+      description: 'Users must have a minimum balance of $BADGE.',
+      image: 'https://avatars.githubusercontent.com/u/86890740',
+      createdBy: 'BitBadges',
+      documentation: 'https://docs.bitbadges.io',
+      sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
+    },
+    userInputsSchema: [],
+    privateParamsSchema: [],
+    publicParamsSchema: [{ key: 'minBalance', label: 'Minimum Balance', type: 'number' }],
+    verificationCall: {
+      method: 'POST',
+      uri: 'https://api.bitbadges.io/api/v0/integrations/query/min-badge',
+      passDiscord: false,
+      passEmail: false,
+      passTwitter: false,
+      passAddress: true,
+      passGoogle: false,
+      passGithub: false,
+      hardcodedInputs: []
+    },
+    reviewCompleted: true,
+    pluginSecret: 'not needed',
+    stateFunctionPreset: PluginPresetType.Stateless
+  });
+
+  await insertToDB(PluginModel, {
+    _docId: 'must-own-badges',
+    createdBy: '',
+    pluginId: 'must-own-badges',
+    requiresSessions: false,
+    requiresUserInputs: false,
+    duplicatesAllowed: true,
+    autoCompleteCompatible: true,
+    metadata: {
+      name: 'Ownership Requirements',
+      description: 'Which badges / lists must the user own / be on to claim this badge?',
+      image: 'https://avatars.githubusercontent.com/u/86890740',
+      createdBy: 'BitBadges',
+      documentation: 'https://docs.bitbadges.io',
+      sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
+    },
+    userInputsSchema: [],
+    privateParamsSchema: [],
+    publicParamsSchema: [{ key: 'ownershipRequirements', label: 'Ownership Requirements', type: 'ownershipRequirements' }],
+    verificationCall: {
+      method: 'POST',
+      uri: 'https://api.bitbadges.io/api/v0/integrations/query/must-own-badges',
+      passDiscord: false,
+      passEmail: false,
+      passTwitter: false,
+      passAddress: true,
+      passGoogle: false,
+      passGithub: false,
+      hardcodedInputs: []
+    },
+    reviewCompleted: true,
+    pluginSecret: ' ',
+    stateFunctionPreset: PluginPresetType.Stateless
+  });
+
+  await insertToDB(PluginModel, {
+    _docId: 'github-contributions',
+    createdBy: '',
+    pluginId: 'github-contributions',
+    requiresSessions: true,
+    requiresUserInputs: false,
+    duplicatesAllowed: true,
+    autoCompleteCompatible: false,
+
+    metadata: {
+      name: 'Github Contributions',
+      description: "Check a user's Github contributions.",
+      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/GitHub_Invertocat_Logo.svg/640px-GitHub_Invertocat_Logo.svg.png',
+      createdBy: 'BitBadges',
+      documentation: 'https://docs.bitbadges.io',
+      sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
+    },
+
+    userInputsSchema: [],
+    privateParamsSchema: [],
+    publicParamsSchema: [{ key: 'repository', label: 'Repository', type: 'string' }],
+    verificationCall: {
+      method: 'POST',
+      uri: 'https://api.bitbadges.io/api/v0/integrations/query/github-contributions',
+      passDiscord: false,
+      passEmail: false,
+      passTwitter: false,
+      passAddress: false,
+      passGoogle: false,
+      passGithub: true,
+      hardcodedInputs: []
+    },
+    reviewCompleted: true,
+    pluginSecret: ' ',
+    stateFunctionPreset: PluginPresetType.Stateless
+  });
+
+  await insertToDB(PluginModel, {
+    _docId: 'discord-server',
+    createdBy: '',
+    pluginId: 'discord-server',
+    requiresSessions: true,
+    requiresUserInputs: false,
+    duplicatesAllowed: true,
+    autoCompleteCompatible: false,
+    metadata: {
+      name: 'Discord Server',
+      description: 'Check if a user is in a Discord server.',
+      image: 'https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.png',
+      createdBy: 'BitBadges',
+      documentation: 'https://docs.bitbadges.io',
+      sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
+    },
+    userInputsSchema: [],
+    privateParamsSchema: [
+      {
+        key: 'serverId',
+        label: 'Server ID',
+        type: 'string',
+        helper:
+          'ID of the Discord server. This is a large number (e.g. 846474505189588992), not the server name. See https://docs.bitbadges.io/overview/claim-builder/discord for more information.'
+      }
+    ],
+    publicParamsSchema: [{ key: 'serverName', label: 'Server Name', type: 'string', helper: 'Display name for the server.' }],
+    verificationCall: {
+      method: 'POST',
+      uri: 'https://api.bitbadges.io/api/v0/integrations/query/discord-server',
+      passDiscord: true,
+      passEmail: false,
+      passTwitter: false,
+      passAddress: false,
+      passGoogle: false,
+      passGithub: false,
+      hardcodedInputs: []
+    },
+    reviewCompleted: true,
+    pluginSecret: ' ',
+    stateFunctionPreset: PluginPresetType.Stateless
+  });
 }
+
 export async function createIndexesAndViews(): Promise<void> {
   MapSchema.index({ _docId: 1 }, { unique: true });
   BrowseSchema.index({ _docId: 1 }, { unique: true });
@@ -217,12 +368,10 @@ export async function createIndexesAndViews(): Promise<void> {
   ListActivitySchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ timestamp: 1 });
   PageVisitsSchema.index({ _docId: 1 }, { unique: true });
-  ExternalCallKeysSchema.index({ _docId: 1 }, { unique: true });
   OffChainSecretsSchema.index({ _docId: 1 }, { unique: true });
 
   await MapModel.createIndexes();
   await OffChainSecretsModel.createIndexes();
-  await ExternalCallKeysModel.createIndexes();
   await PageVisitsModel.createIndexes();
   await ListActivityModel.createIndexes();
   await BrowseModel.createIndexes();

@@ -38,7 +38,7 @@ export async function getBalancesForEthFirstTxRoute(req: Request, res: Response)
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching balances.'
+      errorMessage: e.message || 'Error fetching balances.'
     });
   }
 }

@@ -2,14 +2,15 @@ import { type ClaimIntegrationPrivateParamsType, type ClaimIntegrationPublicPara
 import { type BackendIntegrationPlugin, type ClaimIntegrationCustomBodyType } from './types';
 
 export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
-  id: 'twitter',
+  type: 'twitter',
   metadata: {
     name: 'Twitter',
     description: 'A twitter challenge',
     image: 'https://bitbadges.s3.amazonaws.com/twitter.png',
     createdBy: 'BitBadges',
     stateless: false,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
@@ -19,13 +20,10 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, twitterInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, 'twitter');
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, context.pluginId);
   },
   getPublicState: () => {
     return {};
-  },
-  getPrivateState: (currState: any) => {
-    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState() {
     return {};
@@ -34,11 +32,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
 
 type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email';
 
-export const GenericOauthGetPrivateState = (currState: any) => {
-  return currState;
-};
-
-export const GenericOauthValidateFunction = async <P extends OauthType>(
+export const GenericOauthValidateFunction = <P extends OauthType>(
   publicParams: ClaimIntegrationPublicParamsType<P>,
   privateParams: ClaimIntegrationPrivateParamsType<P>,
   customBody?: ClaimIntegrationCustomBodyType<P>,
@@ -47,8 +41,7 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
   oauthInfo?: any,
   pluginId?: string
 ) => {
-  const params = publicParams.users?.length ? publicParams : privateParams;
-
+  const params = privateParams;
   const maxUsesPerUser = publicParams.maxUsesPerUser || 0;
 
   if (!oauthInfo) {
@@ -75,11 +68,20 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
     return { success: false, error: 'User already exceeded max uses' };
   }
 
-  if (params.users && params.users.length > 0) {
-    const inList = params.users.some((user) => user === oauthInfo.username);
-    if (!inList) {
-      return { success: false, error: 'User not in list of whitelisted users.' };
-    }
+  const requiresWhitelistCheck = (params.usernames ?? []).length > 0 || (params.ids ?? []).length > 0;
+  let onWhitelist = false;
+  if (params.usernames && params.usernames.length > 0) {
+    const inList = params.usernames.some((user) => user === oauthInfo.username);
+    onWhitelist = inList;
+  }
+
+  if (params.ids && params.ids.length > 0) {
+    const inList = params.ids.some((id) => id === oauthInfo.id);
+    onWhitelist = inList;
+  }
+
+  if (requiresWhitelistCheck && !onWhitelist) {
+    return { success: false, error: 'User not in list of whitelisted users.' };
   }
 
   return {
@@ -92,14 +94,15 @@ export const GenericOauthValidateFunction = async <P extends OauthType>(
 };
 
 export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
-  id: 'google',
+  type: 'google',
   metadata: {
     name: 'Google',
     description: 'A google challenge',
     image: 'https://bitbadges.s3.amazonaws.com/google.png',
     createdBy: 'BitBadges',
     stateless: false,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
@@ -109,59 +112,55 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, googleInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, 'google');
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, context.pluginId);
   },
   getPublicState: () => {
     return {};
-  },
-  getPrivateState: (currState: any) => {
-    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState() {
     return {};
   }
 };
 
-export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
-  id: 'email',
-  metadata: {
-    name: 'Email',
-    description: 'Gate claims by email.',
-    image: 'https://bitbadges.s3.amazonaws.com/email.png',
-    createdBy: 'BitBadges',
-    stateless: false,
-    scoped: true
-  },
-  defaultState: { ids: {}, usernames: {} },
-  encryptPrivateParams: (privateParams) => {
-    return privateParams;
-  },
-  decryptPrivateParams: (privateParams) => {
-    return privateParams;
-  },
-  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, 'email');
-  },
-  getPublicState: () => {
-    return {};
-  },
-  getPrivateState: (currState: any) => {
-    return GenericOauthGetPrivateState(currState);
-  },
-  getBlankPublicState() {
-    return {};
-  }
-};
+// export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
+//   type: 'email',
+//   metadata: {
+//     name: 'Email',
+//     description: 'Gate claims by email.',
+//     image: 'https://bitbadges.s3.amazonaws.com/email.png',
+//     createdBy: 'BitBadges',
+//     stateless: false,
+//     scoped: true,
+//     duplicatesAllowed: false
+//   },
+//   defaultState: { ids: {}, usernames: {} },
+//   encryptPrivateParams: (privateParams) => {
+//     return privateParams;
+//   },
+//   decryptPrivateParams: (privateParams) => {
+//     return privateParams;
+//   },
+//   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
+//     return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, context.pluginId);
+//   },
+//   getPublicState: () => {
+//     return {};
+//   },
+//   getBlankPublicState() {
+//     return {};
+//   }
+// };
 
 export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
-  id: 'github',
+  type: 'github',
   metadata: {
     name: 'GitHub',
     description: 'A github challenge',
     image: 'https://bitbadges.s3.amazonaws.com/github.png',
     createdBy: 'BitBadges',
     stateless: false,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
@@ -171,13 +170,10 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, githubInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, 'github');
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, context.pluginId);
   },
   getPublicState: () => {
     return {};
-  },
-  getPrivateState: (currState: any) => {
-    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState() {
     return {};
@@ -185,14 +181,15 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
 };
 
 export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
-  id: 'discord',
+  type: 'discord',
   metadata: {
     name: 'Discord',
     description: 'A discord challenge',
     image: 'https://bitbadges.s3.amazonaws.com/discord.png',
     createdBy: 'BitBadges',
     stateless: false,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: { ids: {}, usernames: {} },
   encryptPrivateParams: (privateParams) => {
@@ -211,14 +208,11 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
       priorState,
       globalState,
       { ...adminInfo, username },
-      'discord'
+      context.pluginId
     );
   },
   getPublicState: () => {
     return {};
-  },
-  getPrivateState: (currState: any) => {
-    return GenericOauthGetPrivateState(currState);
   },
   getBlankPublicState: () => {
     return {};

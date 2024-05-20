@@ -498,6 +498,16 @@ export async function executeCreatedByQuery(
   return collectedRes;
 }
 
+export async function executeAuthCodesForAppQuery(clientId: string, bookmark?: string, oldestFirst?: boolean) {
+  const paginationParams = await getQueryParamsFromBookmark(BlockinAuthSignatureModel, bookmark, oldestFirst, 'createdAt');
+  const res = await findWithPagination(BlockinAuthSignatureModel, {
+    query: { clientId, deletedAt: { $exists: false }, redirectUri: { $exists: false }, ...paginationParams },
+    sort: { createdAt: oldestFirst ? 1 : -1 },
+    limit: 25
+  });
+  return res;
+}
+
 export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: string, oldestFirst?: boolean) {
   const paginationParams = await getQueryParamsFromBookmark(BlockinAuthSignatureModel, bookmark, oldestFirst, 'createdAt');
   const res = await findWithPagination(BlockinAuthSignatureModel, {

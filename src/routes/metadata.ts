@@ -1,9 +1,9 @@
 import {
   QueueDoc,
   type ErrorResponse,
-  type FetchMetadataDirectlyRouteRequestBody,
+  type FetchMetadataDirectlyBody,
   type NumberType,
-  type iFetchMetadataDirectlyRouteSuccessResponse
+  type iFetchMetadataDirectlySuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
@@ -12,9 +12,9 @@ import { FetchModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { fetchUriFromSourceAndUpdateDb } from '../queue';
 
-export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMetadataDirectlyRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMetadataDirectlySuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as FetchMetadataDirectlyRouteRequestBody;
+    const reqBody = req.body as FetchMetadataDirectlyBody;
     const uris = reqBody.uris;
 
     if (uris.length > 100) {

@@ -1,14 +1,15 @@
 import { type BackendIntegrationPlugin } from './types';
 
-export const RequiresSignaturePluginDetails: BackendIntegrationPlugin<'requiresProofOfAddress'> = {
-  id: 'requiresProofOfAddress',
+export const RequiresSignaturePluginDetails: BackendIntegrationPlugin<'initiatedBy'> = {
+  type: 'initiatedBy',
   metadata: {
     name: 'Requires Proof of Address',
     description: 'A proof of address challenge',
     image: 'https://bitbadges.s3.amazonaws.com/proof_of_address.png',
     createdBy: 'BitBadges',
     stateless: true,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: {},
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {

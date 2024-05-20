@@ -1,8 +1,8 @@
 import {
   BitBadgesApiRoutes,
-  GetClaimAlertsForCollectionRouteRequestBody,
+  GetClaimAlertsForCollectionBody,
   ManagerTimeline,
-  SendClaimAlertsRouteRequestBody,
+  SendClaimAlertsBody,
   UintRangeArray,
   convertToCosmosAddress
 } from 'bitbadgesjs-sdk';
@@ -41,7 +41,7 @@ describe('claim alerts', () => {
 
   it('should send claim alert', async () => {
     const route = BitBadgesApiRoutes.SendClaimAlertRoute();
-    const body: SendClaimAlertsRouteRequestBody = {
+    const body: SendClaimAlertsBody = {
       claimAlerts: [
         {
           collectionId: 0,
@@ -62,7 +62,7 @@ describe('claim alerts', () => {
 
   it('should check manager if collectionId is not 0', async () => {
     const route = BitBadgesApiRoutes.SendClaimAlertRoute();
-    const body: SendClaimAlertsRouteRequestBody = {
+    const body: SendClaimAlertsBody = {
       claimAlerts: [
         {
           collectionId: 1,
@@ -83,7 +83,7 @@ describe('claim alerts', () => {
 
   it('should check manager and success if collectionId is 0 and is manager', async () => {
     const route = BitBadgesApiRoutes.SendClaimAlertRoute();
-    const body: SendClaimAlertsRouteRequestBody = {
+    const body: SendClaimAlertsBody = {
       claimAlerts: [
         {
           collectionId: 1,
@@ -112,7 +112,7 @@ describe('claim alerts', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
-    const getBody: GetClaimAlertsForCollectionRouteRequestBody = {
+    const getBody: GetClaimAlertsForCollectionBody = {
       collectionId: 1,
       bookmark: ''
     };
@@ -130,7 +130,7 @@ describe('claim alerts', () => {
 
   it('should not work w/o scopes', async () => {
     const route = BitBadgesApiRoutes.SendClaimAlertRoute();
-    const body: SendClaimAlertsRouteRequestBody = {
+    const body: SendClaimAlertsBody = {
       claimAlerts: [
         {
           collectionId: 0,

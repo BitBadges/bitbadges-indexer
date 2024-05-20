@@ -1,34 +1,34 @@
 import {
   BalanceDocWithDetails,
   BigIntify,
+  ClaimDetails,
+  GetBadgeBalanceByAddressBody,
   Stringify,
   UintRangeArray,
   UserPermissionsWithDetails,
   convertToCosmosAddress,
+  iApprovalInfoDetails,
+  iBalanceDocWithDetails,
+  iChallengeDetails,
   type ErrorResponse,
   type NumberType,
   type iAddressList,
-  type iGetBadgeBalanceByAddressRouteSuccessResponse,
-  type iUserPermissions,
-  iBalanceDocWithDetails,
-  iApprovalInfoDetails,
-  iChallengeDetails,
-  ClaimDetails,
-  GetBadgeBalanceByAddressRouteRequestBody
+  type iGetBadgeBalanceByAddressSuccessResponse,
+  type iUserPermissions
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
+import { MaybeAuthenticatedRequest } from 'src/blockin/blockin_handlers';
 import { getFromDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { BalanceModel, ClaimBuilderModel, CollectionModel } from '../db/schemas';
-import { getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { getPlugin } from '../integrations/types';
 import { fetchUriFromSource, fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import { cleanBalanceArray } from '../utils/dataCleaners';
-import { getBalancesForEthFirstTx } from './ethFirstTx';
-import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
 import { addChallengeDetailsToCriteria } from './badges';
 import { getClaimDetailsForFrontend } from './collections';
-import { MaybeAuthenticatedRequest } from 'src/blockin/blockin_handlers';
+import { getBalancesForEthFirstTx } from './ethFirstTx';
+import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
 
 export function mustFind<T>(arr: T[], callbackFunc: (x: T) => boolean) {
   const found = arr.find(callbackFunc);
@@ -70,7 +70,7 @@ export const getBalanceForAddress = async (
   req: MaybeAuthenticatedRequest<NumberType>,
   collectionId: number,
   _cosmosAddress: string,
-  options?: GetBadgeBalanceByAddressRouteRequestBody | undefined
+  options?: GetBadgeBalanceByAddressBody | undefined
 ) => {
   const cosmosAddress = `${convertToCosmosAddress(_cosmosAddress).toString()}`;
   const docId = `${collectionId}:${cosmosAddress}`;
@@ -113,29 +113,30 @@ export const getBalanceForAddress = async (
         throw new Error('No claim found');
       }
 
-      const apiDetails = getPluginParamsAndState('api', claimDocs[0].plugins);
-      if (!apiDetails) {
-        throw new Error('No API details found');
-      }
-
       const claim = claimDocs[0];
-      const apiCalls = apiDetails.publicParams?.apiCalls;
-      if (!apiCalls) {
-        throw new Error('No API calls found');
+      let success = true;
+      for (const plugin of claimDocs[0].plugins) {
+        const pluginObj = await getPlugin(plugin.type);
+        const res = await pluginObj.validateFunction(
+          {
+            cosmosAddress,
+            claimId: claim._docId,
+            pluginId: plugin.id,
+            pluginType: plugin.type
+          },
+          plugin.publicParams,
+          plugin.privateParams
+          // Everything else is N/A to non-indexed
+        );
+
+        if (!res.success) {
+          success = false;
+          break;
+        }
       }
 
       const allBadges = await mustGetFromDB(BalanceModel, `${collectionId}:Total`);
       const allBadgesBalances = allBadges.balances.getAllBadgeIds();
-
-      const apiRes = await getPlugin('api').validateFunction(
-        {
-          cosmosAddress,
-          claimId: claim._docId
-        },
-        apiDetails.publicParams,
-        apiDetails.privateParams
-        // Everything else is N/A to non-indexed
-      );
 
       balancesRes = {
         ...BlankUserBalance,
@@ -144,7 +145,7 @@ export const getBalanceForAddress = async (
         cosmosAddress: _cosmosAddress,
         balances: [
           {
-            amount: apiRes.success ? 1 : 0,
+            amount: success ? 1 : 0,
             badgeIds: allBadgesBalances,
             ownershipTimes: UintRangeArray.FullRanges()
           }
@@ -292,10 +293,7 @@ export const getBalanceForAddress = async (
   }).convert(BigIntify);
 };
 
-export const getBadgeBalanceByAddress = async (
-  req: Request,
-  res: Response<iGetBadgeBalanceByAddressRouteSuccessResponse<NumberType> | ErrorResponse>
-) => {
+export const getBadgeBalanceByAddress = async (req: Request, res: Response<iGetBadgeBalanceByAddressSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const balanceToReturnConverted = await getBalanceForAddress(req, Number(req.params.collectionId), req.params.cosmosAddress, req.body);
     return res.status(200).send(balanceToReturnConverted.convert(Stringify));
@@ -303,7 +301,7 @@ export const getBadgeBalanceByAddress = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting badge balances'
+      errorMessage: e.message || 'Error getting badge balances'
     });
   }
 };

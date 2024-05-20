@@ -1,46 +1,78 @@
 import {
   BlockinChallenge,
+  GetBlockinAuthCodesForAuthAppBody,
   Numberify,
   SecretsProof,
   convertToCosmosAddress,
-  type CreateBlockinAuthCodeRouteRequestBody,
-  type DeleteBlockinAuthCodeRouteRequestBody,
+  getChainForAddress,
+  iGetBlockinAuthCodesForAuthAppSuccessResponse,
+  type CreateBlockinAuthCodeBody,
+  type DeleteBlockinAuthCodeBody,
   type ErrorResponse,
-  type GetBlockinAuthCodeRouteRequestBody,
+  type GetBlockinAuthCodeBody,
   type NumberType,
-  type iCreateBlockinAuthCodeRouteSuccessResponse,
-  type iDeleteBlockinAuthCodeRouteSuccessResponse,
-  type iGetBlockinAuthCodeRouteSuccessResponse,
-  getChainForAddress
+  type iCreateBlockinAuthCodeSuccessResponse,
+  type iDeleteBlockinAuthCodeSuccessResponse,
+  type iGetBlockinAuthCodeSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge } from 'blockin';
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { MaybeAuthenticatedRequest, genericBlockinVerify, type AuthenticatedRequest, setMockSessionIfTestMode } from '../blockin/blockin_handlers';
-import { insertToDB, mustGetFromDB } from '../db/db';
+import {
+  MaybeAuthenticatedRequest,
+  checkIfAuthenticated,
+  genericBlockinVerify,
+  setMockSessionIfTestMode,
+  type AuthenticatedRequest
+} from '../blockin/blockin_handlers';
+import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { AuthAppModel, BlockinAuthSignatureModel } from '../db/schemas';
+import { executeAuthCodesForAppQuery } from './userQueries';
 
 export const createAuthCode = async (
-  req: AuthenticatedRequest<NumberType>,
-  res: Response<iCreateBlockinAuthCodeRouteSuccessResponse | ErrorResponse>
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response<iCreateBlockinAuthCodeSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as CreateBlockinAuthCodeRouteRequestBody;
+    const reqBody = req.body as CreateBlockinAuthCodeBody;
+    const challengeParams = constructChallengeObjectFromString<number>(reqBody.message, Numberify);
+    if (!challengeParams.address) {
+      throw new Error('Invalid address in message.');
+    }
 
-    const appDoc = await mustGetFromDB(AuthAppModel, reqBody.clientId);
+    //IMPORTANT: If we are calling from the frontend, we override the 'Create Auth Codes' scope in order to allow the user to not have to authenticate
+    //           to the API. This is because it would be two signatures (one for creating the auth code and one for signing in with BitBadges).
+    //           We then use the fact that the auth code signature is valid to confirm the user is who they say they are, rather than the req.session.
+    //           This is checked in the middleware.
+    const origin = req.headers.origin;
+    const isFromFrontend =
+      origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io');
+    if (!isFromFrontend) {
+      if (!checkIfAuthenticated(req, ['Create Auth Codes'])) {
+        throw new Error('You do not have permission to create auth codes.');
+      }
+
+      if (reqBody.redirectUri) {
+        throw new Error('Creating auth codes with a redirect URI is not supported for requests that interact with the API directly.');
+      }
+
+      if (!challengeParams.address || convertToCosmosAddress(challengeParams.address) !== req.session.cosmosAddress) {
+        throw new Error('You can only add auth codes for the connected address.');
+      }
+    }
+
+    const appDoc = await getFromDB(AuthAppModel, reqBody.clientId);
+    if (!appDoc) {
+      throw new Error('Invalid client ID. All auth codes must be associated with a valid client ID for an app.');
+    }
+
     if (reqBody.redirectUri && !appDoc.redirectUris.includes(reqBody.redirectUri)) {
       throw new Error('Invalid redirect URI.');
     }
 
-    // Really all we want here is to verify signature is valid
-    // Other stuff just needs to be valid at actual authentication time
-    const challengeParams = constructChallengeObjectFromString<number>(reqBody.message, Numberify);
-
-    if (!challengeParams.address || convertToCosmosAddress(challengeParams.address) !== req.session.cosmosAddress) {
-      throw new Error('You can only add auth codes for the connected address.');
-    }
-
+    //Really all we want here is to verify signature is valid
+    //Other stuff just needs to be valid at actual authentication time
     //Verifies from a cryptographic standpoint that the signature and secrets are valid
     const response = await genericBlockinVerify({
       message: reqBody.message,
@@ -50,7 +82,7 @@ export const createAuthCode = async (
         skipTimestampVerification: true,
         skipAssetVerification: true
       },
-      secretsProofs: reqBody.secretsProofs?.map((proof) => new SecretsProof(proof))
+      secretsPresentations: reqBody.secretsPresentations?.map((proof) => new SecretsProof(proof))
     });
 
     if (!response?.success) {
@@ -119,13 +151,12 @@ export const createAuthCode = async (
     await insertToDB(BlockinAuthSignatureModel, {
       _docId: uniqueId,
       ...reqBody,
-      options: reqBody.options,
       publicKey: reqBody.publicKey ?? '',
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
       params: challengeParams,
       signature: reqBody.signature,
       createdAt: Date.now(),
-      secretsProofs: reqBody.secretsProofs || [],
+      secretsPresentations: reqBody.secretsPresentations || [],
       clientId: reqBody.clientId,
       otherSignIns: otherSignInsObj,
       redirectUri: reqBody.redirectUri
@@ -136,19 +167,60 @@ export const createAuthCode = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error creating QR auth code.'
+      errorMessage: e.message || e.message || 'Error creating QR auth code.'
+    });
+  }
+};
+
+export const getAuthCodesForAuthApp = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iGetBlockinAuthCodesForAuthAppSuccessResponse<NumberType> | ErrorResponse>
+) => {
+  try {
+    const reqBody = req.body as GetBlockinAuthCodesForAuthAppBody;
+    const { clientId, bookmark } = reqBody;
+    const appDoc = await getFromDB(AuthAppModel, clientId);
+    if (!appDoc) {
+      throw new Error('Invalid client ID. All auth codes must be associated with a valid client ID for an app.');
+    }
+
+    if (appDoc.createdBy !== req.session.cosmosAddress) {
+      throw new Error('You are not the owner of this auth app.');
+    }
+
+    const docsRes = await executeAuthCodesForAppQuery(clientId, bookmark);
+    return res.status(200).send({
+      blockinAuthCodes: docsRes.docs.map((doc) => {
+        const blockinRes = new BlockinChallenge({
+          ...doc,
+          address: doc.params.address,
+          cosmosAddress: convertToCosmosAddress(doc.params.address),
+          chain: getChainForAddress(doc.params.address),
+          otherSignIns: doc.otherSignIns,
+          message: createChallenge(doc.params)
+        });
+
+        return blockinRes;
+      }),
+      pagination: docsRes.pagination
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message || 'Error getting auth codes.'
     });
   }
 };
 
 export const getAuthCode = async (
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iGetBlockinAuthCodeRouteSuccessResponse<NumberType> | ErrorResponse>
+  res: Response<iGetBlockinAuthCodeSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
     setMockSessionIfTestMode(req);
 
-    const reqBody = req.body as GetBlockinAuthCodeRouteRequestBody;
+    const reqBody = req.body as GetBlockinAuthCodeBody;
 
     // For now, we use the approach that if someone has the signature, they can see the message.
 
@@ -190,13 +262,13 @@ export const getAuthCode = async (
       message: createChallenge(params),
       signature: doc.signature,
       publicKey: doc.publicKey,
-      options: doc.options
+      options: reqBody.options
     });
 
     const blockinRes = new BlockinChallenge({
       ...doc,
       verificationResponse,
-      options: doc.options,
+      options: reqBody.options,
       address: params.address,
       cosmosAddress: convertToCosmosAddress(params.address),
       chain: getChainForAddress(params.address),
@@ -209,17 +281,14 @@ export const getAuthCode = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting auth QR code.'
+      errorMessage: e.message || 'Error getting auth QR code.'
     });
   }
 };
 
-export const deleteAuthCode = async (
-  req: AuthenticatedRequest<NumberType>,
-  res: Response<iDeleteBlockinAuthCodeRouteSuccessResponse | ErrorResponse>
-) => {
+export const deleteAuthCode = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteBlockinAuthCodeSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as DeleteBlockinAuthCodeRouteRequestBody;
+    const reqBody = req.body as DeleteBlockinAuthCodeBody;
 
     const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.code);
     if (doc.cosmosAddress !== req.session.cosmosAddress) {
@@ -236,7 +305,7 @@ export const deleteAuthCode = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting QR auth code.'
+      errorMessage: e.message || 'Error deleting QR auth code.'
     });
   }
 };

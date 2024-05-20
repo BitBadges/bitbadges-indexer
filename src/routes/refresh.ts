@@ -1,9 +1,4 @@
-import {
-  type ErrorResponse,
-  type iRefreshMetadataRouteSuccessResponse,
-  type iRefreshStatusRouteSuccessResponse,
-  type NumberType
-} from 'bitbadgesjs-sdk';
+import { type ErrorResponse, type iRefreshMetadataSuccessResponse, type iRefreshStatusSuccessResponse, type NumberType } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { mustGetFromDB } from '../db/db';
@@ -13,7 +8,7 @@ import { type DocsCache } from '../db/types';
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from '../queue';
 import { findInDB } from '../db/queries';
 
-export const getRefreshStatus = async (req: Request, res: Response<iRefreshStatusRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getRefreshStatus = async (req: Request, res: Response<iRefreshStatusSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const collectionId = req.params.collectionId;
     const errorDocs = await findInDB(QueueModel, {
@@ -83,7 +78,7 @@ export const refreshCollection = async (collectionId: string, forceful?: boolean
   }
 };
 
-export const refreshMetadata = async (req: Request, res: Response<iRefreshMetadataRouteSuccessResponse | ErrorResponse>) => {
+export const refreshMetadata = async (req: Request, res: Response<iRefreshMetadataSuccessResponse | ErrorResponse>) => {
   /**
    * Refreshes metadata for a collection or a specific badge.
    *

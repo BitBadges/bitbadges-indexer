@@ -1,13 +1,13 @@
 import {
   BitBadgesApiRoutes,
   BitBadgesUserInfo,
-  CheckAndCompleteClaimRouteRequestBody,
-  GetAccountsRouteRequestBody,
-  GetSearchRouteRequestBody,
+  CompleteClaimBody,
+  GetAccountsBody,
+  GetSearchBody,
   convertToCosmosAddress,
-  type DeleteAddressListsRouteRequestBody,
-  type GetAddressListsRouteRequestBody,
-  type UpdateAddressListsRouteRequestBody
+  type DeleteAddressListsBody,
+  type GetAddressListsBody,
+  type UpdateAddressListsBody
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
@@ -44,7 +44,7 @@ describe('get address lists', () => {
 
   it('should get address lists', async () => {
     const route = BitBadgesApiRoutes.GetAddressListsRoute();
-    const body: GetAddressListsRouteRequestBody = {
+    const body: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: 'All',
@@ -65,7 +65,7 @@ describe('get address lists', () => {
 
   it('can create off-chain lists', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -88,7 +88,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsRouteRequestBody = {
+    const getBody: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -113,7 +113,7 @@ describe('get address lists', () => {
 
   it('can create public off-chain lists', async () => {
     const route = BitBadgesApiRoutes.UpdateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -142,7 +142,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsRouteRequestBody = {
+    const getBody: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -162,7 +162,7 @@ describe('get address lists', () => {
 
   it('should return activity for a list', async () => {
     const route = BitBadgesApiRoutes.GetAddressListsRoute();
-    const body: GetAddressListsRouteRequestBody = {
+    const body: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -186,7 +186,7 @@ describe('get address lists', () => {
 
   it('should delete lists', async () => {
     const route = BitBadgesApiRoutes.DeleteAddressListRoute();
-    const body: DeleteAddressListsRouteRequestBody = {
+    const body: DeleteAddressListsBody = {
       listIds: [convertToCosmosAddress(address) + '_testlist123']
     };
 
@@ -207,7 +207,7 @@ describe('get address lists', () => {
 
   it('should not allow anyone to view private lists', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -230,7 +230,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsRouteRequestBody = {
+    const getBody: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -255,7 +255,7 @@ describe('get address lists', () => {
 
   it('should not allow overwriting lists', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123456',
@@ -286,7 +286,7 @@ describe('get address lists', () => {
 
   it('private but viewable with link', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_viewable',
@@ -309,7 +309,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsRouteRequestBody = {
+    const getBody: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_viewable',
@@ -327,7 +327,7 @@ describe('get address lists', () => {
 
   it('should not show up in search results if private', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_searchable',
@@ -350,7 +350,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const searchRoute = BitBadgesApiRoutes.GetSearchRoute(convertToCosmosAddress(address) + '_searchable');
-    const searchBody: GetSearchRouteRequestBody = {
+    const searchBody: GetSearchBody = {
       noAccounts: true,
       noCollections: true,
       noBadges: true
@@ -366,7 +366,7 @@ describe('get address lists', () => {
 
   it('should be searchable if public', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_search123',
@@ -389,7 +389,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const searchRoute = BitBadgesApiRoutes.GetSearchRoute(convertToCosmosAddress(address) + '_search123');
-    const searchBody: GetSearchRouteRequestBody = {
+    const searchBody: GetSearchBody = {
       noAccounts: true,
       noCollections: true,
       noBadges: true
@@ -405,7 +405,7 @@ describe('get address lists', () => {
 
   it('should not show up in search results if viewable with link', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_search1232',
@@ -428,7 +428,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const searchRoute = BitBadgesApiRoutes.GetSearchRoute(convertToCosmosAddress(address) + '_search1232');
-    const searchBody: GetSearchRouteRequestBody = {
+    const searchBody: GetSearchBody = {
       noAccounts: true,
       noCollections: true,
       noBadges: true
@@ -444,7 +444,7 @@ describe('get address lists', () => {
 
   it('should not show up on user list activity view if private', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_nonviewable',
@@ -466,7 +466,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
-    const getBody: GetAccountsRouteRequestBody = {
+    const getBody: GetAccountsBody = {
       accountsToFetch: [
         {
           address: convertToCosmosAddress(address),
@@ -491,7 +491,7 @@ describe('get address lists', () => {
 
   it('should fail on update non-existent list', async () => {
     const route = BitBadgesApiRoutes.UpdateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_nonexistent',
@@ -515,7 +515,7 @@ describe('get address lists', () => {
 
   it('should add activity docs', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_activity',
@@ -537,7 +537,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsRouteRequestBody = {
+    const getBody: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_activity',
@@ -560,7 +560,7 @@ describe('get address lists', () => {
 
   it('should create an address list w/ private claims', async () => {
     const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsRouteRequestBody<bigint> = {
+    const body: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -576,7 +576,8 @@ describe('get address lists', () => {
               plugins: [
                 numUsesPlugin(10, 0),
                 {
-                  id: 'password',
+                  type: 'password',
+                  id: 'xyz123',
                   publicParams: {},
                   privateParams: {
                     password: 'dfjiaf'
@@ -598,9 +599,9 @@ describe('get address lists', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const claimRoute = BitBadgesApiRoutes.CheckAndCompleteClaimRoute(convertToCosmosAddress(address) + '_claim123', convertToCosmosAddress(address));
-    const claimBody: CheckAndCompleteClaimRouteRequestBody = {
-      password: {
+    const claimRoute = BitBadgesApiRoutes.CompleteClaimRoute(convertToCosmosAddress(address) + '_claim123', convertToCosmosAddress(address));
+    const claimBody: CompleteClaimBody = {
+      xyz123: {
         password: 'dfjiaf'
       }
     };
@@ -617,7 +618,7 @@ describe('get address lists', () => {
     expect(claimDoc.state.numUses.numUses).toBe(1);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsRouteRequestBody = {
+    const getBody: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -647,7 +648,7 @@ describe('get address lists', () => {
     expect(getRes.body.addressLists[0].addresses[0]).toBe(convertToCosmosAddress(address));
 
     const getRoute2 = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody2: GetAddressListsRouteRequestBody = {
+    const getBody2: GetAddressListsBody = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -684,7 +685,7 @@ describe('get address lists', () => {
 
     //Update state correctly
     const updateRoute = BitBadgesApiRoutes.UpdateAddressListRoute();
-    const updateBody: UpdateAddressListsRouteRequestBody<bigint> = {
+    const updateBody: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -700,7 +701,8 @@ describe('get address lists', () => {
               plugins: [
                 numUsesPlugin(10, 0),
                 {
-                  id: 'password',
+                  type: 'password',
+                  id: 'fadskjh',
                   publicParams: {},
                   privateParams: {
                     password: 'dfjiaf'
@@ -748,7 +750,7 @@ describe('get address lists', () => {
     expect(finalDoc2.state.numUses.numUses).toBe(0);
 
     //Check that it deletes old claims
-    const updateBody2: UpdateAddressListsRouteRequestBody<bigint> = {
+    const updateBody2: UpdateAddressListsBody<bigint> = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_claims',

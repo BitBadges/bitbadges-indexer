@@ -1,10 +1,5 @@
 import axios from 'axios';
-import {
-  type BroadcastTxRouteRequestBody,
-  type ErrorResponse,
-  type iBroadcastTxRouteSuccessResponse,
-  type iSimulateTxRouteSuccessResponse
-} from 'bitbadgesjs-sdk';
+import { type BroadcastTxBody, type ErrorResponse, type iBroadcastTxSuccessResponse, type iSimulateTxSuccessResponse } from 'bitbadgesjs-sdk';
 import { generateEndpointBroadcast } from 'bitbadgesjs-sdk/dist/node-rest-api/broadcast';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -47,9 +42,9 @@ async function tidyErrorMessage(originalMessage: string) {
   return originalMessage;
 }
 
-export const broadcastTx = async (req: Request, res: Response<iBroadcastTxRouteSuccessResponse | ErrorResponse>) => {
+export const broadcastTx = async (req: Request, res: Response<iBroadcastTxSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as BroadcastTxRouteRequestBody;
+    const reqBody = req.body as BroadcastTxBody;
 
     const initialRes = await axios.post(`${process.env.API_URL}${generateEndpointBroadcast()}`, reqBody).catch(async (e) => {
       if (e?.response?.data) {
@@ -101,9 +96,9 @@ export const broadcastTx = async (req: Request, res: Response<iBroadcastTxRouteS
   }
 };
 
-export const simulateTx = async (req: Request, res: Response<iSimulateTxRouteSuccessResponse | ErrorResponse>) => {
+export const simulateTx = async (req: Request, res: Response<iSimulateTxSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as BroadcastTxRouteRequestBody;
+    const reqBody = req.body as BroadcastTxBody;
 
     const simulatePost = await axios.post(`${process.env.API_URL}${'/cosmos/tx/v1beta1/simulate'}`, reqBody).catch(async (e) => {
       if (e?.response?.data) {

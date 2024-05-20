@@ -13,11 +13,11 @@ import {
   isAddressValid,
   type BitBadgesCollection,
   type ErrorResponse,
-  type FilterBadgesInCollectionRequestBody,
-  type GetSearchRouteRequestBody,
+  type FilterBadgesInCollectionBody,
+  type GetSearchBody,
   type NumberType,
   type iAccountDoc,
-  type iGetSearchRouteSuccessResponse
+  type iGetSearchSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -33,7 +33,7 @@ import { getQueryParamsFromBookmark } from '../db/utils';
 
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
   try {
-    const { categories, collectionId, tags, badgeIds, mostViewed, bookmark, attributes } = req.body as FilterBadgesInCollectionRequestBody;
+    const { categories, collectionId, tags, badgeIds, mostViewed, bookmark, attributes } = req.body as FilterBadgesInCollectionBody;
 
     const collection = await mustGetFromDB(CollectionModel, `${collectionId}`);
 
@@ -136,10 +136,10 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
   }
 };
 
-export const searchHandler = async (req: Request, res: Response<iGetSearchRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const searchHandler = async (req: Request, res: Response<iGetSearchSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const searchValue = req.params.searchValue;
-    const { noCollections, noAddressLists, noAccounts, specificCollectionId } = req.body as GetSearchRouteRequestBody;
+    const { noCollections, noAddressLists, noAccounts, specificCollectionId } = req.body as GetSearchBody;
 
     if (!searchValue || searchValue.length === 0) {
       return res.json({
@@ -507,7 +507,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchRouteS
     console.error(e);
     return res.status(500).json({
       error: serializeError(e),
-      errorMessage: `Error searching for ${req.params.searchValue}. Please try a different search value or try again later.`
+      errorMessage: `Error searching for ${req.params.searchValue}. Please try a different search value or try again later. ` + e.message
     });
   }
 };

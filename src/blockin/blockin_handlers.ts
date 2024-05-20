@@ -1,22 +1,22 @@
 import {
   BalanceArray,
   BigIntify,
-  GenericVerifyAssetsRouteRequestBody,
+  GenericVerifyAssetsBody,
   SupportedChain,
   convertToCosmosAddress,
   getChainForAddress,
   isAddressValid,
-  verifySecretsProofSignatures,
+  verifySecretsPresentationSignatures,
   type ErrorResponse,
-  type GenericBlockinVerifyRouteRequestBody,
-  type GetSignInChallengeRouteRequestBody,
+  type GenericBlockinVerifyBody,
+  type GetSignInChallengeBody,
   type NumberType,
-  type SignOutRequestBody,
-  type VerifySignInRouteRequestBody,
-  type iCheckSignInStatusRequestSuccessResponse,
-  type iGetSignInChallengeRouteSuccessResponse,
+  type SignOutBody,
+  type VerifySignInBody,
+  type iCheckSignInStatusSuccessResponse,
+  type iGetSignInChallengeSuccessResponse,
   type iSignOutSuccessResponse,
-  type iVerifySignInRouteSuccessResponse
+  type iVerifySignInSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge, verifyChallenge, type ChallengeParams } from 'blockin';
 import { type NextFunction, type Request, type Response } from 'express';
@@ -131,10 +131,10 @@ export const statement =
 
 export async function getChallenge(
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iGetSignInChallengeRouteSuccessResponse<NumberType> | ErrorResponse>
+  res: Response<iGetSignInChallengeSuccessResponse<NumberType> | ErrorResponse>
 ) {
   try {
-    const reqBody = req.body as GetSignInChallengeRouteRequestBody;
+    const reqBody = req.body as GetSignInChallengeBody;
 
     if (!isAddressValid(reqBody.address)) {
       return res.status(400).json({ errorMessage: 'Invalid address' });
@@ -143,21 +143,13 @@ export async function getChallenge(
     req.session.nonce = generateNonce();
     req.session.save();
 
-    const hours = reqBody.hours ? Math.floor(Number(reqBody.hours)) : 168 * 2;
-    if (isNaN(hours)) {
-      return res.status(400).json({ errorMessage: 'Invalid hours' });
-    }
-
-    // Get the current time
-    const iso8601 = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
-
     const challengeParams = {
       domain: 'https://bitbadges.io',
       statement,
       address: reqBody.address,
       uri: 'https://bitbadges.io',
       nonce: req.session.nonce ?? '',
-      expirationDate: iso8601,
+      expirationDate: undefined,
       notBefore: undefined,
       resources: [],
       assets: []
@@ -173,12 +165,12 @@ export async function getChallenge(
     console.error(err);
     return res.status(500).json({
       error: serializeError(err),
-      errorMessage: 'Error creating challenge.'
+      errorMessage: err.message || 'Error creating challenge.'
     });
   }
 }
 
-export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusRequestSuccessResponse>) {
+export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusSuccessResponse>) {
   return res.status(200).send({
     signedIn: !!checkIfAuthenticated(req),
     message: req.session.blockin ?? '',
@@ -203,7 +195,7 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
 }
 
 export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSignOutSuccessResponse>) {
-  const body = req.body as SignOutRequestBody;
+  const body = req.body as SignOutBody;
 
   const session = req.session;
   if (body.signOutBlockin) {
@@ -212,7 +204,6 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     session.blockin = undefined;
     session.blockinParams = undefined;
     session.nonce = undefined;
-    session.cookie.expires = new Date(Date.now() - 1000);
   }
 
   if (body.signOutDiscord ?? false) {
@@ -231,16 +222,24 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     session.google = undefined;
   }
 
-  req.session.save();
+  if (session.address == null && session.discord == null && session.twitter == null && session.github == null && session.google == null) {
+    session.destroy((err) => {
+      if (err) {
+        console.error(err);
+      }
+    });
+  } else {
+    req.session.save();
+  }
 
-  return res.status(200).send({ errorMessage: 'Successfully removed session cookie!' });
+  return res.status(200).send();
 }
 
 export async function verifyBlockinAndGrantSessionCookie(
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iVerifySignInRouteSuccessResponse | ErrorResponse>
+  res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
-  const body = req.body as VerifySignInRouteRequestBody;
+  const body = req.body as VerifySignInBody;
 
   try {
     setMockSessionIfTestMode(req);
@@ -318,9 +317,6 @@ export async function verifyBlockinAndGrantSessionCookie(
     req.session.cosmosAddress = convertToCosmosAddress(challenge.address);
     req.session.blockinParams = challenge;
     req.session.blockin = generatedEIP4361ChallengeStr;
-    if (challenge.expirationDate) {
-      req.session.cookie.expires = new Date(challenge.expirationDate);
-    }
     req.session.save();
 
     // Set up a profile if first time or update details if necessary based on sign-in
@@ -385,7 +381,7 @@ export function authorizeBlockinRequest(expectedScopes?: string[]) {
   };
 }
 
-export async function genericBlockinVerify(body: GenericBlockinVerifyRouteRequestBody) {
+export async function genericBlockinVerify(body: GenericBlockinVerifyBody) {
   if (body.options?.beforeVerification != null) {
     throw new Error('You cannot use the beforeVerification option over HTTP.');
   }
@@ -414,8 +410,8 @@ export async function genericBlockinVerify(body: GenericBlockinVerifyRouteReques
       body.publicKey
     );
     if (verificationResponse.success) {
-      for (const proof of body.secretsProofs ?? []) {
-        await verifySecretsProofSignatures(proof, true);
+      for (const proof of body.secretsPresentations ?? []) {
+        await verifySecretsPresentationSignatures(proof, true);
       }
 
       return verificationResponse;
@@ -433,9 +429,9 @@ export async function genericBlockinVerify(body: GenericBlockinVerifyRouteReques
 
 export async function genericBlockinVerifyHandler(
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iVerifySignInRouteSuccessResponse | ErrorResponse>
+  res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
-  const body = req.body as VerifySignInRouteRequestBody;
+  const body = req.body as VerifySignInBody;
 
   try {
     const verificationResponse = await genericBlockinVerify(body);
@@ -453,9 +449,9 @@ export async function genericBlockinVerifyHandler(
 
 export async function genericBlockinVerifyAssetsHandler(
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iVerifySignInRouteSuccessResponse | ErrorResponse>
+  res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
-  const body = req.body as GenericVerifyAssetsRouteRequestBody;
+  const body = req.body as GenericVerifyAssetsBody;
 
   try {
     const cosmosAddress = convertToCosmosAddress(body.cosmosAddress);

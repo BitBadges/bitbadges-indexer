@@ -1,11 +1,14 @@
 import {
   BalanceDoc,
+  ChallengeTrackerIdDetails,
   CollectionDoc,
   CollectionPermissions,
   RefreshDoc,
   UintRangeArray,
   UpdateHistory,
   UserPermissions,
+  generateAlias,
+  getAliasDerivationKeysForCollection,
   type MsgUniversalUpdateCollection,
   type StatusDoc
 } from 'bitbadgesjs-sdk';
@@ -13,12 +16,11 @@ import { fetchDocsForCacheIfEmpty } from '../db/cache';
 import { handleApprovals } from './approvalInfo';
 
 import { getFromDB, insertToDB } from '../db/db';
-import { client } from '../indexer';
+import { findInDB } from '../db/queries';
+import { ClaimBuilderModel, OffChainUrlModel } from '../db/schemas';
+import { type DocsCache } from '../db/types';
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue } from '../queue';
 import { handleNewAccountByAddress } from './handleNewAccount';
-import { type DocsCache } from '../db/types';
-import { OffChainUrlModel, ClaimBuilderModel } from '../db/schemas';
-import { findInDB } from '../db/queries';
 
 export function recursivelyDeleteFalseProperties(obj: object): void {
   if (Array.isArray(obj)) {
@@ -55,17 +57,15 @@ export const handleMsgUniversalUpdateCollection = async (
   await handleNewAccountByAddress(msg.creator, docs);
 
   let collectionId = BigInt(msg.collectionId);
-  if (msg.collectionId === 0n) {
+  const isCreateTx = msg.collectionId === 0n;
+  if (isCreateTx) {
     collectionId = status.nextCollectionId;
 
-    // TODO: Do this natively
-    const collection = await client.badgesQueryClient?.badges.getCollection(collectionId.toString());
-    if (collection == null) throw new Error(`Collection ${collectionId} does not exist`);
-
+    const aliasAddress = generateAlias('badges', getAliasDerivationKeysForCollection(collectionId));
     docs.collections[status.nextCollectionId.toString()] = new CollectionDoc<bigint>({
       _docId: status.nextCollectionId.toString(),
       collectionId: status.nextCollectionId,
-      aliasAddress: collection.aliasAddress,
+      aliasAddress: aliasAddress,
       managerTimeline: [
         {
           manager: msg.creator,
@@ -225,32 +225,33 @@ export const handleMsgUniversalUpdateCollection = async (
   const toClaimNonIndexed =
     uri && uri.startsWith('https://api.bitbadges.io/placeholder/{address}') && customData && collection.balancesType === 'Off-Chain - Non-Indexed';
 
-  if (toClaimIndexed || toClaimNonIndexed) {
-    const existingDoc = await getFromDB(OffChainUrlModel, customData);
-    if (!existingDoc) {
-      await insertToDB(OffChainUrlModel, {
-        _docId: customData,
-        collectionId: Number(collection.collectionId)
-      });
-    }
+  if (isCreateTx) {
+    if (toClaimIndexed || toClaimNonIndexed) {
+      const existingDoc = await getFromDB(OffChainUrlModel, customData);
+      const creator = existingDoc?.createdBy;
+      if (existingDoc && creator && creator === msg.creator) {
+        await insertToDB(OffChainUrlModel, {
+          ...existingDoc,
+          collectionId: Number(collection.collectionId)
+        });
 
-    // This is for off-chain balance types
-    // If we just claimed the customData or already claimed, we can claim all others with the balances
-    if (!existingDoc || BigInt(existingDoc.collectionId) === collection.collectionId) {
-      const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, {
-        query: { cid: customData, docClaimed: false, deletedAt: { $exists: false } }
-      });
-      for (const doc of existingClaimBuilderDocs) {
-        doc.collectionId = collection.collectionId;
-        doc.docClaimed = true;
-        doc.trackerDetails = {
-          approvalId: '',
-          approvalLevel: 'collection',
-          approverAddress: '',
-          collectionId: collection.collectionId,
-          challengeTrackerId: customData
-        };
-        await insertToDB(ClaimBuilderModel, doc);
+        // This is for off-chain balance types
+        // If we just claimed, we can claim all others with the balances
+        const existingClaimBuilderDocs = await findInDB(ClaimBuilderModel, {
+          query: { cid: customData, docClaimed: false, deletedAt: { $exists: false }, createdBy: msg.creator }
+        });
+        for (const doc of existingClaimBuilderDocs) {
+          doc.collectionId = collection.collectionId;
+          doc.docClaimed = true;
+          doc.trackerDetails = new ChallengeTrackerIdDetails({
+            approvalId: '',
+            approvalLevel: 'collection',
+            approverAddress: '',
+            collectionId: collection.collectionId,
+            challengeTrackerId: customData
+          });
+          await insertToDB(ClaimBuilderModel, doc);
+        }
       }
     }
   }

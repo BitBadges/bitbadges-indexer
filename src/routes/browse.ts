@@ -4,7 +4,7 @@ import {
   type UintRange,
   UintRangeArray,
   convertToCosmosAddress,
-  type iGetBrowseCollectionsRouteSuccessResponse
+  type iGetBrowseCollectionsSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -17,10 +17,10 @@ import { mustGetFromDB } from '../db/db';
 import { BrowseModel, CollectionModel, TransferActivityModel, AddressListModel, ProfileModel } from '../db/schemas';
 import { findInDB } from '../db/queries';
 
-let cachedResult: iGetBrowseCollectionsRouteSuccessResponse<NumberType> | ErrorResponse | undefined;
+let cachedResult: iGetBrowseCollectionsSuccessResponse<NumberType> | ErrorResponse | undefined;
 let lastFetchTime = 0;
 
-export const getBrowseCollections = async (req: Request, res: Response<iGetBrowseCollectionsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getBrowseCollections = async (req: Request, res: Response<iGetBrowseCollectionsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     if (cachedResult && Date.now() - lastFetchTime < 1000 * 60 * 1 && !DEV_MODE) {
       return res.status(200).send(cachedResult);
@@ -139,7 +139,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
 
     const allAccounts = await Promise.all(promises);
 
-    const result: iGetBrowseCollectionsRouteSuccessResponse<NumberType> = {
+    const result: iGetBrowseCollectionsSuccessResponse<NumberType> = {
       collections: {
         // intitialize all keys w/ empty array to maintain order
         ...Object.fromEntries(
@@ -265,7 +265,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting collections'
+      errorMessage: e.message || 'Error getting browse data.'
     });
   }
 };

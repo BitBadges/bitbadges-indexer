@@ -1,4 +1,7 @@
 import axios from 'axios';
+import { BigIntify, BlockinAndGroup, BlockinAssetConditionGroup, BlockinOrGroup, NumberType, OwnershipRequirements } from 'bitbadgesjs-sdk';
+import { AndGroup, OrGroup } from 'blockin';
+import { verifyBitBadgesAssets } from '../../blockin/verifyBitBadgesAssets';
 import { getAccountByAddress } from '../../routes/users';
 
 axios.defaults.timeout = 10000;
@@ -10,8 +13,32 @@ export const handleIntegrationQuery = async (body: any) => {
     await handleMinBadgeQuery(body);
   } else if (body.__type === 'discord-server') {
     await handleDiscordServerQuery(body);
+  } else if (body.__type === 'must-own-badges') {
+    await mustOwnBadgesQuery(body);
   } else {
     throw new Error('Invalid integration query type');
+  }
+};
+
+export const mustOwnBadgesQuery = async (body: { cosmosAddress: string; ownershipRequirements: any }) => {
+  const ownershipRequirementsBase = body.ownershipRequirements;
+  if (!ownershipRequirementsBase) {
+    throw new Error('No ownership requirements found');
+  }
+
+  let ownershipRequirements: BlockinAssetConditionGroup<bigint> | undefined;
+  if ((ownershipRequirementsBase as AndGroup<NumberType>).$and) {
+    ownershipRequirements = new BlockinAndGroup(ownershipRequirementsBase as AndGroup<NumberType>).convert(BigIntify);
+  } else if ((ownershipRequirementsBase as OrGroup<NumberType>).$or) {
+    ownershipRequirements = new BlockinOrGroup(ownershipRequirementsBase as OrGroup<NumberType>).convert(BigIntify);
+  } else {
+    ownershipRequirements = new OwnershipRequirements(ownershipRequirementsBase as OwnershipRequirements<NumberType>).convert(BigIntify);
+  }
+
+  try {
+    await verifyBitBadgesAssets(ownershipRequirements, body.cosmosAddress);
+  } catch (e) {
+    throw new Error(e.message);
   }
 };
 

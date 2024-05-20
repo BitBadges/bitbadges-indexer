@@ -5,7 +5,7 @@ import {
   type NumberType,
   type iAmountTrackerIdDetails,
   type iChallengeTrackerIdDetails,
-  type iGetBadgeActivityRouteSuccessResponse
+  type iGetBadgeActivitySuccessResponse
 } from 'bitbadgesjs-sdk';
 import { getFromDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
@@ -17,7 +17,7 @@ export async function executeBadgeActivityQuery(
   badgeId: string,
   bookmark?: string,
   specificAddress?: string
-): Promise<iGetBadgeActivityRouteSuccessResponse<NumberType> | ErrorResponse> {
+): Promise<iGetBadgeActivitySuccessResponse<NumberType> | ErrorResponse> {
   const totalSupplys = await mustGetFromDB(BalanceModel, `${collectionId}:Total`);
 
   let maxBadgeId = 1n;

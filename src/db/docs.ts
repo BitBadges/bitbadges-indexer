@@ -5,7 +5,8 @@ import {
   BaseNumberTypeClass,
   BalanceArray,
   type iBatchBadgeDetails,
-  BatchBadgeDetailsArray
+  BatchBadgeDetailsArray,
+  CosmosAddress
 } from 'bitbadgesjs-sdk';
 
 export interface iPageVisitsDoc<T extends NumberType> extends Doc {
@@ -174,4 +175,5 @@ export interface OffChainUrlDoc {
   _docId: string;
   _id?: string;
   collectionId: number;
+  createdBy: CosmosAddress;
 }

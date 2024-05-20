@@ -3,14 +3,15 @@ import { getAddressListsFromDB } from '../routes/utils';
 import { type BackendIntegrationPlugin } from './types';
 
 export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
-  id: 'whitelist',
+  type: 'whitelist',
   metadata: {
     name: 'Whitelist',
     description: 'A whitelist challenge',
     image: 'https://bitbadges.s3.amazonaws.com/whitelist.png',
     createdBy: 'BitBadges',
     stateless: true,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: {},
   encryptPrivateParams: (privateParams) => {

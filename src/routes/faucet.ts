@@ -5,7 +5,7 @@ import { Mutex } from 'async-mutex';
 import {
   BalanceArray,
   type ErrorResponse,
-  type iGetTokensFromFaucetRouteSuccessResponse,
+  type iGetTokensFromFaucetSuccessResponse,
   type NumberType,
   type OffChainBalancesMap
 } from 'bitbadgesjs-sdk';
@@ -32,7 +32,7 @@ const faucetMutex = new Mutex();
 
 export const getTokensFromFaucet = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iGetTokensFromFaucetRouteSuccessResponse | ErrorResponse>
+  res: Response<iGetTokensFromFaucetSuccessResponse | ErrorResponse>
 ) => {
   try {
     // acquire the mutex for the documentMutexes map

@@ -213,10 +213,10 @@ export async function verifyBitBadgesAssets(
             if (asset.collectionId === 'BitBadges Lists') {
               const listIdIdx = balance.badgeIds[0].start - 1n;
               const correspondingListId = asset.assetIds[Number(listIdIdx)] as string;
-              throw new Error(`Address ${address} does not meet the requirements for list ${correspondingListId.toString()}`);
+              throw new Error(`Address does not meet the requirements for list ${correspondingListId.toString()}`);
             } else {
               throw new Error(
-                `Address ${address} does not own enough of IDs ${balance.badgeIds.map((x) => `${x.start}-${x.end}`).join(',')} from collection ${
+                `Address does not own enough of IDs ${balance.badgeIds.map((x) => `${x.start}-${x.end}`).join(',')} from collection ${
                   asset.collectionId
                 } to meet minimum balance requirement of ${mustOwnAmount.start}`
               );
@@ -231,10 +231,10 @@ export async function verifyBitBadgesAssets(
             if (asset.collectionId === 'BitBadges Lists') {
               const listIdIdx = balance.badgeIds[0].start - 1n;
               const correspondingListId = asset.assetIds[Number(listIdIdx)] as string;
-              throw new Error(`Address ${address} does not meet requirements for list ${correspondingListId.toString()}`);
+              throw new Error(`Address does not meet requirements for list ${correspondingListId.toString()}`);
             } else {
               throw new Error(
-                `Address ${address} owns too much of IDs ${balance.badgeIds.map((x) => `${x.start}-${x.end}`).join(',')} from collection ${
+                `Address owns too much of IDs ${balance.badgeIds.map((x) => `${x.start}-${x.end}`).join(',')} from collection ${
                   asset.collectionId
                 } to meet maximum balance requirement of ${mustOwnAmount.end}`
               );

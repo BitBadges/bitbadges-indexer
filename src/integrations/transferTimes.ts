@@ -2,14 +2,15 @@ import { UintRangeArray } from 'bitbadgesjs-sdk';
 import { type BackendIntegrationPlugin } from './types';
 
 export const TransferTimesPluginDetails: BackendIntegrationPlugin<'transferTimes'> = {
-  id: 'transferTimes',
+  type: 'transferTimes',
   metadata: {
     name: 'Transfer Times',
     description: 'A transfer times challenge',
     image: 'https://bitbadges.s3.amazonaws.com/transfer_times.png',
     createdBy: 'BitBadges',
     stateless: true,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: {},
   validateFunction: async (context, publicParams) => {

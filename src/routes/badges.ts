@@ -3,11 +3,11 @@ import {
   iChallengeDetails,
   iMerkleChallenge,
   type ErrorResponse,
-  type GetOwnersForBadgeRouteRequestBody,
+  type GetOwnersForBadgeBody,
   type NumberType,
   type iAddressList,
   type iApprovalCriteria,
-  type iGetOwnersForBadgeRouteSuccessResponse,
+  type iGetOwnersForBadgeSuccessResponse,
   type iIncomingApprovalCriteria,
   type iOutgoingApprovalCriteria,
   ClaimDetails
@@ -22,9 +22,9 @@ import { applyAddressListsToUserPermissions } from './balances';
 import { getClaimDetailsForFrontend } from './collections';
 import { getAddressListsFromDB } from './utils';
 
-export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersForBadgeRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersForBadgeSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetOwnersForBadgeRouteRequestBody;
+    const reqBody = req.body as GetOwnersForBadgeBody;
 
     const totalSupplys = await mustGetFromDB(BalanceModel, `${req.params.collectionId}:Total`);
     let maxBadgeId = 1n;
@@ -181,7 +181,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching owners for collection.'
+      errorMessage: e.message || 'Error fetching owners for collection.'
     });
   }
 };

@@ -1,8 +1,10 @@
 import axios from 'axios';
-import { SocialConnectionInfo, SocialConnections, type ErrorResponse, NumberType } from 'bitbadgesjs-sdk';
+import { NumberType, SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
+import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
+import crypto from 'crypto';
 import { config } from 'dotenv';
 import express, { type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -16,50 +18,50 @@ import passport from 'passport';
 import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
+import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './auth/oauth';
 import {
+  AuthenticatedRequest,
   authorizeBlockinRequest,
   checkifSignedInHandler,
+  genericBlockinVerifyAssetsHandler,
   genericBlockinVerifyHandler,
   getChallenge,
   removeBlockinSessionCookie,
   verifyBlockinAndGrantSessionCookie,
-  type BlockinSession,
-  AuthenticatedRequest,
-  genericBlockinVerifyAssetsHandler
+  type BlockinSession
 } from './blockin/blockin_handlers';
 import { type IndexerStargateClient } from './chain-client/indexer_stargateclient';
-import { insertToDB, mustGetFromDB } from './db/db';
+import { deleteMany, insertToDB, mustGetFromDB } from './db/db';
+import { findInDB } from './db/queries';
 import { ApiKeyModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE } from './indexer-vars';
-import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './oauth';
 import { poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
-import { createAuthCode, deleteAuthCode, getAuthCode } from './routes/authCodes';
+import { createAuthApp, deleteAuthApp, getAuthApps, updateAuthApp } from './routes/authApps';
+import { createAuthCode, deleteAuthCode, getAuthCode, getAuthCodesForAuthApp } from './routes/authCodes';
 import { getOwnersForBadge } from './routes/badges';
 import { getBadgeBalanceByAddress } from './routes/balances';
 import { broadcastTx, simulateTx } from './routes/broadcast';
 import { getBrowseCollections } from './routes/browse';
 import { getClaimAlertsForCollection, sendClaimAlert } from './routes/claimAlerts';
-import { checkAndCompleteClaim, externalApiCallKeyCheckHandler, getClaimsHandler } from './routes/claims';
+import { completeClaim, createClaimHandler, deleteClaimHandler, getClaimsHandler, updateClaimHandler } from './routes/claims';
 import { getBadgeActivity, getCollections } from './routes/collections';
 import { unsubscribeHandler, verifyEmailHandler } from './routes/email';
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
 import { getTokensFromFaucet } from './routes/faucet';
 import { getFollowDetails } from './routes/follows';
-import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addMetadataToIpfsHandler } from './routes/ipfs';
+import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addToIpfsHandler } from './routes/ipfs';
 import { getMaps } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
 import { createSecret, deleteSecret, getSecret, updateSecret } from './routes/offChainSecrets';
 import { createPass } from './routes/pass';
+import { createPlugin, getPlugins } from './routes/plugins';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
 import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
-import { findInDB } from './db/queries';
-import crypto from 'crypto';
-import { getAuthApps, createAuthApp, deleteAuthApp, updateAuthApp } from './routes/authApps';
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
 config();
@@ -190,7 +192,6 @@ const websiteOnlyCors = cors(websiteOnlyCorsOptions);
 
 // Use limiter but provide a custom error response
 app.use(limiter);
-// app.use(timeout('30s'));
 // console.log the repsonse
 app.use(responseTime({ suffix: false }));
 
@@ -199,20 +200,22 @@ app.use(express.json({ limit: '100mb' }));
 app.use(
   expressSession({
     proxy: true,
-    name: 'blockin',
+    name: 'bitbadges',
     secret: process.env.SESSION_SECRET ? process.env.SESSION_SECRET : '',
     resave: false,
+    rolling: true,
+    store: MongoStore.create({ mongoUrl: process.env.DB_URL }),
     saveUninitialized: false,
     cookie: {
       secure: true,
       httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 7,
       sameSite: 'none'
     }
   })
 );
 
 app.use(cookieParser());
-
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -221,6 +224,7 @@ app.get('/', (req: Request, res: Response) => {
     message: 'Hello from the BitBadges indexer! See docs.bitbadges.io for documentation.'
   });
 });
+
 // Status
 app.post('/api/v0/status', getStatusHandler);
 
@@ -330,30 +334,29 @@ app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);
 app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
 app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
 
-app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata); // Write route
-app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus); // Write route
-
-app.post('/api/v0/claims/:claimId/:cosmosAddress', checkAndCompleteClaim); // Write route
-app.post('/api/v0/claims', getClaimsHandler);
+app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata);
+app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus);
 app.post('/api/v0/collections/filter', filterBadgesInCollectionHandler);
 
+app.post('/api/v0/claims/:claimId/:cosmosAddress', completeClaim);
+app.post('/api/v0/claims', getClaimsHandler);
+
+app.post('/api/v0/claims/create', authorizeBlockinRequest(['Full Access']), createClaimHandler);
+app.post('/api/v0/claims/update', authorizeBlockinRequest(['Full Access']), updateClaimHandler);
+app.post('/api/v0/claims/delete', authorizeBlockinRequest(['Full Access']), deleteClaimHandler);
+
 //Reviews
-app.post('/api/v0/reviews/add', authorizeBlockinRequest(['Reviews']), addReview); // Write route
-app.post('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview); // Write route
-app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview); // Write route
+app.post('/api/v0/reviews/add', authorizeBlockinRequest(['Reviews']), addReview);
+app.post('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview);
+app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview);
 
 // User
 app.post('/api/v0/user/batch', getAccounts);
-app.post('/api/v0/user/updateAccount', authorizeBlockinRequest(['Profile']), upload.single('profilePicImageFile'), updateAccountInfo); // Write route
+app.post('/api/v0/user/updateAccount', authorizeBlockinRequest(['Profile']), upload.single('profilePicImageFile'), updateAccountInfo);
 
 // IPFS
-app.post(
-  '/api/v0/addMetadataToIpfs',
-  websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
-  express.json({ limit: '100mb' }),
-  addMetadataToIpfsHandler
-); //
+app.post('/api/v0/addToIpfs', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), express.json({ limit: '100mb' }), addToIpfsHandler);
+
 app.post(
   '/api/v0/addApprovalDetailsToOffChainStorage',
   websiteOnlyCors,
@@ -398,8 +401,9 @@ app.post('/api/v0/addressLists/delete', authorizeBlockinRequest(['Delete Address
 
 // Blockin Auth Codes
 app.post('/api/v0/authCode', getAuthCode);
-app.post('/api/v0/authCode/create', authorizeBlockinRequest(['Create Auth Codes']), createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
+app.post('/api/v0/authCode/create', createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
 app.post('/api/v0/authCode/delete', authorizeBlockinRequest(['Delete Auth Codes']), deleteAuthCode);
+app.post('/api/v0/authCodesForAuthApp', authorizeBlockinRequest(['Full Access']), getAuthCodesForAuthApp);
 
 // Claim Alerts
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);
@@ -428,7 +432,11 @@ app.post('/api/v0/authApp/create', websiteOnlyCors, authorizeBlockinRequest(['Fu
 app.post('/api/v0/authApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteAuthApp);
 app.post('/api/v0/authApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateAuthApp);
 
-app.post('/api/v0/externalCallKey', externalApiCallKeyCheckHandler);
+// Auth Apps
+app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), getPlugins);
+app.post('/api/v0/plugins/create', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createPlugin);
+// app.post('/api/v0/authApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteAuthApp);
+// app.post('/api/v0/authApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateAuthApp);
 
 app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
@@ -462,6 +470,34 @@ app.post(
         tier: 'standard'
       });
       return res.status(200).send({ key: newKey });
+    } catch (e) {
+      return res.status(500).send({
+        error: serializeError(e),
+        errorMessage: e.message
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/v0/apiKeys/delete',
+  websiteOnlyCors,
+  authorizeBlockinRequest(['Full Access']),
+  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+    try {
+      const cosmosAddress = req.session.cosmosAddress;
+      const keyToDelete = req.body.key;
+      const doc = await mustGetFromDB(ApiKeyModel, keyToDelete);
+      if (doc.cosmosAddress !== cosmosAddress) {
+        return res.status(401).send({
+          error: 'Unauthorized',
+          errorMessage: 'You are not authorized to delete this key.'
+        });
+      }
+
+      await deleteMany(ApiKeyModel, [keyToDelete]);
+
+      return res.status(200).send({ message: 'Successfully deleted key' });
     } catch (e) {
       return res.status(500).send({
         error: serializeError(e),

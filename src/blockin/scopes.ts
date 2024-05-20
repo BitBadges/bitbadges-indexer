@@ -27,7 +27,8 @@ const SupportedScopes = [
   'Delete Secrets: Delete secrets on behalf of the user.',
   'Update Secrets: Update secrets on behalf of the user.',
 
-  'Read Private Claim Data: Read private claim data on behalf of the user (e.g. codes, passwords, private user lists, etc.).'
+  'Read Private Claim Data: Read private claim data on behalf of the user (e.g. codes, passwords, private user lists, etc.).',
+  'Complete Claims: Complete claims on behalf of the user.'
 ];
 
 function checkScope(scope: string, resources: string[]): boolean {

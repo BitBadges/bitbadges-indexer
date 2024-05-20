@@ -1,8 +1,8 @@
 import {
   BitBadgesApiRoutes,
-  type UpdateAccountInfoRouteRequestBody,
+  type UpdateAccountInfoBody,
   convertToCosmosAddress,
-  GetAccountsRouteRequestBody,
+  GetAccountsBody,
   AccountViewKey,
   BitBadgesUserInfo,
   NotificationPreferences,
@@ -42,7 +42,7 @@ describe('users', () => {
   it('should create user profile in storage', async () => {
     const route = BitBadgesApiRoutes.UpdateAccountInfoRoute();
     const randomUsername = Math.random().toString(36).substring(7);
-    const body: UpdateAccountInfoRouteRequestBody = {
+    const body: UpdateAccountInfoBody = {
       discord: 'test',
       twitter: 'test',
       github: 'test',
@@ -86,7 +86,7 @@ describe('users', () => {
 
   it('should unset if empty strings are sent', async () => {
     const route = BitBadgesApiRoutes.UpdateAccountInfoRoute();
-    const body: UpdateAccountInfoRouteRequestBody = {
+    const body: UpdateAccountInfoBody = {
       discord: '',
       twitter: '',
       github: '',
@@ -123,7 +123,7 @@ describe('users', () => {
     // set to truthy
     const randomUsername = Math.random().toString(36).substring(7);
     const route = BitBadgesApiRoutes.UpdateAccountInfoRoute();
-    const body: UpdateAccountInfoRouteRequestBody = {
+    const body: UpdateAccountInfoBody = {
       discord: 'test',
       twitter: 'test',
       github: 'test',
@@ -176,7 +176,7 @@ describe('users', () => {
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
     const problemViews: AccountViewKey[] = ['authCodes', 'privateLists', 'receivedSecrets', 'createdSecrets'];
     for (const view of problemViews) {
-      const getBody: GetAccountsRouteRequestBody = {
+      const getBody: GetAccountsBody = {
         accountsToFetch: [
           {
             address: convertToCosmosAddress(address),
@@ -204,7 +204,7 @@ describe('users', () => {
 
   it('should not return private profile details if unauthenticated', async () => {
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
-    const getBody: GetAccountsRouteRequestBody = {
+    const getBody: GetAccountsBody = {
       accountsToFetch: [
         {
           address: convertToCosmosAddress(address)

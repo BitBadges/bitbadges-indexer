@@ -18,6 +18,7 @@ import {
   MapDoc,
   MerkleChallengeDoc,
   NumberifyIfPossible,
+  PluginDoc,
   ProfileDoc,
   QueueDoc,
   RefreshDoc,
@@ -26,6 +27,7 @@ import {
   StatusDoc,
   TransferActivityDoc,
   iAuthAppDoc,
+  iPluginDoc,
   type ErrorDoc,
   type JSPrimitiveNumberType,
   type NumberType,
@@ -85,7 +87,6 @@ import {
   DigitalOceanBalancesModel,
   ErrorModel,
   EthTxCountModel,
-  ExternalCallKeysModel,
   FetchModel,
   FollowDetailsModel,
   IPFSTotalsModel,
@@ -95,6 +96,7 @@ import {
   OffChainSecretsModel,
   OffChainUrlModel,
   PageVisitsModel,
+  PluginModel,
   ProfileModel,
   QueueModel,
   RefreshModel,
@@ -103,7 +105,6 @@ import {
   StatusModel,
   TransferActivityModel,
   type BitBadgesDoc,
-  type KeysDoc,
   type TypedDocFromModel,
   type TypedInterfaceFromModel
 } from './schemas';
@@ -354,8 +355,6 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new ListActivityDoc(doc as iListActivityDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === PageVisitsModel.modelName) {
       convertedDoc = new PageVisitsDoc(doc as iPageVisitsDoc<NumberType>).convert(convertFunction);
-    } else if (model.modelName === ExternalCallKeysModel.modelName) {
-      convertedDoc = doc as KeysDoc;
     } else if (model.modelName === OffChainSecretsModel.modelName) {
       convertedDoc = new SecretDoc(doc as iSecretDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === MapModel.modelName) {
@@ -364,6 +363,8 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new DigitalOceanBalancesDoc(doc as iDigitalOceanBalancesDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === AuthAppModel.modelName) {
       convertedDoc = new AuthAppDoc(doc as iAuthAppDoc).convert(convertFunction);
+    } else if (model.modelName === PluginModel.modelName) {
+      convertedDoc = new PluginDoc(doc as iPluginDoc).convert(convertFunction);
     }
 
     if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);

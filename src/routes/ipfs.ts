@@ -1,35 +1,40 @@
 import {
   CollectionApprovalWithDetails,
   deepCopyPrimitives,
+  iBadgeMetadataDetails,
+  iChallengeDetails,
+  iChallengeTrackerIdDetails,
   iClaimBuilderDoc,
   iClaimDetails,
+  iCollectionMetadataDetails,
+  iMetadata,
   iPredeterminedBalances,
   validateCollectionApprovalsUpdate,
-  type AddApprovalDetailsToOffChainStorageRouteRequestBody,
-  type AddBalancesToOffChainStorageRouteRequestBody,
-  type AddMetadataToIpfsRouteRequestBody,
+  type AddApprovalDetailsToOffChainStorageBody,
+  type AddBalancesToOffChainStorageBody,
+  type AddToIpfsBody,
   type ClaimIntegrationPluginType,
   type ErrorResponse,
   type IntegrationPluginParams,
   type NumberType,
-  type iAddApprovalDetailsToOffChainStorageRouteSuccessResponse,
-  type iAddBalancesToOffChainStorageRouteSuccessResponse,
-  type iAddMetadataToIpfsRouteSuccessResponse,
-  iChallengeTrackerIdDetails
+  type iAddApprovalDetailsToOffChainStorageSuccessResponse,
+  type iAddBalancesToOffChainStorageSuccessResponse,
+  type iAddToIpfsSuccessResponse
 } from 'bitbadgesjs-sdk';
+import crypto from 'crypto';
 import { Request, type Response } from 'express';
+import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
 import { checkIfManager, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { ClaimBuilderModel, CollectionModel, IPFSTotalsModel } from '../db/schemas';
-import { encryptPlugins, getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { AddressListModel, ClaimBuilderModel, CollectionModel, IPFSTotalsModel, OffChainUrlModel } from '../db/schemas';
+import { encryptPlugins, getFirstMatchForPluginType, getPlugin } from '../integrations/types';
 import { addApprovalDetailsToOffChainStorage, addBalancesToOffChainStorage, addMetadataToIpfs } from '../ipfs/ipfs';
 import { cleanBalanceMap } from '../utils/dataCleaners';
-import { Plugins } from './claims';
+import { Plugins, createOffChainClaimContextFunction, createOnChainClaimContextFunction } from './claims';
 import { executeCollectionsQuery, getDecryptedPluginsAndPublicState } from './collections';
 import { refreshCollection } from './refresh';
-import mongoose from 'mongoose';
 
 const IPFS_UPLOAD_BYTES_LIMIT = 1000000000; // 1GB
 
@@ -55,14 +60,15 @@ export const updateIpfsTotals = async (address: string, size: number, doNotInser
 
 export const assertPluginsUpdateIsValid = (
   oldPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
-  newPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>
+  newPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
+  isNonIndexed?: boolean
 ) => {
   // cant change assignmethods
 
-  const oldNumUses = getPluginParamsAndState('numUses', oldPlugins);
-  const newNumUses = getPluginParamsAndState('numUses', newPlugins);
+  const oldNumUses = getFirstMatchForPluginType('numUses', oldPlugins);
+  const newNumUses = getFirstMatchForPluginType('numUses', newPlugins);
 
-  if (!oldNumUses || !newNumUses) {
+  if (!newNumUses && !isNonIndexed) {
     throw new Error('numUses plugin is required');
   }
 
@@ -72,17 +78,45 @@ export const assertPluginsUpdateIsValid = (
   if (oldNumUses && newNumUses && oldNumUses.publicParams.assignMethod !== newNumUses.publicParams.assignMethod) {
     throw new Error('Cannot change assignMethod');
   }
+
+  //Assert no duplicate IDs
+  for (const plugin of newPlugins) {
+    if (newPlugins.filter((x) => x.id === plugin.id).length > 1) {
+      throw new Error('Duplicate plugin IDs are not allowed');
+    }
+  }
+
+  //Assert plugin IDs are alphanumeric
+  for (const plugin of newPlugins) {
+    if (!/^[a-zA-Z0-9]*$/.test(plugin.id)) {
+      throw new Error('Plugin IDs must be alphanumeric');
+    }
+  }
+
+  for (const plugin of Object.entries(Plugins)) {
+    let duplicatesAllowed = plugin[1].metadata.duplicatesAllowed;
+    if (newNumUses?.publicParams.assignMethod === 'codeIdx' && plugin[0] === 'codes') {
+      duplicatesAllowed = false;
+    }
+
+    if (duplicatesAllowed) continue;
+
+    if (newPlugins.filter((x) => x.type === plugin[0]).length > 1) {
+      throw new Error('Duplicate plugins are not allowed for type: ' + plugin[0]);
+    }
+  }
 };
 
 export enum ClaimType {
   OnChain = 'On-Chain',
-  OffChain = 'Off-Chain',
+  OffChainNonIndexed = 'Off-Chain - Non-Indexed',
+  OffChainIndexed = 'Off-Chain - Indexed',
   AddressList = 'Address List'
 }
 
 const constructQuery = (claimType: ClaimType, oldClaimQuery: Record<string, any>) => {
   const query: Record<string, any> = {};
-  if (claimType === ClaimType.OffChain) {
+  if (claimType === ClaimType.OffChainIndexed || claimType === ClaimType.OffChainNonIndexed) {
     query.collectionId = oldClaimQuery.collectionId ?? -10000;
   }
 
@@ -93,24 +127,29 @@ const constructQuery = (claimType: ClaimType, oldClaimQuery: Record<string, any>
   return query;
 };
 
+export interface ContextReturn {
+  action: {
+    codes?: string[];
+    seedCode?: string;
+    balancesToSet?: iPredeterminedBalances<NumberType>;
+    listId?: string;
+  };
+  metadata?: iMetadata<NumberType>;
+  automatic?: boolean;
+  createdBy: string;
+  collectionId: NumberType;
+  docClaimed: boolean;
+  cid: string;
+  manualDistribution?: boolean;
+  trackerDetails?: iChallengeTrackerIdDetails<NumberType>;
+}
+
 export const updateClaimDocs = async (
   req: AuthenticatedRequest<NumberType>,
   claimType: ClaimType,
   oldClaimQuery: Record<string, any>,
   newClaims: Array<iClaimDetails<NumberType>>,
-  context: (claim: iClaimDetails<NumberType>) => {
-    action: {
-      codes?: string[];
-      seedCode?: string;
-      balancesToSet?: iPredeterminedBalances<NumberType>;
-      listId?: string;
-    };
-    createdBy: string;
-    collectionId: NumberType;
-    docClaimed: boolean;
-    cid: string;
-    trackerDetails?: iChallengeTrackerIdDetails<NumberType>;
-  },
+  context: (claim: iClaimDetails<NumberType>) => ContextReturn,
   session?: mongoose.ClientSession
 ) => {
   const queryBuilder = constructQuery(claimType, oldClaimQuery);
@@ -125,24 +164,53 @@ export const updateClaimDocs = async (
     const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1, session });
     const existingDoc = existingDocRes.length > 0 ? existingDocRes[0] : undefined;
     const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
-    const encryptedPlugins = encryptPlugins(claim.plugins ?? []);
+    const encryptedPlugins = await encryptPlugins(claim.plugins ?? []);
 
     const state: Record<string, any> = {};
     for (const plugin of pluginsWithOptions ?? []) {
-      state[plugin.id] = Plugins[plugin.id].defaultState;
-      if (existingDoc && !plugin.resetState) {
-        state[plugin.id] = existingDoc.state[plugin.id];
+      const pluginObj = await getPlugin(plugin.type);
+      state[plugin.id] = existingDoc?.state[plugin.id] ?? pluginObj.defaultState;
+      if (plugin.resetState) {
+        state[plugin.id] = pluginObj.defaultState;
+      } else if (plugin.newState) {
+        state[plugin.id] = plugin.newState;
       }
 
-      if (claimType == ClaimType.OnChain && plugin.id === 'numUses' && existingDoc && plugin.resetState) {
+      if (plugin.resetState && plugin.newState) {
+        throw new Error('Cannot set both resetState and newState');
+      }
+
+      if (claimType == ClaimType.OnChain && plugin.type === 'numUses' && existingDoc && plugin.resetState) {
         throw new Error('numUses plugin is not allowed to be reset for approval claims');
+      }
+    }
+
+    const isNonIndexed = claimType === ClaimType.OffChainNonIndexed;
+    assertPluginsUpdateIsValid(existingDoc?.plugins ?? [], claim.plugins ?? [], isNonIndexed);
+
+    if (claimType == ClaimType.AddressList) {
+      const listDoc = await mustGetFromDB(AddressListModel, context(claim).action.listId ?? '');
+      if (!listDoc || !listDoc.listId) {
+        throw new Error('Invalid list ID');
+      }
+
+      const isCreator = listDoc.createdBy === req.session.cosmosAddress;
+      if (!isCreator) {
+        throw new Error("Permission error: You don't have permission to update this claim");
+      }
+    } else {
+      const collectionId = Number(context(claim).collectionId);
+      if (collectionId > 0) {
+        const isManager = await checkIfManager(req, collectionId);
+        if (!isManager) {
+          throw new Error("Permission error: You don't have permission to update this claim");
+        }
       }
     }
 
     // If we have the existing doc, we simply need to update the plugins and keep the state.
     // Else, we need to create a new doc with the plugins and the default state.
     if (existingDoc) {
-      console.log(existingDoc);
       const decryptedExistingPlugins = await getDecryptedPluginsAndPublicState(
         req,
         existingDoc.plugins,
@@ -219,11 +287,12 @@ export const updateClaimDocs = async (
         }
       }
 
-      assertPluginsUpdateIsValid(existingDoc.plugins, claim.plugins ?? []);
-
       claimDocsToSet.push({
         ...existingDoc, //Keep all other context
-        action: context(claim).action, //Action is the only thing that can potentially change
+        manualDistribution: context(claim).manualDistribution,
+        automatic: context(claim).automatic,
+        action: context(claim).action,
+        metadata: context(claim).metadata,
         state,
         plugins: encryptedPlugins ?? [],
         deletedAt: undefined
@@ -252,6 +321,10 @@ export const deleteOldClaims = async (
 ) => {
   const query = constructQuery(claimType, oldClaimQuery);
 
+  if (claimType === ClaimType.OnChain) {
+    throw new Error('On-chain claims cannot be deleted. They are tied to storage on the blockchain.');
+  }
+
   const docsToDelete = await findInDB(ClaimBuilderModel, {
     query: {
       deletedAt: { $exists: false },
@@ -277,11 +350,12 @@ export const deleteOldClaims = async (
 
 export const addBalancesToOffChainStorageHandler = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iAddBalancesToOffChainStorageRouteSuccessResponse | ErrorResponse>
+  res: Response<iAddBalancesToOffChainStorageSuccessResponse | ErrorResponse>
 ) => {
-  const reqBody = req.body as AddBalancesToOffChainStorageRouteRequestBody;
+  const reqBody = req.body as AddBalancesToOffChainStorageBody;
 
   try {
+    const customData = crypto.randomBytes(32).toString('hex');
     if (BigInt(reqBody.collectionId) > 0) {
       const managerCheck = await checkIfManager(req, reqBody.collectionId);
       if (!managerCheck) throw new Error('You are not the manager of this collection');
@@ -290,20 +364,26 @@ export const addBalancesToOffChainStorageHandler = async (
       if (collectionDoc.balancesType !== 'Off-Chain - Indexed' && collectionDoc.balancesType !== 'Off-Chain - Non-Indexed') {
         throw new Error('This collection is not an off-chain collection');
       }
+    } else {
+      await insertToDB(OffChainUrlModel, {
+        _docId: customData,
+        createdBy: req.session.cosmosAddress,
+        collectionId: Number(0)
+      });
     }
 
+    let urlPath: string | undefined = customData;
     let result;
     let size = 0;
     if (reqBody.balances) {
       // get size of req.body in KB
       size = Buffer.byteLength(JSON.stringify(req.body));
 
-      let urlPath;
       if (BigInt(reqBody.collectionId) > 0) {
         // Get existing urlPath
         const collectionDoc = await mustGetFromDB(CollectionModel, reqBody.collectionId.toString());
         if (collectionDoc.offChainBalancesMetadataTimeline.length > 0) {
-          urlPath = collectionDoc.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.split('/').pop();
+          urlPath = collectionDoc.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.split('/').pop() ?? '';
         }
       } else {
         //Little hacky but this ensures the DigitalOceanBalance docs work correctly
@@ -330,34 +410,20 @@ export const addBalancesToOffChainStorageHandler = async (
         throw new Error('You must upload the balances to IPFS before adding plugins');
       }
 
-      let cid = result?.uri?.split('/').pop() ?? '';
-      if (!result) {
-        const collection = await mustGetFromDB(CollectionModel, reqBody.collectionId.toString());
-        const customData = collection.offChainBalancesMetadataTimeline[0]?.offChainBalancesMetadata.customData;
-        cid = customData;
-      }
-      if (!cid) {
-        throw new Error('No CID found');
-      }
-
+      const cid = urlPath ?? '';
       const claimQuery = { collectionId: Number(reqBody.collectionId) };
-      await updateClaimDocs(req, ClaimType.OffChain, claimQuery, reqBody.claims ?? [], (claim) => {
-        return {
-          action: { balancesToSet: claim.balancesToSet },
-          createdBy: req.session.cosmosAddress,
-          collectionId: reqBody.collectionId.toString(),
-          docClaimed: BigInt(reqBody.collectionId) > 0,
-          trackerDetails: {
-            approvalId: '',
-            approvalLevel: 'collection',
-            approverAddress: '',
-            collectionId: reqBody.collectionId.toString(),
-            challengeTrackerId: cid
-          },
-          cid: cid.toString()
-        };
-      });
-      await deleteOldClaims(ClaimType.OffChain, claimQuery, reqBody.claims ?? []);
+      const isNonIndexed = reqBody.isNonIndexed;
+
+      await updateClaimDocs(
+        req,
+        isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed,
+        claimQuery,
+        reqBody.claims ?? [],
+        (claim) => {
+          return createOffChainClaimContextFunction(req, claim, Number(reqBody.collectionId), cid);
+        }
+      );
+      await deleteOldClaims(isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, reqBody.claims ?? []);
     }
 
     if (!result || !result.uri) {
@@ -369,57 +435,75 @@ export const addBalancesToOffChainStorageHandler = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding balances to storage.'
+      errorMessage: e.message || 'Error adding balances to storage.'
     });
   }
 };
 
-export const addMetadataToIpfsHandler = async (
-  req: AuthenticatedRequest<NumberType>,
-  res: Response<iAddMetadataToIpfsRouteSuccessResponse | ErrorResponse>
-) => {
-  const reqBody = req.body as AddMetadataToIpfsRouteRequestBody;
+export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddToIpfsSuccessResponse | ErrorResponse>) => {
+  const reqBody = req.body as AddToIpfsBody;
 
   try {
-    if (!reqBody.metadata) {
+    if (!reqBody.contents) {
       throw new Error('No metadata provided');
     }
 
-    if (reqBody.metadata.length === 0) {
+    if (reqBody.contents.length === 0) {
       return res.status(200).send({ results: [] });
     }
 
     const size = Buffer.byteLength(JSON.stringify(req.body));
     await checkIpfsTotals(req.session.cosmosAddress, size);
 
-    const { results } = await addMetadataToIpfs(reqBody.metadata);
-    if (results.length === 0) {
-      throw new Error('No result received');
+    const metadataToAdd: (iBadgeMetadataDetails<NumberType> | iMetadata<NumberType> | iCollectionMetadataDetails<NumberType>)[] = [];
+    const challengeDetailsToAdd: iChallengeDetails<NumberType>[] = [];
+    const isMetadata: boolean[] = [];
+    for (const content of reqBody.contents) {
+      if ((content as any).leaves) {
+        challengeDetailsToAdd.push(content as iChallengeDetails<NumberType>);
+        isMetadata.push(false);
+      } else {
+        metadataToAdd.push(content as iBadgeMetadataDetails<NumberType> | iMetadata<NumberType> | iCollectionMetadataDetails<NumberType>);
+        isMetadata.push(true);
+      }
+    }
+
+    const results = await addMetadataToIpfs(metadataToAdd);
+    const challengeResults = await addApprovalDetailsToOffChainStorage(challengeDetailsToAdd);
+
+    //Put them back in order
+    const finalResults = [];
+    for (let i = 0; i < isMetadata.length; i++) {
+      if (isMetadata[i]) {
+        finalResults.push(results.shift() ?? { cid: '' });
+      } else {
+        finalResults.push({ cid: challengeResults?.shift() ?? '' });
+      }
     }
 
     await updateIpfsTotals(req.session.cosmosAddress, size);
 
-    return res.status(200).send({ results });
+    return res.status(200).send({ results: finalResults });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding metadata.'
+      errorMessage: e.message || 'Error adding metadata.'
     });
   }
 };
 
 export const addApprovalDetailsToOffChainStorageHandler = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iAddApprovalDetailsToOffChainStorageRouteSuccessResponse | ErrorResponse>
+  res: Response<iAddApprovalDetailsToOffChainStorageSuccessResponse | ErrorResponse>
 ) => {
-  const _reqBody = req.body as AddApprovalDetailsToOffChainStorageRouteRequestBody;
+  const _reqBody = req.body as AddApprovalDetailsToOffChainStorageBody;
 
   try {
     const size = Buffer.byteLength(JSON.stringify(req.body));
     await checkIpfsTotals(req.session.cosmosAddress, size);
 
-    const results: iAddApprovalDetailsToOffChainStorageRouteSuccessResponse = {
+    const results: iAddApprovalDetailsToOffChainStorageSuccessResponse = {
       approvalResults: []
     };
 
@@ -434,40 +518,24 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
 
         if (claims) {
           await updateClaimDocs(req, ClaimType.OnChain, {}, claims ?? [], (claim) => {
-            const encryptedAction = getPlugin('codes').encryptPrivateParams({
-              codes: challengeDetails?.preimages ?? [],
-              seedCode: challengeDetails?.seedCode ?? ''
-            });
-            const hasSeedCode = challengeDetails?.seedCode;
+            if (!challengeDetails?.seedCode) {
+              throw new Error('Seed code is required for on-chain claims');
+            }
 
-            return {
-              createdBy: req.session.cosmosAddress,
-              collectionId: '-1',
-              docClaimed: false,
-              manualDistribution: claim.manualDistribution,
-              cid: claim.claimId, // challenge tracker ID
-              action: {
-                seedCode: hasSeedCode ? encryptedAction.seedCode : undefined,
-                codes: hasSeedCode ? undefined : encryptedAction.codes
-              }
-            };
+            return createOnChainClaimContextFunction(req, claim, challengeDetails?.seedCode ?? '');
           });
 
           // Deleted docs are handled in the poller
         }
       }
 
-      const ipfsRes = await addApprovalDetailsToOffChainStorage(
-        reqBody.name,
-        reqBody.description,
-        challengeDetailsArr?.map((x) => x.challengeDetails)
-      );
+      const metadataResults = await addMetadataToIpfs([{ name: reqBody.name, description: reqBody.description, image: '' }]);
+      const metadataResult = metadataResults[0];
 
-      const result = ipfsRes?.[0];
-      const challengeResults = ipfsRes?.[1];
+      const challengeResults = await addApprovalDetailsToOffChainStorage(challengeDetailsArr?.map((x) => x.challengeDetails) ?? []);
 
       results.approvalResults.push({
-        metadataResult: { cid: result ?? '' },
+        metadataResult,
         challengeResults: challengeResults?.map((x) => {
           return { cid: x ?? '' };
         })
@@ -481,7 +549,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding approval details: ' + e.message
+      errorMessage: e.message || 'Error adding approval details: ' + e.message
     });
   }
 };

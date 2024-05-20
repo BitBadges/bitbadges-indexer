@@ -1,54 +1,28 @@
 import {
-  type CreateAuthAppRouteRequestBody,
-  type DeleteAuthAppRouteRequestBody,
+  type CreateAuthAppBody,
+  type DeleteAuthAppBody,
   type ErrorResponse,
   type NumberType,
-  type UpdateAuthAppRouteRequestBody,
-  type iCreateAuthAppRouteSuccessResponse,
-  type iDeleteAuthAppRouteSuccessResponse,
-  type iGetAuthAppRouteSuccessResponse,
-  type iUpdateAuthAppRouteSuccessResponse
+  type UpdateAuthAppBody,
+  type iCreateAuthAppSuccessResponse,
+  type iDeleteAuthAppSuccessResponse,
+  type iGetAuthAppSuccessResponse,
+  type iUpdateAuthAppSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { findInDB } from '../db/queries';
 import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
 import { AuthAppModel } from '../db/schemas';
-import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 
-const getImage = async (image: string) => {
-  if (image.startsWith('data:')) {
-    const { results } = await addMetadataToIpfs([
-      {
-        name: '',
-        description: '',
-        image: image
-      }
-    ]);
-    if (!results?.[0]) {
-      throw new Error('Error adding metadata to IPFS');
-    }
-
-    const result = results[0];
-    const res = await getFromIpfs(result.cid);
-    const metadata = JSON.parse(res.file.toString());
-
-    image = metadata.image;
-  }
-
-  return image;
-};
-
-export const createAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateAuthAppRouteSuccessResponse | ErrorResponse>) => {
+export const createAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateAuthAppSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as CreateAuthAppRouteRequestBody;
+    const reqBody = req.body as CreateAuthAppBody;
 
     const uniqueClientId = crypto.randomBytes(32).toString('hex');
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
-
-    const image = await getImage(reqBody.image);
 
     await insertToDB(AuthAppModel, {
       createdBy: req.session.cosmosAddress,
@@ -56,8 +30,6 @@ export const createAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
       clientId: uniqueClientId,
       clientSecret: uniqueClientSecret,
       name: reqBody.name,
-      image,
-      description: reqBody.description,
       redirectUris: reqBody.redirectUris
     });
 
@@ -66,12 +38,12 @@ export const createAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error creating QR auth code.'
+      errorMessage: e.message || 'Error creating auth app.'
     });
   }
 };
 
-export const getAuthApps = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetAuthAppRouteSuccessResponse | ErrorResponse>) => {
+export const getAuthApps = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetAuthAppSuccessResponse | ErrorResponse>) => {
   try {
     const docs = await findInDB(AuthAppModel, {
       query: {
@@ -84,14 +56,14 @@ export const getAuthApps = async (req: AuthenticatedRequest<NumberType>, res: Re
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting auth QR code.'
+      errorMessage: e.message || 'Error getting auth app.'
     });
   }
 };
 
-export const deleteAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteAuthAppRouteSuccessResponse | ErrorResponse>) => {
+export const deleteAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteAuthAppSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as DeleteAuthAppRouteRequestBody;
+    const reqBody = req.body as DeleteAuthAppBody;
 
     const doc = await mustGetFromDB(AuthAppModel, reqBody.clientId);
     if (doc.createdBy !== req.session.cosmosAddress) {
@@ -105,14 +77,14 @@ export const deleteAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting QR auth code.'
+      errorMessage: e.message || 'Error deleting auth app.'
     });
   }
 };
 
-export const updateAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAuthAppRouteSuccessResponse | ErrorResponse>) => {
+export const updateAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAuthAppSuccessResponse | ErrorResponse>) => {
   try {
-    const { name, description, image, redirectUris, clientId } = req.body as UpdateAuthAppRouteRequestBody;
+    const { name, redirectUris, clientId } = req.body as UpdateAuthAppBody;
 
     const doc = await mustGetFromDB(AuthAppModel, clientId);
     if (doc.createdBy !== req.session.cosmosAddress) {
@@ -121,14 +93,6 @@ export const updateAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
 
     if (name !== undefined) {
       doc.name = name;
-    }
-
-    if (description !== undefined) {
-      doc.description = description;
-    }
-
-    if (image !== undefined) {
-      doc.image = await getImage(image);
     }
 
     if (redirectUris !== undefined) {
@@ -142,7 +106,7 @@ export const updateAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error updating QR auth code.'
+      errorMessage: e.message || 'Error updating auth app.'
     });
   }
 };

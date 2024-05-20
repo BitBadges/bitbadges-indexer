@@ -1,4 +1,4 @@
-import { BitBadgesApiRoutes, BitBadgesCollection, GetCollectionsRouteRequestBody, convertToCosmosAddress } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, BitBadgesCollection, GetCollectionsBody, convertToCosmosAddress } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
@@ -31,7 +31,7 @@ describe('collections', () => {
 
   it('should get collection', async () => {
     const route = BitBadgesApiRoutes.GetCollectionsRoute();
-    const body: GetCollectionsRouteRequestBody = {
+    const body: GetCollectionsBody = {
       collectionsToFetch: [
         {
           collectionId: 1
@@ -50,7 +50,7 @@ describe('collections', () => {
 
   it('should get badge metadata - badgeIds', async () => {
     const route = BitBadgesApiRoutes.GetCollectionsRoute();
-    const body: GetCollectionsRouteRequestBody = {
+    const body: GetCollectionsBody = {
       collectionsToFetch: [
         {
           collectionId: 1,
@@ -79,7 +79,7 @@ describe('collections', () => {
 
   // it('should get metadata from metadata IDs', async () => {
   //   const route = BitBadgesApiRoutes.GetCollectionsRoute();
-  //   const body: GetCollectionsRouteRequestBody = {
+  //   const body: GetCollectionsBody = {
   //     collectionsToFetch: [
   //       {
   //         collectionId: 1,
@@ -106,7 +106,7 @@ describe('collections', () => {
 
   it('should get total and mint balances', async () => {
     const route = BitBadgesApiRoutes.GetCollectionsRoute();
-    const body: GetCollectionsRouteRequestBody = {
+    const body: GetCollectionsBody = {
       collectionsToFetch: [
         {
           collectionId: 1,
@@ -130,7 +130,7 @@ describe('collections', () => {
 
   it('should get views', async () => {
     const route = BitBadgesApiRoutes.GetCollectionsRoute();
-    const body: GetCollectionsRouteRequestBody = {
+    const body: GetCollectionsBody = {
       collectionsToFetch: [
         {
           collectionId: 8,
@@ -158,7 +158,7 @@ describe('collections', () => {
     expect(collection.getActivityView('transferActivity')?.length).toBeGreaterThan(0);
 
     const bookmark = res.body.collections[0].views.transferActivity.pagination.bookmark;
-    const body2: GetCollectionsRouteRequestBody = {
+    const body2: GetCollectionsBody = {
       collectionsToFetch: [
         {
           collectionId: 8,
@@ -189,7 +189,7 @@ describe('collections', () => {
 
   it('should get owners view', async () => {
     const route = BitBadgesApiRoutes.GetCollectionsRoute();
-    const body: GetCollectionsRouteRequestBody = {
+    const body: GetCollectionsBody = {
       collectionsToFetch: [
         {
           collectionId: 8,
@@ -217,7 +217,7 @@ describe('collections', () => {
     expect(collection.getActivityView('owners')?.length).toBeGreaterThan(0);
 
     const bookmark = res.body.collections[0].views.owners.pagination.bookmark;
-    const body2: GetCollectionsRouteRequestBody = {
+    const body2: GetCollectionsBody = {
       collectionsToFetch: [
         {
           collectionId: 8,

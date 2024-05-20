@@ -21,18 +21,18 @@ import {
   type BlockinAuthSignatureDoc,
   type ClaimAlertDoc,
   type ErrorResponse,
-  type GetAccountsRouteRequestBody,
+  type GetAccountsBody,
   type ListActivityDoc,
   type NumberType,
   type PaginationInfo,
   type ReviewDoc,
   type SecretDoc,
   type TransferActivityDoc,
-  type UpdateAccountInfoRouteRequestBody,
+  type UpdateAccountInfoBody,
   type iAccountDoc,
-  type iGetAccountsRouteSuccessResponse,
+  type iGetAccountsSuccessResponse,
   type iProfileDoc,
-  type iUpdateAccountInfoRouteSuccessResponse,
+  type iUpdateAccountInfoSuccessResponse,
   iChallengeDetails
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
@@ -253,9 +253,9 @@ export const getAccountByUsername = async (req: Request, username: string, fetch
 
 // Get by address, cosmosAddress, accountNumber, or username
 // ENS names are not supported. Convert to address first
-export const getAccounts = async (req: Request, res: Response<iGetAccountsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getAccounts = async (req: Request, res: Response<iGetAccountsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetAccountsRouteRequestBody;
+    const reqBody = req.body as GetAccountsBody;
     const allDoNotHaveExternalCalls = reqBody.accountsToFetch.every((x) => x.noExternalCalls);
     if (!allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 250) {
       return res.status(400).send({
@@ -341,7 +341,7 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsRouteS
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching accounts.'
+      errorMessage: 'Error fetching accounts. ' + e.message
     });
   }
 };
@@ -762,12 +762,9 @@ const getAdditionalUserInfo = async (
   return responseObj;
 };
 
-export const updateAccountInfo = async (
-  req: AuthenticatedRequest<NumberType>,
-  res: Response<iUpdateAccountInfoRouteSuccessResponse | ErrorResponse>
-) => {
+export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAccountInfoSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as UpdateAccountInfoRouteRequestBody;
+    const reqBody = req.body as UpdateAccountInfoBody;
 
     const cosmosAddress = req.session.cosmosAddress;
     let profileInfo = await getFromDB(ProfileModel, cosmosAddress);
@@ -954,7 +951,7 @@ export const updateAccountInfo = async (
     console.log('Error updating account info', e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error updating account info.'
+      errorMessage: 'Error updating account info. ' + e.message
     });
   }
 };

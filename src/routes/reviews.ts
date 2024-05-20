@@ -1,11 +1,11 @@
 import {
   ReviewDoc,
   isAddressValid,
-  type AddReviewRouteRequestBody,
+  type AddReviewBody,
   type ErrorResponse,
   type NumberType,
-  type iAddReviewRouteSuccessResponse,
-  type iDeleteReviewRouteSuccessResponse
+  type iAddReviewSuccessResponse,
+  type iDeleteReviewSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Response } from 'express';
@@ -15,7 +15,7 @@ import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { ReviewModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 
-export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteReviewRouteSuccessResponse | ErrorResponse>) => {
+export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteReviewSuccessResponse | ErrorResponse>) => {
   try {
     const reviewId = req.params.reviewId;
     const reviewDoc = await mustGetFromDB(ReviewModel, reviewId);
@@ -31,14 +31,14 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting review.'
+      errorMessage: 'Error deleting review. ' + e.message
     });
   }
 };
 
-export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddReviewRouteSuccessResponse | ErrorResponse>) => {
+export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddReviewSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as AddReviewRouteRequestBody;
+    const reqBody = req.body as AddReviewBody;
 
     if (!reqBody.review || reqBody.review.length > 2048) {
       return res.status(400).send({ errorMessage: 'Review must be 1 to 2048 characters long.' });
@@ -95,7 +95,7 @@ export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Resp
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error adding review.'
+      errorMessage: 'Error adding review. ' + e.message
     });
   }
 };

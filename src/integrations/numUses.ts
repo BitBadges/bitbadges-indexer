@@ -1,7 +1,7 @@
 import { type BackendIntegrationPlugin } from './types';
 
 export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
-  id: 'numUses',
+  type: 'numUses',
   defaultState: {
     claimedUsers: {},
     numUses: 0
@@ -12,9 +12,11 @@ export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
     image: 'https://bitbadges.s3.amazonaws.com/one_time_use.png',
     createdBy: 'BitBadges',
     stateless: false,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
+    const pluginId = context.pluginId;
     if (publicParams.maxUses && priorState.numUses >= publicParams.maxUses) {
       return { success: false, error: 'Overall max uses exceeded' };
     }
@@ -39,13 +41,13 @@ export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
         toSet: [
           {
             $set: {
-              'state.numUses.numUses': { $add: ['$state.numUses.numUses', 1] }
+              [`state.${pluginId}.numUses`]: { $add: [`$state.${pluginId}.numUses`, 1] }
             }
           },
           {
             $set: {
-              [`state.numUses.claimedUsers.${cosmosAddress}`]: {
-                $concatArrays: [claimedUsers[cosmosAddress] ?? [], [{ $subtract: ['$state.numUses.numUses', 1] }]]
+              [`state.${pluginId}.claimedUsers.${cosmosAddress}`]: {
+                $concatArrays: [claimedUsers[cosmosAddress] ?? [], [{ $subtract: [`$state.${pluginId}.numUses`, 1] }]]
               }
             }
           }
@@ -57,7 +59,7 @@ export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
         toSet: [
           {
             $set: {
-              'state.numUses.numUses': { $add: ['$state.numUses.numUses', 1] }
+              [`state.${pluginId}.numUses`]: { $add: [`$state.${pluginId}.numUses`, 1] }
             }
           }
         ]

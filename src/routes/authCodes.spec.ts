@@ -2,21 +2,21 @@ import { blsCreateProof, blsSign, generateBls12381G2KeyPair } from '@mattrglobal
 import {
   BitBadgesApiRoutes,
   convertToCosmosAddress,
-  CreateSecretRouteRequestBody,
-  GetSecretRouteRequestBody,
-  UpdateSecretRouteRequestBody,
-  type CreateBlockinAuthCodeRouteRequestBody,
-  type DeleteBlockinAuthCodeRouteRequestBody,
-  type GetBlockinAuthCodeRouteRequestBody
+  CreateSecretBody,
+  GetSecretBody,
+  UpdateSecretBody,
+  type CreateBlockinAuthCodeBody,
+  type DeleteBlockinAuthCodeBody,
+  type GetBlockinAuthCodeBody
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
-import { getFromDB, MongoDB, mustGetFromDB } from '../db/db';
-import { AuthAppModel, OffChainSecretsModel } from '../db/schemas';
+import { getFromDB, insertToDB, MongoDB, mustGetFromDB } from '../db/db';
+import { AuthAppModel, BlockinAuthSignatureModel, OffChainSecretsModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { createExampleReqForAddress } from '../testutil/utils';
-import { verifySecretsProofSignatures } from 'bitbadgesjs-sdk';
+import { verifySecretsPresentationSignatures } from 'bitbadgesjs-sdk';
 import { connectToRpc } from '../poll';
 import { findInDB } from '../db/queries';
 
@@ -77,15 +77,14 @@ describe('get auth codes', () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
     const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeRouteRequestBody = {
-      options: {},
+    const body: CreateBlockinAuthCodeBody = {
       clientId,
       message,
       signature,
       name: 'test',
       image: '',
       description: '',
-      secretsProofs: [
+      secretsPresentations: [
         {
           createdBy: '',
           secretMessages: ['test'],
@@ -127,8 +126,7 @@ describe('get auth codes', () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
     const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeRouteRequestBody = {
-      options: {},
+    const body: CreateBlockinAuthCodeBody = {
       clientId,
       message,
       signature,
@@ -136,6 +134,14 @@ describe('get auth codes', () => {
       image: '',
       description: ''
     };
+
+    const invalidClientIdRes = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({ ...body, clientId: 'invalid' });
+    expect(invalidClientIdRes.status).toBeGreaterThanOrEqual(400);
+
     const res = await request(app)
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -154,7 +160,7 @@ describe('get auth codes', () => {
     expect(invalidSigRes.status).toBe(500);
 
     const getResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getResBody: GetBlockinAuthCodeRouteRequestBody = { code: authCodeId };
+    const getResBody: GetBlockinAuthCodeBody = { code: authCodeId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -178,7 +184,7 @@ describe('get auth codes', () => {
     expect(unauthorizedDeleteRes.status).toBe(401);
 
     const deleteResRoute = BitBadgesApiRoutes.DeleteAuthCodeRoute();
-    const deleteResBody: DeleteBlockinAuthCodeRouteRequestBody = { code: authCodeId };
+    const deleteResBody: DeleteBlockinAuthCodeBody = { code: authCodeId };
     const deleteRes = await request(app)
       .post(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -191,8 +197,7 @@ describe('get auth codes', () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
     const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeRouteRequestBody = {
-      options: {},
+    const body: CreateBlockinAuthCodeBody = {
       clientId,
       message,
       signature,
@@ -210,7 +215,7 @@ describe('get auth codes', () => {
     const authCodeId = res.body.code;
 
     const deleteResRoute = BitBadgesApiRoutes.DeleteAuthCodeRoute();
-    const deleteResBody: DeleteBlockinAuthCodeRouteRequestBody = { code: authCodeId };
+    const deleteResBody: DeleteBlockinAuthCodeBody = { code: authCodeId };
     const deleteRes = await request(app)
       .post(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -229,8 +234,7 @@ describe('get auth codes', () => {
     const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
     const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeRouteRequestBody = {
-      options: {},
+    const body: CreateBlockinAuthCodeBody = {
       clientId,
       message,
       signature: 'invalid',
@@ -249,7 +253,7 @@ describe('get auth codes', () => {
   it('should create secret in storage', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -304,7 +308,7 @@ describe('get auth codes', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretRouteRequestBody = { secretId: res.body.secretId };
+    const getResBody: GetSecretBody = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -316,9 +320,8 @@ describe('get auth codes', () => {
     const createAuthCodeRoute = BitBadgesApiRoutes.CreateAuthCodeRoute();
     const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const createAuthCodeBody: CreateBlockinAuthCodeRouteRequestBody = {
+    const createAuthCodeBody: CreateBlockinAuthCodeBody = {
       clientId,
-      options: {},
       message,
       signature,
       name: 'test',
@@ -336,7 +339,7 @@ describe('get auth codes', () => {
     const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
 
-    createAuthCodeBody.secretsProofs = [
+    createAuthCodeBody.secretsPresentations = [
       {
         ...getRes.body,
         proofOfIssuance: {
@@ -352,7 +355,7 @@ describe('get auth codes', () => {
       }
     ];
 
-    await verifySecretsProofSignatures(createAuthCodeBody.secretsProofs[0], true);
+    await verifySecretsPresentationSignatures(createAuthCodeBody.secretsPresentations[0], true);
 
     const authCodeRes = await request(app)
       .post(createAuthCodeRoute)
@@ -363,7 +366,7 @@ describe('get auth codes', () => {
     expect(authCodeRes.status).toBe(200);
 
     const getAuthCodeResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getAuthCodeResBody: GetBlockinAuthCodeRouteRequestBody = { code: authCodeRes.body.code };
+    const getAuthCodeResBody: GetBlockinAuthCodeBody = { code: authCodeRes.body.code };
     const getAuthCodeRes = await request(app)
       .post(getAuthCodeResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -371,8 +374,8 @@ describe('get auth codes', () => {
       .send(getAuthCodeResBody);
     expect(getAuthCodeRes.status).toBe(200);
     expect(getAuthCodeRes.body.blockin.message).toBeDefined();
-    expect(getAuthCodeRes.body.blockin.secretsProofs).toBeDefined();
-    expect(getAuthCodeRes.body.blockin.secretsProofs.length).toBe(1);
+    expect(getAuthCodeRes.body.blockin.secretsPresentations).toBeDefined();
+    expect(getAuthCodeRes.body.blockin.secretsPresentations.length).toBe(1);
   });
 
   it('should fail w/ invalid proofs', async () => {
@@ -394,7 +397,7 @@ describe('get auth codes', () => {
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsProofSignatures({
+      verifySecretsPresentationSignatures({
         createdBy: convertToCosmosAddress(address),
         secretMessages: ['test'],
         dataIntegrityProof: {
@@ -411,7 +414,7 @@ describe('get auth codes', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsProofSignatures({
+      verifySecretsPresentationSignatures({
         createdBy: convertToCosmosAddress(address),
         secretMessages: ['test'],
         dataIntegrityProof: {
@@ -428,7 +431,7 @@ describe('get auth codes', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsProofSignatures(
+      verifySecretsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
           secretMessages: ['test'],
@@ -448,7 +451,7 @@ describe('get auth codes', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      verifySecretsProofSignatures(
+      verifySecretsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
           secretMessages: ['test'],
@@ -472,7 +475,7 @@ describe('get auth codes', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsProofSignatures(
+      verifySecretsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
           secretMessages: [],
@@ -510,7 +513,7 @@ describe('get auth codes', () => {
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsProofSignatures(
+      verifySecretsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
           secretMessages: ['test'],
@@ -547,7 +550,7 @@ describe('get auth codes', () => {
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsProofSignatures(
+      verifySecretsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(ethWallet.address),
           secretMessages: ['{"test": "test"}'],
@@ -570,7 +573,7 @@ describe('get auth codes', () => {
   it('should update anchors correctly', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -625,7 +628,7 @@ describe('get auth codes', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretRouteRequestBody = { secretId: res.body.secretId };
+    const getResBody: GetSecretBody = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -635,7 +638,7 @@ describe('get auth codes', () => {
     expect(getRes.body.secretId).toBeDefined();
 
     const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretRouteRequestBody = {
+    const updateSecretBody: UpdateSecretBody = {
       secretId: getRes.body.secretId,
       anchorsToAdd: [
         {
@@ -655,7 +658,7 @@ describe('get auth codes', () => {
     expect(secretsDoc.anchors.length).toBe(1);
     expect(secretsDoc.anchors[0].txHash).toBe('test');
 
-    const updateSecretBody2: UpdateSecretRouteRequestBody = {
+    const updateSecretBody2: UpdateSecretBody = {
       secretId: getRes.body.secretId,
       holdersToSet: [
         {
@@ -675,7 +678,7 @@ describe('get auth codes', () => {
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
     expect(secretsDoc2.holders.length).toBe(1);
 
-    const updateSecretBody3: UpdateSecretRouteRequestBody = {
+    const updateSecretBody3: UpdateSecretBody = {
       secretId: getRes.body.secretId,
       holdersToSet: [
         {
@@ -699,7 +702,7 @@ describe('get auth codes', () => {
   it('should delete secret', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -754,7 +757,7 @@ describe('get auth codes', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretRouteRequestBody = { secretId: res.body.secretId };
+    const getResBody: GetSecretBody = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -764,7 +767,7 @@ describe('get auth codes', () => {
     expect(getRes.body.secretId).toBeDefined();
 
     const deleteResRoute = BitBadgesApiRoutes.DeleteSecretRoute();
-    const deleteResBody: GetSecretRouteRequestBody = { secretId: getRes.body.secretId };
+    const deleteResBody: GetSecretBody = { secretId: getRes.body.secretId };
 
     const invalidDeleteResAnotherUser = await request(app)
       .post(deleteResRoute)
@@ -787,7 +790,7 @@ describe('get auth codes', () => {
   it('should update correctly', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -842,7 +845,7 @@ describe('get auth codes', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretRouteRequestBody = { secretId: res.body.secretId };
+    const getResBody: GetSecretBody = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -852,7 +855,7 @@ describe('get auth codes', () => {
     expect(getRes.body.secretId).toBeDefined();
 
     const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretRouteRequestBody = {
+    const updateSecretBody: UpdateSecretBody = {
       secretId: getRes.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -874,7 +877,7 @@ describe('get auth codes', () => {
     expect(secretsDoc.updateHistory.length).toBe(2);
 
     //reject invalid proofs upon update
-    const updateSecretBody2: UpdateSecretRouteRequestBody = {
+    const updateSecretBody2: UpdateSecretBody = {
       secretId: getRes.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -903,7 +906,7 @@ describe('get auth codes', () => {
     const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair2?.publicKey ?? '').toString('hex'));
     const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
 
-    const updateSecretBody3: UpdateSecretRouteRequestBody = {
+    const updateSecretBody3: UpdateSecretBody = {
       secretId: getRes.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -939,7 +942,7 @@ describe('get auth codes', () => {
   it('should not allow non-owners to update important fields', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -985,7 +988,7 @@ describe('get auth codes', () => {
     expect(res.status).toBe(200);
 
     const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretRouteRequestBody = {
+    const updateSecretBody: UpdateSecretBody = {
       secretId: res.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -1020,7 +1023,7 @@ describe('get auth codes', () => {
   it('should update anchors (owner only)', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -1066,7 +1069,7 @@ describe('get auth codes', () => {
     expect(res.status).toBe(200);
 
     const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretRouteRequestBody = {
+    const updateSecretBody: UpdateSecretBody = {
       secretId: res.body.secretId,
       anchorsToAdd: [
         {
@@ -1085,7 +1088,7 @@ describe('get auth codes', () => {
     const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc.anchors.length).toBe(1);
 
-    const updateSecretBody2: UpdateSecretRouteRequestBody = {
+    const updateSecretBody2: UpdateSecretBody = {
       secretId: res.body.secretId,
       anchorsToAdd: [
         {
@@ -1104,7 +1107,7 @@ describe('get auth codes', () => {
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc2.anchors.length).toBe(1);
 
-    const updateSecretBody3: UpdateSecretRouteRequestBody = {
+    const updateSecretBody3: UpdateSecretBody = {
       secretId: res.body.secretId,
       anchorsToAdd: [
         {
@@ -1123,7 +1126,7 @@ describe('get auth codes', () => {
   it('can add holders to secret (self add only)', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -1169,7 +1172,7 @@ describe('get auth codes', () => {
     expect(res.status).toBe(200);
 
     const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute;
-    const updateSecretBody: UpdateSecretRouteRequestBody = {
+    const updateSecretBody: UpdateSecretBody = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1189,7 +1192,7 @@ describe('get auth codes', () => {
     const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc.holders.length).toBe(1);
 
-    const updateSecretBody2: UpdateSecretRouteRequestBody = {
+    const updateSecretBody2: UpdateSecretBody = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1209,7 +1212,7 @@ describe('get auth codes', () => {
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc2.holders.length).toBe(1);
 
-    const updateSecretBody3: UpdateSecretRouteRequestBody = {
+    const updateSecretBody3: UpdateSecretBody = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1229,7 +1232,7 @@ describe('get auth codes', () => {
     expect(secretsDoc3.holders.length).toBe(1);
 
     //Test deletes
-    const updateSecretBody4: UpdateSecretRouteRequestBody = {
+    const updateSecretBody4: UpdateSecretBody = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1252,7 +1255,7 @@ describe('get auth codes', () => {
 
   it('should verify standard sig proofs (non BBS)', async () => {
     const route = BitBadgesApiRoutes.CreateSecretRoute();
-    const body: CreateSecretRouteRequestBody = {
+    const body: CreateSecretBody = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -1292,5 +1295,119 @@ describe('get auth codes', () => {
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body);
     expect(res.status).toBe(200);
+  });
+
+  it('should be able to get client ID with proof of clientSecret', async () => {
+    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
+    const clientSecret = clientIdDocs[0].clientSecret;
+    const redirectUri = clientIdDocs[0].redirectUris[0];
+    const body: CreateBlockinAuthCodeBody = {
+      clientId,
+      message,
+      signature,
+      name: 'test',
+      image: '',
+      description: '',
+      redirectUri: ''
+    };
+
+    const invalidRedirectUriRes = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({ ...body, redirectUri: 'https://bitbadges.io/somethingrandom' });
+    expect(invalidRedirectUriRes.status).toBeGreaterThanOrEqual(400);
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const doc = await mustGetFromDB(BlockinAuthSignatureModel, res.body.code);
+    await insertToDB(BlockinAuthSignatureModel, { ...doc, redirectUri });
+
+    const authCodeId = res.body.code;
+    console.log(res.body);
+
+    const getResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
+    const getResBody: GetBlockinAuthCodeBody = { code: authCodeId, clientId, clientSecret, redirectUri };
+    const getRes = await request(app)
+      .post(getResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(getResBody);
+    console.log(getRes.body);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.blockin).toBeDefined();
+    expect(getRes.body.blockin.otherSignIns?.discord).toBeUndefined();
+
+    const invalidClientIdPresentedRes = await request(app)
+      .post(getResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ ...getResBody, clientId: 'invalid' });
+
+    expect(invalidClientIdPresentedRes.status).toBeGreaterThanOrEqual(400);
+
+    const invalidClientSecretPresentedRes = await request(app)
+      .post(getResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ ...getResBody, clientSecret: 'invalid' });
+
+    expect(invalidClientSecretPresentedRes.status).toBeGreaterThanOrEqual(400);
+
+    const invalidRedirectUriPresentedRes = await request(app)
+      .post(getResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ ...getResBody, redirectUri: 'invalid' });
+    expect(invalidRedirectUriPresentedRes.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('should work with other sign ins', async () => {
+    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
+    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
+    const clientSecret = clientIdDocs[0].clientSecret;
+    const redirectUri = clientIdDocs[0].redirectUris[0];
+    const body: CreateBlockinAuthCodeBody = {
+      clientId,
+      message,
+      signature,
+      name: 'test',
+      image: '',
+      description: '',
+      redirectUri: '',
+      otherSignIns: ['discord', 'github']
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const doc = await mustGetFromDB(BlockinAuthSignatureModel, res.body.code);
+    await insertToDB(BlockinAuthSignatureModel, { ...doc, redirectUri });
+
+    const authCodeId = res.body.code;
+    console.log(res.body);
+
+    const getResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
+    const getResBody: GetBlockinAuthCodeBody = { code: authCodeId, clientId, clientSecret, redirectUri };
+    const getRes = await request(app)
+      .post(getResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(getResBody);
+    console.log(getRes.body);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.blockin).toBeDefined();
+    expect(getRes.body.blockin.otherSignIns?.discord?.username).toBe('testuser');
+    expect(getRes.body.blockin.otherSignIns?.github?.username).toBe('testuser');
+    expect(getRes.body.blockin.otherSignIns?.google?.username).toBeUndefined();
   });
 });

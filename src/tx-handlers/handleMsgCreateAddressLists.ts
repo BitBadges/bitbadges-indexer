@@ -1,10 +1,9 @@
-import { type MsgCreateAddressLists, type StatusDoc, AddressListDoc } from 'bitbadgesjs-sdk';
+import { AddressListDoc, generateAlias, getAliasDerivationKeysForList, type MsgCreateAddressLists, type StatusDoc } from 'bitbadgesjs-sdk';
 
 import { fetchDocsForCacheIfEmpty } from '../db/cache';
-import { handleNewAccountByAddress } from './handleNewAccount';
-import { pushAddressListFetchToQueue } from '../queue';
-import { client } from '../indexer';
 import { type DocsCache } from '../db/types';
+import { pushAddressListFetchToQueue } from '../queue';
+import { handleNewAccountByAddress } from './handleNewAccount';
 
 export const handleMsgCreateAddressLists = async (
   msg: MsgCreateAddressLists,
@@ -21,15 +20,12 @@ export const handleMsgCreateAddressLists = async (
     if (addressList.uri) {
       await pushAddressListFetchToQueue(docs, addressList, status.block.timestamp, entropy);
     }
-    // TODO: Do this natively?
-    const addressListRes = await client.badgesQueryClient?.badges.getAddressList(addressList.listId);
-    if (!addressListRes) throw new Error(`Address list ${addressList.listId} does not exist`);
 
+    const alias = generateAlias('badges', getAliasDerivationKeysForList(addressList.listId));
     docs.addressLists[`${addressList.listId}`] = new AddressListDoc({
       _docId: `${addressList.listId}`,
-
       ...addressList,
-      aliasAddress: addressListRes.aliasAddress,
+      aliasAddress: alias,
       createdBlock: status.block.height,
       lastUpdated: status.block.timestamp,
       createdBy: msg.creator,

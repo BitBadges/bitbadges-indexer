@@ -1,16 +1,16 @@
 import {
   UpdateHistory,
-  verifySecretsProofSignatures,
-  type CreateSecretRouteRequestBody,
-  type DeleteSecretRouteRequestBody,
+  verifySecretsPresentationSignatures,
+  type CreateSecretBody,
+  type DeleteSecretBody,
   type ErrorResponse,
-  type GetSecretRouteRequestBody,
+  type GetSecretBody,
   type NumberType,
-  type UpdateSecretRouteRequestBody,
-  type iCreateSecretRouteSuccessResponse,
-  type iDeleteSecretRouteSuccessResponse,
-  type iGetSecretRouteSuccessResponse,
-  type iUpdateSecretRouteSuccessResponse
+  type UpdateSecretBody,
+  type iCreateSecretSuccessResponse,
+  type iDeleteSecretSuccessResponse,
+  type iGetSecretSuccessResponse,
+  type iUpdateSecretSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
@@ -21,11 +21,11 @@ import { OffChainSecretsModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 
-export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretRouteSuccessResponse | ErrorResponse>) => {
+export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as CreateSecretRouteRequestBody;
+    const reqBody = req.body as CreateSecretBody;
 
-    await verifySecretsProofSignatures({
+    await verifySecretsPresentationSignatures({
       ...reqBody,
       createdBy: req.session.cosmosAddress
     });
@@ -36,7 +36,7 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     let image = reqBody.image;
 
     if (reqBody.image.startsWith('data:')) {
-      const { results } = await addMetadataToIpfs([
+      const results = await addMetadataToIpfs([
         {
           name: reqBody.name,
           description: reqBody.description,
@@ -77,14 +77,14 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error creating QR auth code.'
+      errorMessage: e.message || 'Error creating secret.'
     });
   }
 };
 
-export const getSecret = async (req: Request, res: Response<iGetSecretRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getSecret = async (req: Request, res: Response<iGetSecretSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetSecretRouteRequestBody;
+    const reqBody = req.body as GetSecretBody;
 
     const doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
     return res.status(200).send(doc);
@@ -92,14 +92,14 @@ export const getSecret = async (req: Request, res: Response<iGetSecretRouteSucce
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting auth QR code.'
+      errorMessage: e.message || 'Error getting secret.'
     });
   }
 };
 
-export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteSecretRouteSuccessResponse | ErrorResponse>) => {
+export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteSecretSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as DeleteSecretRouteRequestBody;
+    const reqBody = req.body as DeleteSecretBody;
 
     const doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
     if (doc.createdBy !== req.session.cosmosAddress) {
@@ -113,14 +113,14 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting QR auth code.'
+      errorMessage: e.message || 'Error deleting secret.'
     });
   }
 };
 
-export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateSecretRouteSuccessResponse | ErrorResponse>) => {
+export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateSecretSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as UpdateSecretRouteRequestBody;
+    const reqBody = req.body as UpdateSecretBody;
 
     let doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
 
@@ -193,7 +193,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     doc.image = reqBody.image ?? doc.image;
     doc.description = reqBody.description ?? doc.description;
 
-    await verifySecretsProofSignatures(doc);
+    await verifySecretsPresentationSignatures(doc);
 
     const status = await getStatus();
     doc.updateHistory.push(
@@ -212,7 +212,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error updating QR auth code.'
+      errorMessage: e.message || 'Error updating secret.'
     });
   }
 };

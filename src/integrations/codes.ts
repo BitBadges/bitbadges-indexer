@@ -25,14 +25,15 @@ export interface Setter {
 }
 
 export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
-  id: 'codes',
+  type: 'codes',
   metadata: {
     name: 'Codes',
     description: 'A code challenge',
     image: 'https://bitbadges.s3.amazonaws.com/codes.png',
     createdBy: 'BitBadges',
     stateless: false,
-    scoped: false
+    scoped: false,
+    duplicatesAllowed: true
   },
   defaultState: {
     usedCodeIndices: {}
@@ -50,8 +51,9 @@ export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
     };
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
+    const pluginId = context.pluginId;
     if (!customBody?.code) {
-      return { success: false, error: 'Invalid code' };
+      return { success: false, error: 'Invalid code in body provided.' };
     }
 
     const maxUses = publicParams.numCodes;
@@ -62,27 +64,28 @@ export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
     }
 
     if (!codes.includes(customBody.code)) {
-      return { success: false, error: 'Invalid code' };
+      return { success: false, error: 'Invalid code. Not found in list of codes.' };
     }
 
     const codeIdx = codes.indexOf(customBody.code);
     if (codeIdx === -1) {
-      return { success: false, error: 'Invalid code' };
+      return { success: false, error: 'Invalid code. Not found in list of codes.' };
     }
 
     if (priorState.usedCodeIndices[codeIdx]) {
       return { success: false, error: 'Code already used' };
     }
-
-    const toSet: Setter[] = [{ $set: { [`state.codes.usedCodeIndices.${codeIdx}`]: 1 } }];
-    const cosmosAddress = context.cosmosAddress;
-    const claimedUsers = globalState.numUses.claimedUsers;
     const assignMethod = adminInfo.assignMethod;
+    const numUsesPluginId = adminInfo.numUsesPluginId;
+
+    const toSet: Setter[] = [{ $set: { [`state.${pluginId}.usedCodeIndices.${codeIdx}`]: 1 } }];
+    const cosmosAddress = context.cosmosAddress;
+    const claimedUsers = globalState[`${numUsesPluginId}`].claimedUsers;
 
     if (assignMethod === 'codeIdx') {
       toSet.push({
         $set: {
-          [`state.numUses.claimedUsers.${cosmosAddress}`]: {
+          [`state.${numUsesPluginId}.claimedUsers.${cosmosAddress}`]: {
             $concatArrays: [claimedUsers[cosmosAddress] ?? [], [codeIdx]]
           }
         }

@@ -3,17 +3,17 @@ import {
   AddressListDoc,
   ListActivityDoc,
   convertToCosmosAddress,
-  type DeleteAddressListsRouteRequestBody,
+  type DeleteAddressListsBody,
   type ErrorResponse,
-  type GetAddressListsRouteRequestBody,
+  type GetAddressListsBody,
   type JSPrimitiveNumberType,
   type NumberType,
   type StatusDoc,
-  type UpdateAddressListsRouteRequestBody,
+  type UpdateAddressListsBody,
   type iAddressList,
-  type iDeleteAddressListsRouteSuccessResponse,
-  type iGetAddressListsRouteSuccessResponse,
-  type iUpdateAddressListsRouteSuccessResponse
+  type iDeleteAddressListsSuccessResponse,
+  type iGetAddressListsSuccessResponse,
+  type iUpdateAddressListsSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
@@ -26,13 +26,14 @@ import { getStatus } from '../db/status';
 import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, deleteOldClaims, updateClaimDocs } from './ipfs';
 import { getAddressListsFromDB } from './utils';
+import { createListClaimContextFunction } from './claims';
 
 export const deleteAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iDeleteAddressListsRouteSuccessResponse | ErrorResponse>
+  res: Response<iDeleteAddressListsSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as DeleteAddressListsRouteRequestBody;
+    const reqBody = req.body as DeleteAddressListsBody;
     const listIds = reqBody.listIds;
 
     if (listIds.length > 100) {
@@ -81,7 +82,7 @@ export const deleteAddressLists = async (
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error deleting address lists.'
+      errorMessage: e.message || 'Error deleting address lists.'
     });
   }
 };
@@ -146,19 +147,19 @@ export function getActivityDocsForListUpdate(
 
 export const createAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>
+  res: Response<iUpdateAddressListsSuccessResponse | ErrorResponse>
 ) => {
   return await handleAddressListsUpdateAndCreate(req, res, true);
 };
 
 const handleAddressListsUpdateAndCreate = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>,
+  res: Response<iUpdateAddressListsSuccessResponse | ErrorResponse>,
   isCreation?: boolean
 ) => {
   const isUpdate = !isCreation;
   try {
-    const reqBody = req.body as UpdateAddressListsRouteRequestBody<JSPrimitiveNumberType>;
+    const reqBody = req.body as UpdateAddressListsBody<JSPrimitiveNumberType>;
     const lists = reqBody.addressLists;
     const cosmosAddress = req.session.cosmosAddress;
 
@@ -212,16 +213,8 @@ const handleAddressListsUpdateAndCreate = async (
           ClaimType.AddressList,
           query,
           list.claims,
-          () => {
-            return {
-              createdBy: req.session.cosmosAddress,
-              collectionId: '-1',
-              docClaimed: true,
-              cid: '',
-              action: {
-                listId: list.listId
-              }
-            };
+          (claim) => {
+            return createListClaimContextFunction(req, claim, list.listId);
           },
           session
         );
@@ -267,14 +260,14 @@ const handleAddressListsUpdateAndCreate = async (
     console.log(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error creating address lists.'
+      errorMessage: e.message || 'Error creating address lists.'
     });
   }
 };
 
 export const updateAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iUpdateAddressListsRouteSuccessResponse | ErrorResponse>
+  res: Response<iUpdateAddressListsSuccessResponse | ErrorResponse>
 ) => {
   return await handleAddressListsUpdateAndCreate(req, res);
 };
@@ -288,9 +281,9 @@ const isReserved = (listId: string) => {
   }
 };
 
-export const getAddressLists = async (req: Request, res: Response<iGetAddressListsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getAddressLists = async (req: Request, res: Response<iGetAddressListsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetAddressListsRouteRequestBody;
+    const reqBody = req.body as GetAddressListsBody;
     const listsToFetch = reqBody.listsToFetch;
 
     if (listsToFetch.length > 100) {
@@ -332,7 +325,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching address lists.'
+      errorMessage: e.message || 'Error fetching address lists.'
     });
   }
 };

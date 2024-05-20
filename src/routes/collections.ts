@@ -19,6 +19,7 @@ import {
   UserIncomingApprovalWithDetails,
   UserOutgoingApprovalWithDetails,
   UserPermissionsWithDetails,
+  convertToCosmosAddress,
   getFullBadgeMetadataTimeline,
   getFullCollectionMetadataTimeline,
   getFullCustomDataTimeline,
@@ -26,6 +27,9 @@ import {
   getFullManagerTimeline,
   getFullStandardsTimeline,
   getOffChainBalancesMetadataTimeline,
+  iApprovalInfoDetails,
+  iChallengeDetails,
+  iChallengeTrackerIdDetails,
   iClaimDetails,
   type ApprovalInfoDetails,
   type BadgeMetadata,
@@ -35,10 +39,10 @@ import {
   type ClaimIntegrationPluginType,
   type CollectionDoc,
   type ErrorResponse,
-  type GetAdditionalCollectionDetailsRequestBody,
-  type GetBadgeActivityRouteRequestBody,
-  type GetCollectionsRouteRequestBody,
-  type GetMetadataForCollectionRequestBody,
+  type GetAdditionalCollectionDetailsBody,
+  type GetBadgeActivityBody,
+  type GetCollectionsBody,
+  type GetMetadataForCollectionBody,
   type IntegrationPluginDetails,
   type IntegrationPluginParams,
   type MetadataFetchOptions,
@@ -49,13 +53,9 @@ import {
   type UintRange,
   type iAddressList,
   type iApprovalTrackerDoc,
-  type iGetBadgeActivityRouteSuccessResponse,
-  type iGetCollectionsRouteSuccessResponse,
-  type iMerkleChallengeDoc,
-  iApprovalInfoDetails,
-  iChallengeDetails,
-  iChallengeTrackerIdDetails,
-  convertToCosmosAddress
+  type iGetBadgeActivitySuccessResponse,
+  type iGetCollectionsSuccessResponse,
+  type iMerkleChallengeDoc
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
@@ -65,7 +65,7 @@ import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
 import { PageVisitsDoc } from '../db/docs';
 import { findInDB } from '../db/queries';
 import { ClaimBuilderModel, CollectionModel, MapModel, PageVisitsModel } from '../db/schemas';
-import { getPlugin, getPluginParamsAndState } from '../integrations/types';
+import { getPlugin } from '../integrations/types';
 import { complianceDoc } from '../poll';
 import { fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import {
@@ -79,10 +79,10 @@ import {
   executeMerkleChallengeByIdsQuery,
   fetchTotalAndUnmintedBalancesQuery
 } from './activityHelpers';
+import { addChallengeDetailsToCriteria } from './badges';
 import { applyAddressListsToUserPermissions } from './balances';
 import { getDecryptedActionSeedCode } from './claims';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
-import { addChallengeDetailsToCriteria } from './badges';
 
 const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
 
@@ -106,8 +106,8 @@ const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
  */
 export type CollectionQueryOptions = {
   collectionId: NumberType;
-} & GetMetadataForCollectionRequestBody &
-  GetAdditionalCollectionDetailsRequestBody;
+} & GetMetadataForCollectionBody &
+  GetAdditionalCollectionDetailsBody;
 
 export async function executeAdditionalCollectionQueries(
   req: Request,
@@ -757,6 +757,8 @@ export const getClaimDetailsForFrontend = async (
       balancesToSet: doc.action.balancesToSet,
       plugins: decryptedPlugins,
       manualDistribution: doc.manualDistribution,
+      automatic: doc.automatic,
+      metadata: doc.metadata,
       seedCode
     });
   }
@@ -819,21 +821,20 @@ export const getDecryptedPluginsAndPublicState = async (
 ): Promise<Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>> => {
   await checkIfAuthenticatedForPrivateParams(req, includePrivateParams, trackerDetails, listId);
 
-  return plugins.map((x) => {
-    const pluginInstance = getPlugin(x.id);
-    const pluginDetails = getPluginParamsAndState(x.id, plugins);
-    if (!pluginDetails) {
-      throw new Error('Plugin details not found');
-    }
+  const pluginsRes = [];
+  for (const x of plugins) {
+    const pluginInstance = await getPlugin(x.type);
+    pluginsRes.push({
+      type: x.type,
+      id: x.id,
+      publicParams: x.publicParams,
+      privateParams: includePrivateParams ? pluginInstance.decryptPrivateParams(x.privateParams) : {},
+      publicState: pluginInstance.getPublicState(state[x.id] ?? { ...pluginInstance.defaultState }),
+      privateState: includePrivateParams ? state[x.id] : undefined
+    });
+  }
 
-    return {
-      id: pluginDetails.id,
-      publicParams: pluginDetails.publicParams,
-      privateParams: includePrivateParams ? pluginInstance.decryptPrivateParams(pluginDetails.privateParams) : {},
-      publicState: pluginInstance.getPublicState(state[x.id]),
-      privateState: includePrivateParams ? pluginInstance.getPrivateState?.(state[x.id]) : undefined
-    };
-  });
+  return pluginsRes;
 };
 
 async function incrementPageVisits(collectionId: NumberType, badgeIds: Array<UintRange<bigint>>) {
@@ -947,9 +948,9 @@ export async function executeCollectionsQuery(req: Request, collectionQueries: C
   return res;
 }
 
-export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActivityRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActivitySuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetBadgeActivityRouteRequestBody;
+    const reqBody = req.body as GetBadgeActivityBody;
     const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqBody.bookmark, reqBody.cosmosAddress);
 
     return res.json(activityRes);
@@ -957,12 +958,12 @@ export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActi
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching badge activity'
+      errorMessage: e.message || 'Error fetching badge activity'
     });
   }
 };
 
-export const getCollections = async (req: Request, res: Response<iGetCollectionsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getCollections = async (req: Request, res: Response<iGetCollectionsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     if (req.body.collectionsToFetch.length > 100) {
       return res.status(400).send({
@@ -971,7 +972,7 @@ export const getCollections = async (req: Request, res: Response<iGetCollections
       });
     }
 
-    const reqBody = req.body as GetCollectionsRouteRequestBody;
+    const reqBody = req.body as GetCollectionsBody;
     const collectionResponses = await executeCollectionsQuery(req, reqBody.collectionsToFetch);
 
     return res.status(200).send({
@@ -981,7 +982,7 @@ export const getCollections = async (req: Request, res: Response<iGetCollections
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error fetching collections.'
+      errorMessage: e.message || 'Error fetching collections.'
     });
   }
 };

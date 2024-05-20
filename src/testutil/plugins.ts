@@ -1,14 +1,25 @@
 import {
+  BlockinAssetConditionGroup,
+  ClaimIntegrationPluginType,
   IntegrationPluginDetails,
-  iUintRange,
+  NumberType,
   UintRangeArray,
   iAddressList,
-  BlockinAssetConditionGroup,
-  NumberType,
-  ClaimApiCallInfo
+  iClaimBuilderDoc,
+  iUintRange
 } from 'bitbadgesjs-sdk';
+import crypto from 'crypto';
 import { AES } from 'crypto-js';
-import { getPlugin } from '../integrations/types';
+import { getCorePlugin, getFirstMatchForPluginType } from '../integrations/types';
+
+export const getPluginStateByType = (doc: iClaimBuilderDoc<NumberType>, type: ClaimIntegrationPluginType): any => {
+  const id = getFirstMatchForPluginType(type, doc.plugins ?? [])?.id ?? '';
+  return doc.state[id];
+};
+
+export const getPluginIdByType = (doc: iClaimBuilderDoc<NumberType>, type: ClaimIntegrationPluginType): string => {
+  return getFirstMatchForPluginType(type, doc.plugins ?? [])?.id ?? '';
+};
 
 export const numUsesPlugin = (
   maxUses: number,
@@ -16,20 +27,22 @@ export const numUsesPlugin = (
   assignMethod: 'firstComeFirstServe' | 'codeIdx' = 'firstComeFirstServe'
 ): IntegrationPluginDetails<'numUses'> => {
   return {
-    id: 'numUses',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'numUses',
     publicParams: {
       maxUses,
       maxUsesPerAddress,
       assignMethod
     },
     privateParams: {},
-    publicState: getPlugin('numUses').getBlankPublicState()
+    publicState: getCorePlugin('numUses').getBlankPublicState()
   };
 };
 
 export const codesPlugin = (numCodes: number, seedCode: string): IntegrationPluginDetails<'codes'> => {
   return {
-    id: 'codes',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'codes',
     publicParams: {
       numCodes
     },
@@ -46,7 +59,8 @@ export const codesPlugin = (numCodes: number, seedCode: string): IntegrationPlug
 
 export const passwordPlugin = (password: string): IntegrationPluginDetails<'password'> => {
   return {
-    id: 'password',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'password',
     publicParams: {},
     privateParams: {
       password: AES.encrypt(password, process.env.SYM_KEY ?? '').toString()
@@ -58,7 +72,8 @@ export const passwordPlugin = (password: string): IntegrationPluginDetails<'pass
 
 export const transferTimesPlugin = (transferTimes: iUintRange<number>): IntegrationPluginDetails<'transferTimes'> => {
   return {
-    id: 'transferTimes',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'transferTimes',
     publicParams: {
       transferTimes: UintRangeArray.From(transferTimes)
     },
@@ -70,7 +85,8 @@ export const transferTimesPlugin = (transferTimes: iUintRange<number>): Integrat
 
 export const whitelistPlugin = (privateMode: boolean, list?: iAddressList, listId?: string): IntegrationPluginDetails<'whitelist'> => {
   return {
-    id: 'whitelist',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'whitelist',
     publicParams: privateMode
       ? {}
       : {
@@ -88,27 +104,17 @@ export const whitelistPlugin = (privateMode: boolean, list?: iAddressList, listI
   };
 };
 
-// export const greaterThanXBADGEBalancePlugin = (greaterThan: number): IntegrationPluginDetails<'greaterThanXBADGEBalance'> => {
-//   return {
-//     id: 'greaterThanXBADGEBalance',
-//     publicParams: {
-//       minBalance: greaterThan
-//     },
-//     privateParams: {},
-//     publicState: {},
-//     resetState: true
-//   };
-// };
-
 export const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'discord'> => {
   return {
-    id: 'discord',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'discord',
     publicParams: {
       hasPrivateList: false,
-      users: usernames,
       maxUsesPerUser: 1
     },
-    privateParams: {},
+    privateParams: {
+      usernames: usernames
+    },
     publicState: {},
     resetState: true
   };
@@ -116,21 +122,24 @@ export const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'di
 
 export const twitterPlugin = (usernames: string[]): IntegrationPluginDetails<'twitter'> => {
   return {
-    id: 'twitter',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'twitter',
     publicParams: {
       hasPrivateList: false,
-      users: usernames,
       maxUsesPerUser: 1
     },
-    privateParams: {},
+    privateParams: {
+      usernames: usernames
+    },
     publicState: {},
     resetState: true
   };
 };
 
-export const requiresProofOfAddressPlugin = (): IntegrationPluginDetails<'requiresProofOfAddress'> => {
+export const initiatedByPlugin = (): IntegrationPluginDetails<'initiatedBy'> => {
   return {
-    id: 'requiresProofOfAddress',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'initiatedBy',
     publicParams: {},
     privateParams: {},
     publicState: {},
@@ -138,26 +147,27 @@ export const requiresProofOfAddressPlugin = (): IntegrationPluginDetails<'requir
   };
 };
 
-export const mustOwnBadgesPlugin = (ownershipReqs: BlockinAssetConditionGroup<NumberType>): IntegrationPluginDetails<'mustOwnBadges'> => {
+export const mustOwnBadgesPlugin = (ownershipReqs: BlockinAssetConditionGroup<NumberType>): IntegrationPluginDetails<'must-own-badges'> => {
   return {
-    id: 'mustOwnBadges',
+    id: crypto.randomBytes(32).toString('hex'),
+    type: 'must-own-badges',
     publicParams: {
       ownershipRequirements: ownershipReqs
     },
-    privateParams: {
-      ownershipRequirements: { $and: [] }
-    },
+    privateParams: {},
     publicState: {},
     resetState: true
   };
 };
-export const apiPlugin = (apiCalls: ClaimApiCallInfo[]): IntegrationPluginDetails<'api'> => {
+
+export const apiPlugin = (customPluginId: string, publicParams: any, privateParams: any): IntegrationPluginDetails<any> => {
+  // const doc = await mustGetFromDB(PluginModel, customPluginId);
+
   return {
-    id: 'api',
-    publicParams: {
-      apiCalls
-    },
-    privateParams: {},
+    id: crypto.randomBytes(32).toString('hex'),
+    type: customPluginId,
+    publicParams: publicParams,
+    privateParams: privateParams,
     publicState: {},
     resetState: true
   };

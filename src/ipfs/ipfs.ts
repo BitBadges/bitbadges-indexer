@@ -10,7 +10,6 @@ import {
   type iMetadata,
   type iOffChainBalancesMap
 } from 'bitbadgesjs-sdk';
-import crypto from 'crypto';
 import { TextDecoder } from 'node:util';
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string';
 import { getFromDB, getManyFromDB, insertToDB } from '../db/db';
@@ -121,15 +120,18 @@ export const addBalancesToOffChainStorage = async (
   balances: iOffChainBalancesMap<NumberType>,
   method: 'ipfs' | 'centralized',
   collectionId: NumberType,
-  urlPath?: string
+  urlPath: string
 ) => {
+  if (!urlPath) {
+    throw new Error('Could not resolve urlPath when updating an existing off-chain URL');
+  }
+
   if (method === 'ipfs') {
     const results = await addToIpfs({ data: [{ path: '', content: JSON.stringify(balances) }], db: 'Balances' });
     return results[0];
   } else {
     const binaryData = JSON.stringify(balances);
-    const randomBytes = crypto.randomBytes(32);
-    const path = BigInt(collectionId) > 0 ? urlPath : randomBytes.toString('hex');
+    const path = urlPath;
     if (BigInt(collectionId) > 0 && !urlPath) {
       throw new Error('Could not resolve urlPath when updating an existing off-chain URL');
     } else if (BigInt(collectionId) > 0 && urlPath) {
@@ -199,6 +201,7 @@ export const addMetadataToIpfs = async (
     db: 'Metadata',
     skipCache: true
   });
+
   const metadataWithImages = metadataArr.map((x) => {
     if (x.image && x.image.startsWith('data:')) {
       const result = imageResults.shift();
@@ -208,17 +211,14 @@ export const addMetadataToIpfs = async (
   });
 
   const results = await addToIpfs({ data: metadataWithImages.map((x) => ({ path: '', content: JSON.stringify(x) })), db: 'Metadata' });
-  return { results };
+  return results;
 };
 
 export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
-  name: string,
-  description: string,
   challengeDetails?: iChallengeDetails<T>[]
-): Promise<[string, string[]] | undefined> => {
+): Promise<string[] | undefined> => {
   // Remove preimages and passwords from challengeDetails
   let convertedDetails: ChallengeDetails<T>[] | undefined;
-
   if (challengeDetails) {
     convertedDetails = challengeDetails.map((challengeDetail) => {
       return new ChallengeDetails<T>({
@@ -229,10 +229,6 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
     });
   }
 
-  const metadataResults = await addToIpfs({ data: [{ path: '', content: JSON.stringify({ name, description }) }], db: 'ApprovalInfo' });
-  const metadataResult = metadataResults[0];
-  if (!metadataResult) return undefined;
-
   if (convertedDetails) {
     const results = await addToIpfs({
       data: convertedDetails.map((x) => ({
@@ -242,8 +238,8 @@ export const addApprovalDetailsToOffChainStorage = async <T extends NumberType>(
       db: 'ChallengeInfo'
     });
 
-    return [metadataResult.cid.toString(), results.map((x) => x.cid.toString())];
+    return results.map((x) => x.cid.toString());
   } else {
-    return [metadataResult.cid.toString(), []];
+    return undefined;
   }
 };

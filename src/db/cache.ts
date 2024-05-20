@@ -434,7 +434,7 @@ export async function flushCachedDocs(
   } catch (error) {
     await insertToDB(ErrorModel, {
       _docId: new mongoose.Types.ObjectId().toString(),
-      errorMessage: 'Error in flushCachedDocs()',
+      errorMessage: 'Error in flushCachedDocs()' + error.message,
       function: 'flushCachedDocs',
       error: serializeError(error.message)
     });

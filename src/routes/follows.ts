@@ -4,9 +4,9 @@ import {
   FollowDetailsDoc,
   UintRangeArray,
   getBalancesForId,
-  type iGetFollowDetailsRouteSuccessResponse,
+  type iGetFollowDetailsSuccessResponse,
   type BalanceDoc,
-  type GetFollowDetailsRouteRequestBody,
+  type GetFollowDetailsBody,
   type NumberType,
   type TransferActivityDoc
 } from 'bitbadgesjs-sdk';
@@ -19,9 +19,9 @@ import { executeMultiUserActivityQuery } from './userQueries';
 import { findInDB } from '../db/queries';
 
 // TODO: Eventually, do we want to cache followers as well somehow?
-export const getFollowDetails = async (req: Request, res: Response<iGetFollowDetailsRouteSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getFollowDetails = async (req: Request, res: Response<iGetFollowDetailsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetFollowDetailsRouteRequestBody;
+    const reqBody = req.body as GetFollowDetailsBody;
     const followersBookmark = reqBody.followersBookmark ?? '';
 
     let followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
@@ -98,7 +98,7 @@ export const getFollowDetails = async (req: Request, res: Response<iGetFollowDet
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: 'Error getting follow details'
+      errorMessage: e.message || 'Error getting follow details'
     });
   }
 };

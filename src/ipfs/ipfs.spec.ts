@@ -36,9 +36,7 @@ describe('addMetadataToIpfs', () => {
     const result = await addMetadataToIpfs([collectionMetadata, collectionMetadata, collectionMetadata]);
     const resultObj = { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' };
 
-    expect(result).toEqual({
-      results: [resultObj, resultObj, resultObj]
-    });
+    expect(result).toEqual([resultObj, resultObj, resultObj]);
   }, 30000);
 
   it('should work with just collection metadata', async () => {
@@ -49,7 +47,7 @@ describe('addMetadataToIpfs', () => {
     });
 
     const result = await addMetadataToIpfs([collectionMetadata]);
-    expect(result.results).toEqual([
+    expect(result).toEqual([
       {
         cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB',
         uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB'
@@ -65,7 +63,7 @@ describe('addMetadataToIpfs', () => {
     });
 
     const result = await addMetadataToIpfs([collectionMetadata, collectionMetadata, collectionMetadata]);
-    expect(result.results).toEqual([
+    expect(result).toEqual([
       { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
       { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' },
       { cid: 'QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB', uri: 'ipfs://QmUGizWbuiQfCrc3HNcmWMJwDHBA4AiYLQe97Jjx2jhcpB' }
@@ -85,8 +83,8 @@ describe('addMetadataToIpfs', () => {
       description: 'Description 1',
       image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAk'
     });
-    const result = await addMetadataToIpfs([collectionMetadata]);
-    const cid = result.results[0]?.cid;
+    const results = await addMetadataToIpfs([collectionMetadata]);
+    const cid = results[0]?.cid;
     if (!cid) {
       throw new Error('No CID');
     }

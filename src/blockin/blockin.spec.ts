@@ -4,8 +4,8 @@ import app, { server } from '../indexer';
 import {
   BitBadgesApiRoutes,
   BlockinChallengeParams,
-  GetClaimAlertsForCollectionRouteRequestBody,
-  GetSignInChallengeRouteSuccessResponse,
+  GetClaimAlertsForCollectionBody,
+  GetSignInChallengeSuccessResponse,
   ProfileDoc,
   UintRangeArray,
   convertToCosmosAddress
@@ -211,7 +211,7 @@ describe('checkIfAuthenticated function', () => {
 
     const collectionId = 1;
     const managerRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
-    const body: GetClaimAlertsForCollectionRouteRequestBody = { collectionId: collectionId.toString(), bookmark: '' };
+    const body: GetClaimAlertsForCollectionBody = { collectionId: collectionId.toString(), bookmark: '' };
     const collectionDoc = await mustGetFromDB(CollectionModel, '1');
 
     const managerReq = createExampleReqForAddress(collectionDoc.managerTimeline[0].manager);
@@ -231,7 +231,7 @@ describe('checkIfAuthenticated function', () => {
 
     const collectionId = 1;
     const managerRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
-    const body: GetClaimAlertsForCollectionRouteRequestBody = { collectionId: collectionId.toString(), bookmark: '' };
+    const body: GetClaimAlertsForCollectionBody = { collectionId: collectionId.toString(), bookmark: '' };
     const managerReq = createExampleReqForAddress('differentAddress');
     const res = await request(app)
       .post(managerRoute)
@@ -249,7 +249,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ address });
-    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
     const signature = await ethWallet.signMessage(messageToSign);
 
@@ -273,7 +273,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ address });
-    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     challenge.message = challenge.message.replace('bitbadges.io', 'manipulated.io');
     challenge.params.uri = challenge.params.uri.replace('bitbadges.io', 'manipulated.io');
     challenge.params.domain = challenge.params.domain.replace('bitbadges.io', 'manipulated.io');
@@ -295,7 +295,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ address });
-    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     challenge.params.statement = 'manipulated statement';
     challenge.message = createChallenge(challenge.params);
 
@@ -1124,7 +1124,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ address });
-    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
     const signature = await ethWallet.signMessage(messageToSign);
 
@@ -1156,7 +1156,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ address });
-    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
 
     const profileDoc =
@@ -1198,7 +1198,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ address });
-    const challenge = new GetSignInChallengeRouteSuccessResponse(challengeRes.body);
+    const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
 
     const profileDoc =

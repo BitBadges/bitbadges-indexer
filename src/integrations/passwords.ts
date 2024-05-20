@@ -8,14 +8,15 @@ if (!symKey) {
 }
 
 export const PasswordPluginDetails: BackendIntegrationPlugin<'password'> = {
-  id: 'password',
+  type: 'password',
   metadata: {
     name: 'Password',
     description: 'A password challenge',
     image: 'https://bitbadges.s3.amazonaws.com/password.png',
     createdBy: 'BitBadges',
     stateless: true,
-    scoped: true
+    scoped: true,
+    duplicatesAllowed: false
   },
   defaultState: {},
   validateFunction: async (context, publicParams, privateParams, customBody) => {
