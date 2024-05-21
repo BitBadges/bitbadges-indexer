@@ -216,7 +216,8 @@ const handleAddressListsUpdateAndCreate = async (
           (claim) => {
             return createListClaimContextFunction(req, claim, list.listId);
           },
-          session
+          session,
+          isCreation
         );
         await deleteOldClaims(ClaimType.AddressList, query, list.claims, session);
 
@@ -228,7 +229,7 @@ const handleAddressListsUpdateAndCreate = async (
             createdBlock: existingDoc?.createdBlock ?? status.block.height,
             createdBy: existingDoc?.createdBy ?? cosmosAddress,
             lastUpdated: status.block.timestamp,
-            addresses: list.addresses.map((x) => convertToCosmosAddress(x)),
+            addresses: list.updateAddresses ? list.addresses.map((x) => convertToCosmosAddress(x)) : existingDoc?.addresses ?? [],
             updateHistory: [
               ...(existingDoc?.updateHistory ?? []),
               {

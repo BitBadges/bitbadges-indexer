@@ -150,7 +150,8 @@ export const updateClaimDocs = async (
   oldClaimQuery: Record<string, any>,
   newClaims: Array<iClaimDetails<NumberType>>,
   context: (claim: iClaimDetails<NumberType>) => ContextReturn,
-  session?: mongoose.ClientSession
+  session?: mongoose.ClientSession,
+  isCreation?: boolean
 ) => {
   const queryBuilder = constructQuery(claimType, oldClaimQuery);
 
@@ -189,14 +190,16 @@ export const updateClaimDocs = async (
     assertPluginsUpdateIsValid(existingDoc?.plugins ?? [], claim.plugins ?? [], isNonIndexed);
 
     if (claimType == ClaimType.AddressList) {
-      const listDoc = await mustGetFromDB(AddressListModel, context(claim).action.listId ?? '');
-      if (!listDoc || !listDoc.listId) {
-        throw new Error('Invalid list ID');
-      }
+      if (!isCreation) {
+        const listDoc = await mustGetFromDB(AddressListModel, context(claim).action.listId ?? '');
+        if (!listDoc || !listDoc.listId) {
+          throw new Error('Invalid list ID');
+        }
 
-      const isCreator = listDoc.createdBy === req.session.cosmosAddress;
-      if (!isCreator) {
-        throw new Error("Permission error: You don't have permission to update this claim");
+        const isCreator = listDoc.createdBy === req.session.cosmosAddress;
+        if (!isCreator) {
+          throw new Error("Permission error: You don't have permission to update this claim");
+        }
       }
     } else {
       const collectionId = Number(context(claim).collectionId);

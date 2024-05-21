@@ -16,6 +16,7 @@ import { getFromDB, getManyFromDB, insertToDB } from '../db/db';
 import { DigitalOceanBalancesModel, FetchModel, OffChainUrlModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { ipfsClient, s3 } from '../indexer-vars';
+import { ClientSession } from 'mongoose';
 
 export const getFromIpfs = async (path: string): Promise<{ file: string }> => {
   if (!path) return { file: '{}' };
@@ -120,7 +121,8 @@ export const addBalancesToOffChainStorage = async (
   balances: iOffChainBalancesMap<NumberType>,
   method: 'ipfs' | 'centralized',
   collectionId: NumberType,
-  urlPath: string
+  urlPath: string,
+  session?: ClientSession
 ) => {
   if (!urlPath) {
     throw new Error('Could not resolve urlPath when updating an existing off-chain URL');
@@ -157,10 +159,14 @@ export const addBalancesToOffChainStorage = async (
     //  1. User creates collection w/ balances manually defined -> we don't need the doc at all (currently) bc its only used for reproducing claims
     //  2. User creates collection w/ claims -> balances will be blank until the first claim is made (then this gets added)
     if (BigInt(collectionId) > 0) {
-      await insertToDB(DigitalOceanBalancesModel, {
-        _docId: Number(collectionId).toString(),
-        balances: balances
-      });
+      await insertToDB(
+        DigitalOceanBalancesModel,
+        {
+          _docId: Number(collectionId).toString(),
+          balances: balances
+        },
+        session
+      );
     }
 
     const location = 'https://bitbadges-balances.nyc3.digitaloceanspaces.com/balances/' + path;

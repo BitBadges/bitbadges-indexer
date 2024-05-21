@@ -344,10 +344,11 @@ export async function verifyBlockinAndGrantSessionCookie(
 }
 
 export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberType>): void {
-  const mockSessionJson = req.header('x-mock-session');
-
-  if (mockSessionJson == null || mockSessionJson === '') return;
   if (process.env.TEST_MODE !== 'true') return;
+
+  const mockSessionJson = req.header('x-mock-session');
+  if (mockSessionJson == null || mockSessionJson === '') return;
+
   const mockSession = JSON.parse(mockSessionJson);
 
   req.session.address = mockSession.address;

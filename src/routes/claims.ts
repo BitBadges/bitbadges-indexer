@@ -2,9 +2,17 @@ import {
   BalanceArray,
   BigIntify,
   ClaimBuilderDoc,
+  CosmosAddress,
+  CreateClaimBody,
   UpdateClaimBody,
   convertToCosmosAddress,
   iClaimBuilderDoc,
+  iClaimDetails,
+  iCreateClaimSuccessResponse,
+  iGetClaimAttemptStatusSuccessResponse,
+  iGetReservedCodesSuccessResponse,
+  iQueueDoc,
+  iSimulateClaimSuccessResponse,
   iUpdateClaimSuccessResponse,
   mustConvertToCosmosAddress,
   type ClaimIntegrationPluginType,
@@ -13,24 +21,32 @@ import {
   type ListActivityDoc,
   type NumberType,
   type iCompleteClaimSuccessResponse,
-  type iGetClaimsSuccessResponse,
-  CreateClaimBody,
-  iCreateClaimSuccessResponse,
-  iClaimDetails
+  type iGetClaimsSuccessResponse
 } from 'bitbadgesjs-sdk';
+import crypto from 'crypto';
 import { type Response } from 'express';
+import { ClientSession } from 'mongoose';
 import { serializeError } from 'serialize-error';
-import { checkIfAuthenticated, checkIfManager, setMockSessionIfTestMode, type AuthenticatedRequest } from '../blockin/blockin_handlers';
-import { getFromDB, insertMany, mustGetFromDB } from '../db/db';
+import {
+  BlockinSession,
+  MaybeAuthenticatedRequest,
+  checkIfAuthenticated,
+  checkIfManager,
+  setMockSessionIfTestMode,
+  type AuthenticatedRequest
+} from '../blockin/blockin_handlers';
+import { MongoDB, getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import {
   AddressListModel,
+  ClaimAttemptStatusModel,
   ClaimBuilderModel,
   CollectionModel,
   DigitalOceanBalancesModel,
   ListActivityModel,
   PluginModel,
-  ProfileModel
+  ProfileModel,
+  QueueModel
 } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { DiscordPluginDetails, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from '../integrations/auth';
@@ -379,21 +395,27 @@ export const getClaimsHandler = async (
   }
 };
 
-export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: Response<iCompleteClaimSuccessResponse | ErrorResponse>) => {
+export const completeClaimHandler = async (
+  req: { session: BlockinSession<NumberType>; body: any },
+  claimId: string,
+  cosmosAddress: CosmosAddress,
+  simulate = false,
+  prevCodesOnly = false
+): Promise<iGetReservedCodesSuccessResponse> => {
+  const query = { _docId: claimId, docClaimed: true, deletedAt: { $exists: false } };
+
+  cosmosAddress = mustConvertToCosmosAddress(cosmosAddress);
+  const context: ContextInfo = Object.freeze({
+    cosmosAddress,
+    claimId
+  });
+
+  const useSession = !simulate && !prevCodesOnly;
+  let response = {};
+  const session = useSession ? await MongoDB.startSession() : undefined;
+  if (session) session.startTransaction();
   try {
-    setMockSessionIfTestMode(req);
-
-    const claimId = req.params.claimId;
-    const query = { _docId: claimId, docClaimed: true, deletedAt: { $exists: false } };
-    const simulate = req.body.simulate ?? false;
-
-    const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
-    const context: ContextInfo = Object.freeze({
-      cosmosAddress,
-      claimId
-    });
-
-    const claimBuilderDocResponse = await findInDB(ClaimBuilderModel, { query, limit: 1 });
+    const claimBuilderDocResponse = await findInDB(ClaimBuilderModel, { query, limit: 1, session });
     if (claimBuilderDocResponse.length === 0) {
       throw new Error('No doc found');
     }
@@ -417,23 +439,24 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     }
 
     if (getFirstMatchForPluginType('initiatedBy', claimBuilderDoc.plugins)) {
-      if (!checkIfAuthenticated(req, ['Complete Claims'])) {
+      if (!checkIfAuthenticated(req as MaybeAuthenticatedRequest<NumberType>, ['Complete Claims'])) {
         throw new Error('Authentication required with the Complete Claims scope');
       }
     }
 
     const numUsesPluginId = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.id;
-    const codesPluginId = getFirstMatchForPluginType('codes', claimBuilderDoc.plugins)?.id;
 
-    if (actionType === ActionType.Code && req.body.prevCodesOnly) {
+    if (actionType === ActionType.Code && prevCodesOnly) {
       const prevUsedIdxs = claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers[context.cosmosAddress] ?? [];
 
       if (prevUsedIdxs !== undefined) {
         const codes = getDecryptedActionCodes(claimBuilderDoc);
-        return res.status(200).send({
+        return {
           prevCodes: prevUsedIdxs.map((idx: number) => codes[Number(idx)])
-        });
+        };
       }
+    } else if (prevCodesOnly) {
+      throw new Error('Invalid configuration. Reserved codes can only be fetched for on-chain claims.');
     }
 
     // Pass in email only if previously set up and verified
@@ -442,14 +465,14 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
       const pluginInstance = await getPlugin(plugin.type);
-      const pluginDoc = await getFromDB(PluginModel, plugin.id);
+      const pluginDoc = await getFromDB(PluginModel, plugin.id, session);
 
-      let adminInfo = {};
+      let adminInfo: any = {};
 
       const requiresEmail = pluginDoc?.verificationCall?.passEmail;
 
       if (req.session.cosmosAddress && requiresEmail && !email) {
-        const profileDoc = await mustGetFromDB(ProfileModel, req.session.cosmosAddress);
+        const profileDoc = await mustGetFromDB(ProfileModel, req.session.cosmosAddress, session);
         if (!profileDoc) {
           throw new Error('Email required but no profile found');
         }
@@ -525,15 +548,12 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
       results.push(result);
 
       if (!result.success) {
-        return res.status(400).send({
-          error: result.error,
-          errorMessage: 'One or more of the challenges were not satisfied. ' + result.error
-        });
+        throw new Error('One or more of the challenges were not satisfied. ' + result.error);
       }
     }
 
     if (simulate) {
-      return res.status(200).send();
+      return {};
     }
 
     const setters = results
@@ -541,61 +561,14 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
       .filter((x) => x)
       .flat();
 
-    const prevFetchedSize = claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers[context.cosmosAddress]?.length ?? 0;
-    let consistencyQuery: any = {
-      $size: prevFetchedSize
-    };
-    if (!prevFetchedSize) {
-      consistencyQuery = {
-        $exists: false
-      };
-    }
-
-    let codeConsistencyQuery: any = {};
-    const assignMethod = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod;
-    if (assignMethod === 'firstComeFirstServe') {
-      // Handled by the $size query
-    } else if (assignMethod === 'codeIdx') {
-      const params = getFirstMatchForPluginType('codes', claimBuilderDoc.plugins);
-
-      const privateParams = getCorePlugin('codes').decryptPrivateParams(params?.privateParams ?? { codes: [], seedCode: '' });
-      const maxUses = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.maxUses ?? 0;
-      if (!privateParams) {
-        throw new Error('No private params found');
-      }
-
-      const seedCode = privateParams.seedCode;
-      const codes = privateParams.seedCode ? generateCodesFromSeed(seedCode, maxUses) : privateParams.codes;
-      if ((codes.length === 0 && !seedCode) || codes.length !== maxUses) {
-        throw new Error('Invalid configuration');
-      }
-
-      const codeToCheck = req.body[`${codesPluginId}`].code;
-      if (!codes.includes(codeToCheck)) {
-        throw new Error('invalid code');
-      }
-
-      const codeIdx = codes.indexOf(codeToCheck);
-      if (codeIdx === -1) {
-        throw new Error('invalid code');
-      }
-
-      codeConsistencyQuery = {
-        [`state.${codesPluginId}.usedCodeIndices.${codeIdx}`]: { $exists: false }
-      };
-    }
-
-    // TODO: Session w/ the action updates as well?
     // Find the doc, increment currCode, and add the given code idx to claimedUsers
     const newDoc = await ClaimBuilderModel.findOneAndUpdate(
       {
         ...query,
-        _docId: claimBuilderDoc._docId,
-        [`state.${numUsesPluginId}.claimedUsers.${context.cosmosAddress}`]: consistencyQuery,
-        ...codeConsistencyQuery
+        _docId: claimBuilderDoc._docId
       },
       setters,
-      { new: true }
+      { new: true, session }
     )
       .lean()
       .exec();
@@ -603,26 +576,152 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
       throw new Error('No doc found');
     }
 
+    //Past the point where it could be undefined (simulate or prevCodesOnly)
+    const castedSession = session as ClientSession;
+
     // Perform Actions
     if (actionType === ActionType.SetBalance) {
-      await performBalanceClaimAction(newDoc as ClaimBuilderDoc<NumberType>);
-      return res.status(200).send();
+      await performBalanceClaimAction(newDoc as ClaimBuilderDoc<NumberType>, castedSession);
     } else if (actionType === ActionType.Code) {
       const currCodeIdx = newDoc.state[`${numUsesPluginId}`].claimedUsers[context.cosmosAddress].pop();
       const code = distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, currCodeIdx);
       const prevUsedCodes = newDoc.state[`${numUsesPluginId}`].claimedUsers[context.cosmosAddress].slice(0, -1);
 
-      return res
-        .status(200)
-        .send({ prevCodes: prevUsedCodes.map((idx: number) => distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, idx)), code });
+      response = { prevCodes: prevUsedCodes.map((idx: number) => distributeCodeAction(newDoc as ClaimBuilderDoc<NumberType>, idx)), code };
     } else if (actionType === ActionType.AddToList && claimBuilderDoc.action.listId) {
-      await addToAddressListAction(newDoc as ClaimBuilderDoc<NumberType>, context.cosmosAddress);
-      return res.status(200).send();
+      await addToAddressListAction(newDoc as ClaimBuilderDoc<NumberType>, context.cosmosAddress, castedSession);
     } else if (actionType === ActionType.ClaimNumbers) {
-      return res.status(200).send();
+    } else {
+      throw new Error('No action found');
+    }
+    await castedSession.commitTransaction();
+  } catch (e) {
+    if (session) await session.abortTransaction();
+    throw e;
+  } finally {
+    if (session) await session.endSession();
+  }
+
+  return response;
+};
+
+export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: Response<iSimulateClaimSuccessResponse | ErrorResponse>) => {
+  try {
+    setMockSessionIfTestMode(req);
+
+    const claimId = req.params.claimId;
+    const simulate = true;
+    const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
+
+    await completeClaimHandler(req, claimId, cosmosAddress, simulate);
+    return res.status(200).send();
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+};
+
+export const getReservedCodes = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetReservedCodesSuccessResponse | ErrorResponse>) => {
+  try {
+    setMockSessionIfTestMode(req);
+
+    if (!checkIfAuthenticated(req, ['Full Access'])) {
+      throw new Error('Unauthorized');
     }
 
-    throw new Error('No action found');
+    const claimId = req.params.claimId;
+    const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
+    const response = await completeClaimHandler(req, claimId, cosmosAddress, true, true);
+    return res.status(200).send(response);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+};
+
+export const getClaimsStatusHandler = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iGetClaimAttemptStatusSuccessResponse | ErrorResponse>
+) => {
+  try {
+    const txId = req.params.txId;
+    const doc = await ClaimAttemptStatusModel.findOne({ _docId: txId });
+    if (!doc) {
+      throw new Error('No doc found');
+    }
+
+    // Reserved codes reserve the right to initiate an on-chain transaction.
+    // To initiate a transaction, a signature is required.
+    // We only return the reserved codes if the user is authenticated as themselves.
+    if (checkIfAuthenticated(req, ['Full Access'])) {
+      return res.status(200).json({ success: doc.success ?? false, error: doc?.error, code: doc?.code });
+    } else {
+      return res.status(200).json({ success: doc.success ?? false, error: doc?.error });
+    }
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+};
+
+export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: Response<iCompleteClaimSuccessResponse | ErrorResponse>) => {
+  try {
+    setMockSessionIfTestMode(req);
+
+    //Simulate and return an error immediately if not valid
+    const claimId = req.params.claimId;
+    const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
+    await completeClaimHandler(req, claimId, cosmosAddress, true);
+
+    const randomId = crypto.randomBytes(32).toString('hex');
+    const newQueueDoc: iQueueDoc<bigint> = {
+      _docId: randomId,
+      notificationType: 'claim',
+
+      collectionId: 0n,
+      uri: '',
+      loadBalanceId: 0n,
+
+      refreshRequestTime: BigInt(Date.now()),
+      numRetries: 0n,
+      claimInfo: {
+        claimId: claimId,
+        cosmosAddress: cosmosAddress,
+        session: JSON.parse(
+          JSON.stringify({
+            cosmosAddress: req.session.cosmosAddress,
+            discord: req.session.discord
+              ? {
+                  id: req.session.discord?.id,
+                  username: req.session.discord?.username,
+                  discriminator: req.session.discord?.discriminator
+                }
+              : undefined,
+            twitter: req.session.twitter ? { id: req.session.twitter?.id, username: req.session.twitter?.username } : undefined,
+            github: req.session.github ? { id: req.session.github?.id, username: req.session.github?.username } : undefined,
+            google: req.session.google ? { id: req.session.google?.id, username: req.session.google?.username } : undefined,
+            blockin: req.session.blockin,
+            blockinParams: req.session.blockinParams,
+            address: req.session.address
+          })
+        ),
+        body: JSON.parse(JSON.stringify(req.body))
+      },
+      nextFetchTime: BigInt(Date.now())
+    };
+
+    await insertToDB(QueueModel, newQueueDoc);
+
+    return res.status(200).send({ txId: randomId });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -650,20 +749,19 @@ export const getDecryptedActionCodes = (doc: ClaimBuilderDoc<NumberType>) => {
   return codes;
 };
 
-const addToAddressListAction = async (doc: ClaimBuilderDoc<NumberType>, cosmosAddress: string) => {
+const addToAddressListAction = async (doc: ClaimBuilderDoc<NumberType>, cosmosAddress: string, session: ClientSession) => {
   const listId = doc.action.listId ?? '';
-  const listDoc = await mustGetFromDB(AddressListModel, listId);
+  const listDoc = await mustGetFromDB(AddressListModel, listId, session);
   const address = cosmosAddress;
 
   const activityDocs: Array<ListActivityDoc<bigint>> = [];
-  // TODO: Session?
-  await AddressListModel.findOneAndUpdate({ _docId: listId }, { $push: { addresses: convertToCosmosAddress(address) } })
+  await AddressListModel.findOneAndUpdate({ _docId: listId }, { $push: { addresses: convertToCosmosAddress(address) } }, { session })
     .lean()
     .exec();
-  const newDoc = await mustGetFromDB(AddressListModel, listId);
+  const newDoc = await mustGetFromDB(AddressListModel, listId, session);
   const status = await getStatus();
   getActivityDocsForListUpdate(newDoc, listDoc, status, activityDocs, address);
-  await insertMany(ListActivityModel, activityDocs);
+  await insertMany(ListActivityModel, activityDocs, session);
 };
 
 const distributeCodeAction = (doc: ClaimBuilderDoc<NumberType>, currCodeIdx: NumberType) => {
@@ -671,11 +769,11 @@ const distributeCodeAction = (doc: ClaimBuilderDoc<NumberType>, currCodeIdx: Num
   return codes[Number(currCodeIdx)];
 };
 
-const performBalanceClaimAction = async (doc: iClaimBuilderDoc<NumberType>) => {
+const performBalanceClaimAction = async (doc: iClaimBuilderDoc<NumberType>, session: ClientSession) => {
   const collectionId = doc.collectionId.toString();
 
   const claimDoc = doc;
-  const currBalancesDoc = await getFromDB(DigitalOceanBalancesModel, collectionId.toString());
+  const currBalancesDoc = await getFromDB(DigitalOceanBalancesModel, collectionId.toString(), session);
   const balanceMap = currBalancesDoc?.balances ?? {};
   const numUsesPluginId = getFirstMatchForPluginType('numUses', claimDoc.plugins)?.id;
 
@@ -713,13 +811,13 @@ const performBalanceClaimAction = async (doc: iClaimBuilderDoc<NumberType>) => {
     balanceMap[mostRecentAddress] = currBalances;
   }
 
-  const collection = await getFromDB(CollectionModel, collectionId.toString());
+  const collection = await getFromDB(CollectionModel, collectionId.toString(), session);
   const currUriPath =
     collection?.offChainBalancesMetadataTimeline
       .find((x) => x.timelineTimes.searchIfExists(Date.now()))
       ?.offChainBalancesMetadata.uri.split('/')
       .pop() ?? '';
 
-  await addBalancesToOffChainStorage(balanceMap, 'centralized', collectionId, currUriPath);
+  await addBalancesToOffChainStorage(balanceMap, 'centralized', collectionId, currUriPath, session);
   await refreshCollection(collectionId.toString(), true);
 };

@@ -336,7 +336,7 @@ paths:
           $ref: '#/components/responses/InternalServerErrorResponse'
       security:
         - apiKey: [] # This specifies that an API key is required for authentication
-  /claims/{claimId}/{cosmosAddress}:
+  /claims/complete/{claimId}/{cosmosAddress}:
     post:
       operationId: completeClaim
       summary: Complete Claim
@@ -385,6 +385,140 @@ paths:
       security:
         - apiKey: [] # This specifies that an API key is required for authentication
           userMaybeSignedIn: []
+  /claims/simulate/{claimId}/{cosmosAddress}:
+    post:
+      operationId: simulateClaim
+      summary: Simulate Claim
+      tags:
+        - Claims
+      description: |
+        Simulates a claim for a user. This will check if the claim is valid and that all criteria is satisfied. If so, we perform the claim action.
+      parameters:
+        - name: claimId
+          in: path
+          description: The ID of the claim.
+          required: true
+          schema:
+            type: string
+        - name: cosmosAddress
+          in: path
+          description: The Cosmos address of the user making the claim.
+          required: true
+          schema:
+            type: string
+        - name: x-api-key
+          in: header
+          description: BitBadges API Key for authentication
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulateClaimBody'
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iSimulateClaimSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      security:
+        - apiKey: [] # This specifies that an API key is required for authentication
+          userMaybeSignedIn: []
+  /claims/reserved/{claimId}/{cosmosAddress}:
+    post:
+      operationId: getReservedCodes
+      summary: Get Reserved Codes
+      tags:
+        - Claims
+      description: |
+        Retrieves the reserved codes for a claim.
+      parameters:
+        - name: claimId
+          in: path
+          description: The ID of the claim.
+          required: true
+          schema:
+            type: string
+        - name: cosmosAddress
+          in: path
+          description: The Cosmos address of the user making the claim.
+          required: true
+          schema:
+            type: string
+        - name: x-api-key
+          in: header
+          description: BitBadges API Key for authentication
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetReservedCodesBody'
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iGetReservedCodesSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      security:
+        - apiKey: [] # This specifies that an API key is required for authentication
+          userMaybeSignedIn: []
+  /api/v0/claims/status/{txId}:
+    post:
+      operationId: getClaimAttemptStatus
+      tags:
+        - Claims
+      summary: Get Claim Attempt Status
+      description: |
+        Retrieves the status of a claim attempt.
+      parameters:
+        - name: txId
+          in: path
+          description: The transaction ID of the claim attempt.
+          required: true
+          schema:
+            type: string
+        - name: x-api-key
+          in: header
+          description: BitBadges API Key for authentication
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/iGetClaimAttemptStatusSuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+      security:
+        - apiKey: [] # This specifies that an API key is required for authentication
   /deleteReview/{reviewId}:
     post:
       operationId: deleteReview
@@ -1749,35 +1883,7 @@ paths:
       security:
         - apiKey: []
           userMaybeSignedIn: []
-  /externalCallKey:
-    post:
-      operationId: getExternalCallKey
-      summary: Get External Call Key
-      tags:
-        - Claims
-      description:
-        For claim plugins that make external API calls with sensitive information, we host this route as a way of ensuring requests are actually from BitBadges.
-        Simply specify your URL + key received, and we will return if the key is valid or not and when it was "issued". This is important
-        to protect against man in the middle attacks.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GetExternalCallBody'
-      responses:
-        '200':
-          description: Success response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/iGetExternalCallSuccessResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
-      security:
-        - apiKey: []
+
 components:
   responses:
     ErrorResponse:

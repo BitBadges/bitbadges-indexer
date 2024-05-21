@@ -23,7 +23,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-      callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/google/callback' : 'https://api.bitbadges.io/auth/google/callback'
+      callbackURL: process.env.DEV_MODE === 'true' ? 'http://localhost:3001/auth/google/callback' : 'https://api.bitbadges.io/auth/google/callback'
     },
     function (accessToken, refreshToken, profile, cb) {
       const user = {
@@ -40,8 +40,7 @@ passport.use(
     {
       clientID: process.env.CLIENT_ID ?? '',
       clientSecret: process.env.CLIENT_SECRET ?? '',
-      callbackURL:
-        process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/discord/callback' : 'https://api.bitbadges.io/auth/discord/callback',
+      callbackURL: process.env.DEV_MODE === 'true' ? 'http://localhost:3001/auth/discord/callback' : 'https://api.bitbadges.io/auth/discord/callback',
       scope: scopes
     },
     function (accessToken, refreshToken, profile, cb) {
@@ -61,7 +60,7 @@ passport.use(
     {
       clientID: process.env.GITHUB_CLIENT_ID ?? '',
       clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
-      callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/github/callback' : 'https://api.bitbadges.io/auth/github/callback'
+      callbackURL: process.env.DEV_MODE === 'true' ? 'http://localhost:3001/auth/github/callback' : 'https://api.bitbadges.io/auth/github/callback'
     },
     function (accessToken, refreshToken, profile, cb) {
       const user = {
@@ -119,7 +118,7 @@ export const discordCallbackHandler = (req: Request, res: Response, next: NextFu
 export const twitterConfig = {
   consumerKey: process.env.TWITTER_CONSUMER_KEY || '',
   consumerSecret: process.env.TWITTER_CONSUMER_SECRET || '',
-  callbackURL: process.env.DEV_MODE === 'true' ? 'https://localhost:3001/auth/twitter/callback' : 'https://api.bitbadges.io/auth/twitter/callback'
+  callbackURL: process.env.DEV_MODE === 'true' ? 'http://localhost:3001/auth/twitter/callback' : 'https://api.bitbadges.io/auth/twitter/callback'
 };
 
 const oauthRequestTokenUrl = 'https://api.twitter.com/oauth/request_token';

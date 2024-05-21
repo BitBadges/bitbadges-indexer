@@ -214,6 +214,7 @@ export const QueueSchema = new Schema<QueueDoc<JSPrimitiveNumberType>>({
   emailMessage: String, // String type for emailMessage
   recipientAddress: String, // String type for recipientAddress
   activityDocId: String, // String type for activityDocId
+  claimInfo: Schema.Types.Mixed, // Mixed type for claimInfo
   notificationType: String // String type for notificationType
 });
 
@@ -453,6 +454,13 @@ export const ErrorSchema = new Schema({
   _docId: String
 });
 
+export const ClaimAttemptStatusSchema = new Schema({
+  error: Schema.Types.Mixed,
+  success: Boolean,
+  _docId: String,
+  code: String
+});
+
 export const OffChainUrlSchema = new Schema<OffChainUrlDoc>({
   collectionId: Number,
   _docId: String,
@@ -494,6 +502,8 @@ export const DigitalOceanBalancesModel = mongoose.model<DigitalOceanBalancesDoc<
   'digital-ocean-balances',
   DigitalOceanBalancesSchema
 );
+
+export const ClaimAttemptStatusModel = mongoose.model('claim-attempt-status', ClaimAttemptStatusSchema);
 export const PluginModel = mongoose.model<PluginDoc>('plugins', PluginSchema);
 export const AuthAppModel = mongoose.model<AuthAppDoc>('auth-apps', AuthAppSchema);
 export const MapModel = mongoose.model<MapDoc<JSPrimitiveNumberType>>('maps', MapSchema);

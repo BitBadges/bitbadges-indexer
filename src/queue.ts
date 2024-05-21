@@ -29,7 +29,7 @@ import { serializeError } from 'serialize-error';
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from './db/cache';
 import { deleteMany, getFromDB, getManyFromDB, insertToDB, mustGetFromDB } from './db/db';
 import { findInDB } from './db/queries';
-import { BalanceModel, ErrorModel, FetchModel, QueueModel, RefreshModel } from './db/schemas';
+import { BalanceModel, ClaimAttemptStatusModel, ErrorModel, FetchModel, QueueModel, RefreshModel } from './db/schemas';
 import { type DocsCache } from './db/types';
 import { LOAD_BALANCER_ID } from './indexer-vars';
 import { getFromIpfs } from './ipfs/ipfs';
@@ -37,6 +37,7 @@ import { sendPushNotification } from './poll';
 import { getAddressListsFromDB } from './routes/utils';
 import { cleanApprovalInfo, cleanBalanceMap, cleanMetadata } from './utils/dataCleaners';
 import { getLoadBalancerId } from './utils/loadBalancer';
+import { completeClaimHandler } from './routes/claims';
 
 const { SHA256 } = CryptoJS;
 /*
@@ -748,7 +749,7 @@ export const handleQueueItems = async (block: bigint) => {
       _docId: { $exists: true },
       loadBalanceId: LOAD_BALANCER_ID,
       nextFetchTime: {
-        $lte: Date.now() - 1000 * 5 * 1 // If it is too quick, we sometimes have data race issues
+        $lte: Date.now() - 1000 * 1 // If it is too quick, we sometimes have data race issues
       },
       deletedAt: {
         $exists: false
@@ -800,20 +801,60 @@ export const handleQueueItems = async (block: bigint) => {
     }
   };
 
-  const promises = queueItems.map(async (queueObj) => {
+  const promises = [];
+  for (const queueObj of queueItems) {
     if (queueObj.emailMessage && queueObj.recipientAddress && queueObj.activityDocId && queueObj.notificationType) {
-      await sendPushNotification(
-        queueObj.recipientAddress,
-        queueObj.notificationType,
-        queueObj.emailMessage,
-        queueObj.activityDocId,
-        undefined,
-        queueObj
+      promises.push(
+        sendPushNotification(queueObj.recipientAddress, queueObj.notificationType, queueObj.emailMessage, queueObj.activityDocId, undefined, queueObj)
       );
+    } else if (queueObj.notificationType === 'claim') {
+      continue;
     } else {
-      await executeFunc(queueObj);
+      promises.push(executeFunc(queueObj));
     }
-  });
+  }
 
   if (promises.length > 0) await Promise.all(promises);
+
+  //These must be ran in a single threaded manner
+  for (const queueObj of queueItems) {
+    if (queueObj.notificationType === 'claim') {
+      try {
+        if (!queueObj.claimInfo) {
+          throw new Error('No claim info provided');
+        }
+
+        const response = await completeClaimHandler(
+          { session: queueObj.claimInfo.session, body: queueObj.claimInfo.body },
+          queueObj.claimInfo.claimId,
+          queueObj.claimInfo.cosmosAddress,
+          false
+        );
+        await deleteMany(QueueModel, [queueObj._docId]);
+        await ClaimAttemptStatusModel.create({
+          _docId: queueObj._docId,
+          success: true,
+          code: response.code
+        });
+      } catch (e) {
+        let reason = '';
+        try {
+          reason = e.toString();
+        } catch (e) {
+          try {
+            reason = JSON.stringify(e);
+          } catch (e) {
+            reason = 'Could not stringify error message';
+          }
+        }
+
+        await ClaimAttemptStatusModel.create({
+          _docId: queueObj._docId,
+          success: false,
+          error: reason
+        });
+        await deleteMany(QueueModel, [queueObj._docId]);
+      }
+    }
+  }
 };

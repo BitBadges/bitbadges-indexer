@@ -591,12 +591,14 @@ describe('get address lists', () => {
         }
       ]
     };
+    const numUsesPluginId = body.addressLists[0].claims[0].plugins[0].id;
 
     const res = await request(app)
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body);
+    console.log(res.body);
     expect(res.status).toBe(200);
 
     const claimRoute = BitBadgesApiRoutes.CompleteClaimRoute(convertToCosmosAddress(address) + '_claim123', convertToCosmosAddress(address));
@@ -615,7 +617,7 @@ describe('get address lists', () => {
 
     const claimDoc = await mustGetFromDB(ClaimBuilderModel, convertToCosmosAddress(address) + '_claim123');
     expect(claimDoc).toBeDefined();
-    expect(claimDoc.state.numUses.numUses).toBe(1);
+    expect(claimDoc.state[`${numUsesPluginId}`].numUses).toBe(1);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
     const getBody: GetAddressListsBody = {
@@ -639,8 +641,8 @@ describe('get address lists', () => {
     expect(getRes.body.addressLists[0].claims.length).toBe(1);
     expect(getRes.body.addressLists[0].claims[0].plugins).toBeDefined();
     expect(getRes.body.addressLists[0].claims[0].plugins.length).toBe(2);
-    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.id === 'password')).toBeDefined();
-    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.id === 'password').privateParams?.password).toBeFalsy();
+    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password')).toBeDefined();
+    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password').privateParams?.password).toBeFalsy();
 
     //Check that the claim action worked
     console.log(getRes.body.addressLists);
@@ -665,8 +667,8 @@ describe('get address lists', () => {
       .send(getBody2);
 
     expect(getRes2.status).toBe(200);
-    console.log(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.id === 'password').privateParams?.password);
-    expect(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.id === 'password').privateParams?.password).toBe('dfjiaf');
+    console.log(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password').privateParams?.password);
+    expect(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password').privateParams?.password).toBe('dfjiaf');
 
     //Make sure another user cannot fetch private params
     const getRes3 = await request(app)
@@ -699,7 +701,7 @@ describe('get address lists', () => {
             {
               claimId: convertToCosmosAddress(address) + '_claim123',
               plugins: [
-                numUsesPlugin(10, 0),
+                { ...body.addressLists[0].claims[0].plugins[0] },
                 {
                   type: 'password',
                   id: 'fadskjh',
@@ -735,7 +737,7 @@ describe('get address lists', () => {
 
     const finalDoc = await mustGetFromDB(ClaimBuilderModel, convertToCosmosAddress(address) + '_claim123');
     expect(finalDoc).toBeDefined();
-    expect(finalDoc.state.numUses.numUses).toBe(1);
+    expect(finalDoc.state[`${numUsesPluginId}`].numUses).toBe(1);
 
     updateBody.addressLists[0].claims[0].plugins[0].resetState = true;
     const updateRes2 = await request(app)
@@ -747,7 +749,7 @@ describe('get address lists', () => {
 
     const finalDoc2 = await mustGetFromDB(ClaimBuilderModel, convertToCosmosAddress(address) + '_claim123');
     expect(finalDoc2).toBeDefined();
-    expect(finalDoc2.state.numUses.numUses).toBe(0);
+    expect(finalDoc2.state[`${numUsesPluginId}`].numUses).toBe(0);
 
     //Check that it deletes old claims
     const updateBody2: UpdateAddressListsBody<bigint> = {

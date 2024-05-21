@@ -8,9 +8,10 @@ import crypto from 'crypto';
 import { config } from 'dotenv';
 import express, { type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import expressSession from 'express-session';
 import fs from 'fs';
 import https from 'https';
+import expressSession from 'express-session';
+import helmet from 'helmet';
 import mongoose from 'mongoose';
 import Moralis from 'moralis';
 import multer from 'multer';
@@ -44,7 +45,16 @@ import { getBadgeBalanceByAddress } from './routes/balances';
 import { broadcastTx, simulateTx } from './routes/broadcast';
 import { getBrowseCollections } from './routes/browse';
 import { getClaimAlertsForCollection, sendClaimAlert } from './routes/claimAlerts';
-import { completeClaim, createClaimHandler, deleteClaimHandler, getClaimsHandler, updateClaimHandler } from './routes/claims';
+import {
+  completeClaim,
+  createClaimHandler,
+  deleteClaimHandler,
+  getClaimsHandler,
+  getClaimsStatusHandler,
+  getReservedCodes,
+  simulateClaim,
+  updateClaimHandler
+} from './routes/claims';
 import { getBadgeActivity, getCollections } from './routes/collections';
 import { unsubscribeHandler, verifyEmailHandler } from './routes/email';
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
@@ -198,6 +208,24 @@ app.use(responseTime({ suffix: false }));
 app.use(express.json({ limit: '100mb' }));
 
 app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"], // Add domains for allowed scripts
+        styleSrc: ["'self'"], // Add domains for allowed styles
+        imgSrc: ["'self'"], // Add domains for allowed images
+        connectSrc: ["'self'"], // Add domains for allowed connections (e.g., API endpoints)
+        fontSrc: ["'self'"], // Add domains for allowed fonts
+        objectSrc: ["'none'"], // Disallow object/embed tags
+        upgradeInsecureRequests: [] // Upgrade HTTP to HTTPS
+      }
+    }
+  })
+);
+
+const isProduction = process.env.DEV_MODE !== 'true';
+app.use(
   expressSession({
     proxy: true,
     name: 'bitbadges',
@@ -207,10 +235,10 @@ app.use(
     store: MongoStore.create({ mongoUrl: process.env.DB_URL }),
     saveUninitialized: false,
     cookie: {
-      secure: true,
+      secure: isProduction,
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 7,
-      sameSite: 'none'
+      sameSite: 'lax'
     }
   })
 );
@@ -338,7 +366,11 @@ app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata);
 app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus);
 app.post('/api/v0/collections/filter', filterBadgesInCollectionHandler);
 
-app.post('/api/v0/claims/:claimId/:cosmosAddress', completeClaim);
+app.post('/api/v0/claims/complete/:claimId/:cosmosAddress', completeClaim);
+app.post('/api/v0/claims/reserved/:claimId/:cosmosAddress', getReservedCodes);
+app.post('/api/v0/claims/simulate/:claimId/:cosmosAddress', simulateClaim);
+app.post('/api/v0/claims/status/:txId', getClaimsStatusHandler);
+
 app.post('/api/v0/claims', getClaimsHandler);
 
 app.post('/api/v0/claims/create', authorizeBlockinRequest(['Full Access']), createClaimHandler);
@@ -549,27 +581,29 @@ const init = async () => {
 export const server =
   process.env.DISABLE_API === 'true'
     ? undefined
-    : https
-        .createServer(
-          {
-            key: fs.readFileSync('server.key'),
-            cert: fs.readFileSync('server.cert')
-          },
-          app
-        )
-        .listen(port, () => {
+    : isProduction
+      ? https
+          .createServer(
+            {
+              key: fs.readFileSync('server.key'),
+              cert: fs.readFileSync('server.cert')
+            },
+            app
+          )
+          .listen(port, () => {
+            init()
+              .then(() => {
+                console.log(`\nserver started at https://localhost:${port}`, Date.now().toLocaleString());
+              })
+              .catch(console.error);
+          })
+      : app.listen(port, () => {
           init()
+            .catch(console.error)
             .then(() => {
               console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
-            })
-            .catch(console.error);
+            });
         });
-
-// app.listen(port, () => {
-//   init().catch(console.error).then(() => {
-//     console.log(`\nserver started at http://localhost:${port}`, Date.now().toLocaleString());
-//   })
-// })
 
 if (process.env.DISABLE_API === 'true') {
   console.log('API server disabled');
