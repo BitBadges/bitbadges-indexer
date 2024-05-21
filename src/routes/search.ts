@@ -206,7 +206,6 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
 
     const allAccounts: Array<iAccountDoc<bigint> & { chain: SupportedChain }> = accountsResponseDocs.map((doc) => {
       // Can do more w/ guessing later (e.g. startsWiths and more)
-      const regex = new RegExp(`${searchValue}`, 'i');
       let chain = SupportedChain.COSMOS;
       if (searchValue.startsWith('0x')) {
         chain = SupportedChain.ETH;
@@ -214,13 +213,13 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
         chain = SupportedChain.BTC;
       } else if (searchValue.startsWith('cosm')) {
         chain = SupportedChain.COSMOS;
-      } else if (regex.test(doc.ethAddress)) {
+      } else if (doc.ethAddress.toLowerCase().includes(searchValue)) {
         chain = SupportedChain.ETH;
-      } else if (regex.test(doc.btcAddress)) {
+      } else if (doc.btcAddress.toLowerCase().includes(searchValue)) {
         chain = SupportedChain.BTC;
-      } else if (regex.test(doc.cosmosAddress)) {
+      } else if (doc.solAddress.toLowerCase().includes(searchValue)) {
         chain = SupportedChain.COSMOS;
-      } else if (regex.test(doc.solAddress)) {
+      } else if (doc.cosmosAddress.toLowerCase().includes(searchValue)) {
         chain = SupportedChain.SOLANA;
       }
 

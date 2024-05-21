@@ -37,6 +37,7 @@ import {
 } from '../blockin/blockin_handlers';
 import { MongoDB, getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
+import validator from 'validator';
 import {
   AddressListModel,
   ClaimAttemptStatusModel,
@@ -610,6 +611,11 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     setMockSessionIfTestMode(req);
 
     const claimId = req.params.claimId;
+
+    if (!validator.isHexadecimal(claimId)) {
+      throw new Error('Invalid claimId format');
+    }
+
     const simulate = true;
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
 
@@ -651,6 +657,12 @@ export const getClaimsStatusHandler = async (
 ) => {
   try {
     const txId = req.params.txId;
+
+    // Validate txId
+    if (!validator.isHexadecimal(txId)) {
+      throw new Error('Invalid txId format');
+    }
+
     const doc = await ClaimAttemptStatusModel.findOne({ _docId: txId });
     if (!doc) {
       throw new Error('No doc found');
