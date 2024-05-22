@@ -521,8 +521,8 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
 
         if (claims) {
           await updateClaimDocs(req, ClaimType.OnChain, {}, claims ?? [], (claim) => {
-            if (!challengeDetails?.seedCode) {
-              throw new Error('Seed code is required for on-chain claims');
+            if (!challengeDetails?.seedCode && !challengeDetails.preimages?.length) {
+              throw new Error('Seed code or preimages must be passed for on-chain claim');
             }
 
             return createOnChainClaimContextFunction(req, claim, challengeDetails?.seedCode ?? '');

@@ -372,7 +372,6 @@ app.post('/api/v0/claims/simulate/:claimId/:cosmosAddress', simulateClaim);
 app.post('/api/v0/claims/status/:txId', getClaimsStatusHandler);
 
 app.post('/api/v0/claims', getClaimsHandler);
-
 app.post('/api/v0/claims/create', authorizeBlockinRequest(['Full Access']), createClaimHandler);
 app.post('/api/v0/claims/update', authorizeBlockinRequest(['Full Access']), updateClaimHandler);
 app.post('/api/v0/claims/delete', authorizeBlockinRequest(['Full Access']), deleteClaimHandler);

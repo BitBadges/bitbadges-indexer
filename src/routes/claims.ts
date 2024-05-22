@@ -620,7 +620,7 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
 
     await completeClaimHandler(req, claimId, cosmosAddress, simulate);
-    return res.status(200).send();
+    return res.status(200).send({ txId: crypto.randomBytes(32).toString('hex') });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -692,7 +692,12 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     //Simulate and return an error immediately if not valid
     const claimId = req.params.claimId;
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
-    await completeClaimHandler(req, claimId, cosmosAddress, true);
+    const response = await completeClaimHandler(req, claimId, cosmosAddress, process.env.TEST_MODE !== 'true');
+
+    //For tessting purposes, return a random txId and do not use queue
+    if (process.env.TEST_MODE === 'true') {
+      return res.status(200).send(response as any); // For testing purposes
+    }
 
     const randomId = crypto.randomBytes(32).toString('hex');
     const newQueueDoc: iQueueDoc<bigint> = {
