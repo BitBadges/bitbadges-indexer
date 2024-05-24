@@ -13,7 +13,7 @@ import { findInDB } from '../db/queries';
 import {
   AddressListModel,
   BalanceModel,
-  BlockinAuthSignatureModel,
+  SIWBBRequestModel,
   ClaimAlertModel,
   CollectionModel,
   ListActivityModel,
@@ -498,9 +498,9 @@ export async function executeCreatedByQuery(
   return collectedRes;
 }
 
-export async function executeAuthCodesForAppQuery(clientId: string, bookmark?: string, oldestFirst?: boolean) {
-  const paginationParams = await getQueryParamsFromBookmark(BlockinAuthSignatureModel, bookmark, oldestFirst, 'createdAt');
-  const res = await findWithPagination(BlockinAuthSignatureModel, {
+export async function executeSIWBBRequestsForAppQuery(clientId: string, bookmark?: string, oldestFirst?: boolean) {
+  const paginationParams = await getQueryParamsFromBookmark(SIWBBRequestModel, bookmark, oldestFirst, 'createdAt');
+  const res = await findWithPagination(SIWBBRequestModel, {
     query: { clientId, deletedAt: { $exists: false }, redirectUri: { $exists: false }, ...paginationParams },
     sort: { createdAt: oldestFirst ? 1 : -1 },
     limit: 25
@@ -508,9 +508,9 @@ export async function executeAuthCodesForAppQuery(clientId: string, bookmark?: s
   return res;
 }
 
-export async function executeAuthCodesQuery(cosmosAddress: string, bookmark?: string, oldestFirst?: boolean) {
-  const paginationParams = await getQueryParamsFromBookmark(BlockinAuthSignatureModel, bookmark, oldestFirst, 'createdAt');
-  const res = await findWithPagination(BlockinAuthSignatureModel, {
+export async function executeSIWBBRequestsQuery(cosmosAddress: string, bookmark?: string, oldestFirst?: boolean) {
+  const paginationParams = await getQueryParamsFromBookmark(SIWBBRequestModel, bookmark, oldestFirst, 'createdAt');
+  const res = await findWithPagination(SIWBBRequestModel, {
     query: { cosmosAddress, deletedAt: { $exists: false }, redirectUri: { $exists: false }, ...paginationParams },
     sort: { createdAt: oldestFirst ? 1 : -1 },
     limit: 25

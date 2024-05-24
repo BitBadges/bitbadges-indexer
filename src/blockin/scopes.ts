@@ -1,8 +1,8 @@
 import { type NumberType } from 'bitbadgesjs-sdk';
-import { type MaybeAuthenticatedRequest } from './blockin_handlers';
+import { getAuthDetails, type MaybeAuthenticatedRequest } from './blockin_handlers';
 
 // We use a "Label : Explanation" format for the scopes
-const SupportedScopes = [
+export const SupportedScopes = [
   'Full Access: Full access to all features.',
   'Report: Report users or collections.',
   'Reviews: Create, read, update, and delete reviews.',
@@ -15,9 +15,9 @@ const SupportedScopes = [
   'Update Address Lists: Update address lists on behalf of the user.',
   'Delete Address Lists: Delete address lists on behalf of the user.',
 
-  'Create Auth Codes: Create new authentication codes on behalf of the user.', //Still need signature for this
-  'Read Auth Codes: Read authentication codes on behalf of the user.',
-  'Delete Auth Codes: Delete authentication codes on behalf of the user.',
+  'Create Siwbb Requests: Create new authentication codes on behalf of the user.', //Still need signature for this
+  'Read Siwbb Requests: Read authentication codes on behalf of the user.',
+  'Delete Siwbb Requests: Delete authentication codes on behalf of the user.',
 
   'Send Claim Alerts: Send claim alerts on behalf of the user.',
   'Read Claim Alerts: Read claim alerts on behalf of the user. Note that claim alerts may contain sensitive information like claim codes, secret IDs, etc.',
@@ -41,8 +41,8 @@ function checkScope(scope: string, resources: string[]): boolean {
   return true;
 }
 
-export function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopeLabels: string[]): boolean {
-  const resources = req.session.blockinParams?.resources ?? [];
+export async function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopeLabels: string[]): Promise<boolean> {
+  const resources = (await getAuthDetails(req))?.blockinParams?.resources ?? [];
   if (checkScope('Full Access', resources)) {
     return true;
   }

@@ -15,7 +15,7 @@ import {
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { OffChainSecretsModel } from '../db/schemas';
 import { getStatus } from '../db/status';
@@ -24,10 +24,10 @@ import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as CreateSecretBody;
-
+    const authDetails = await mustGetAuthDetails(req);
     await verifySecretsPresentationSignatures({
       ...reqBody,
-      createdBy: req.session.cosmosAddress
+      createdBy: authDetails.cosmosAddress
     });
 
     const uniqueId = crypto.randomBytes(32).toString('hex');
@@ -55,7 +55,7 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     }
 
     await insertToDB(OffChainSecretsModel, {
-      createdBy: req.session.cosmosAddress,
+      createdBy: authDetails.cosmosAddress,
       secretId: uniqueId,
       _docId: uniqueId,
       holders: [],
@@ -100,10 +100,10 @@ export const getSecret = async (req: Request, res: Response<iGetSecretSuccessRes
 export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as DeleteSecretBody;
-
+    const authDetails = await mustGetAuthDetails(req);
     const doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
-    if (doc.createdBy !== req.session.cosmosAddress) {
-      throw new Error('You are not the owner of this auth code.');
+    if (doc.createdBy !== authDetails.cosmosAddress) {
+      throw new Error('You are not the owner of this Siwbb request.');
     }
 
     await deleteMany(OffChainSecretsModel, [reqBody.secretId]);
@@ -121,12 +121,12 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
 export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as UpdateSecretBody;
-
+    const authDetails = await mustGetAuthDetails(req);
     let doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
 
     for (const viewerToAdd of reqBody.holdersToSet ?? []) {
       const cosmosAddress = viewerToAdd.cosmosAddress;
-      if (req.session.cosmosAddress !== doc.createdBy && req.session.cosmosAddress !== cosmosAddress) {
+      if (authDetails.cosmosAddress !== doc.createdBy && authDetails.cosmosAddress !== cosmosAddress) {
         throw new Error('To update a viewer, you must be the owner or add yourself as a viewer.');
       }
     }
@@ -160,8 +160,8 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     if (
       reqBody.anchorsToAdd &&
       reqBody.anchorsToAdd.length > 0 &&
-      req.session.cosmosAddress !== doc.createdBy &&
-      !doc.holders.includes(req.session.cosmosAddress)
+      authDetails.cosmosAddress !== doc.createdBy &&
+      !doc.holders.includes(authDetails.cosmosAddress)
     ) {
       throw new Error('Only the owner can update anchors');
     }
@@ -179,7 +179,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       'description',
       'messageFormat'
     ];
-    if (req.session.cosmosAddress !== doc.createdBy && Object.keys(reqBody).some((k) => keysToUpdate.includes(k))) {
+    if (authDetails.cosmosAddress !== doc.createdBy && Object.keys(reqBody).some((k) => keysToUpdate.includes(k))) {
       throw new Error('You are not the owner, so you cannot update its core details.');
     }
 

@@ -1,12 +1,14 @@
 import {
+  AccessTokenDoc,
   AccountDoc,
   AddressListDoc,
   AirdropDoc,
   ApprovalTrackerDoc,
-  AuthAppDoc,
+  DeveloperAppDoc,
+  AuthorizationCodeDoc,
   BalanceDoc,
   BigIntify,
-  BlockinAuthSignatureDoc,
+  SIWBBRequestDoc,
   ClaimAlertDoc,
   ClaimBuilderDoc,
   CollectionDoc,
@@ -26,7 +28,9 @@ import {
   SecretDoc,
   StatusDoc,
   TransferActivityDoc,
-  iAuthAppDoc,
+  iAccessTokenDoc,
+  iDeveloperAppDoc,
+  iAuthorizationCodeDoc,
   iPluginDoc,
   type ErrorDoc,
   type JSPrimitiveNumberType,
@@ -36,7 +40,7 @@ import {
   type iAirdropDoc,
   type iApprovalTrackerDoc,
   type iBalanceDoc,
-  type iBlockinAuthSignatureDoc,
+  type iSIWBBRequestDoc,
   type iClaimAlertDoc,
   type iClaimBuilderDoc,
   type iCollectionDoc,
@@ -71,14 +75,16 @@ import {
   type iPageVisitsDoc
 } from './docs';
 import {
+  AccessTokenModel,
   AccountModel,
   AddressListModel,
   AirdropModel,
   ApiKeyModel,
   ApprovalTrackerModel,
-  AuthAppModel,
+  DeveloperAppModel,
+  AuthorizationCodeModel,
   BalanceModel,
-  BlockinAuthSignatureModel,
+  SIWBBRequestModel,
   BrowseModel,
   ClaimAlertModel,
   ClaimBuilderModel,
@@ -345,8 +351,8 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = doc as ReportDoc;
     } else if (model.modelName === ComplianceModel.modelName) {
       convertedDoc = new ComplianceDoc(doc as iComplianceDoc<NumberType>).convert(convertFunction);
-    } else if (model.modelName === BlockinAuthSignatureModel.modelName) {
-      convertedDoc = new BlockinAuthSignatureDoc(doc as iBlockinAuthSignatureDoc<NumberType>).convert(convertFunction);
+    } else if (model.modelName === SIWBBRequestModel.modelName) {
+      convertedDoc = new SIWBBRequestDoc(doc as iSIWBBRequestDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === FollowDetailsModel.modelName) {
       convertedDoc = new FollowDetailsDoc(doc as iFollowDetailsDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === BrowseModel.modelName) {
@@ -361,10 +367,14 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new MapDoc(doc as iMapDoc<NumberType>).convert(convertFunction);
     } else if (model.modelName === DigitalOceanBalancesModel.modelName) {
       convertedDoc = new DigitalOceanBalancesDoc(doc as iDigitalOceanBalancesDoc<NumberType>).convert(convertFunction);
-    } else if (model.modelName === AuthAppModel.modelName) {
-      convertedDoc = new AuthAppDoc(doc as iAuthAppDoc).convert(convertFunction);
+    } else if (model.modelName === DeveloperAppModel.modelName) {
+      convertedDoc = new DeveloperAppDoc(doc as iDeveloperAppDoc).convert(convertFunction);
     } else if (model.modelName === PluginModel.modelName) {
-      convertedDoc = new PluginDoc(doc as iPluginDoc).convert(convertFunction);
+      convertedDoc = new PluginDoc(doc as iPluginDoc<NumberType>).convert(convertFunction);
+    } else if (model.modelName === AuthorizationCodeModel.modelName) {
+      convertedDoc = new AuthorizationCodeDoc(doc as iAuthorizationCodeDoc).convert(convertFunction);
+    } else if (model.modelName === AccessTokenModel.modelName) {
+      convertedDoc = new AccessTokenDoc(doc as iAccessTokenDoc).convert(convertFunction);
     }
 
     if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);

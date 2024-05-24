@@ -10,7 +10,7 @@ import {
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { ReviewModel } from '../db/schemas';
 import { getStatus } from '../db/status';
@@ -19,8 +19,8 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
   try {
     const reviewId = req.params.reviewId;
     const reviewDoc = await mustGetFromDB(ReviewModel, reviewId);
-
-    if (req.session.cosmosAddress && reviewDoc.from !== req.session.cosmosAddress) {
+    const authDetails = await mustGetAuthDetails(req);
+    if (authDetails.cosmosAddress && reviewDoc.from !== authDetails.cosmosAddress) {
       return res.status(401).send({ errorMessage: 'You can only delete your own reviews.' });
     }
 
@@ -39,7 +39,7 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
 export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddReviewSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as AddReviewBody;
-
+    const authDetails = await mustGetAuthDetails(req);
     if (!reqBody.review || reqBody.review.length > 2048) {
       return res.status(400).send({ errorMessage: 'Review must be 1 to 2048 characters long.' });
     }
@@ -67,7 +67,7 @@ export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Resp
         return res.status(400).send({ errorMessage: 'Invalid address. Must be a bech32 Cosmos address.' });
       }
 
-      if (cosmosAddress && cosmosAddress === req.session.cosmosAddress) {
+      if (cosmosAddress && cosmosAddress === authDetails.cosmosAddress) {
         return res.status(400).send({ errorMessage: 'You cannot review yourself.' });
       }
     } else if (isCollectionReview) {
@@ -83,7 +83,7 @@ export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Resp
       reviewedAddress: isUserReview ? cosmosAddress : undefined,
       stars: Number(stars),
       review,
-      from: req.session.cosmosAddress,
+      from: authDetails.cosmosAddress,
       timestamp: Number(Date.now()),
       block: Number(status.block.height)
     });

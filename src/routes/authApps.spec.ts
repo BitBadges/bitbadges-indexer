@@ -1,4 +1,4 @@
-import { BitBadgesApiRoutes, CreateAuthAppBody, UpdateAuthAppBody } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, CreateDeveloperAppBody, UpdateDeveloperAppBody } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
@@ -6,7 +6,7 @@ import { MongoDB, getFromDB } from '../db/db';
 import app, { gracefullyShutdown } from '../indexer';
 import { connectToRpc } from '../poll';
 import { createExampleReqForAddress } from '../testutil/utils';
-import { AuthAppModel } from '../db/schemas';
+import { DeveloperAppModel } from '../db/schemas';
 
 dotenv.config();
 
@@ -33,9 +33,11 @@ describe('auth apps', () => {
   });
 
   it('should create and update auth apps', async () => {
-    const route = BitBadgesApiRoutes.CreateAuthAppRoute();
-    const body: CreateAuthAppBody = {
+    const route = BitBadgesApiRoutes.CreateDeveloperAppRoute();
+    const body: CreateDeveloperAppBody = {
       name: 'test',
+      description: '',
+      image: '',
       redirectUris: ['http://localhost:3000']
     };
 
@@ -48,8 +50,8 @@ describe('auth apps', () => {
     expect(res.status).toBe(200);
     const { clientId } = res.body;
 
-    const route2 = BitBadgesApiRoutes.UpdateAuthAppRoute();
-    const body2: UpdateAuthAppBody = {
+    const route2 = BitBadgesApiRoutes.UpdateDeveloperAppRoute();
+    const body2: UpdateDeveloperAppBody = {
       clientId,
       name: 'test2',
       redirectUris: ['http://localhost:3000']
@@ -75,8 +77,8 @@ describe('auth apps', () => {
       .send(body2);
     expect(res2.status).toBe(200);
 
-    const route3 = BitBadgesApiRoutes.UpdateAuthAppRoute();
-    const body3: UpdateAuthAppBody = {
+    const route3 = BitBadgesApiRoutes.UpdateDeveloperAppRoute();
+    const body3: UpdateDeveloperAppBody = {
       clientId,
       name: 'test2',
       redirectUris: ['http://localhost:3000']
@@ -90,21 +92,21 @@ describe('auth apps', () => {
     expect(res3.status).toBe(200);
 
     const notSignedInDeleteRes = await request(app)
-      .post(BitBadgesApiRoutes.DeleteAuthAppRoute())
+      .post(BitBadgesApiRoutes.DeleteDeveloperAppRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ clientId });
 
     expect(notSignedInDeleteRes.status).toBeGreaterThanOrEqual(400);
 
     const altUserSignedInDeleteRes = await request(app)
-      .post(BitBadgesApiRoutes.DeleteAuthAppRoute())
+      .post(BitBadgesApiRoutes.DeleteDeveloperAppRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
       .send({ clientId });
 
     expect(altUserSignedInDeleteRes.status).toBeGreaterThanOrEqual(400);
 
-    const deleteRoute = BitBadgesApiRoutes.DeleteAuthAppRoute();
+    const deleteRoute = BitBadgesApiRoutes.DeleteDeveloperAppRoute();
     const deleteBody = { clientId };
     const deleteRes = await request(app)
       .post(deleteRoute)
@@ -113,14 +115,16 @@ describe('auth apps', () => {
       .send(deleteBody);
     expect(deleteRes.status).toBe(200);
 
-    const finalDoc = await getFromDB(AuthAppModel, clientId);
+    const finalDoc = await getFromDB(DeveloperAppModel, clientId);
     expect(finalDoc).toBeUndefined();
   });
 
   it('should get auth apps', async () => {
-    const createRoute = BitBadgesApiRoutes.CreateAuthAppRoute();
-    const createBody: CreateAuthAppBody = {
+    const createRoute = BitBadgesApiRoutes.CreateDeveloperAppRoute();
+    const createBody: CreateDeveloperAppBody = {
       name: 'test',
+      description: '',
+      image: '',
       redirectUris: ['http://localhost:3000']
     };
 
@@ -132,7 +136,7 @@ describe('auth apps', () => {
 
     expect(res.status).toBe(200);
 
-    const getRoute = BitBadgesApiRoutes.GetAuthAppRoute();
+    const getRoute = BitBadgesApiRoutes.GetDeveloperAppRoute();
 
     const notSignedInRes = await request(app)
       .get(getRoute)
@@ -146,7 +150,7 @@ describe('auth apps', () => {
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session));
 
     expect(getRes.status).toBe(200);
-    expect(getRes.body.authApps.length).toBe(1);
-    expect(getRes.body.authApps[0].name).toBe('test');
+    expect(getRes.body.developerApps.length).toBe(1);
+    expect(getRes.body.developerApps[0].name).toBe('test');
   });
 });

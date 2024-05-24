@@ -37,7 +37,7 @@ export const GenericCustomPluginValidateFunction = async (
     twitter: apiCall?.passTwitter ? adminInfo.twitter : null,
     github: apiCall?.passGithub ? adminInfo.github : null,
     google: apiCall?.passGoogle ? adminInfo.google : null,
-    email: apiCall?.passEmail ? adminInfo.email : null,
+    // email: apiCall?.passEmail ? adminInfo.email : null,
     pluginSecret: pluginDoc.pluginSecret
   };
 

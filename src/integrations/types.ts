@@ -80,7 +80,7 @@ const CustomPluginFunctions: { [key: string]: CustomIntegrationPlugin<any> } = {
   //Here, developers can submit PRs with their own functions for custom plugins
 };
 
-export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc: PluginDoc): BackendIntegrationPlugin<T> => {
+export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc: PluginDoc<bigint>): BackendIntegrationPlugin<T> => {
   return {
     type: doc.pluginId as T,
     metadata: {

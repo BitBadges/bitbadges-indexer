@@ -10,7 +10,13 @@ import {
 } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { checkIfManager, type AuthenticatedRequest, MaybeAuthenticatedRequest, checkIfAuthenticated } from '../blockin/blockin_handlers';
+import {
+  checkIfManager,
+  type AuthenticatedRequest,
+  MaybeAuthenticatedRequest,
+  checkIfAuthenticated,
+  getAuthDetails
+} from '../blockin/blockin_handlers';
 import { getStatus } from '../db/status';
 import { insertToDB } from '../db/db';
 import { ClaimAlertModel } from '../db/schemas';
@@ -31,11 +37,12 @@ export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>,
         }
       }
 
-      if (req.session.cosmosAddress) {
-        const authenticated = checkIfAuthenticated(req, ['Send Claim Alerts']);
+      const authDetails = await getAuthDetails(req);
+      if (authDetails?.cosmosAddress) {
+        const authenticated = await checkIfAuthenticated(req, ['Send Claim Alerts']);
         if (!authenticated) {
           return res.status(401).send({
-            errorMessage: 'To send claim alerts from ' + req.session.cosmosAddress + ', you must be authenticated with the Send Claim Alerts scope.'
+            errorMessage: 'To send claim alerts from ' + authDetails?.cosmosAddress + ', you must be authenticated with the Send Claim Alerts scope.'
           });
         }
       }
@@ -49,7 +56,7 @@ export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>,
       const id = crypto.randomBytes(32).toString('hex');
       const status = await getStatus();
       const doc = new ClaimAlertDoc<NumberType>({
-        from: req.session.cosmosAddress || '',
+        from: authDetails?.cosmosAddress || '',
         _docId: `${claimAlert.collectionId}:${id}`,
         timestamp: Number(Date.now()),
         collectionId: Number(claimAlert.collectionId),

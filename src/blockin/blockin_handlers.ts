@@ -24,9 +24,55 @@ import { type Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
-import { CollectionModel, ProfileModel } from '../db/schemas';
+import { AccessTokenModel, CollectionModel, ProfileModel } from '../db/schemas';
 import { getChainDriver } from './blockin';
-import { hasScopes } from './scopes';
+import { SupportedScopes, hasScopes } from './scopes';
+
+export interface BlockinSessionDetails<T extends NumberType> {
+  /**
+   * Nonce that is used to prevent replay attacks. The following sign-in must be signed with this nonce.
+   *
+   * Note this may be inconsistent from blockinParams.nonce which is for the current sign-in details. This nonce is for the next sign-in.
+   */
+  nonce?: string;
+  /** Stringified Blockin message that was signed. */
+  blockin?: string;
+  /** Blockin params that were signed. */
+  blockinParams?: ChallengeParams<T>;
+  /** Cosmos address of the user. Equal to convertToCosmosAddress(blockinParams.address). */
+  cosmosAddress?: string;
+  /** Native chain address of the user. Equal to blockinParams.address. */
+  address?: string;
+  /** Connected OAuth Discord account. */
+  discord?: {
+    id: string;
+    username: string;
+    discriminator: string;
+    access_token: string;
+  };
+  /** Connected OAuth Twitter account. */
+  twitter?: {
+    id: string;
+    username: string;
+    access_token: string;
+    access_token_secret: string;
+  };
+  /** Connected OAuth Github account. */
+  github?: {
+    id: string;
+    username: string;
+  };
+  /** Connected OAuth Google account. */
+  google?: {
+    id: string;
+    username: string;
+  };
+  /** Connected OAuth Reddit account. */
+  reddit?: {
+    id: string;
+    username: string;
+  };
+}
 
 export interface BlockinSession<T extends NumberType> extends Session {
   /**
@@ -82,31 +128,94 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
   session: Required<BlockinSession<T>>;
 }
 
-export function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]): boolean {
+export async function mustGetAuthDetails<T extends NumberType>(
+  req: MaybeAuthenticatedRequest<T>
+): Promise<BlockinSession<T> & { blockin: string; blockinParams: ChallengeParams<T>; cosmosAddress: string; address: string }> {
+  const authDetails = await getAuthDetails(req);
+  if (!authDetails) {
+    throw new Error('Not authenticated');
+  }
+
+  if (!authDetails.blockin || !authDetails.blockinParams || !authDetails.cosmosAddress || !authDetails.address) {
+    throw new Error('Invalid auth details');
+  }
+
+  return authDetails as any;
+}
+
+export async function getAuthDetails<T extends NumberType>(
+  req: MaybeAuthenticatedRequest<T> | { session: BlockinSession<T>; body: any; header?: never }
+): Promise<BlockinSessionDetails<T> | null> {
+  if (!req) {
+    return null;
+  }
+
+  // Check Authorization header
+  const authHeader = !req.header ? null : req.header('Authorization');
+  if (authHeader == null) {
+    return req.session;
+  } else {
+    const authHeaderParts = authHeader.split(' ');
+    if (authHeaderParts.length !== 2) {
+      throw new Error('Invalid Authorization header');
+    }
+
+    const token = authHeaderParts[1];
+    const tokenDoc = await getFromDB(AccessTokenModel, token);
+    if (!tokenDoc || tokenDoc.accessTokenExpiresAt < Date.now()) {
+      return null;
+    }
+
+    const defaultChallengeParams: ChallengeParams<T> = {
+      domain: 'https://bitbadges.io',
+      statement,
+      address: tokenDoc.address,
+      uri: 'https://bitbadges.io',
+      nonce: '*',
+      expirationDate: undefined,
+      notBefore: undefined,
+      resources: tokenDoc.scopes.map((x) => SupportedScopes.find((scope) => scope.startsWith(x + ':')) ?? []) as string[]
+    };
+
+    return {
+      address: tokenDoc.address,
+      cosmosAddress: tokenDoc.cosmosAddress,
+      blockin: createChallenge(defaultChallengeParams),
+      blockinParams: defaultChallengeParams,
+      nonce: '*'
+    };
+  }
+}
+
+export async function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]): Promise<boolean> {
   setMockSessionIfTestMode(req);
 
-  if (!req || req.session == null) {
+  const authDetails = await getAuthDetails(req);
+
+  if (!req || authDetails == null) {
     return false;
   }
 
   if (expectedScopes != null) {
-    if (!hasScopes(req, expectedScopes)) {
+    const hasCorrectScopes = await hasScopes(req, expectedScopes);
+    if (!hasCorrectScopes) {
       return false;
     }
   }
 
   // Nonce should not be checked in case you are prompting a new sign-in (we generate and verify the new sign-in with req.sesssion.nonce)
   return Boolean(
-    req.session.blockin &&
-      req.session.blockinParams &&
-      req.session.cosmosAddress &&
-      req.session.address &&
-      req.session.blockinParams.address === req.session.address
+    authDetails?.blockin &&
+      authDetails?.blockinParams &&
+      authDetails?.cosmosAddress &&
+      authDetails?.address &&
+      authDetails?.blockinParams?.address === authDetails?.address
   );
 }
 
 export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>, collectionId: NumberType): Promise<boolean> {
-  if (!checkIfAuthenticated(req)) return false;
+  const isAuthenticated = await checkIfAuthenticated(req);
+  if (!isAuthenticated) return false;
 
   // Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
   // I don't think it is that big of a deal. 1) Important stuff is already on the blockchain and 2) they have to be a prev manager
@@ -114,8 +223,9 @@ export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>,
   const collection = await mustGetFromDB(CollectionModel, collectionId.toString());
   const manager = collection.getManager();
 
+  const authDetails = await mustGetAuthDetails(req);
   if (!manager) return false;
-  if (manager !== req.session.cosmosAddress) return false;
+  if (manager !== authDetails.cosmosAddress) return false;
   return true;
 }
 
@@ -172,7 +282,7 @@ export async function getChallenge(
 
 export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusSuccessResponse>) {
   return res.status(200).send({
-    signedIn: !!checkIfAuthenticated(req),
+    signedIn: !!(await checkIfAuthenticated(req)),
     message: req.session.blockin ?? '',
     discord: {
       id: req.session.discord?.id ?? '',
@@ -365,20 +475,30 @@ export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberTy
 }
 
 export function authorizeBlockinRequest(expectedScopes?: string[]) {
-  return (req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) => {
-    setMockSessionIfTestMode(req);
+  return async (req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) => {
+    try {
+      setMockSessionIfTestMode(req);
 
-    if (checkIfAuthenticated(req)) {
-      if (expectedScopes?.length) {
-        if (!hasScopes(req, expectedScopes)) {
-          return returnUnauthorized(res);
+      const isAuthenticated = await checkIfAuthenticated(req, expectedScopes);
+      if (isAuthenticated) {
+        if (expectedScopes?.length) {
+          const hasCorrectScopes = await hasScopes(req, expectedScopes);
+          if (!hasCorrectScopes) {
+            return returnUnauthorized(res);
+          }
         }
+        next();
+        return;
       }
-      next();
-      return;
-    }
 
-    return returnUnauthorized(res);
+      return returnUnauthorized(res);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({
+        error: serializeError(err),
+        errorMessage: err.message || 'Error authorizing request.'
+      });
+    }
   };
 }
 

@@ -5,16 +5,16 @@ import { Mutex } from 'async-mutex';
 import {
   BalanceArray,
   type ErrorResponse,
-  type iGetTokensFromFaucetSuccessResponse,
   type NumberType,
-  type OffChainBalancesMap
+  type OffChainBalancesMap,
+  type iGetTokensFromFaucetSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { AirdropModel } from '../db/schemas';
-import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { checkIfAuthenticated, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { DEV_MODE } from '../constants';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { AirdropModel } from '../db/schemas';
 import { s3 } from '../indexer-vars';
 import { refreshCollection } from './refresh';
 
@@ -35,13 +35,16 @@ export const getTokensFromFaucet = async (
   res: Response<iGetTokensFromFaucetSuccessResponse | ErrorResponse>
 ) => {
   try {
+    const authDetails = await mustGetAuthDetails(req);
+
     // acquire the mutex for the documentMutexes map
     const returnValue = await faucetMutex.runExclusive(async () => {
-      if (!req.session.blockin || !req.session.cosmosAddress) {
-        return { authenticated: false, errorMessage: 'You must Sign In w/ Ethereum.' };
+      const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+      if (!isAuthenticated) {
+        return { authenticated: false, errorMessage: 'You must be authorized.' };
       }
 
-      const doc = await getFromDB(AirdropModel, req.session.cosmosAddress);
+      const doc = await getFromDB(AirdropModel, authDetails.cosmosAddress);
 
       if (doc && doc.airdropped) {
         return { errorMessage: 'Already airdropped' };
@@ -49,7 +52,7 @@ export const getTokensFromFaucet = async (
         await insertToDB(AirdropModel, {
           ...doc,
           airdropped: true,
-          _docId: req.session.cosmosAddress,
+          _docId: authDetails.cosmosAddress,
           timestamp: Date.now()
         });
         return null;
@@ -62,7 +65,7 @@ export const getTokensFromFaucet = async (
 
     try {
       // Sign and send a MsgSend transaction
-      const cosmosAddress = req.session.cosmosAddress;
+      const cosmosAddress = authDetails.cosmosAddress;
       const fromMnemonic = process.env.FAUCET_MNEMONIC ?? '';
       const to = cosmosAddress;
 
@@ -104,7 +107,7 @@ export const getTokensFromFaucet = async (
       assertIsDeliverTxSuccess(result);
 
       await insertToDB(AirdropModel, {
-        _docId: req.session.cosmosAddress,
+        _docId: authDetails.cosmosAddress,
         airdropped: true,
         hash: result.transactionHash,
         timestamp: Date.now()
@@ -142,7 +145,7 @@ export const getTokensFromFaucet = async (
       return res.status(200).send(result);
     } catch (e) {
       // Handle case where sending tokens fails. Need to revert the airdrop status
-      const doc = await mustGetFromDB(AirdropModel, req.session.cosmosAddress);
+      const doc = await mustGetFromDB(AirdropModel, authDetails.cosmosAddress);
       await insertToDB(AirdropModel, { ...doc, airdropped: false, timestamp: Date.now() });
       throw e;
     }

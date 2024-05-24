@@ -9,7 +9,7 @@ import {
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { checkIfAuthenticated, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { checkIfAuthenticated, type AuthenticatedRequest, mustGetAuthDetails, getAuthDetails } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { PluginModel } from '../db/schemas';
@@ -20,6 +20,10 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
   try {
     const reqBody = req.body as CreatePluginBody;
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
+
+    if (uniqueClientSecret) {
+      return res.status(400).send({ errorMessage: 'This endpoint is disabled.' });
+    }
 
     // Check if existing plugin w/ same name
     const isCorePlugin = getCorePlugin(reqBody.pluginId);
@@ -50,18 +54,21 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
       image = metadata.image;
     }
 
+    //TODO: Add review process,
     //TODO: Validate this even more
-
+    const authDetails = await mustGetAuthDetails(req);
     await insertToDB(PluginModel, {
       ...reqBody,
-      createdBy: req.session.cosmosAddress,
+      createdBy: authDetails.cosmosAddress,
       metadata: {
         ...reqBody.metadata,
         image
       },
+
       _docId: reqBody.pluginId,
       pluginSecret: uniqueClientSecret,
-      reviewCompleted: true //TODO: Add review process
+      reviewCompleted: true,
+      lastUpdated: Date.now()
     });
 
     return res.status(200).send({});
@@ -74,23 +81,24 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
   }
 };
 
-export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetPluginSuccessResponse | ErrorResponse>) => {
+export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetPluginSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqBody = req.body as GetPluginBody;
     const { createdPluginsOnly } = reqBody;
 
     if (!!createdPluginsOnly) {
-      if (!checkIfAuthenticated(req, ['Full Access'])) {
+      const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+      if (!isAuthenticated) {
         return res.status(401).send({
           errorMessage: 'Unauthorized. Please sign in to fetch your created plugins.'
         });
       }
     }
-
+    const authDetails = await getAuthDetails(req);
     const docs = await findInDB(PluginModel, {
       query: {
         reviewCompleted: true,
-        ...(createdPluginsOnly ? { 'metadata.createdBy': req.session.cosmosAddress } : {})
+        ...(createdPluginsOnly && authDetails ? { 'metadata.createdBy': authDetails?.cosmosAddress } : {})
       },
       limit: 1000
     });

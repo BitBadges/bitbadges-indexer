@@ -18,15 +18,21 @@ import {
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { checkIfAuthenticated, returnUnauthorized, type AuthenticatedRequest, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
+import {
+  checkIfAuthenticated,
+  mustGetAuthDetails,
+  returnUnauthorized,
+  type AuthenticatedRequest,
+  type MaybeAuthenticatedRequest
+} from '../blockin/blockin_handlers';
 import { MongoDB, deleteMany, getFromDB, insertMany, mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, ListActivityModel } from '../db/schemas';
 import { getStatus } from '../db/status';
+import { createListClaimContextFunction } from './claims';
 import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, deleteOldClaims, updateClaimDocs } from './ipfs';
 import { getAddressListsFromDB } from './utils';
-import { createListClaimContextFunction } from './claims';
 
 export const deleteAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
@@ -40,9 +46,11 @@ export const deleteAddressLists = async (
       throw new Error('You can only delete up to 100 address lists at a time.');
     }
 
+    const authDetails = await mustGetAuthDetails(req);
+
     const docsToDelete = await mustGetManyFromDB(AddressListModel, listIds);
     for (const doc of docsToDelete) {
-      if (doc.createdBy !== req.session.cosmosAddress || !doc.listId.startsWith(req.session.cosmosAddress + '_')) {
+      if (doc.createdBy !== authDetails.cosmosAddress || !doc.listId.startsWith(authDetails.cosmosAddress + '_')) {
         throw new Error('You are not the owner of list with ID ' + doc._docId);
       }
 
@@ -161,7 +169,8 @@ const handleAddressListsUpdateAndCreate = async (
   try {
     const reqBody = req.body as UpdateAddressListsBody<JSPrimitiveNumberType>;
     const lists = reqBody.addressLists;
-    const cosmosAddress = req.session.cosmosAddress;
+    const authDetails = await mustGetAuthDetails(req);
+    const cosmosAddress = authDetails.cosmosAddress;
 
     if (lists.length > 100) {
       throw new Error('You can only update up to 100 address lists at a time.');
@@ -214,7 +223,7 @@ const handleAddressListsUpdateAndCreate = async (
           query,
           list.claims,
           (claim) => {
-            return createListClaimContextFunction(req, claim, list.listId);
+            return createListClaimContextFunction(authDetails.cosmosAddress, claim, list.listId);
           },
           session,
           isCreation
@@ -307,9 +316,10 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
       // If it is viewable by link / ID, they have requested it via the API call so they know the link
       if (doc.private && !doc.viewableWithLink) {
         const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-        if (!checkIfAuthenticated(authReq, ['Read Address Lists'])) return returnUnauthorized(res);
-
-        const cosmosAddress = authReq.session.cosmosAddress;
+        const isAuthenticated = await checkIfAuthenticated(authReq, ['Full Access']);
+        if (!isAuthenticated) return returnUnauthorized(res);
+        const authDetails = await mustGetAuthDetails(authReq);
+        const cosmosAddress = authDetails.cosmosAddress;
         if (doc.createdBy !== cosmosAddress) {
           return res.status(401).send({
             errorMessage: `You do not have permission to view one or more of the requested address lists. The list with ID ${doc.listId} is private and viewable only by the creator.`

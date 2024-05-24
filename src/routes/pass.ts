@@ -1,10 +1,10 @@
+import { NumberType, convertToCosmosAddress } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { mustGetFromDB } from '../db/db';
-import { BlockinAuthSignatureModel } from '../db/schemas';
-import { AuthenticatedRequest } from '../blockin/blockin_handlers';
-import { NumberType, convertToCosmosAddress } from 'bitbadgesjs-sdk';
+import { SIWBBRequestModel } from '../db/schemas';
 // For running tests (TS bugs out)
 // import { PKPass } from 'passkit-generator';
 
@@ -21,12 +21,13 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
   try {
     const { code } = req.body;
 
-    const authCodeDoc = await mustGetFromDB(BlockinAuthSignatureModel, code);
-    if (convertToCosmosAddress(authCodeDoc.params.address) !== req.session.cosmosAddress) {
+    const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, code);
+    const authDetails = await mustGetAuthDetails(req);
+    if (convertToCosmosAddress(siwbbRequestDoc.params.address) !== authDetails.cosmosAddress) {
       return res.status(401).send({ errorMessage: 'Unauthorized' });
     }
 
-    const { params, name, description } = authCodeDoc;
+    const { params, name, description } = siwbbRequestDoc;
     const passID = code;
 
     const pass = await PKPass.from(

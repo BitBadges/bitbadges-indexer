@@ -25,7 +25,7 @@ import crypto from 'crypto';
 import { Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
-import { checkIfManager, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { checkIfManager, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, CollectionModel, IPFSTotalsModel, OffChainUrlModel } from '../db/schemas';
@@ -154,6 +154,7 @@ export const updateClaimDocs = async (
   isCreation?: boolean
 ) => {
   const queryBuilder = constructQuery(claimType, oldClaimQuery);
+  const authDetails = await mustGetAuthDetails(req);
 
   const claimDocsToSet: Array<iClaimBuilderDoc<NumberType>> = [];
   for (const claim of newClaims ?? []) {
@@ -196,7 +197,7 @@ export const updateClaimDocs = async (
           throw new Error('Invalid list ID');
         }
 
-        const isCreator = listDoc.createdBy === req.session.cosmosAddress;
+        const isCreator = listDoc.createdBy === authDetails.cosmosAddress;
         if (!isCreator) {
           throw new Error("Permission error: You don't have permission to update this claim");
         }
@@ -253,7 +254,7 @@ export const updateClaimDocs = async (
           updatePermissions.push(...collection.collectionPermissions.canUpdateCollectionApprovals);
         } else {
           const approverAddress = existingDoc.trackerDetails?.approverAddress;
-          if (approverAddress !== req.session.cosmosAddress) {
+          if (approverAddress !== authDetails.cosmosAddress) {
             throw new Error("Permission error: You don't have permission to update this claim");
           }
 
@@ -298,7 +299,8 @@ export const updateClaimDocs = async (
         metadata: context(claim).metadata,
         state,
         plugins: encryptedPlugins ?? [],
-        deletedAt: undefined
+        deletedAt: undefined,
+        lastUpdated: BigInt(Date.now())
       });
     } else {
       claimDocsToSet.push({
@@ -306,7 +308,8 @@ export const updateClaimDocs = async (
         _docId: claim.claimId,
         state,
         plugins: encryptedPlugins ?? [],
-        deletedAt: undefined
+        deletedAt: undefined,
+        lastUpdated: BigInt(Date.now())
       });
     }
   }
@@ -358,6 +361,7 @@ export const addBalancesToOffChainStorageHandler = async (
   const reqBody = req.body as AddBalancesToOffChainStorageBody;
 
   try {
+    const authDetails = await mustGetAuthDetails(req);
     const customData = crypto.randomBytes(32).toString('hex');
     if (BigInt(reqBody.collectionId) > 0) {
       const managerCheck = await checkIfManager(req, reqBody.collectionId);
@@ -370,7 +374,7 @@ export const addBalancesToOffChainStorageHandler = async (
     } else {
       await insertToDB(OffChainUrlModel, {
         _docId: customData,
-        createdBy: req.session.cosmosAddress,
+        createdBy: authDetails.cosmosAddress,
         collectionId: Number(0)
       });
     }
@@ -404,7 +408,7 @@ export const addBalancesToOffChainStorageHandler = async (
         throw new Error('No add result received');
       }
 
-      await updateIpfsTotals(req.session.cosmosAddress, size);
+      await updateIpfsTotals(authDetails.cosmosAddress, size);
       if (BigInt(reqBody.collectionId) > 0) await refreshCollection(reqBody.collectionId.toString(), true);
     }
 
@@ -423,7 +427,7 @@ export const addBalancesToOffChainStorageHandler = async (
         claimQuery,
         reqBody.claims ?? [],
         (claim) => {
-          return createOffChainClaimContextFunction(req, claim, Number(reqBody.collectionId), cid);
+          return createOffChainClaimContextFunction(authDetails.cosmosAddress, claim, Number(reqBody.collectionId), cid);
         }
       );
       await deleteOldClaims(isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, reqBody.claims ?? []);
@@ -447,6 +451,7 @@ export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, re
   const reqBody = req.body as AddToIpfsBody;
 
   try {
+    const authDetails = await mustGetAuthDetails(req);
     if (!reqBody.contents) {
       throw new Error('No metadata provided');
     }
@@ -456,7 +461,7 @@ export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, re
     }
 
     const size = Buffer.byteLength(JSON.stringify(req.body));
-    await checkIpfsTotals(req.session.cosmosAddress, size);
+    await checkIpfsTotals(authDetails.cosmosAddress, size);
 
     const metadataToAdd: (iBadgeMetadataDetails<NumberType> | iMetadata<NumberType> | iCollectionMetadataDetails<NumberType>)[] = [];
     const challengeDetailsToAdd: iChallengeDetails<NumberType>[] = [];
@@ -484,7 +489,7 @@ export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, re
       }
     }
 
-    await updateIpfsTotals(req.session.cosmosAddress, size);
+    await updateIpfsTotals(authDetails.cosmosAddress, size);
 
     return res.status(200).send({ results: finalResults });
   } catch (e) {
@@ -503,8 +508,9 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
   const _reqBody = req.body as AddApprovalDetailsToOffChainStorageBody;
 
   try {
+    const authDetails = await mustGetAuthDetails(req);
     const size = Buffer.byteLength(JSON.stringify(req.body));
-    await checkIpfsTotals(req.session.cosmosAddress, size);
+    await checkIpfsTotals(authDetails.cosmosAddress, size);
 
     const results: iAddApprovalDetailsToOffChainStorageSuccessResponse = {
       approvalResults: []
@@ -525,7 +531,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
               throw new Error('Seed code or preimages must be passed for on-chain claim');
             }
 
-            return createOnChainClaimContextFunction(req, claim, challengeDetails?.seedCode ?? '');
+            return createOnChainClaimContextFunction(authDetails.cosmosAddress, claim, challengeDetails?.seedCode ?? '');
           });
 
           // Deleted docs are handled in the poller
@@ -545,7 +551,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       });
     }
 
-    await updateIpfsTotals(req.session.cosmosAddress, size);
+    await updateIpfsTotals(authDetails.cosmosAddress, size);
 
     return res.status(200).send(results);
   } catch (e) {

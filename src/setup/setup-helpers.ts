@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { MongoDB, insertToDB } from '../db/db';
 import {
+  AccessTokenModel,
   AccountModel,
   AccountSchema,
   AddressListModel,
@@ -11,11 +12,12 @@ import {
   ApiKeySchema,
   ApprovalTrackerModel,
   ApprovalTrackerSchema,
-  AuthAppModel,
+  DeveloperAppModel,
+  AuthorizationCodeModel,
   BalanceModel,
   BalanceSchema,
-  BlockinAuthSignatureModel,
-  BlockinAuthSignatureSchema,
+  SIWBBRequestModel,
+  SIWBBRequestSchema,
   BrowseModel,
   BrowseSchema,
   ChallengeSchema,
@@ -71,8 +73,10 @@ import { PluginPresetType } from 'bitbadgesjs-sdk';
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(AuthorizationCodeModel.collection.name);
+  await MongoDB.dropCollection(AccessTokenModel.collection.name);
   await MongoDB.dropCollection(PluginModel.collection.name);
-  await MongoDB.dropCollection(AuthAppModel.collection.name);
+  await MongoDB.dropCollection(DeveloperAppModel.collection.name);
   await MongoDB.dropCollection(BrowseModel.collection.name);
   await MongoDB.dropCollection(MapModel.collection.name);
   await MongoDB.dropCollection(UsernameModel.collection.name);
@@ -99,7 +103,7 @@ export async function deleteDatabases(): Promise<void> {
   await MongoDB.dropCollection(OffChainUrlModel.collection.name);
   await MongoDB.dropCollection(ReportModel.collection.name);
   await MongoDB.dropCollection(ComplianceModel.collection.name);
-  await MongoDB.dropCollection(BlockinAuthSignatureModel.collection.name);
+  await MongoDB.dropCollection(SIWBBRequestModel.collection.name);
   await MongoDB.dropCollection(FollowDetailsModel.collection.name);
   await MongoDB.dropCollection(ListActivityModel.collection.name);
   await MongoDB.dropCollection(PageVisitsModel.collection.name);
@@ -186,7 +190,7 @@ export async function initStatus(): Promise<void> {
     requiresSessions: false,
     requiresUserInputs: false,
     duplicatesAllowed: false,
-    autoCompleteCompatible: true,
+    reuseForNonIndexed: true,
     metadata: {
       name: 'Min $BADGE',
       description: 'Users must have a minimum balance of $BADGE.',
@@ -197,12 +201,13 @@ export async function initStatus(): Promise<void> {
     },
     userInputsSchema: [],
     privateParamsSchema: [],
+    lastUpdated: Date.now(),
     publicParamsSchema: [{ key: 'minBalance', label: 'Minimum Balance', type: 'number' }],
     verificationCall: {
       method: 'POST',
       uri: 'https://api.bitbadges.io/api/v0/integrations/query/min-badge',
       passDiscord: false,
-      passEmail: false,
+      // passEmail: false,
       passTwitter: false,
       passAddress: true,
       passGoogle: false,
@@ -216,12 +221,13 @@ export async function initStatus(): Promise<void> {
 
   await insertToDB(PluginModel, {
     _docId: 'must-own-badges',
+    lastUpdated: Date.now(),
     createdBy: '',
     pluginId: 'must-own-badges',
     requiresSessions: false,
     requiresUserInputs: false,
     duplicatesAllowed: true,
-    autoCompleteCompatible: true,
+    reuseForNonIndexed: true,
     metadata: {
       name: 'Ownership Requirements',
       description: 'Which badges / lists must the user own / be on to claim this badge?',
@@ -237,7 +243,7 @@ export async function initStatus(): Promise<void> {
       method: 'POST',
       uri: 'https://api.bitbadges.io/api/v0/integrations/query/must-own-badges',
       passDiscord: false,
-      passEmail: false,
+      // passEmail: false,
       passTwitter: false,
       passAddress: true,
       passGoogle: false,
@@ -252,11 +258,12 @@ export async function initStatus(): Promise<void> {
   await insertToDB(PluginModel, {
     _docId: 'github-contributions',
     createdBy: '',
+    lastUpdated: Date.now(),
     pluginId: 'github-contributions',
     requiresSessions: true,
     requiresUserInputs: false,
     duplicatesAllowed: true,
-    autoCompleteCompatible: false,
+    reuseForNonIndexed: false,
 
     metadata: {
       name: 'Github Contributions',
@@ -274,7 +281,7 @@ export async function initStatus(): Promise<void> {
       method: 'POST',
       uri: 'https://api.bitbadges.io/api/v0/integrations/query/github-contributions',
       passDiscord: false,
-      passEmail: false,
+      // passEmail: false,
       passTwitter: false,
       passAddress: false,
       passGoogle: false,
@@ -289,11 +296,12 @@ export async function initStatus(): Promise<void> {
   await insertToDB(PluginModel, {
     _docId: 'discord-server',
     createdBy: '',
+    lastUpdated: Date.now(),
     pluginId: 'discord-server',
     requiresSessions: true,
     requiresUserInputs: false,
     duplicatesAllowed: true,
-    autoCompleteCompatible: false,
+    reuseForNonIndexed: false,
     metadata: {
       name: 'Discord Server',
       description: 'Check if a user is in a Discord server.',
@@ -317,7 +325,7 @@ export async function initStatus(): Promise<void> {
       method: 'POST',
       uri: 'https://api.bitbadges.io/api/v0/integrations/query/discord-server',
       passDiscord: true,
-      passEmail: false,
+      // passEmail: false,
       passTwitter: false,
       passAddress: false,
       passGoogle: false,
@@ -363,7 +371,7 @@ export async function createIndexesAndViews(): Promise<void> {
   OffChainUrlSchema.index({ _docId: 1 }, { unique: true });
   ReportSchema.index({ _docId: 1 }, { unique: true });
   ComplianceSchema.index({ _docId: 1 }, { unique: true });
-  BlockinAuthSignatureSchema.index({ _docId: 1 }, { unique: true });
+  SIWBBRequestSchema.index({ _docId: 1 }, { unique: true });
   FollowDetailsSchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ timestamp: 1 });
@@ -399,6 +407,6 @@ export async function createIndexesAndViews(): Promise<void> {
   await OffChainUrlModel.createIndexes();
   await ReportModel.createIndexes();
   await ComplianceModel.createIndexes();
-  await BlockinAuthSignatureModel.createIndexes();
+  await SIWBBRequestModel.createIndexes();
   await FollowDetailsModel.createIndexes();
 }

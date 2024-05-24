@@ -228,7 +228,7 @@ export const convertToBitBadgesUserInfo = async (
       claimAlerts: [],
       secrets: [],
       approvalTrackers: [],
-      authCodes: [],
+      siwbbRequests: [],
       views: {},
       nsfw: isNSFW,
       reported: isReported,

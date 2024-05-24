@@ -234,8 +234,8 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
             //   bookmark: ''
             // },
             // {
-            //   viewType: 'authCodes',
-            //   viewId: 'authCodes',
+            //   viewType: 'siwbbRequests',
+            //   viewId: 'siwbbRequests',
             //   bookmark: ''
             // },
             // {

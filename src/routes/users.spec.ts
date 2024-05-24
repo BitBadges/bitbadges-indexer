@@ -174,7 +174,7 @@ describe('users', () => {
 
   it('should throw on fetching secret values while unauthenticated', async () => {
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
-    const problemViews: AccountViewKey[] = ['authCodes', 'privateLists', 'receivedSecrets', 'createdSecrets'];
+    const problemViews: AccountViewKey[] = ['siwbbRequests', 'privateLists', 'receivedSecrets', 'createdSecrets'];
     for (const view of problemViews) {
       const getBody: GetAccountsBody = {
         accountsToFetch: [

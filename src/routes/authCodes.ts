@@ -1,19 +1,19 @@
 import {
   BlockinChallenge,
-  GetBlockinAuthCodesForAuthAppBody,
+  GetAndVerifySIWBBRequestsForDeveloperAppBody,
   Numberify,
   SecretsProof,
   convertToCosmosAddress,
   getChainForAddress,
-  iGetBlockinAuthCodesForAuthAppSuccessResponse,
-  type CreateBlockinAuthCodeBody,
-  type DeleteBlockinAuthCodeBody,
+  iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse,
+  type CreateSIWBBRequestBody,
+  type DeleteSIWBBRequestBody,
   type ErrorResponse,
-  type GetBlockinAuthCodeBody,
+  type GetAndVerifySIWBBRequestBody,
   type NumberType,
-  type iCreateBlockinAuthCodeSuccessResponse,
-  type iDeleteBlockinAuthCodeSuccessResponse,
-  type iGetBlockinAuthCodeSuccessResponse
+  type iCreateSIWBBRequestSuccessResponse,
+  type iDeleteSIWBBRequestSuccessResponse,
+  type iGetAndVerifySIWBBRequestSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge } from 'blockin';
 import crypto from 'crypto';
@@ -24,47 +24,50 @@ import {
   checkIfAuthenticated,
   genericBlockinVerify,
   setMockSessionIfTestMode,
-  type AuthenticatedRequest
+  type AuthenticatedRequest,
+  mustGetAuthDetails
 } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
-import { AuthAppModel, BlockinAuthSignatureModel } from '../db/schemas';
-import { executeAuthCodesForAppQuery } from './userQueries';
+import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
+import { executeSIWBBRequestsForAppQuery } from './userQueries';
 
-export const createAuthCode = async (
+export const createSIWBBRequest = async (
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iCreateBlockinAuthCodeSuccessResponse | ErrorResponse>
+  res: Response<iCreateSIWBBRequestSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as CreateBlockinAuthCodeBody;
+    const reqBody = req.body as CreateSIWBBRequestBody;
     const challengeParams = constructChallengeObjectFromString<number>(reqBody.message, Numberify);
     if (!challengeParams.address) {
       throw new Error('Invalid address in message.');
     }
 
-    //IMPORTANT: If we are calling from the frontend, we override the 'Create Auth Codes' scope in order to allow the user to not have to authenticate
-    //           to the API. This is because it would be two signatures (one for creating the auth code and one for signing in with BitBadges).
-    //           We then use the fact that the auth code signature is valid to confirm the user is who they say they are, rather than the req.session.
+    //IMPORTANT: If we are calling from the frontend, we override the 'Create Siwbb Requests' scope in order to allow the user to not have to authenticate
+    //           to the API. This is because it would be two signatures (one for creating the Siwbb request and one for signing in with BitBadges).
+    //           We then use the fact that the Siwbb request signature is valid to confirm the user is who they say they are, rather than the req.session.
     //           This is checked in the middleware.
     const origin = req.headers.origin;
     const isFromFrontend =
       origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io');
     if (!isFromFrontend) {
-      if (!checkIfAuthenticated(req, ['Create Auth Codes'])) {
-        throw new Error('You do not have permission to create auth codes.');
+      const isAuthenticated = await checkIfAuthenticated(req, ['Create Siwbb Requests']);
+      if (!isAuthenticated) {
+        throw new Error('You do not have permission to create Siwbb requests.');
       }
 
       if (reqBody.redirectUri) {
-        throw new Error('Creating auth codes with a redirect URI is not supported for requests that interact with the API directly.');
+        throw new Error('Creating Siwbb requests with a redirect URI is not supported for requests that interact with the API directly.');
       }
 
-      if (!challengeParams.address || convertToCosmosAddress(challengeParams.address) !== req.session.cosmosAddress) {
-        throw new Error('You can only add auth codes for the connected address.');
+      const authDetails = await mustGetAuthDetails(req);
+      if (!challengeParams.address || convertToCosmosAddress(challengeParams.address) !== authDetails.cosmosAddress) {
+        throw new Error('You can only add Siwbb requests for the connected address.');
       }
     }
 
-    const appDoc = await getFromDB(AuthAppModel, reqBody.clientId);
+    const appDoc = await getFromDB(DeveloperAppModel, reqBody.clientId);
     if (!appDoc) {
-      throw new Error('Invalid client ID. All auth codes must be associated with a valid client ID for an app.');
+      throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
     }
 
     if (reqBody.redirectUri && !appDoc.redirectUris.includes(reqBody.redirectUri)) {
@@ -91,64 +94,65 @@ export const createAuthCode = async (
 
     const otherSignInsObj: Record<string, any> = {};
     for (const otherSignIn of reqBody.otherSignIns || []) {
+      const authDetails = await mustGetAuthDetails(req);
       if (otherSignIn === 'discord') {
-        if (!req.session.discord) {
+        if (!authDetails.discord) {
           throw new Error('You must be signed in with Discord to add a Discord sign in.');
         }
 
-        if (!req.session.discord.id || !req.session.discord.username) {
+        if (!authDetails.discord?.id || !authDetails.discord?.username) {
           throw new Error('Invalid Discord session data.');
         }
 
         otherSignInsObj.discord = {
-          id: req.session.discord.id,
-          username: req.session.discord.username,
-          discriminator: req.session.discord.discriminator
+          id: authDetails.discord?.id,
+          username: authDetails.discord?.username,
+          discriminator: authDetails.discord?.discriminator
         };
       } else if (otherSignIn === 'twitter') {
-        if (!req.session.twitter) {
+        if (!authDetails.twitter) {
           throw new Error('You must be signed in with Twitter to add a Twitter sign in.');
         }
 
-        if (!req.session.twitter.id || !req.session.twitter.username) {
+        if (!authDetails.twitter?.id || !authDetails.twitter?.username) {
           throw new Error('Invalid Twitter session data.');
         }
 
         otherSignInsObj.twitter = {
-          id: req.session.twitter.id,
-          username: req.session.twitter.username
+          id: authDetails.twitter?.id,
+          username: authDetails.twitter?.username
         };
       } else if (otherSignIn === 'github') {
-        if (!req.session.github) {
+        if (!authDetails.github) {
           throw new Error('You must be signed in with Github to add a Github sign in.');
         }
 
-        if (!req.session.github.id || !req.session.github.username) {
+        if (!authDetails.github?.id || !authDetails.github?.username) {
           throw new Error('Invalid Github session data.');
         }
 
         otherSignInsObj.github = {
-          id: req.session.github.id,
-          username: req.session.github.username
+          id: authDetails.github?.id,
+          username: authDetails.github?.username
         };
       } else if (otherSignIn === 'google') {
-        if (!req.session.google) {
+        if (!authDetails.google) {
           throw new Error('You must be signed in with Google to add a Google sign in.');
         }
 
-        if (!req.session.google.id || !req.session.google.username) {
+        if (!authDetails.google?.id || !authDetails.google?.username) {
           throw new Error('Invalid Google session data.');
         }
 
         otherSignInsObj.google = {
-          id: req.session.google.id,
-          username: req.session.google.username
+          id: authDetails.google?.id,
+          username: authDetails.google?.username
         };
       }
     }
 
     const uniqueId = crypto.randomBytes(32).toString('hex');
-    await insertToDB(BlockinAuthSignatureModel, {
+    await insertToDB(SIWBBRequestModel, {
       _docId: uniqueId,
       ...reqBody,
       publicKey: reqBody.publicKey ?? '',
@@ -167,30 +171,31 @@ export const createAuthCode = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: e.message || e.message || 'Error creating QR auth code.'
+      errorMessage: e.message || e.message || 'Error creating QR Siwbb request.'
     });
   }
 };
 
-export const getAuthCodesForAuthApp = async (
+export const getSIWBBRequestsForDeveloperApp = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iGetBlockinAuthCodesForAuthAppSuccessResponse<NumberType> | ErrorResponse>
+  res: Response<iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as GetBlockinAuthCodesForAuthAppBody;
+    const reqBody = req.body as GetAndVerifySIWBBRequestsForDeveloperAppBody;
     const { clientId, bookmark } = reqBody;
-    const appDoc = await getFromDB(AuthAppModel, clientId);
+    const appDoc = await getFromDB(DeveloperAppModel, clientId);
     if (!appDoc) {
-      throw new Error('Invalid client ID. All auth codes must be associated with a valid client ID for an app.');
+      throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
     }
 
-    if (appDoc.createdBy !== req.session.cosmosAddress) {
+    const authDetails = await mustGetAuthDetails(req);
+    if (appDoc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this auth app.');
     }
 
-    const docsRes = await executeAuthCodesForAppQuery(clientId, bookmark);
+    const docsRes = await executeSIWBBRequestsForAppQuery(clientId, bookmark);
     return res.status(200).send({
-      blockinAuthCodes: docsRes.docs.map((doc) => {
+      siwbbRequests: docsRes.docs.map((doc) => {
         const blockinRes = new BlockinChallenge({
           ...doc,
           address: doc.params.address,
@@ -208,31 +213,32 @@ export const getAuthCodesForAuthApp = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: e.message || 'Error getting auth codes.'
+      errorMessage: e.message || 'Error getting Siwbb requests.'
     });
   }
 };
 
-export const getAuthCode = async (
+export const getAndVerifySIWBBRequest = async (
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iGetBlockinAuthCodeSuccessResponse<NumberType> | ErrorResponse>
+  res: Response<iGetAndVerifySIWBBRequestSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
     setMockSessionIfTestMode(req);
 
-    const reqBody = req.body as GetBlockinAuthCodeBody;
+    const reqBody = req.body as GetAndVerifySIWBBRequestBody;
 
     // For now, we use the approach that if someone has the signature, they can see the message.
 
-    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.code);
+    const doc = await mustGetFromDB(SIWBBRequestModel, reqBody.code);
     const { clientId, clientSecret, redirectUri } = reqBody;
 
-    if (!req.session.cosmosAddress || convertToCosmosAddress(doc.params.address) !== req.session.cosmosAddress) {
+    const authDetails = await mustGetAuthDetails(req);
+    if (!authDetails.cosmosAddress || convertToCosmosAddress(doc.params.address) !== authDetails.cosmosAddress) {
       if (!clientId) {
-        throw new Error('You are not the owner of this auth code.');
+        throw new Error('You are not the owner of this Siwbb request.');
       }
 
-      const appDoc = await mustGetFromDB(AuthAppModel, clientId);
+      const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
       if (appDoc.clientSecret !== clientSecret) {
         throw new Error('Invalid client secret.');
       }
@@ -286,16 +292,20 @@ export const getAuthCode = async (
   }
 };
 
-export const deleteAuthCode = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteBlockinAuthCodeSuccessResponse | ErrorResponse>) => {
+export const deleteSIWBBRequest = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iDeleteSIWBBRequestSuccessResponse | ErrorResponse>
+) => {
   try {
-    const reqBody = req.body as DeleteBlockinAuthCodeBody;
+    const reqBody = req.body as DeleteSIWBBRequestBody;
 
-    const doc = await mustGetFromDB(BlockinAuthSignatureModel, reqBody.code);
-    if (doc.cosmosAddress !== req.session.cosmosAddress) {
-      throw new Error('You are not the owner of this auth code.');
+    const authDetails = await mustGetAuthDetails(req);
+    const doc = await mustGetFromDB(SIWBBRequestModel, reqBody.code);
+    if (doc.cosmosAddress !== authDetails.cosmosAddress) {
+      throw new Error('You are not the owner of this Siwbb request.');
     }
 
-    await insertToDB(BlockinAuthSignatureModel, {
+    await insertToDB(SIWBBRequestModel, {
       ...doc,
       deletedAt: Date.now()
     });
@@ -305,7 +315,7 @@ export const deleteAuthCode = async (req: AuthenticatedRequest<NumberType>, res:
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: e.message || 'Error deleting QR auth code.'
+      errorMessage: e.message || 'Error deleting QR Siwbb request.'
     });
   }
 };

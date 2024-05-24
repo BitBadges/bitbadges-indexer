@@ -1,36 +1,50 @@
 import {
-  type CreateAuthAppBody,
-  type DeleteAuthAppBody,
+  GetDeveloperAppBody,
+  type CreateDeveloperAppBody,
+  type DeleteDeveloperAppBody,
   type ErrorResponse,
   type NumberType,
-  type UpdateAuthAppBody,
-  type iCreateAuthAppSuccessResponse,
-  type iDeleteAuthAppSuccessResponse,
-  type iGetAuthAppSuccessResponse,
-  type iUpdateAuthAppSuccessResponse
+  type UpdateDeveloperAppBody,
+  type iCreateDeveloperAppSuccessResponse,
+  type iDeleteDeveloperAppSuccessResponse,
+  type iGetDeveloperAppSuccessResponse,
+  type iUpdateDeveloperAppSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
+import { checkIfAuthenticated, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { AuthAppModel } from '../db/schemas';
+import { DeveloperAppModel } from '../db/schemas';
 
-export const createAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateAuthAppSuccessResponse | ErrorResponse>) => {
+export const createDeveloperApp = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iCreateDeveloperAppSuccessResponse | ErrorResponse>
+) => {
   try {
-    const reqBody = req.body as CreateAuthAppBody;
+    const reqBody = req.body as CreateDeveloperAppBody;
 
     const uniqueClientId = crypto.randomBytes(32).toString('hex');
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
+    const authDetails = await mustGetAuthDetails(req);
 
-    await insertToDB(AuthAppModel, {
-      createdBy: req.session.cosmosAddress,
+    if (reqBody.image.startsWith('data:')) {
+      const res = await addMetadataToIpfs([{ name: '', description: '', image: reqBody.image }]);
+      const metadata = await getFromIpfs(res[0].cid);
+      reqBody.image = JSON.parse(metadata.file).image;
+    }
+
+    await insertToDB(DeveloperAppModel, {
+      createdBy: authDetails.cosmosAddress,
       _docId: uniqueClientId,
       clientId: uniqueClientId,
       clientSecret: uniqueClientSecret,
       name: reqBody.name,
-      redirectUris: reqBody.redirectUris
+      redirectUris: reqBody.redirectUris,
+      description: reqBody.description,
+      image: reqBody.image
     });
 
     return res.status(200).send({ clientId: uniqueClientId, clientSecret: uniqueClientSecret });
@@ -43,15 +57,28 @@ export const createAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
   }
 };
 
-export const getAuthApps = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetAuthAppSuccessResponse | ErrorResponse>) => {
+export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetDeveloperAppSuccessResponse | ErrorResponse>) => {
   try {
-    const docs = await findInDB(AuthAppModel, {
-      query: {
-        createdBy: req.session.cosmosAddress
-      }
-    });
+    const body = req.body as GetDeveloperAppBody;
 
-    return res.status(200).send({ authApps: docs });
+    if (body.clientId) {
+      const doc = await mustGetFromDB(DeveloperAppModel, body.clientId);
+      //Prune the client secret
+      doc.clientSecret = '';
+      return res.status(200).send({ developerApps: [doc] });
+    } else {
+      const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+      if (!isAuthenticated) {
+        return res.status(401).send({ errorMessage: 'You must be authorized.' });
+      }
+      const authDetails = await mustGetAuthDetails(req);
+      const docs = await findInDB(DeveloperAppModel, {
+        query: {
+          createdBy: authDetails.cosmosAddress
+        }
+      });
+      return res.status(200).send({ developerApps: docs });
+    }
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -61,16 +88,19 @@ export const getAuthApps = async (req: AuthenticatedRequest<NumberType>, res: Re
   }
 };
 
-export const deleteAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteAuthAppSuccessResponse | ErrorResponse>) => {
+export const deleteDeveloperApp = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iDeleteDeveloperAppSuccessResponse | ErrorResponse>
+) => {
   try {
-    const reqBody = req.body as DeleteAuthAppBody;
-
-    const doc = await mustGetFromDB(AuthAppModel, reqBody.clientId);
-    if (doc.createdBy !== req.session.cosmosAddress) {
-      throw new Error('You are not the owner of this auth code.');
+    const reqBody = req.body as DeleteDeveloperAppBody;
+    const authDetails = await mustGetAuthDetails(req);
+    const doc = await mustGetFromDB(DeveloperAppModel, reqBody.clientId);
+    if (doc.createdBy !== authDetails.cosmosAddress) {
+      throw new Error('You are not the owner of this Siwbb request.');
     }
 
-    await deleteMany(AuthAppModel, [reqBody.clientId]);
+    await deleteMany(DeveloperAppModel, [reqBody.clientId]);
 
     return res.status(200).send({ success: true });
   } catch (e) {
@@ -82,12 +112,15 @@ export const deleteAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
   }
 };
 
-export const updateAuthApp = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAuthAppSuccessResponse | ErrorResponse>) => {
+export const updateDeveloperApp = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iUpdateDeveloperAppSuccessResponse | ErrorResponse>
+) => {
   try {
-    const { name, redirectUris, clientId } = req.body as UpdateAuthAppBody;
-
-    const doc = await mustGetFromDB(AuthAppModel, clientId);
-    if (doc.createdBy !== req.session.cosmosAddress) {
+    const { name, description, image, redirectUris, clientId } = req.body as UpdateDeveloperAppBody;
+    const authDetails = await mustGetAuthDetails(req);
+    const doc = await mustGetFromDB(DeveloperAppModel, clientId);
+    if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You must be the owner of the app.');
     }
 
@@ -95,11 +128,25 @@ export const updateAuthApp = async (req: AuthenticatedRequest<NumberType>, res: 
       doc.name = name;
     }
 
+    if (description !== undefined) {
+      doc.description = description;
+    }
+
+    if (image !== undefined) {
+      if (image.startsWith('data:')) {
+        const res = await addMetadataToIpfs([{ name: '', description: '', image: image }]);
+        const metadata = await getFromIpfs(res[0].cid);
+        doc.image = JSON.parse(metadata.file).image;
+      } else {
+        doc.image = image;
+      }
+    }
+
     if (redirectUris !== undefined) {
       doc.redirectUris = redirectUris;
     }
 
-    await insertToDB(AuthAppModel, doc);
+    await insertToDB(DeveloperAppModel, doc);
 
     return res.status(200).send({ success: true });
   } catch (e) {

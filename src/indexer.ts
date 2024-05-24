@@ -1,5 +1,13 @@
 import axios from 'axios';
-import { NumberType, SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
+import {
+  NumberType,
+  SocialConnectionInfo,
+  SocialConnections,
+  iAccessTokenDoc,
+  iAuthorizationCodeDoc,
+  mustConvertToCosmosAddress,
+  type ErrorResponse
+} from 'bitbadgesjs-sdk';
 import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -8,10 +16,10 @@ import crypto from 'crypto';
 import { config } from 'dotenv';
 import express, { type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import fs from 'fs';
-import https from 'https';
 import expressSession from 'express-session';
+import fs from 'fs';
 import helmet from 'helmet';
+import https from 'https';
 import mongoose from 'mongoose';
 import Moralis from 'moralis';
 import multer from 'multer';
@@ -27,19 +35,20 @@ import {
   genericBlockinVerifyAssetsHandler,
   genericBlockinVerifyHandler,
   getChallenge,
+  mustGetAuthDetails,
   removeBlockinSessionCookie,
   verifyBlockinAndGrantSessionCookie,
   type BlockinSession
 } from './blockin/blockin_handlers';
 import { type IndexerStargateClient } from './chain-client/indexer_stargateclient';
-import { deleteMany, insertToDB, mustGetFromDB } from './db/db';
+import { deleteMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
 import { findInDB } from './db/queries';
-import { ApiKeyModel, ProfileModel } from './db/schemas';
+import { AccessTokenModel, ApiKeyModel, DeveloperAppModel, AuthorizationCodeModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE } from './indexer-vars';
 import { poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
-import { createAuthApp, deleteAuthApp, getAuthApps, updateAuthApp } from './routes/authApps';
-import { createAuthCode, deleteAuthCode, getAuthCode, getAuthCodesForAuthApp } from './routes/authCodes';
+import { createDeveloperApp, deleteDeveloperApp, getDeveloperApps, updateDeveloperApp } from './routes/authApps';
+import { createSIWBBRequest, deleteSIWBBRequest, getAndVerifySIWBBRequest, getSIWBBRequestsForDeveloperApp } from './routes/authCodes';
 import { getOwnersForBadge } from './routes/badges';
 import { getBadgeBalanceByAddress } from './routes/balances';
 import { broadcastTx, simulateTx } from './routes/broadcast';
@@ -51,7 +60,7 @@ import {
   deleteClaimHandler,
   getClaimsHandler,
   getClaimsStatusHandler,
-  getReservedCodes,
+  getReservedClaimCodes,
   simulateClaim,
   updateClaimHandler
 } from './routes/claims';
@@ -367,9 +376,9 @@ app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus);
 app.post('/api/v0/collections/filter', filterBadgesInCollectionHandler);
 
 app.post('/api/v0/claims/complete/:claimId/:cosmosAddress', completeClaim);
-app.post('/api/v0/claims/reserved/:claimId/:cosmosAddress', getReservedCodes);
+app.post('/api/v0/claims/reserved/:claimId/:cosmosAddress', getReservedClaimCodes);
 app.post('/api/v0/claims/simulate/:claimId/:cosmosAddress', simulateClaim);
-app.post('/api/v0/claims/status/:txId', getClaimsStatusHandler);
+app.post('/api/v0/claims/status/:claimAttemptId', getClaimsStatusHandler);
 
 app.post('/api/v0/claims', getClaimsHandler);
 app.post('/api/v0/claims/create', authorizeBlockinRequest(['Full Access']), createClaimHandler);
@@ -404,9 +413,10 @@ app.post(
 ); //
 
 // Blockin Auth - bitbadges.io only
-app.post('/api/v0/auth/getChallenge', getChallenge);
-app.post('/api/v0/auth/verify', verifyBlockinAndGrantSessionCookie);
-app.post('/api/v0/auth/logout', removeBlockinSessionCookie);
+app.post('/api/v0/auth/getChallenge', websiteOnlyCors, getChallenge);
+app.post('/api/v0/auth/verify', websiteOnlyCors, verifyBlockinAndGrantSessionCookie);
+app.post('/api/v0/auth/logout', websiteOnlyCors, removeBlockinSessionCookie);
+
 app.post('/api/v0/auth/status', checkifSignedInHandler);
 app.post('/api/v0/auth/genericVerify', genericBlockinVerifyHandler);
 app.post('/api/v0/auth/genericVerifyAssets', genericBlockinVerifyAssetsHandler);
@@ -430,11 +440,11 @@ app.post('/api/v0/addressLists/create', authorizeBlockinRequest(['Create Address
 app.post('/api/v0/addressLists/update', authorizeBlockinRequest(['Update Address Lists']), updateAddressLists);
 app.post('/api/v0/addressLists/delete', authorizeBlockinRequest(['Delete Address Lists']), deleteAddressLists);
 
-// Blockin Auth Codes
-app.post('/api/v0/authCode', getAuthCode);
-app.post('/api/v0/authCode/create', createAuthCode); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
-app.post('/api/v0/authCode/delete', authorizeBlockinRequest(['Delete Auth Codes']), deleteAuthCode);
-app.post('/api/v0/authCodesForAuthApp', authorizeBlockinRequest(['Full Access']), getAuthCodesForAuthApp);
+// Blockin Siwbb Requests
+app.post('/api/v0/siwbbRequest', getAndVerifySIWBBRequest);
+app.post('/api/v0/siwbbRequest/create', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
+app.post('/api/v0/siwbbRequest/delete', authorizeBlockinRequest(['Delete Siwbb Requests']), deleteSIWBBRequest);
+app.post('/api/v0/siwbbRequestsForDeveloperApp', authorizeBlockinRequest(['Full Access']), getSIWBBRequestsForDeveloperApp);
 
 // Claim Alerts
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);
@@ -458,19 +468,189 @@ app.post('/api/v0/secret/delete', authorizeBlockinRequest(['Delete Secrets']), d
 app.post('/api/v0/secret/update', authorizeBlockinRequest(['Update Secrets']), updateSecret);
 
 // Auth Apps
-app.post('/api/v0/authApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), getAuthApps);
-app.post('/api/v0/authApp/create', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createAuthApp);
-app.post('/api/v0/authApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteAuthApp);
-app.post('/api/v0/authApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateAuthApp);
+app.post('/api/v0/developerApp', websiteOnlyCors, getDeveloperApps);
+app.post('/api/v0/developerApp/create', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createDeveloperApp);
+app.post('/api/v0/developerApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteDeveloperApp);
+app.post('/api/v0/developerApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateDeveloperApp);
 
 // Auth Apps
 app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), getPlugins);
 app.post('/api/v0/plugins/create', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createPlugin);
-// app.post('/api/v0/authApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteAuthApp);
-// app.post('/api/v0/authApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateAuthApp);
+// app.post('/api/v0/developerApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteDeveloperApp);
+// app.post('/api/v0/developerApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateDeveloperApp);
 
 app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
+
+app.post(
+  '/api/v0/oauth/authorize',
+  websiteOnlyCors,
+  authorizeBlockinRequest(['Full Access']),
+  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+    try {
+      const {
+        response_type,
+        client_id,
+        redirect_uri,
+        scope
+        // state
+      } = req.body;
+
+      const developerAppDoc = await mustGetFromDB(DeveloperAppModel, client_id);
+      if (developerAppDoc.redirectUris.indexOf(redirect_uri) === -1) {
+        throw new Error('Invalid redirect URI');
+      }
+
+      if (response_type === 'code') {
+        const authDetails = await mustGetAuthDetails(req);
+        const code: iAuthorizationCodeDoc = {
+          _docId: crypto.randomBytes(32).toString('hex'),
+          clientId: client_id,
+          redirectUri: redirect_uri,
+          scopes: scope.split(',').map((s: string) => s.trim()),
+          address: authDetails.address,
+          cosmosAddress: authDetails.cosmosAddress,
+          expiresAt: Date.now() + 1000 * 60 * 2
+        };
+        await insertToDB(AuthorizationCodeModel, code);
+        console.log('Authorization code created:', code);
+        return res.json({ code: code._docId });
+      } else {
+        throw new Error('Invalid response type. Only "code" is supported.');
+      }
+    } catch (e) {
+      console.error(e);
+      return res.status(500).send({
+        error: serializeError(e),
+        errorMessage: e.message
+      });
+    }
+  }
+);
+
+app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
+  try {
+    const { grant_type, client_id, client_secret, code, redirect_uri, refresh_token } = req.body;
+
+    const client = await mustGetFromDB(DeveloperAppModel, client_id);
+    if (!client) {
+      return res.status(400).json({ error: 'Invalid client credentials' });
+    }
+
+    if (client.clientSecret !== client_secret || client.clientId !== client_id) {
+      return res.status(400).json({ error: 'Invalid client credentials' });
+    }
+
+    if (grant_type === 'authorization_code') {
+      const authorizationCodeDoc = await mustGetFromDB(AuthorizationCodeModel, code);
+
+      if (redirect_uri !== authorizationCodeDoc.redirectUri) {
+        return res.status(400).json({ error: 'Invalid redirect URI' });
+      }
+
+      if (authorizationCodeDoc.expiresAt < Date.now()) {
+        return res.status(400).json({ error: 'Authorization code has expired' });
+      }
+
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      const token: iAccessTokenDoc = {
+        _docId: accessToken,
+        accessToken: accessToken,
+        tokenType: 'bearer',
+        accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
+        refreshToken: crypto.randomBytes(32).toString('hex'),
+        refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30,
+
+        cosmosAddress: mustConvertToCosmosAddress(authorizationCodeDoc.address),
+        address: authorizationCodeDoc.address,
+        clientId: authorizationCodeDoc.clientId,
+        scopes: authorizationCodeDoc.scopes
+      };
+
+      await insertToDB(AccessTokenModel, token);
+      await deleteMany(AuthorizationCodeModel, [code]);
+
+      return res.json(token);
+    } else if (grant_type === 'refresh_token') {
+      const refreshTokenRes = await findInDB(AccessTokenModel, { query: { refreshToken: refresh_token } });
+      if (refreshTokenRes.length === 0) {
+        return res.status(400).json({ error: 'Invalid refresh token' });
+      }
+
+      const refreshTokenDoc = refreshTokenRes[0];
+
+      if (refreshTokenDoc.refreshTokenExpiresAt < Date.now()) {
+        return res.status(400).json({ error: 'Token has expired' });
+      }
+
+      const newAccessToken = crypto.randomBytes(32).toString('hex');
+      const newToken: iAccessTokenDoc = {
+        _docId: newAccessToken,
+        accessToken: newAccessToken,
+        tokenType: 'bearer',
+        accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
+        refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
+        refreshToken: crypto.randomBytes(32).toString('hex'),
+        cosmosAddress: refreshTokenDoc.cosmosAddress,
+        address: refreshTokenDoc.address,
+        scopes: refreshTokenDoc.scopes,
+        clientId: refreshTokenDoc.clientId
+      };
+      await insertToDB(AccessTokenModel, newToken);
+      await deleteMany(AccessTokenModel, [refreshTokenDoc._docId]);
+
+      return res.json(newToken);
+    }
+
+    return res.status(400).json({ error: 'Unsupported grant type' });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
+
+app.post('/api/v0/oauth/token/revoke', async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+  try {
+    const { token } = req.body;
+    const accessTokenDoc = await mustGetFromDB(AccessTokenModel, token);
+    await deleteMany(AccessTokenModel, [accessTokenDoc._docId]);
+    return res.status(200).send({ message: 'Token revoked' });
+  } catch (e) {
+    return res.status(500).send({
+      error: serializeError(e),
+      errorMessage: e.message
+    });
+  }
+});
+
+app.post(
+  '/api/v0/authorizations',
+  websiteOnlyCors,
+  authorizeBlockinRequest(['Full Access']),
+  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+    try {
+      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
+      const docs = await findInDB(AccessTokenModel, { query: { cosmosAddress } });
+      const clientIds = docs.map((doc) => doc.clientId);
+      const developerApps = await mustGetManyFromDB(DeveloperAppModel, clientIds);
+
+      return res.status(200).json({
+        authorizations: docs,
+        developerApps: developerApps.map((x) => {
+          return { ...x, clientSecret: undefined };
+        })
+      });
+    } catch (e) {
+      return res.status(500).send({
+        error: serializeError(e),
+        errorMessage: e.message
+      });
+    }
+  }
+);
 
 app.post(
   '/api/v0/apiKeys/create',
@@ -478,7 +658,7 @@ app.post(
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = req.session.cosmosAddress;
+      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
       const currApiKeys = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 50 });
 
       if (currApiKeys.filter((key) => key.expiry > Date.now()).length > 5) {
@@ -516,7 +696,7 @@ app.post(
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = req.session.cosmosAddress;
+      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
       const keyToDelete = req.body.key;
       const doc = await mustGetFromDB(ApiKeyModel, keyToDelete);
       if (doc.cosmosAddress !== cosmosAddress) {
@@ -544,7 +724,7 @@ app.post(
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = req.session.cosmosAddress;
+      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
       const docs = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 100 });
       return res.status(200).json({ docs });
     } catch (e) {

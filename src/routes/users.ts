@@ -15,10 +15,11 @@ import {
   convertToEthAddress,
   getChainForAddress,
   iApprovalInfoDetails,
+  iChallengeDetails,
   type AccountFetchDetails,
   type AddressListDoc,
   type BalanceDoc,
-  type BlockinAuthSignatureDoc,
+  type SIWBBRequestDoc,
   type ClaimAlertDoc,
   type ErrorResponse,
   type GetAccountsBody,
@@ -32,8 +33,7 @@ import {
   type iAccountDoc,
   type iGetAccountsSuccessResponse,
   type iProfileDoc,
-  type iUpdateAccountInfoSuccessResponse,
-  iChallengeDetails
+  type iUpdateAccountInfoSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
@@ -41,6 +41,7 @@ import type nano from 'nano';
 import { serializeError } from 'serialize-error';
 import {
   checkIfAuthenticated,
+  mustGetAuthDetails,
   setMockSessionIfTestMode,
   type AuthenticatedRequest,
   type MaybeAuthenticatedRequest
@@ -52,11 +53,12 @@ import { AccountModel, FetchModel, ProfileModel, UsernameModel } from '../db/sch
 import { client } from '../indexer';
 import { s3 } from '../indexer-vars';
 import { connectToRpc } from '../poll';
+import { addChallengeDetailsToCriteria } from './badges';
 import { applyAddressListsToUserPermissions } from './balances';
 import { convertToBitBadgesUserInfo } from './userHelpers';
 import {
   executeActivityQuery,
-  executeAuthCodesQuery,
+  executeSIWBBRequestsQuery,
   executeClaimAlertsQuery,
   executeCollectedQuery,
   executeCreatedByQuery,
@@ -73,7 +75,6 @@ import {
   executeSentClaimAlertsQuery
 } from './userQueries';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
-import { addChallengeDetailsToCriteria } from './badges';
 
 type AccountFetchOptions = AccountFetchDetails;
 
@@ -167,11 +168,11 @@ async function getBatchProfileInformation(req: Request | undefined, queries: Arr
   }
 
   // Filter out private info if not authenticated user
-  if (req && req.session) {
+  if (req) {
     setMockSessionIfTestMode(req);
-    const currAddress = (req.session as any).cosmosAddress;
-    for (const profileInfo of profileInfos) {
-      if (profileInfo._docId !== currAddress) {
+    const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+    if (!isAuthenticated) {
+      for (const profileInfo of profileInfos) {
         profileInfo.notifications = undefined;
         profileInfo.approvedSignInMethods = undefined;
         profileInfo.socialConnections = undefined;
@@ -353,7 +354,7 @@ interface GetAdditionalUserInfoRes {
   reviews: Array<ReviewDoc<bigint>>;
   addressLists: Array<BitBadgesAddressList<bigint>>;
   claimAlerts: Array<ClaimAlertDoc<bigint>>;
-  authCodes: Array<BlockinAuthSignatureDoc<bigint>>;
+  siwbbRequests: Array<SIWBBRequestDoc<bigint>>;
   secrets: Array<SecretDoc<bigint>>;
   views: Record<
     string,
@@ -381,13 +382,13 @@ const getAdditionalUserInfo = async (
       secrets: [],
       addressLists: [],
       claimAlerts: [],
-      authCodes: [],
+      siwbbRequests: [],
       views: {}
     };
   }
 
   const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-
+  const authDetails = await mustGetAuthDetails(authReq);
   const asyncOperations = [];
   for (const view of reqBody.viewsToFetch) {
     const bookmark = view.bookmark;
@@ -397,7 +398,7 @@ const getAdditionalUserInfo = async (
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!checkIfAuthenticated(authReq, ['Read Address Lists']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, ['Read Address Lists'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         asyncOperations.push(async () => await executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst, isAuthenticated));
       }
     } else if (view.viewType === 'transferActivity') {
@@ -423,23 +424,23 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'claimAlerts') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!checkIfAuthenticated(authReq, ['Read Claim Alerts']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'sentClaimAlerts') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!checkIfAuthenticated(authReq, ['Read Claim Alerts']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeSentClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
-    } else if (view.viewType === 'authCodes') {
+    } else if (view.viewType === 'siwbbRequests') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!checkIfAuthenticated(authReq, ['Read Auth Codes']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
-        if (!isAuthenticated) throw new Error('You must be authenticated to fetch auth codes.');
-        asyncOperations.push(async () => await executeAuthCodesQuery(cosmosAddress, bookmark, oldestFirst));
+          !!(await checkIfAuthenticated(authReq, ['Read Siwbb Requests'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch Siwbb requests.');
+        asyncOperations.push(async () => await executeSIWBBRequestsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'allLists') {
       if (bookmark !== undefined) {
@@ -456,7 +457,7 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'privateLists') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!checkIfAuthenticated(authReq, ['Read Address Lists']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, ['Read Address Lists'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch private lists.');
         asyncOperations.push(async () => await executePrivateListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
@@ -467,14 +468,14 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'createdSecrets') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!checkIfAuthenticated(authReq, ['Read Secrets']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeCreatedSecretsQuery(cosmosAddress, bookmark));
       }
     } else if (view.viewType === 'receivedSecrets') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!checkIfAuthenticated(authReq, ['Read Secrets']) && authReq.session && authReq.session.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeReceivedSecretsQuery(cosmosAddress, bookmark));
       }
@@ -602,14 +603,14 @@ const getAdditionalUserInfo = async (
           hasMore: result.docs.length >= 25
         }
       };
-    } else if (viewKey === 'authCodes') {
-      const result = results[i] as nano.MangoResponse<BlockinAuthSignatureDoc<bigint>>;
+    } else if (viewKey === 'siwbbRequests') {
+      const result = results[i] as nano.MangoResponse<SIWBBRequestDoc<bigint>>;
       views[viewId] = {
         ids: result.docs.map((x) => x._docId),
-        type: 'Auth Codes',
+        type: 'Siwbb Requests',
         pagination: {
           bookmark: result.bookmark ? result.bookmark : '',
-          hasMore: false // we fetch all auth codes if requested
+          hasMore: false // we fetch all Siwbb requests if requested
         }
       };
     } else if (viewKey === 'createdSecrets' || viewKey === 'receivedSecrets') {
@@ -685,7 +686,7 @@ const getAdditionalUserInfo = async (
     reviews: [],
     addressLists: [],
     claimAlerts: [],
-    authCodes: [],
+    siwbbRequests: [],
     secrets: [],
     views: {}
   };
@@ -747,9 +748,9 @@ const getAdditionalUserInfo = async (
     } else if (viewKey === 'claimAlerts' || viewKey === 'sentClaimAlerts') {
       const result = results[i] as nano.MangoResponse<ClaimAlertDoc<bigint>>;
       responseObj.claimAlerts = [...responseObj.claimAlerts, ...result.docs];
-    } else if (viewKey === 'authCodes') {
-      const result = results[i] as nano.MangoResponse<BlockinAuthSignatureDoc<bigint>>;
-      responseObj.authCodes = result.docs;
+    } else if (viewKey === 'siwbbRequests') {
+      const result = results[i] as nano.MangoResponse<SIWBBRequestDoc<bigint>>;
+      responseObj.siwbbRequests = result.docs;
     } else if (viewKey === 'createdSecrets' || viewKey === 'receivedSecrets') {
       const result = results[i] as nano.MangoResponse<SecretDoc<bigint>>;
       responseObj.secrets = [...responseObj.secrets, ...result.docs];
@@ -765,8 +766,8 @@ const getAdditionalUserInfo = async (
 export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAccountInfoSuccessResponse | ErrorResponse>) => {
   try {
     const reqBody = req.body as UpdateAccountInfoBody;
-
-    const cosmosAddress = req.session.cosmosAddress;
+    const authDetails = await mustGetAuthDetails(req);
+    const cosmosAddress = authDetails.cosmosAddress;
     let profileInfo = await getFromDB(ProfileModel, cosmosAddress);
     if (!profileInfo) {
       profileInfo = new ProfileDoc({
@@ -858,7 +859,7 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
         //Compare to current. If different, check session
         const currId = profileInfo.notifications?.discord?.id;
         if (reqBody.notifications.discord.id && currId !== reqBody.notifications.discord.id) {
-          if (req.session.discord.id !== reqBody.notifications.discord.id) {
+          if (authDetails.discord?.id !== reqBody.notifications.discord.id) {
             return res.status(400).send({
               errorMessage: 'Discord ID does not match your current connected Discord.'
             });

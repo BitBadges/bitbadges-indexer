@@ -60,7 +60,7 @@ import {
 import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
-import { checkIfAuthenticated, checkIfManager, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
+import { checkIfAuthenticated, checkIfManager, mustGetAuthDetails, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
 import { PageVisitsDoc } from '../db/docs';
 import { findInDB } from '../db/queries';
@@ -773,10 +773,12 @@ const checkIfAuthenticatedForPrivateParams = async (
   listId?: string
 ) => {
   if (includePrivateParams) {
-    const auth = checkIfAuthenticated(req, ['Read Private Claim Data']);
+    const auth = await checkIfAuthenticated(req, ['Read Private Claim Data']);
     if (!auth) {
       throw new Error('You must be authenticated to fetch private params');
     }
+
+    const authDetails = await mustGetAuthDetails(req);
 
     if (!trackerDetails && !listId) {
       throw new Error('You must provide either a collectionId or listId to fetch private params');
@@ -792,7 +794,7 @@ const checkIfAuthenticatedForPrivateParams = async (
         }
       } else {
         //check address === approver address
-        if (req.session.cosmosAddress !== trackerDetails.approverAddress) {
+        if (authDetails.cosmosAddress !== trackerDetails.approverAddress) {
           throw new Error('You must be the approver to fetch private params');
         }
       }
@@ -804,7 +806,7 @@ const checkIfAuthenticatedForPrivateParams = async (
         throw new Error('List not found');
       }
 
-      if (list[0].createdBy !== req.session.cosmosAddress) {
+      if (list[0].createdBy !== authDetails.cosmosAddress) {
         throw new Error('You must be the owner of the list to fetch private params');
       }
     }

@@ -10,7 +10,7 @@ import {
   iClaimDetails,
   iCreateClaimSuccessResponse,
   iGetClaimAttemptStatusSuccessResponse,
-  iGetReservedCodesSuccessResponse,
+  iGetReservedClaimCodesSuccessResponse,
   iQueueDoc,
   iSimulateClaimSuccessResponse,
   iUpdateClaimSuccessResponse,
@@ -27,17 +27,19 @@ import crypto from 'crypto';
 import { type Response } from 'express';
 import { ClientSession } from 'mongoose';
 import { serializeError } from 'serialize-error';
+import validator from 'validator';
 import {
   BlockinSession,
   MaybeAuthenticatedRequest,
   checkIfAuthenticated,
   checkIfManager,
+  getAuthDetails,
+  mustGetAuthDetails,
   setMockSessionIfTestMode,
   type AuthenticatedRequest
 } from '../blockin/blockin_handlers';
 import { MongoDB, getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import validator from 'validator';
 import {
   AddressListModel,
   ClaimAttemptStatusModel,
@@ -46,7 +48,6 @@ import {
   DigitalOceanBalancesModel,
   ListActivityModel,
   PluginModel,
-  ProfileModel,
   QueueModel
 } from '../db/schemas';
 import { getStatus } from '../db/status';
@@ -87,15 +88,11 @@ enum ActionType {
 
 //Wrappers so we don't have to repeat the context functions
 
-export const createListClaimContextFunction = (
-  req: AuthenticatedRequest<NumberType>,
-  claim: iClaimDetails<NumberType>,
-  listId: string
-): ContextReturn => {
+export const createListClaimContextFunction = (cosmosAddress: string, claim: iClaimDetails<NumberType>, listId: string): ContextReturn => {
   return {
     metadata: claim.metadata,
     automatic: claim.automatic,
-    createdBy: req.session.cosmosAddress,
+    createdBy: cosmosAddress,
     action: { listId: listId },
     collectionId: '-1',
     docClaimed: true,
@@ -104,7 +101,7 @@ export const createListClaimContextFunction = (
 };
 
 export const createOffChainClaimContextFunction = (
-  req: AuthenticatedRequest<NumberType>,
+  cosmosAddress: string,
   claim: iClaimDetails<NumberType>,
   collectionId: number,
   cid: string
@@ -113,7 +110,7 @@ export const createOffChainClaimContextFunction = (
     action: { balancesToSet: claim.balancesToSet },
     automatic: claim.automatic,
     metadata: claim.metadata,
-    createdBy: req.session.cosmosAddress,
+    createdBy: cosmosAddress,
     collectionId: collectionId,
     docClaimed: collectionId > 0,
     trackerDetails: {
@@ -127,11 +124,7 @@ export const createOffChainClaimContextFunction = (
   };
 };
 
-export const createOnChainClaimContextFunction = (
-  req: AuthenticatedRequest<NumberType>,
-  claim: iClaimDetails<NumberType>,
-  seedCode: string
-): ContextReturn => {
+export const createOnChainClaimContextFunction = (cosmosAddress: string, claim: iClaimDetails<NumberType>, seedCode: string): ContextReturn => {
   const encryptedAction = getCorePlugin('codes').encryptPrivateParams({
     codes: [],
     seedCode: seedCode ?? ''
@@ -140,7 +133,7 @@ export const createOnChainClaimContextFunction = (
   return {
     automatic: claim.automatic,
     metadata: claim.metadata,
-    createdBy: req.session.cosmosAddress,
+    createdBy: cosmosAddress,
     collectionId: '-1',
     docClaimed: false,
     manualDistribution: claim.manualDistribution,
@@ -152,7 +145,7 @@ export const createOnChainClaimContextFunction = (
 };
 
 export const updateListClaimContextFunction = (
-  req: AuthenticatedRequest<NumberType>,
+  cosmosAddress: string,
   claim: iClaimDetails<NumberType>,
   claimDoc: ClaimBuilderDoc<NumberType>
 ): ContextReturn => {
@@ -168,7 +161,7 @@ export const updateListClaimContextFunction = (
 };
 
 export const updateOffChainClaimContextFunction = (
-  req: AuthenticatedRequest<NumberType>,
+  cosmosAddress: string,
   claim: iClaimDetails<NumberType>,
   claimDoc: ClaimBuilderDoc<NumberType>
 ): ContextReturn => {
@@ -185,7 +178,7 @@ export const updateOffChainClaimContextFunction = (
 };
 
 export const updateOnChainClaimContextFunction = (
-  req: AuthenticatedRequest<NumberType>,
+  cosmosAddress: string,
   claim: iClaimDetails<NumberType>,
   claimDoc: ClaimBuilderDoc<NumberType>
 ): ContextReturn => {
@@ -207,6 +200,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
   try {
     const body = req.body as CreateClaimBody<NumberType>;
     const { claims } = body;
+    const authDetails = await mustGetAuthDetails(req);
     for (const claim of claims) {
       const { listId, collectionId: collId, seedCode } = claim;
       const collectionId = Number(collId) > 0 ? collId : undefined;
@@ -223,7 +217,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
       if (listId) {
         const query = { 'action.listId': listId };
         await updateClaimDocs(req, ClaimType.AddressList, query, [claim], (claim) => {
-          return createListClaimContextFunction(req, claim, listId);
+          return createListClaimContextFunction(authDetails.cosmosAddress, claim, listId);
         });
       } else if (collectionId && collectionDoc && !isOnChain) {
         const claimQuery = { collectionId: Number(collectionId) };
@@ -238,7 +232,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 
         const isNonIndexed = collectionDoc.balancesType === 'Off-Chain - Non-Indexed';
         await updateClaimDocs(req, isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, [claim], (claim) => {
-          return createOffChainClaimContextFunction(req, claim, passedInCollectionId, cid);
+          return createOffChainClaimContextFunction(authDetails.cosmosAddress, claim, passedInCollectionId, cid);
         });
       } else if (collectionId && collectionDoc && isOnChain) {
         await updateClaimDocs(req, ClaimType.OnChain, {}, [claim], (claim) => {
@@ -246,7 +240,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
             throw new Error('Seed code required for on-chain claims');
           }
 
-          return createOnChainClaimContextFunction(req, claim, seedCode);
+          return createOnChainClaimContextFunction(authDetails.cosmosAddress, claim, seedCode);
         });
       }
     }
@@ -265,6 +259,7 @@ export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
   try {
     const body = req.body as UpdateClaimBody<NumberType>;
     const { claims } = body;
+    const authDetails = await mustGetAuthDetails(req);
     for (const claim of claims) {
       const claimDoc = await mustGetFromDB(ClaimBuilderModel, claim.claimId);
       if (!claimDoc.docClaimed) {
@@ -279,17 +274,17 @@ export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
       if (listId) {
         const query = { 'action.listId': listId };
         await updateClaimDocs(req, ClaimType.AddressList, query, [claim], (claim) => {
-          return updateListClaimContextFunction(req, claim, claimDoc);
+          return updateListClaimContextFunction(authDetails.cosmosAddress, claim, claimDoc);
         });
       } else if (collectionId && collectionDoc && !isOnChain) {
         const claimQuery = { collectionId: Number(collectionId) };
         const isNonIndexed = collectionDoc.balancesType === 'Off-Chain - Non-Indexed';
         await updateClaimDocs(req, isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, [claim], (claim) => {
-          return updateOffChainClaimContextFunction(req, claim, claimDoc);
+          return updateOffChainClaimContextFunction(authDetails.cosmosAddress, claim, claimDoc);
         });
       } else if (collectionId && collectionDoc && isOnChain) {
         await updateClaimDocs(req, ClaimType.OnChain, {}, [claim], (claim) => {
-          return updateOnChainClaimContextFunction(req, claim, claimDoc);
+          return updateOnChainClaimContextFunction(authDetails.cosmosAddress, claim, claimDoc);
         });
       }
     }
@@ -312,7 +307,8 @@ export const deleteClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 
       if (doc.action.listId) {
         const listDoc = await mustGetFromDB(AddressListModel, doc.action.listId);
-        const isCreator = req.session.cosmosAddress === listDoc.createdBy;
+        const authDetails = await mustGetAuthDetails(req);
+        const isCreator = authDetails.cosmosAddress === listDoc.createdBy;
         if (!isCreator) {
           throw new Error('Not authorized to delete this claim.');
         }
@@ -370,7 +366,8 @@ export const getClaimsHandler = async (
         const addressListDoc = await mustGetFromDB(AddressListModel, doc.action.listId);
         let hasPermissions = !(addressListDoc.private || addressListDoc.viewableWithLink);
         if (addressListDoc.private) {
-          hasPermissions = hasPermissions || req.session.cosmosAddress === addressListDoc.createdBy;
+          const authDetails = await getAuthDetails(req);
+          hasPermissions = hasPermissions || authDetails?.cosmosAddress === addressListDoc.createdBy;
         }
 
         // Prove knowledge of list link by specifying listId
@@ -402,8 +399,9 @@ export const completeClaimHandler = async (
   cosmosAddress: CosmosAddress,
   simulate = false,
   prevCodesOnly = false
-): Promise<iGetReservedCodesSuccessResponse> => {
+): Promise<iGetReservedClaimCodesSuccessResponse> => {
   const query = { _docId: claimId, docClaimed: true, deletedAt: { $exists: false } };
+  const fetchedAt = Number(req.body._fetchedAt || 0n);
 
   cosmosAddress = mustConvertToCosmosAddress(cosmosAddress);
   const context: ContextInfo = Object.freeze({
@@ -419,6 +417,10 @@ export const completeClaimHandler = async (
     const claimBuilderDocResponse = await findInDB(ClaimBuilderModel, { query, limit: 1, session });
     if (claimBuilderDocResponse.length === 0) {
       throw new Error('No doc found');
+    }
+
+    if (BigInt(fetchedAt) && claimBuilderDocResponse[0].lastUpdated > BigInt(fetchedAt)) {
+      throw new Error('Claim has been updated since last fetch');
     }
 
     const claimBuilderDoc = claimBuilderDocResponse[0];
@@ -440,7 +442,8 @@ export const completeClaimHandler = async (
     }
 
     if (getFirstMatchForPluginType('initiatedBy', claimBuilderDoc.plugins)) {
-      if (!checkIfAuthenticated(req as MaybeAuthenticatedRequest<NumberType>, ['Complete Claims'])) {
+      const isAuthenticated = await checkIfAuthenticated(req as MaybeAuthenticatedRequest<NumberType>, ['Full Access']);
+      if (!isAuthenticated) {
         throw new Error('Authentication required with the Complete Claims scope');
       }
     }
@@ -462,56 +465,65 @@ export const completeClaimHandler = async (
 
     // Pass in email only if previously set up and verified
     // Must be logged in
-    let email = '';
+    // let email = '';
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
       const pluginInstance = await getPlugin(plugin.type);
       const pluginDoc = await getFromDB(PluginModel, plugin.id, session);
 
-      let adminInfo: any = {};
-
-      const requiresEmail = pluginDoc?.verificationCall?.passEmail;
-
-      if (req.session.cosmosAddress && requiresEmail && !email) {
-        const profileDoc = await mustGetFromDB(ProfileModel, req.session.cosmosAddress, session);
-        if (!profileDoc) {
-          throw new Error('Email required but no profile found');
-        }
-
-        if (profileDoc.notifications?.email) {
-          if (profileDoc.notifications.emailVerification?.verified) {
-            email = profileDoc.notifications.email;
-          }
-        }
-
-        if (!email) {
-          throw new Error('Email required but none found in profile');
-        }
-      } else {
-        if (requiresEmail) {
-          throw new Error('Email required but user is not logged in to BitBadges');
+      if (pluginDoc) {
+        if (BigInt(fetchedAt) && BigInt(fetchedAt) > pluginDoc.lastUpdated) {
+          throw new Error('Plugin has been updated since last fetch');
         }
       }
 
+      let adminInfo: any = {};
+
+      // const requiresEmail = pluginDoc?.verificationCall?.passEmail;
+
+      // if (requiresEmail && !email && getAuthDetails(req).cosmosAddress) {
+      //   //TODO: Scopes
+      //   const profileDoc = await mustGetFromDB(ProfileModel, getAuthDetails(req).cosmosAddress, session);
+      //   if (!profileDoc) {
+      //     throw new Error('Email required but no profile found');
+      //   }
+
+      //   if (profileDoc.notifications?.email) {
+      //     if (profileDoc.notifications.emailVerification?.verified) {
+      //       email = profileDoc.notifications.email;
+      //     }
+      //   }
+
+      //   if (!email) {
+      //     throw new Error('Email required but none found in profile');
+      //   }
+      // } else {
+      //   if (requiresEmail) {
+      //     throw new Error('Email required but user is not logged in to BitBadges');
+      //   }
+      // }
+
+      const authDetails = await getAuthDetails(req);
+
       if (pluginDoc) {
         adminInfo = {
-          discord: req.session.discord,
-          twitter: req.session.twitter,
-          github: req.session.github,
-          google: req.session.google,
-          email
+          discord: authDetails?.discord,
+          twitter: authDetails?.twitter,
+          github: authDetails?.github,
+          google: authDetails?.google
+          // email
         };
       }
 
       switch (plugin.type) {
         case 'initiatedBy':
-          adminInfo = req.session;
+          adminInfo = authDetails;
           break;
         case 'discord':
-          adminInfo = req.session.discord;
+          adminInfo = authDetails?.discord;
           break;
         case 'twitter':
-          adminInfo = req.session.twitter;
+          adminInfo = authDetails?.twitter;
           break;
         case 'codes': {
           adminInfo = {
@@ -521,17 +533,17 @@ export const completeClaimHandler = async (
           break;
         }
         case 'github':
-          adminInfo = req.session.github;
+          adminInfo = authDetails?.github;
           break;
         case 'google':
-          adminInfo = req.session.google;
+          adminInfo = authDetails?.google;
           break;
-        case 'email':
-          adminInfo = {
-            username: email,
-            id: email
-          };
-          break;
+        // case 'email':
+        //   adminInfo = {
+        //     username: email,
+        //     id: email
+        //   };
+        //   break;
         default:
           break;
       }
@@ -620,7 +632,7 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
 
     await completeClaimHandler(req, claimId, cosmosAddress, simulate);
-    return res.status(200).send({ txId: crypto.randomBytes(32).toString('hex') });
+    return res.status(200).send({ claimAttemptId: crypto.randomBytes(32).toString('hex') });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -630,11 +642,15 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
   }
 };
 
-export const getReservedCodes = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetReservedCodesSuccessResponse | ErrorResponse>) => {
+export const getReservedClaimCodes = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iGetReservedClaimCodesSuccessResponse | ErrorResponse>
+) => {
   try {
     setMockSessionIfTestMode(req);
 
-    if (!checkIfAuthenticated(req, ['Full Access'])) {
+    const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+    if (!isAuthenticated) {
       throw new Error('Unauthorized');
     }
 
@@ -656,14 +672,14 @@ export const getClaimsStatusHandler = async (
   res: Response<iGetClaimAttemptStatusSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const txId = req.params.txId;
+    const claimAttemptId = req.params.claimAttemptId;
 
-    // Validate txId
-    if (!validator.isHexadecimal(txId)) {
-      throw new Error('Invalid txId format');
+    // Validate claimAttemptId
+    if (!validator.isHexadecimal(claimAttemptId)) {
+      throw new Error('Invalid claimAttemptId format');
     }
 
-    const doc = await ClaimAttemptStatusModel.findOne({ _docId: txId });
+    const doc = await ClaimAttemptStatusModel.findOne({ _docId: claimAttemptId });
     if (!doc) {
       throw new Error('No doc found');
     }
@@ -671,7 +687,8 @@ export const getClaimsStatusHandler = async (
     // Reserved codes reserve the right to initiate an on-chain transaction.
     // To initiate a transaction, a signature is required.
     // We only return the reserved codes if the user is authenticated as themselves.
-    if (checkIfAuthenticated(req, ['Full Access'])) {
+    const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+    if (isAuthenticated) {
       return res.status(200).json({ success: doc.success ?? false, error: doc?.error, code: doc?.code });
     } else {
       return res.status(200).json({ success: doc.success ?? false, error: doc?.error });
@@ -694,12 +711,13 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
     const response = await completeClaimHandler(req, claimId, cosmosAddress, process.env.TEST_MODE !== 'true');
 
-    //For tessting purposes, return a random txId and do not use queue
+    //For tessting purposes, return a random claimAttemptId and do not use queue
     if (process.env.TEST_MODE === 'true') {
       return res.status(200).send(response as any); // For testing purposes
     }
 
     const randomId = crypto.randomBytes(32).toString('hex');
+    const authDetails = await getAuthDetails(req);
     const newQueueDoc: iQueueDoc<bigint> = {
       _docId: randomId,
       notificationType: 'claim',
@@ -715,20 +733,20 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
         cosmosAddress: cosmosAddress,
         session: JSON.parse(
           JSON.stringify({
-            cosmosAddress: req.session.cosmosAddress,
-            discord: req.session.discord
+            cosmosAddress: authDetails?.cosmosAddress,
+            discord: authDetails?.discord
               ? {
-                  id: req.session.discord?.id,
-                  username: req.session.discord?.username,
-                  discriminator: req.session.discord?.discriminator
+                  id: authDetails?.discord?.id,
+                  username: authDetails?.discord?.username,
+                  discriminator: authDetails?.discord?.discriminator
                 }
               : undefined,
-            twitter: req.session.twitter ? { id: req.session.twitter?.id, username: req.session.twitter?.username } : undefined,
-            github: req.session.github ? { id: req.session.github?.id, username: req.session.github?.username } : undefined,
-            google: req.session.google ? { id: req.session.google?.id, username: req.session.google?.username } : undefined,
-            blockin: req.session.blockin,
-            blockinParams: req.session.blockinParams,
-            address: req.session.address
+            twitter: authDetails?.twitter ? { id: authDetails?.twitter?.id, username: authDetails?.twitter?.username } : undefined,
+            github: authDetails?.github ? { id: authDetails?.github?.id, username: authDetails?.github?.username } : undefined,
+            google: authDetails?.google ? { id: authDetails?.google?.id, username: authDetails?.google?.username } : undefined,
+            blockin: authDetails?.blockin,
+            blockinParams: authDetails?.blockinParams,
+            address: authDetails?.address
           })
         ),
         body: JSON.parse(JSON.stringify(req.body))
@@ -738,7 +756,7 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
 
     await insertToDB(QueueModel, newQueueDoc);
 
-    return res.status(200).send({ txId: randomId });
+    return res.status(200).send({ claimAttemptId: randomId });
   } catch (e) {
     console.error(e);
     return res.status(500).send({

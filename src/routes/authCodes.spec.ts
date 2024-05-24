@@ -5,15 +5,15 @@ import {
   CreateSecretBody,
   GetSecretBody,
   UpdateSecretBody,
-  type CreateBlockinAuthCodeBody,
-  type DeleteBlockinAuthCodeBody,
-  type GetBlockinAuthCodeBody
+  type CreateSIWBBRequestBody,
+  type DeleteSIWBBRequestBody,
+  type GetAndVerifySIWBBRequestBody
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
 import { getFromDB, insertToDB, MongoDB, mustGetFromDB } from '../db/db';
-import { AuthAppModel, BlockinAuthSignatureModel, OffChainSecretsModel } from '../db/schemas';
+import { DeveloperAppModel, SIWBBRequestModel, OffChainSecretsModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { createExampleReqForAddress } from '../testutil/utils';
 import { verifySecretsPresentationSignatures } from 'bitbadgesjs-sdk';
@@ -54,7 +54,7 @@ const deriveProof = async (keyPair: any, messages: string[], dataIntegrityProof:
   });
 };
 
-describe('get auth codes', () => {
+describe('get Siwbb requests', () => {
   beforeAll(async () => {
     process.env.DISABLE_API = 'false';
     process.env.DISABLE_URI_POLLER = 'true';
@@ -73,11 +73,11 @@ describe('get auth codes', () => {
     await gracefullyShutdown();
   });
 
-  it('should not create auth code in storage without correct scope', async () => {
-    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
-    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+  it('should not create Siwbb request in storage without correct scope', async () => {
+    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeBody = {
+    const body: CreateSIWBBRequestBody = {
       clientId,
       message,
       signature,
@@ -122,11 +122,11 @@ describe('get auth codes', () => {
     expect(res.status).toBeGreaterThan(400);
   });
 
-  it('should create auth code in storage', async () => {
-    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
-    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+  it('should create Siwbb request in storage', async () => {
+    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeBody = {
+    const body: CreateSIWBBRequestBody = {
       clientId,
       message,
       signature,
@@ -149,7 +149,7 @@ describe('get auth codes', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const authCodeId = res.body.code;
+    const siwbbRequestId = res.body.code;
     console.log(res.body);
 
     const invalidSigRes = await request(app)
@@ -159,8 +159,8 @@ describe('get auth codes', () => {
       .send({ ...body, signature: 'invalid' });
     expect(invalidSigRes.status).toBe(500);
 
-    const getResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getResBody: GetBlockinAuthCodeBody = { code: authCodeId };
+    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
+    const getResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -178,13 +178,13 @@ describe('get auth codes', () => {
     expect(invalidGetRes.status).toBe(500);
 
     const unauthorizedDeleteRes = await request(app)
-      .post(BitBadgesApiRoutes.DeleteAuthCodeRoute())
+      .post(BitBadgesApiRoutes.DeleteSIWBBRequestRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ id: authCodeId });
+      .send({ id: siwbbRequestId });
     expect(unauthorizedDeleteRes.status).toBe(401);
 
-    const deleteResRoute = BitBadgesApiRoutes.DeleteAuthCodeRoute();
-    const deleteResBody: DeleteBlockinAuthCodeBody = { code: authCodeId };
+    const deleteResRoute = BitBadgesApiRoutes.DeleteSIWBBRequestRoute();
+    const deleteResBody: DeleteSIWBBRequestBody = { code: siwbbRequestId };
     const deleteRes = await request(app)
       .post(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -193,11 +193,11 @@ describe('get auth codes', () => {
     expect(deleteRes.status).toBe(200);
   });
 
-  it('should not allow deleting an unowned auth code', async () => {
-    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
-    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+  it('should not allow deleting an unowned Siwbb request', async () => {
+    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeBody = {
+    const body: CreateSIWBBRequestBody = {
       clientId,
       message,
       signature,
@@ -212,10 +212,10 @@ describe('get auth codes', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const authCodeId = res.body.code;
+    const siwbbRequestId = res.body.code;
 
-    const deleteResRoute = BitBadgesApiRoutes.DeleteAuthCodeRoute();
-    const deleteResBody: DeleteBlockinAuthCodeBody = { code: authCodeId };
+    const deleteResRoute = BitBadgesApiRoutes.DeleteSIWBBRequestRoute();
+    const deleteResBody: DeleteSIWBBRequestBody = { code: siwbbRequestId };
     const deleteRes = await request(app)
       .post(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -230,11 +230,11 @@ describe('get auth codes', () => {
     expect(deleteRes.status).toBe(500);
   });
 
-  it('should check signature before creating auth code', async () => {
-    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
-    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+  it('should check signature before creating Siwbb request', async () => {
+    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateBlockinAuthCodeBody = {
+    const body: CreateSIWBBRequestBody = {
       clientId,
       message,
       signature: 'invalid',
@@ -317,10 +317,10 @@ describe('get auth codes', () => {
     expect(getRes.status).toBe(200);
     expect(getRes.body.secretId).toBeDefined();
 
-    const createAuthCodeRoute = BitBadgesApiRoutes.CreateAuthCodeRoute();
-    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const createSIWBBRequestRoute = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const createAuthCodeBody: CreateBlockinAuthCodeBody = {
+    const createSIWBBRequestBody: CreateSIWBBRequestBody = {
       clientId,
       message,
       signature,
@@ -339,7 +339,7 @@ describe('get auth codes', () => {
     const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
 
-    createAuthCodeBody.secretsPresentations = [
+    createSIWBBRequestBody.secretsPresentations = [
       {
         ...getRes.body,
         proofOfIssuance: {
@@ -355,27 +355,27 @@ describe('get auth codes', () => {
       }
     ];
 
-    await verifySecretsPresentationSignatures(createAuthCodeBody.secretsPresentations[0], true);
+    await verifySecretsPresentationSignatures(createSIWBBRequestBody.secretsPresentations[0], true);
 
-    const authCodeRes = await request(app)
-      .post(createAuthCodeRoute)
+    const siwbbRequestRes = await request(app)
+      .post(createSIWBBRequestRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(createAuthCodeBody);
-    console.log(authCodeRes.body);
-    expect(authCodeRes.status).toBe(200);
+      .send(createSIWBBRequestBody);
+    console.log(siwbbRequestRes.body);
+    expect(siwbbRequestRes.status).toBe(200);
 
-    const getAuthCodeResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getAuthCodeResBody: GetBlockinAuthCodeBody = { code: authCodeRes.body.code };
-    const getAuthCodeRes = await request(app)
-      .post(getAuthCodeResRoute)
+    const getAndVerifySIWBBRequestResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
+    const getAndVerifySIWBBRequestResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestRes.body.code };
+    const getAndVerifySIWBBRequestRes = await request(app)
+      .post(getAndVerifySIWBBRequestResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getAuthCodeResBody);
-    expect(getAuthCodeRes.status).toBe(200);
-    expect(getAuthCodeRes.body.blockin.message).toBeDefined();
-    expect(getAuthCodeRes.body.blockin.secretsPresentations).toBeDefined();
-    expect(getAuthCodeRes.body.blockin.secretsPresentations.length).toBe(1);
+      .send(getAndVerifySIWBBRequestResBody);
+    expect(getAndVerifySIWBBRequestRes.status).toBe(200);
+    expect(getAndVerifySIWBBRequestRes.body.blockin.message).toBeDefined();
+    expect(getAndVerifySIWBBRequestRes.body.blockin.secretsPresentations).toBeDefined();
+    expect(getAndVerifySIWBBRequestRes.body.blockin.secretsPresentations.length).toBe(1);
   });
 
   it('should fail w/ invalid proofs', async () => {
@@ -1298,12 +1298,12 @@ describe('get auth codes', () => {
   });
 
   it('should be able to get client ID with proof of clientSecret', async () => {
-    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
-    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
     const clientSecret = clientIdDocs[0].clientSecret;
     const redirectUri = clientIdDocs[0].redirectUris[0];
-    const body: CreateBlockinAuthCodeBody = {
+    const body: CreateSIWBBRequestBody = {
       clientId,
       message,
       signature,
@@ -1327,14 +1327,14 @@ describe('get auth codes', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const doc = await mustGetFromDB(BlockinAuthSignatureModel, res.body.code);
-    await insertToDB(BlockinAuthSignatureModel, { ...doc, redirectUri });
+    const doc = await mustGetFromDB(SIWBBRequestModel, res.body.code);
+    await insertToDB(SIWBBRequestModel, { ...doc, redirectUri });
 
-    const authCodeId = res.body.code;
+    const siwbbRequestId = res.body.code;
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getResBody: GetBlockinAuthCodeBody = { code: authCodeId, clientId, clientSecret, redirectUri };
+    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
+    const getResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestId, clientId, clientSecret, redirectUri };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -1367,12 +1367,12 @@ describe('get auth codes', () => {
   });
 
   it('should work with other sign ins', async () => {
-    const route = BitBadgesApiRoutes.CreateAuthCodeRoute();
-    const clientIdDocs = await findInDB(AuthAppModel, { query: { _docId: { $exists: true } } });
+    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
     const clientSecret = clientIdDocs[0].clientSecret;
     const redirectUri = clientIdDocs[0].redirectUris[0];
-    const body: CreateBlockinAuthCodeBody = {
+    const body: CreateSIWBBRequestBody = {
       clientId,
       message,
       signature,
@@ -1390,14 +1390,14 @@ describe('get auth codes', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const doc = await mustGetFromDB(BlockinAuthSignatureModel, res.body.code);
-    await insertToDB(BlockinAuthSignatureModel, { ...doc, redirectUri });
+    const doc = await mustGetFromDB(SIWBBRequestModel, res.body.code);
+    await insertToDB(SIWBBRequestModel, { ...doc, redirectUri });
 
-    const authCodeId = res.body.code;
+    const siwbbRequestId = res.body.code;
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetAuthCodeRoute();
-    const getResBody: GetBlockinAuthCodeBody = { code: authCodeId, clientId, clientSecret, redirectUri };
+    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
+    const getResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestId, clientId, clientSecret, redirectUri };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
