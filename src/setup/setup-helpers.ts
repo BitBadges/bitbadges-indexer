@@ -66,13 +66,16 @@ import {
   TransferActivityModel,
   TransferActivitySchema,
   UsernameModel,
-  UsernameSchema
+  UsernameSchema,
+  DigitalOceanBalancesModel
 } from '../db/schemas';
 import { PluginPresetType } from 'bitbadgesjs-sdk';
 
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(DeveloperAppModel.collection.name);
+  await MongoDB.dropCollection(DigitalOceanBalancesModel.collection.name);
   await MongoDB.dropCollection(AuthorizationCodeModel.collection.name);
   await MongoDB.dropCollection(AccessTokenModel.collection.name);
   await MongoDB.dropCollection(PluginModel.collection.name);

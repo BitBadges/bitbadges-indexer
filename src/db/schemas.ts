@@ -112,6 +112,7 @@ export const PluginSchema = new Schema<PluginDoc<JSPrimitiveNumberType>>({
   duplicatesAllowed: Boolean,
   requiresSessions: Boolean,
   requiresUserInputs: Boolean,
+  reuseForNonIndexed: Boolean,
   metadata: Schema.Types.Mixed,
   userInputsSchema: [Schema.Types.Mixed],
   publicParamsSchema: [Schema.Types.Mixed],
