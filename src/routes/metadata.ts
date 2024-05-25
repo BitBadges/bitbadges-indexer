@@ -1,7 +1,7 @@
 import {
   QueueDoc,
   type ErrorResponse,
-  type FetchMetadataDirectlyBody,
+  type FetchMetadataDirectlyPayload,
   type NumberType,
   type iFetchMetadataDirectlySuccessResponse
 } from 'bitbadgesjs-sdk';
@@ -14,8 +14,8 @@ import { fetchUriFromSourceAndUpdateDb } from '../queue';
 
 export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMetadataDirectlySuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as FetchMetadataDirectlyBody;
-    const uris = reqBody.uris;
+    const reqPayload = req.body as unknown as FetchMetadataDirectlyPayload;
+    const uris = reqPayload.uris;
 
     if (uris.length > 100) {
       throw new Error('You can only fetch up to 100 metadata at a time.');

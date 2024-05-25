@@ -1,8 +1,8 @@
 import {
   BitBadgesApiRoutes,
-  type UpdateAccountInfoBody,
+  type UpdateAccountInfoPayload,
   convertToCosmosAddress,
-  GetAccountsBody,
+  GetAccountsPayload,
   AccountViewKey,
   BitBadgesUserInfo,
   NotificationPreferences,
@@ -42,7 +42,7 @@ describe('users', () => {
   it('should create user profile in storage', async () => {
     const route = BitBadgesApiRoutes.UpdateAccountInfoRoute();
     const randomUsername = Math.random().toString(36).substring(7);
-    const body: UpdateAccountInfoBody = {
+    const body: UpdateAccountInfoPayload = {
       discord: 'test',
       twitter: 'test',
       github: 'test',
@@ -86,7 +86,7 @@ describe('users', () => {
 
   it('should unset if empty strings are sent', async () => {
     const route = BitBadgesApiRoutes.UpdateAccountInfoRoute();
-    const body: UpdateAccountInfoBody = {
+    const body: UpdateAccountInfoPayload = {
       discord: '',
       twitter: '',
       github: '',
@@ -123,7 +123,7 @@ describe('users', () => {
     // set to truthy
     const randomUsername = Math.random().toString(36).substring(7);
     const route = BitBadgesApiRoutes.UpdateAccountInfoRoute();
-    const body: UpdateAccountInfoBody = {
+    const body: UpdateAccountInfoPayload = {
       discord: 'test',
       twitter: 'test',
       github: 'test',
@@ -176,7 +176,7 @@ describe('users', () => {
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
     const problemViews: AccountViewKey[] = ['siwbbRequests', 'privateLists', 'receivedSecrets', 'createdSecrets'];
     for (const view of problemViews) {
-      const getBody: GetAccountsBody = {
+      const getPayload: GetAccountsPayload = {
         accountsToFetch: [
           {
             address: convertToCosmosAddress(address),
@@ -189,7 +189,7 @@ describe('users', () => {
         .post(getRoute)
         .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
         .set('x-mock-session', JSON.stringify({}))
-        .send(getBody);
+        .send(getPayload);
 
       expect(getRes.status).toBeGreaterThan(401);
 
@@ -197,14 +197,14 @@ describe('users', () => {
         .post(getRoute)
         .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
         .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-        .send(getBody);
+        .send(getPayload);
       expect(successRes.status).toBe(200);
     }
   });
 
   it('should not return private profile details if unauthenticated', async () => {
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
-    const getBody: GetAccountsBody = {
+    const getPayload: GetAccountsPayload = {
       accountsToFetch: [
         {
           address: convertToCosmosAddress(address)
@@ -216,7 +216,7 @@ describe('users', () => {
     profileDoc.notifications = new NotificationPreferences({});
     profileDoc.socialConnections = new SocialConnections({ discord: { username: 'test', id: 'test', lastUpdated: 1n } });
     profileDoc.approvedSignInMethods = {
-      discord: { username: 'test', id: 'test' }
+      discord: { username: 'test', id: 'test', scopes: ['Complete Claims'] }
     };
     await insertToDB(ProfileModel, profileDoc);
 
@@ -224,7 +224,7 @@ describe('users', () => {
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify({}))
-      .send(getBody);
+      .send(getPayload);
 
     expect(getRes.status).toBe(200);
 
@@ -237,7 +237,7 @@ describe('users', () => {
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getBody);
+      .send(getPayload);
 
     expect(successRes.status).toBe(200);
 

@@ -1,6 +1,6 @@
 import {
-  GetPluginBody,
-  type CreatePluginBody,
+  GetPluginPayload,
+  type CreatePluginPayload,
   type ErrorResponse,
   type NumberType,
   type iCreatePluginSuccessResponse,
@@ -18,7 +18,7 @@ import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 
 export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreatePluginSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as CreatePluginBody;
+    const reqPayload = req.body as CreatePluginPayload;
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
 
     if (uniqueClientSecret) {
@@ -26,15 +26,15 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     }
 
     // Check if existing plugin w/ same name
-    const isCorePlugin = getCorePlugin(reqBody.pluginId);
-    const existingDoc = await getFromDB(PluginModel, reqBody.pluginId);
+    const isCorePlugin = getCorePlugin(reqPayload.pluginId);
+    const existingDoc = await getFromDB(PluginModel, reqPayload.pluginId);
     if (!!isCorePlugin || !!existingDoc) {
       return res.status(400).send({
         error: 'Plugin with that ID already exists.'
       });
     }
 
-    let image = reqBody.metadata.image;
+    let image = reqPayload.metadata.image;
     if (image.startsWith('data:')) {
       const results = await addMetadataToIpfs([
         {
@@ -58,14 +58,14 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     //TODO: Validate this even more
     const authDetails = await mustGetAuthDetails(req);
     await insertToDB(PluginModel, {
-      ...reqBody,
+      ...reqPayload,
       createdBy: authDetails.cosmosAddress,
       metadata: {
-        ...reqBody.metadata,
+        ...reqPayload.metadata,
         image
       },
 
-      _docId: reqBody.pluginId,
+      _docId: reqPayload.pluginId,
       pluginSecret: uniqueClientSecret,
       reviewCompleted: true,
       lastUpdated: Date.now()
@@ -83,8 +83,8 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
 
 export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetPluginSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetPluginBody;
-    const { createdPluginsOnly } = reqBody;
+    const reqPayload = req.body as unknown as GetPluginPayload;
+    const { createdPluginsOnly } = reqPayload;
 
     if (!!createdPluginsOnly) {
       const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
@@ -94,6 +94,7 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
         });
       }
     }
+
     const authDetails = await getAuthDetails(req);
     const docs = await findInDB(PluginModel, {
       query: {

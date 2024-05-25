@@ -1,7 +1,7 @@
 import {
   ReviewDoc,
   isAddressValid,
-  type AddReviewBody,
+  type AddReviewPayload,
   type ErrorResponse,
   type NumberType,
   type iAddReviewSuccessResponse,
@@ -38,13 +38,13 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
 
 export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddReviewSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as AddReviewBody;
+    const reqPayload = req.body as AddReviewPayload;
     const authDetails = await mustGetAuthDetails(req);
-    if (!reqBody.review || reqBody.review.length > 2048) {
+    if (!reqPayload.review || reqPayload.review.length > 2048) {
       return res.status(400).send({ errorMessage: 'Review must be 1 to 2048 characters long.' });
     }
 
-    const stars = BigInt(reqBody.stars);
+    const stars = BigInt(reqPayload.stars);
     if (stars < 0 || stars > 5) {
       return res.status(400).send({ errorMessage: 'Stars must be a number between 0 and 5.' });
     }

@@ -1,12 +1,12 @@
 import {
   UpdateHistory,
   verifySecretsPresentationSignatures,
-  type CreateSecretBody,
-  type DeleteSecretBody,
+  type CreateSecretPayload,
+  type DeleteSecretPayload,
   type ErrorResponse,
-  type GetSecretBody,
+  type GetSecretPayload,
   type NumberType,
-  type UpdateSecretBody,
+  type UpdateSecretPayload,
   type iCreateSecretSuccessResponse,
   type iDeleteSecretSuccessResponse,
   type iGetSecretSuccessResponse,
@@ -23,24 +23,24 @@ import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 
 export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as CreateSecretBody;
+    const reqPayload = req.body as CreateSecretPayload;
     const authDetails = await mustGetAuthDetails(req);
     await verifySecretsPresentationSignatures({
-      ...reqBody,
+      ...reqPayload,
       createdBy: authDetails.cosmosAddress
     });
 
     const uniqueId = crypto.randomBytes(32).toString('hex');
 
     const status = await getStatus();
-    let image = reqBody.image;
+    let image = reqPayload.image;
 
-    if (reqBody.image.startsWith('data:')) {
+    if (reqPayload.image.startsWith('data:')) {
       const results = await addMetadataToIpfs([
         {
-          name: reqBody.name,
-          description: reqBody.description,
-          image: reqBody.image
+          name: reqPayload.name,
+          description: reqPayload.description,
+          image: reqPayload.image
         }
       ]);
       if (!results?.[0]) {
@@ -68,7 +68,7 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
           timestamp: Date.now()
         }
       ],
-      ...reqBody,
+      ...reqPayload,
       image
     });
 
@@ -84,9 +84,9 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
 
 export const getSecret = async (req: Request, res: Response<iGetSecretSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetSecretBody;
+    const reqPayload = req.body as unknown as GetSecretPayload;
 
-    const doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
+    const doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
     return res.status(200).send(doc);
   } catch (e) {
     console.error(e);
@@ -99,14 +99,14 @@ export const getSecret = async (req: Request, res: Response<iGetSecretSuccessRes
 
 export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteSecretSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as DeleteSecretBody;
+    const reqPayload = req.body as DeleteSecretPayload;
     const authDetails = await mustGetAuthDetails(req);
-    const doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
+    const doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this Siwbb request.');
     }
 
-    await deleteMany(OffChainSecretsModel, [reqBody.secretId]);
+    await deleteMany(OffChainSecretsModel, [reqPayload.secretId]);
 
     return res.status(200).send({ success: true });
   } catch (e) {
@@ -120,19 +120,19 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
 
 export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateSecretSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as UpdateSecretBody;
+    const reqPayload = req.body as UpdateSecretPayload;
     const authDetails = await mustGetAuthDetails(req);
-    let doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
+    let doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
 
-    for (const viewerToAdd of reqBody.holdersToSet ?? []) {
+    for (const viewerToAdd of reqPayload.holdersToSet ?? []) {
       const cosmosAddress = viewerToAdd.cosmosAddress;
       if (authDetails.cosmosAddress !== doc.createdBy && authDetails.cosmosAddress !== cosmosAddress) {
         throw new Error('To update a viewer, you must be the owner or add yourself as a viewer.');
       }
     }
 
-    const holdersToAdd = reqBody.holdersToSet?.filter((v) => !v.delete).map((v) => v.cosmosAddress) ?? [];
-    const holdersToRemove = reqBody.holdersToSet?.filter((v) => v.delete).map((v) => v.cosmosAddress) ?? [];
+    const holdersToAdd = reqPayload.holdersToSet?.filter((v) => !v.delete).map((v) => v.cosmosAddress) ?? [];
+    const holdersToRemove = reqPayload.holdersToSet?.filter((v) => v.delete).map((v) => v.cosmosAddress) ?? [];
 
     //TODO: session?
     const setters = [];
@@ -152,21 +152,21 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     }
 
     for (const setter of setters) {
-      await OffChainSecretsModel.findOneAndUpdate({ _docId: reqBody.secretId }, setter).lean().exec();
+      await OffChainSecretsModel.findOneAndUpdate({ _docId: reqPayload.secretId }, setter).lean().exec();
     }
 
-    doc = await mustGetFromDB(OffChainSecretsModel, reqBody.secretId);
+    doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
 
     if (
-      reqBody.anchorsToAdd &&
-      reqBody.anchorsToAdd.length > 0 &&
+      reqPayload.anchorsToAdd &&
+      reqPayload.anchorsToAdd.length > 0 &&
       authDetails.cosmosAddress !== doc.createdBy &&
       !doc.holders.includes(authDetails.cosmosAddress)
     ) {
       throw new Error('Only the owner can update anchors');
     }
 
-    doc.anchors = [...doc.anchors, ...(reqBody.anchorsToAdd ?? [])];
+    doc.anchors = [...doc.anchors, ...(reqPayload.anchorsToAdd ?? [])];
 
     const keysToUpdate = [
       'proofOfIssuance',
@@ -179,19 +179,19 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       'description',
       'messageFormat'
     ];
-    if (authDetails.cosmosAddress !== doc.createdBy && Object.keys(reqBody).some((k) => keysToUpdate.includes(k))) {
+    if (authDetails.cosmosAddress !== doc.createdBy && Object.keys(reqPayload).some((k) => keysToUpdate.includes(k))) {
       throw new Error('You are not the owner, so you cannot update its core details.');
     }
 
-    doc.proofOfIssuance = reqBody.proofOfIssuance ?? doc.proofOfIssuance;
-    doc.scheme = reqBody.scheme ?? doc.scheme;
-    doc.messageFormat = reqBody.messageFormat ?? doc.messageFormat;
-    doc.type = reqBody.type ?? doc.type;
-    doc.secretMessages = reqBody.secretMessages ?? doc.secretMessages;
-    doc.dataIntegrityProof = reqBody.dataIntegrityProof ?? doc.dataIntegrityProof;
-    doc.name = reqBody.name ?? doc.name;
-    doc.image = reqBody.image ?? doc.image;
-    doc.description = reqBody.description ?? doc.description;
+    doc.proofOfIssuance = reqPayload.proofOfIssuance ?? doc.proofOfIssuance;
+    doc.scheme = reqPayload.scheme ?? doc.scheme;
+    doc.messageFormat = reqPayload.messageFormat ?? doc.messageFormat;
+    doc.type = reqPayload.type ?? doc.type;
+    doc.secretMessages = reqPayload.secretMessages ?? doc.secretMessages;
+    doc.dataIntegrityProof = reqPayload.dataIntegrityProof ?? doc.dataIntegrityProof;
+    doc.name = reqPayload.name ?? doc.name;
+    doc.image = reqPayload.image ?? doc.image;
+    doc.description = reqPayload.description ?? doc.description;
 
     await verifySecretsPresentationSignatures(doc);
 

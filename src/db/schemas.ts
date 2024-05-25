@@ -389,6 +389,7 @@ export const SIWBBRequestSchema = new Schema<SIWBBRequestDoc<JSPrimitiveNumberTy
   secretsPresentations: [Schema.Types.Mixed], // Array of Mixed type for secretsPresentations,
   clientId: String, // String type for clientId
   otherSignIns: Schema.Types.Mixed, // Mixed type for otherSignIns
+  allowReuseOfBitBadgesSignIn: Boolean, // Boolean type for allowReuseOfBitBadgesSignIn
   redirectUri: String // String type for redirectUri
 });
 

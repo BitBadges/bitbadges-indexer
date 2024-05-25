@@ -13,8 +13,8 @@ import {
   isAddressValid,
   type BitBadgesCollection,
   type ErrorResponse,
-  type FilterBadgesInCollectionBody,
-  type GetSearchBody,
+  type FilterBadgesInCollectionPayload,
+  type GetSearchPayload,
   type NumberType,
   type iAccountDoc,
   type iGetSearchSuccessResponse
@@ -33,8 +33,8 @@ import { getQueryParamsFromBookmark } from '../db/utils';
 
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
   try {
-    const { categories, collectionId, tags, badgeIds, mostViewed, bookmark, attributes } = req.body as FilterBadgesInCollectionBody;
-
+    const { categories, tags, badgeIds, mostViewed, bookmark, attributes } = req.body as unknown as FilterBadgesInCollectionPayload;
+    const collectionId = BigIntify(req.params.collectionId);
     const collection = await mustGetFromDB(CollectionModel, `${collectionId}`);
 
     // This is a special view incompatible with the others
@@ -139,7 +139,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
 export const searchHandler = async (req: Request, res: Response<iGetSearchSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const searchValue = req.params.searchValue;
-    const { noCollections, noAddressLists, noAccounts, specificCollectionId } = req.body as GetSearchBody;
+    const { noCollections, noAddressLists, noAccounts, specificCollectionId } = req.body as unknown as GetSearchPayload;
 
     if (!searchValue || searchValue.length === 0) {
       return res.json({

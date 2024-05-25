@@ -8,7 +8,9 @@ export const SupportedScopes = [
   'Reviews: Create, read, update, and delete reviews.',
 
   'Read Profile: Read your private profile information. This includes your email, approved sign-in methods, connections, and other private information.',
-  'Update Profile: Update your user profile information. This includes your email, approved sign-in methods, connections, and other private information, as well as your public facing profile.',
+
+  // This probably should not be a scope because if this is granted, the user can change their scopes on their approved sign ins.
+  // 'Update Profile: Update your user profile information. This includes your email, approved sign-in methods, connections, and other private information, as well as your public facing profile.',
 
   'Read Address Lists: Read private address lists on behalf of the user.',
   'Create Address Lists: Create new address lists on behalf of the user (private or public).',

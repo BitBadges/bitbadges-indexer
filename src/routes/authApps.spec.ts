@@ -1,4 +1,4 @@
-import { BitBadgesApiRoutes, CreateDeveloperAppBody, UpdateDeveloperAppBody } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, CreateDeveloperAppPayload, UpdateDeveloperAppPayload } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
@@ -33,8 +33,8 @@ describe('auth apps', () => {
   });
 
   it('should create and update auth apps', async () => {
-    const route = BitBadgesApiRoutes.CreateDeveloperAppRoute();
-    const body: CreateDeveloperAppBody = {
+    const route = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
+    const body: CreateDeveloperAppPayload = {
       name: 'test',
       description: '',
       image: '',
@@ -50,69 +50,69 @@ describe('auth apps', () => {
     expect(res.status).toBe(200);
     const { clientId } = res.body;
 
-    const route2 = BitBadgesApiRoutes.UpdateDeveloperAppRoute();
-    const body2: UpdateDeveloperAppBody = {
+    const route2 = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
+    const body2: UpdateDeveloperAppPayload = {
       clientId,
       name: 'test2',
       redirectUris: ['http://localhost:3000']
     };
 
     const nonSignedInRes = await request(app)
-      .post(route2)
+      .put(route2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send(body2);
     expect(nonSignedInRes.status).toBeGreaterThanOrEqual(400);
 
     const altUserSignedInRes = await request(app)
-      .post(route2)
+      .put(route2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
       .send(body2);
     expect(altUserSignedInRes.status).toBeGreaterThanOrEqual(400);
 
     const res2 = await request(app)
-      .post(route2)
+      .put(route2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body2);
     expect(res2.status).toBe(200);
 
-    const route3 = BitBadgesApiRoutes.UpdateDeveloperAppRoute();
-    const body3: UpdateDeveloperAppBody = {
+    const route3 = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
+    const body3: UpdateDeveloperAppPayload = {
       clientId,
       name: 'test2',
       redirectUris: ['http://localhost:3000']
     };
 
     const res3 = await request(app)
-      .post(route3)
+      .put(route3)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body3);
     expect(res3.status).toBe(200);
 
     const notSignedInDeleteRes = await request(app)
-      .post(BitBadgesApiRoutes.DeleteDeveloperAppRoute())
+      .delete(BitBadgesApiRoutes.CRUDDeveloperAppRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ clientId });
 
     expect(notSignedInDeleteRes.status).toBeGreaterThanOrEqual(400);
 
     const altUserSignedInDeleteRes = await request(app)
-      .post(BitBadgesApiRoutes.DeleteDeveloperAppRoute())
+      .delete(BitBadgesApiRoutes.CRUDDeveloperAppRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
       .send({ clientId });
 
     expect(altUserSignedInDeleteRes.status).toBeGreaterThanOrEqual(400);
 
-    const deleteRoute = BitBadgesApiRoutes.DeleteDeveloperAppRoute();
-    const deleteBody = { clientId };
+    const deleteRoute = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
+    const deletePayload = { clientId };
     const deleteRes = await request(app)
-      .post(deleteRoute)
+      .delete(deleteRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(deleteBody);
+      .send(deletePayload);
     expect(deleteRes.status).toBe(200);
 
     const finalDoc = await getFromDB(DeveloperAppModel, clientId);
@@ -120,8 +120,8 @@ describe('auth apps', () => {
   });
 
   it('should get auth apps', async () => {
-    const createRoute = BitBadgesApiRoutes.CreateDeveloperAppRoute();
-    const createBody: CreateDeveloperAppBody = {
+    const createRoute = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
+    const createPayload: CreateDeveloperAppPayload = {
       name: 'test',
       description: '',
       image: '',
@@ -132,11 +132,11 @@ describe('auth apps', () => {
       .post(createRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(createBody);
+      .send(createPayload);
 
     expect(res.status).toBe(200);
 
-    const getRoute = BitBadgesApiRoutes.GetDeveloperAppRoute();
+    const getRoute = BitBadgesApiRoutes.GetDeveloperAppsRoute();
 
     const notSignedInRes = await request(app)
       .get(getRoute)

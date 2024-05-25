@@ -1,7 +1,7 @@
 import axios from 'axios';
 import {
-  AddApprovalDetailsToOffChainStorageBody,
-  AddBalancesToOffChainStorageBody,
+  AddApprovalDetailsToOffChainStoragePayload,
+  AddBalancesToOffChainStoragePayload,
   BigIntify,
   BitBadgesApiRoutes,
   BitBadgesCollection,
@@ -9,8 +9,8 @@ import {
   ClaimIntegrationPluginType,
   ClaimIntegrationPrivateStateType,
   CollectionApproval,
-  CompleteClaimBody,
-  GetCollectionsBody,
+  CompleteClaimPayload,
+  GetCollectionsPayload,
   IncrementedBalances,
   IntegrationPluginDetails,
   MsgUniversalUpdateCollection,
@@ -117,7 +117,7 @@ describe('claims', () => {
 
     //c45cecd74e1c8cfd315f400c82a08cf59ef63c2d4bf19e1c74bc0e56eba052be
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[0]
       }
@@ -149,7 +149,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(1, 1), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[0]
       }
@@ -173,7 +173,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 1), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[0]
       }
@@ -206,7 +206,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[0]
       }
@@ -229,7 +229,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: 'invalidCode'
       }
@@ -250,7 +250,7 @@ describe('claims', () => {
 
     for (const code of codes) {
       const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-      const body: CompleteClaimBody = {
+      const body: CompleteClaimPayload = {
         [`${getPluginIdByType(doc, 'codes')}`]: {
           code
         }
@@ -265,7 +265,7 @@ describe('claims', () => {
     expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(10);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[0]
       }
@@ -298,7 +298,7 @@ describe('claims', () => {
 
     for (const code of codes) {
       const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-      const body: CompleteClaimBody = {
+      const body: CompleteClaimPayload = {
         [`${getPluginIdByType(doc, 'codes')}`]: {
           code
         }
@@ -318,7 +318,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0), passwordPlugin('abc123')]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'password')}`]: {
         password: 'abc123'
       }
@@ -338,7 +338,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0), passwordPlugin('abc123')]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'password')}`]: {
         password: 'abc1234'
       }
@@ -357,7 +357,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0), transferTimesPlugin({ start: Date.now(), end: Date.now() + 10000000000000 })]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       transferTimes: {
         time: 50
       }
@@ -380,7 +380,7 @@ describe('claims', () => {
     ]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       transferTimes: {
         time: 50
       }
@@ -407,7 +407,7 @@ describe('claims', () => {
 
     const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, whitelist)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -432,7 +432,7 @@ describe('claims', () => {
 
     const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, whitelist)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     await request(app)
       .post(route)
@@ -447,7 +447,7 @@ describe('claims', () => {
     const listId = convertToCosmosAddress(wallet.address);
     const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, undefined, listId)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -464,7 +464,7 @@ describe('claims', () => {
     const listId = convertToCosmosAddress(wallet.address);
     const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(true, undefined, listId)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -481,7 +481,7 @@ describe('claims', () => {
     const listId = convertToCosmosAddress(wallet.address);
     const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(true, undefined, listId)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -497,7 +497,7 @@ describe('claims', () => {
   // it('should work with greaterThanXBADGEBalance', async () => {
   //   const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(0)]);
   //   const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-  //   const body: CompleteClaimBody = {};
+  //   const body: CompleteClaimPayload = {};
 
   //   const res = await request(app)
   //     .post(route)
@@ -513,7 +513,7 @@ describe('claims', () => {
   // it('should not work with greaterThanXBADGEBalance', async () => {
   //   const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(1000)]);
   //   const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-  //   const body: CompleteClaimBody = {};
+  //   const body: CompleteClaimPayload = {};
 
   //   await request(app)
   //     .post(route)
@@ -546,7 +546,7 @@ describe('claims', () => {
     });
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(claimDoc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -567,7 +567,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -584,7 +584,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       // discord: {
       //   username: 'testuser'
       // }
@@ -617,7 +617,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       // discord: {
       //   username: 'testuser',
       //   discriminator: '1234'
@@ -682,7 +682,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       // discord: {
       //   username: 'invaliduser'
       // }
@@ -714,7 +714,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       // twitter: {
       //   username: 'testuser'
       // }
@@ -748,7 +748,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -766,7 +766,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -785,7 +785,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -823,7 +823,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -859,7 +859,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -898,7 +898,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(ethers.Wallet.createRandom().address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -948,7 +948,7 @@ describe('claims', () => {
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(ethers.Wallet.createRandom().address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -965,7 +965,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0, 'invalid' as any)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -984,7 +984,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0, 'codeIdx'), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {
+    const body: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[1]
       }
@@ -1003,7 +1003,7 @@ describe('claims', () => {
     expect(idx).toBe(1);
 
     const route2 = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body2: CompleteClaimBody = {
+    const body2: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[1]
       }
@@ -1019,7 +1019,7 @@ describe('claims', () => {
     expect(getPluginStateByType(finalDoc2, 'numUses').numUses).toBe(1);
 
     const route3 = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body3: CompleteClaimBody = {
+    const body3: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[0]
       }
@@ -1037,7 +1037,7 @@ describe('claims', () => {
     const newWallet = ethers.Wallet.createRandom();
 
     const route4 = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(newWallet.address));
-    const body4: CompleteClaimBody = {
+    const body4: CompleteClaimPayload = {
       [`${getPluginIdByType(doc, 'codes')}`]: {
         code: codes[0]
       }
@@ -1057,7 +1057,7 @@ describe('claims', () => {
     const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, undefined, 'unknown')]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -1091,7 +1091,7 @@ describe('claims', () => {
     ]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimBody = {};
+    const body: CompleteClaimPayload = {};
 
     const res = await request(app)
       .post(route)
@@ -1148,7 +1148,7 @@ describe('claims', () => {
     });
 
     const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
-    const body: AddBalancesToOffChainStorageBody = {
+    const body: AddBalancesToOffChainStoragePayload = {
       collectionId: collectionDocToUse.collectionId,
       method: 'centralized',
       claims: [
@@ -1215,19 +1215,19 @@ describe('claims', () => {
     expect(res.status).toBe(200);
 
     const claimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimDocToUse._docId, convertToCosmosAddress(wallet.address));
-    const claimBody: CompleteClaimBody = {};
+    const claimPayload: CompleteClaimPayload = {};
 
     const claimRes = await request(app)
       .post(claimRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(claimBody);
+      .send(claimPayload);
     console.log(claimRes.body);
     expect(claimRes.status).toBe(200);
 
     const claimRes2 = await request(app)
       .post(claimRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(claimBody);
+      .send(claimPayload);
     console.log(claimRes2.body);
     expect(claimRes2.status).toBe(200);
 
@@ -1252,7 +1252,7 @@ describe('claims', () => {
 
     //Delete the claims
 
-    const resetBody: AddBalancesToOffChainStorageBody = {
+    const resetPayload: AddBalancesToOffChainStoragePayload = {
       collectionId: collectionDocToUse.collectionId,
       method: 'centralized',
       claims: [
@@ -1289,7 +1289,7 @@ describe('claims', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
-      .send(resetBody);
+      .send(resetPayload);
     console.log(resetRes.body);
     expect(resetRes.status).toBe(200);
 
@@ -1343,7 +1343,7 @@ describe('claims', () => {
     });
 
     const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
-    const body: AddBalancesToOffChainStorageBody = {
+    const body: AddBalancesToOffChainStoragePayload = {
       collectionId: collectionDocToUse.collectionId,
       method: 'centralized',
       claims: [
@@ -1387,19 +1387,19 @@ describe('claims', () => {
     expect(res.status).toBe(200);
 
     const claimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimDocToUse._docId, convertToCosmosAddress(wallet.address));
-    const claimBody: CompleteClaimBody = {};
+    const claimPayload: CompleteClaimPayload = {};
 
     const claimRes = await request(app)
       .post(claimRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(claimBody);
+      .send(claimPayload);
     console.log(claimRes.body);
     expect(claimRes.status).toBe(200);
 
     const claimRes2 = await request(app)
       .post(claimRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(claimBody);
+      .send(claimPayload);
     console.log(claimRes2.body);
     expect(claimRes2.status).toBe(200);
 
@@ -1465,7 +1465,7 @@ describe('claims', () => {
     });
 
     const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
-    const body: AddBalancesToOffChainStorageBody = {
+    const body: AddBalancesToOffChainStoragePayload = {
       collectionId: collectionDocToUse.collectionId,
       method: 'centralized',
       claims: [
@@ -1511,7 +1511,7 @@ describe('claims', () => {
     expect(res.status).toBe(200);
 
     const claimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimDocToUse._docId, convertToCosmosAddress(wallet.address));
-    const claimBody: CompleteClaimBody = {
+    const claimPayload: CompleteClaimPayload = {
       // discord: {
       //   username: 'testuser'
       // }
@@ -1521,7 +1521,7 @@ describe('claims', () => {
       .post(claimRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
-      .send(claimBody);
+      .send(claimPayload);
     console.log(claimRes.body);
 
     let finalDoc = await mustGetFromDB(ClaimBuilderModel, claimDocToUse._docId);
@@ -1529,7 +1529,7 @@ describe('claims', () => {
     expect(getPluginStateByType(finalDoc, 'discord').ids['123456789']).toBe(1);
 
     const getRoute = BitBadgesApiRoutes.GetCollectionsRoute();
-    const getBody: GetCollectionsBody = {
+    const getPayload: GetCollectionsPayload = {
       collectionsToFetch: [
         {
           collectionId: collectionDocToUse.collectionId,
@@ -1541,7 +1541,7 @@ describe('claims', () => {
     const getRes = await request(app)
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody);
+      .send(getPayload);
     console.log(getRes.body);
 
     const collection = new BitBadgesCollection(getRes.body.collections[0]);
@@ -1549,7 +1549,7 @@ describe('claims', () => {
     expect(collection.claims[0].plugins[1].privateState as any).toBeFalsy();
 
     const getRoute2 = BitBadgesApiRoutes.GetCollectionsRoute();
-    const getBody2: GetCollectionsBody = {
+    const getPayload2: GetCollectionsPayload = {
       collectionsToFetch: [
         {
           collectionId: collectionDocToUse.collectionId,
@@ -1562,7 +1562,7 @@ describe('claims', () => {
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
-      .send(getBody2);
+      .send(getPayload2);
 
     console.log(getRes2.body);
 
@@ -1574,7 +1574,7 @@ describe('claims', () => {
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(getBody2);
+      .send(getPayload2);
     expect(getRes3.status).toBeGreaterThan(400);
 
     await insertToDB(CollectionModel, {
@@ -1621,7 +1621,7 @@ describe('claims', () => {
     });
 
     const route = BitBadgesApiRoutes.AddBalancesToOffChainStorageRoute();
-    const body: AddBalancesToOffChainStorageBody = {
+    const body: AddBalancesToOffChainStoragePayload = {
       collectionId: collectionDocToUse.collectionId,
       method: 'centralized',
       claims: [
@@ -1667,7 +1667,7 @@ describe('claims', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetCollectionsRoute();
-    const getBody: GetCollectionsBody = {
+    const getPayload: GetCollectionsPayload = {
       collectionsToFetch: [
         {
           collectionId: collectionDocToUse.collectionId,
@@ -1679,7 +1679,7 @@ describe('claims', () => {
     const getRes = await request(app)
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody);
+      .send(getPayload);
     console.log(getRes.body);
 
     const collection = new BitBadgesCollection(getRes.body.collections[0]);
@@ -1687,7 +1687,7 @@ describe('claims', () => {
     expect(collection.claims[0].plugins[1].privateState as any).toBeFalsy();
 
     const getRoute2 = BitBadgesApiRoutes.GetCollectionsRoute();
-    const getBody2: GetCollectionsBody = {
+    const getPayload2: GetCollectionsPayload = {
       collectionsToFetch: [
         {
           collectionId: collectionDocToUse.collectionId,
@@ -1700,7 +1700,7 @@ describe('claims', () => {
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
-      .send(getBody2);
+      .send(getPayload2);
 
     console.log(getRes2.body);
 
@@ -1711,7 +1711,7 @@ describe('claims', () => {
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(getBody2);
+      .send(getPayload2);
     expect(getRes3.status).toBeGreaterThan(400);
 
     await insertToDB(CollectionModel, {
@@ -1724,7 +1724,7 @@ describe('claims', () => {
     const wallet = ethers.Wallet.createRandom();
     const seedCode = crypto.randomBytes(32).toString('hex');
     const route = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
-    const body: AddApprovalDetailsToOffChainStorageBody = {
+    const body: AddApprovalDetailsToOffChainStoragePayload = {
       approvalDetails: [
         {
           name: 'test',
@@ -1836,7 +1836,7 @@ describe('claims', () => {
 
     //Try and update it (even though on-chain permissions disallow it)
     const route2 = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
-    const body2: AddApprovalDetailsToOffChainStorageBody = {
+    const body2: AddApprovalDetailsToOffChainStoragePayload = {
       approvalDetails: [
         {
           name: 'test',
@@ -1882,7 +1882,7 @@ describe('claims', () => {
     const wallet = ethers.Wallet.createRandom();
     const seedCode = crypto.randomBytes(32).toString('hex');
     const route = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
-    const body: AddApprovalDetailsToOffChainStorageBody = {
+    const body: AddApprovalDetailsToOffChainStoragePayload = {
       approvalDetails: [
         {
           name: 'test',
@@ -1981,7 +1981,7 @@ describe('claims', () => {
 
     //Try and update it (even though on-chain permissions disallow it)
     const route2 = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
-    const body2: AddApprovalDetailsToOffChainStorageBody = {
+    const body2: AddApprovalDetailsToOffChainStoragePayload = {
       approvalDetails: [
         {
           name: 'test',
@@ -2037,7 +2037,7 @@ describe('claims', () => {
     const managerWallet = ethers.Wallet.createRandom();
     const seedCode = crypto.randomBytes(32).toString('hex');
     const route = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
-    const body: AddApprovalDetailsToOffChainStorageBody = {
+    const body: AddApprovalDetailsToOffChainStoragePayload = {
       approvalDetails: [
         {
           name: 'test',
@@ -2194,7 +2194,7 @@ describe('claims', () => {
 
     //Try and update it (on-chain permissions allow it)
     const route2 = BitBadgesApiRoutes.AddApprovalDetailsToOffChainStorageRoute();
-    const body2: AddApprovalDetailsToOffChainStorageBody = {
+    const body2: AddApprovalDetailsToOffChainStoragePayload = {
       approvalDetails: [
         {
           name: 'test',

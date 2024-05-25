@@ -366,32 +366,31 @@ app.post('/api/v0/report', authorizeBlockinRequest(['Report']), addReport);
 app.post('/api/v0/search/:searchValue', searchHandler);
 
 // Collections
-app.post('/api/v0/collection/batch', getCollections);
+app.post('/api/v0/collections', getCollections);
 app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);
 app.post('/api/v0/collection/:collectionId/balance/:cosmosAddress', getBadgeBalanceByAddress);
 app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity);
 
 app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata);
 app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus);
-app.post('/api/v0/collections/filter', filterBadgesInCollectionHandler);
+app.post('/api/v0/collection/:collectionId/filter', filterBadgesInCollectionHandler);
 
+app.post('/api/v0/claims/simulate/:claimId/:cosmosAddress', simulateClaim);
 app.post('/api/v0/claims/complete/:claimId/:cosmosAddress', completeClaim);
 app.post('/api/v0/claims/reserved/:claimId/:cosmosAddress', getReservedClaimCodes);
-app.post('/api/v0/claims/simulate/:claimId/:cosmosAddress', simulateClaim);
 app.post('/api/v0/claims/status/:claimAttemptId', getClaimsStatusHandler);
 
-app.post('/api/v0/claims', getClaimsHandler);
-app.post('/api/v0/claims/create', authorizeBlockinRequest(['Full Access']), createClaimHandler);
-app.post('/api/v0/claims/update', authorizeBlockinRequest(['Full Access']), updateClaimHandler);
-app.post('/api/v0/claims/delete', authorizeBlockinRequest(['Full Access']), deleteClaimHandler);
+app.post('/api/v0/claims/fetch', getClaimsHandler);
+app.post('/api/v0/claims', authorizeBlockinRequest(['Full Access']), createClaimHandler);
+app.put('/api/v0/claims', authorizeBlockinRequest(['Full Access']), updateClaimHandler);
+app.delete('/api/v0/claims', authorizeBlockinRequest(['Full Access']), deleteClaimHandler);
 
 //Reviews
 app.post('/api/v0/reviews/add', authorizeBlockinRequest(['Reviews']), addReview);
-app.post('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview);
-app.post('/api/v0/deleteReview/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview);
+app.delete('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview);
 
 // User
-app.post('/api/v0/user/batch', getAccounts);
+app.post('/api/v0/users', getAccounts);
 app.post('/api/v0/user/updateAccount', authorizeBlockinRequest(['Profile']), upload.single('profilePicImageFile'), updateAccountInfo);
 
 // IPFS
@@ -416,10 +415,10 @@ app.post(
 app.post('/api/v0/auth/getChallenge', websiteOnlyCors, getChallenge);
 app.post('/api/v0/auth/verify', websiteOnlyCors, verifyBlockinAndGrantSessionCookie);
 app.post('/api/v0/auth/logout', websiteOnlyCors, removeBlockinSessionCookie);
-
 app.post('/api/v0/auth/status', checkifSignedInHandler);
-app.post('/api/v0/auth/genericVerify', genericBlockinVerifyHandler);
-app.post('/api/v0/auth/genericVerifyAssets', genericBlockinVerifyAssetsHandler);
+
+app.post('/api/v0/siwbbRequest/verify', genericBlockinVerifyHandler);
+app.post('/api/v0/verifyOwnershipRequirements', genericBlockinVerifyAssetsHandler);
 
 // Fetch arbitrary metadata - bitbadges.io only
 app.post('/api/v0/metadata', websiteOnlyCors, fetchMetadataDirectly);
@@ -435,16 +434,15 @@ app.post('/api/v0/simulate', simulateTx);
 app.post('/api/v0/faucet', authorizeBlockinRequest(['Full Access']), getTokensFromFaucet);
 
 // Address Lists
-app.post('/api/v0/addressLists', getAddressLists);
-app.post('/api/v0/addressLists/create', authorizeBlockinRequest(['Create Address Lists']), createAddressLists);
-app.post('/api/v0/addressLists/update', authorizeBlockinRequest(['Update Address Lists']), updateAddressLists);
-app.post('/api/v0/addressLists/delete', authorizeBlockinRequest(['Delete Address Lists']), deleteAddressLists);
+app.post('/api/v0/addressLists/fetch', getAddressLists);
+app.post('/api/v0/addressLists', authorizeBlockinRequest(['Create Address Lists']), createAddressLists);
+app.put('/api/v0/addressLists', authorizeBlockinRequest(['Update Address Lists']), updateAddressLists);
+app.delete('/api/v0/addressLists', authorizeBlockinRequest(['Delete Address Lists']), deleteAddressLists);
 
 // Blockin Siwbb Requests
-app.post('/api/v0/siwbbRequest', getAndVerifySIWBBRequest);
-app.post('/api/v0/siwbbRequest/create', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
-app.post('/api/v0/siwbbRequest/delete', authorizeBlockinRequest(['Delete Siwbb Requests']), deleteSIWBBRequest);
-app.post('/api/v0/siwbbRequestsForDeveloperApp', authorizeBlockinRequest(['Full Access']), getSIWBBRequestsForDeveloperApp);
+app.post('/api/v0/siwbbRequest/fetch', getAndVerifySIWBBRequest);
+app.post('/api/v0/siwbbRequest', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
+app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest(['Delete Siwbb Requests']), deleteSIWBBRequest);
 
 // Claim Alerts
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);
@@ -454,28 +452,29 @@ app.post('/api/v0/claimAlerts', authorizeBlockinRequest(['Read Claim Alerts']), 
 app.post('/api/v0/follow-protocol', getFollowDetails);
 
 // Eth First Tx
-app.get('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
+app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 
 // Maps
 app.post('/api/v0/maps', getMaps);
 
-app.post('/api/v0/appleWalletPass', authorizeBlockinRequest(['Full Access']), createPass);
+app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest(['Full Access']), createPass);
 
 // Off-Chain Secret Sigs
-app.post('/api/v0/secret', getSecret);
-app.post('/api/v0/secret/create', authorizeBlockinRequest(['Create Secrets']), createSecret);
-app.post('/api/v0/secret/delete', authorizeBlockinRequest(['Delete Secrets']), deleteSecret);
-app.post('/api/v0/secret/update', authorizeBlockinRequest(['Update Secrets']), updateSecret);
+app.post('/api/v0/secret/fetch', getSecret);
+app.post('/api/v0/secret', authorizeBlockinRequest(['Create Secrets']), createSecret);
+app.delete('/api/v0/secret', authorizeBlockinRequest(['Delete Secrets']), deleteSecret);
+app.put('/api/v0/secret', authorizeBlockinRequest(['Update Secrets']), updateSecret);
 
 // Auth Apps
-app.post('/api/v0/developerApp', websiteOnlyCors, getDeveloperApps);
-app.post('/api/v0/developerApp/create', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createDeveloperApp);
-app.post('/api/v0/developerApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteDeveloperApp);
-app.post('/api/v0/developerApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateDeveloperApp);
+app.post('/api/v0/developerApp/fetch', websiteOnlyCors, getDeveloperApps);
+app.post('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createDeveloperApp);
+app.delete('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteDeveloperApp);
+app.put('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateDeveloperApp);
+app.post('/api/v0/developerApp/siwbbRequests', authorizeBlockinRequest(['Full Access']), getSIWBBRequestsForDeveloperApp);
 
 // Auth Apps
-app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), getPlugins);
-app.post('/api/v0/plugins/create', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createPlugin);
+app.post('/api/v0/plugins/fetch', websiteOnlyCors, getPlugins);
+app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createPlugin);
 // app.post('/api/v0/developerApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteDeveloperApp);
 // app.post('/api/v0/developerApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateDeveloperApp);
 
@@ -627,7 +626,7 @@ app.post('/api/v0/oauth/token/revoke', async (req: AuthenticatedRequest<NumberTy
 });
 
 app.post(
-  '/api/v0/authorizations',
+  '/api/v0/oauth/authorizations',
   websiteOnlyCors,
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
@@ -653,7 +652,7 @@ app.post(
 );
 
 app.post(
-  '/api/v0/apiKeys/create',
+  '/api/v0/apiKeys',
   websiteOnlyCors,
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
@@ -690,8 +689,8 @@ app.post(
   }
 );
 
-app.post(
-  '/api/v0/apiKeys/delete',
+app.delete(
+  '/api/v0/apiKeys',
   websiteOnlyCors,
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
@@ -719,7 +718,7 @@ app.post(
 );
 
 app.post(
-  '/api/v0/apiKeys',
+  '/api/v0/apiKeys/fetch',
   websiteOnlyCors,
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {

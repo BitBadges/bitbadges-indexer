@@ -4,7 +4,7 @@ import app, { server } from '../indexer';
 import {
   BitBadgesApiRoutes,
   BlockinChallengeParams,
-  GetClaimAlertsForCollectionBody,
+  GetClaimAlertsForCollectionPayload,
   GetSignInChallengeSuccessResponse,
   ProfileDoc,
   UintRangeArray,
@@ -15,12 +15,12 @@ import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import mongoose from 'mongoose';
 import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
+import { AddressListModel, CollectionModel, ProfileModel } from '../db/schemas';
 import { connectToRpc } from '../poll';
 import { createExampleReqForAddress } from '../testutil/utils';
-import { AddressListModel, CollectionModel, ProfileModel } from '../db/schemas';
-import { statement, MaybeAuthenticatedRequest, BlockinSession } from './blockin_handlers';
+import { BlockinSession, MaybeAuthenticatedRequest, statement } from './blockin_handlers';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
-import { findInDB } from '../db/queries';
 
 connectToRpc();
 dotenv.config();
@@ -211,7 +211,7 @@ describe('checkIfAuthenticated function', () => {
 
     const collectionId = 1;
     const managerRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
-    const body: GetClaimAlertsForCollectionBody = { collectionId: collectionId.toString(), bookmark: '' };
+    const body: GetClaimAlertsForCollectionPayload = { collectionId: collectionId.toString(), bookmark: '' };
     const collectionDoc = await mustGetFromDB(CollectionModel, '1');
 
     const managerReq = createExampleReqForAddress(collectionDoc.managerTimeline[0].manager);
@@ -231,7 +231,7 @@ describe('checkIfAuthenticated function', () => {
 
     const collectionId = 1;
     const managerRoute = BitBadgesApiRoutes.GetClaimAlertsRoute();
-    const body: GetClaimAlertsForCollectionBody = { collectionId: collectionId.toString(), bookmark: '' };
+    const body: GetClaimAlertsForCollectionPayload = { collectionId: collectionId.toString(), bookmark: '' };
     const managerReq = createExampleReqForAddress('differentAddress');
     const res = await request(app)
       .post(managerRoute)
@@ -1166,6 +1166,7 @@ describe('checkIfAuthenticated function', () => {
       });
     profileDoc.approvedSignInMethods = {
       discord: {
+        scopes: ['Complete Claims'],
         id: '123456789',
         username: 'test',
         discriminator: '0'
@@ -1189,6 +1190,14 @@ describe('checkIfAuthenticated function', () => {
       )
       .send({ message: messageToSign });
     expect(verifyRes.statusCode).toBe(200);
+
+    const signInStatusRoute = BitBadgesApiRoutes.CheckIfSignedInRoute();
+    const signInStatusRes = await request(app)
+      .post(signInStatusRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send({ address });
+
+    expect(signInStatusRes.statusCode).toBe(200);
   });
 
   it('should not approve discord sign in if set but not matching', async () => {
@@ -1208,6 +1217,7 @@ describe('checkIfAuthenticated function', () => {
       });
     profileDoc.approvedSignInMethods = {
       discord: {
+        scopes: ['Complete Claims'],
         id: '123456789',
         username: 'test',
         discriminator: '0'

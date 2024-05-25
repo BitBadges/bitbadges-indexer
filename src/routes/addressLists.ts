@@ -3,13 +3,12 @@ import {
   AddressListDoc,
   ListActivityDoc,
   convertToCosmosAddress,
-  type DeleteAddressListsBody,
+  type DeleteAddressListsPayload,
   type ErrorResponse,
-  type GetAddressListsBody,
-  type JSPrimitiveNumberType,
+  type GetAddressListsPayload,
   type NumberType,
   type StatusDoc,
-  type UpdateAddressListsBody,
+  type UpdateAddressListsPayload,
   type iAddressList,
   type iDeleteAddressListsSuccessResponse,
   type iGetAddressListsSuccessResponse,
@@ -39,8 +38,8 @@ export const deleteAddressLists = async (
   res: Response<iDeleteAddressListsSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as DeleteAddressListsBody;
-    const listIds = reqBody.listIds;
+    const reqPayload = req.body as DeleteAddressListsPayload;
+    const listIds = reqPayload.listIds;
 
     if (listIds.length > 100) {
       throw new Error('You can only delete up to 100 address lists at a time.');
@@ -167,8 +166,8 @@ const handleAddressListsUpdateAndCreate = async (
 ) => {
   const isUpdate = !isCreation;
   try {
-    const reqBody = req.body as UpdateAddressListsBody<JSPrimitiveNumberType>;
-    const lists = reqBody.addressLists;
+    const reqPayload = req.body as UpdateAddressListsPayload;
+    const lists = reqPayload.addressLists;
     const authDetails = await mustGetAuthDetails(req);
     const cosmosAddress = authDetails.cosmosAddress;
 
@@ -293,8 +292,8 @@ const isReserved = (listId: string) => {
 
 export const getAddressLists = async (req: Request, res: Response<iGetAddressListsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetAddressListsBody;
-    const listsToFetch = reqBody.listsToFetch;
+    const reqPayload = req.body as unknown as GetAddressListsPayload;
+    const listsToFetch = reqPayload.listsToFetch;
 
     if (listsToFetch.length > 100) {
       throw new Error('You can only fetch up to 100 address lists at a time.');

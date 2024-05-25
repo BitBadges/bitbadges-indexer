@@ -1,15 +1,15 @@
 import {
   BlockinChallenge,
-  GetAndVerifySIWBBRequestsForDeveloperAppBody,
+  GetAndVerifySIWBBRequestsForDeveloperAppPayload,
   Numberify,
   SecretsProof,
   convertToCosmosAddress,
   getChainForAddress,
   iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse,
-  type CreateSIWBBRequestBody,
-  type DeleteSIWBBRequestBody,
+  type CreateSIWBBRequestPayload,
+  type DeleteSIWBBRequestPayload,
   type ErrorResponse,
-  type GetAndVerifySIWBBRequestBody,
+  type GetAndVerifySIWBBRequestPayload,
   type NumberType,
   type iCreateSIWBBRequestSuccessResponse,
   type iDeleteSIWBBRequestSuccessResponse,
@@ -23,9 +23,10 @@ import {
   MaybeAuthenticatedRequest,
   checkIfAuthenticated,
   genericBlockinVerify,
+  getAuthDetails,
+  mustGetAuthDetails,
   setMockSessionIfTestMode,
-  type AuthenticatedRequest,
-  mustGetAuthDetails
+  type AuthenticatedRequest
 } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
@@ -36,8 +37,8 @@ export const createSIWBBRequest = async (
   res: Response<iCreateSIWBBRequestSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as CreateSIWBBRequestBody;
-    const challengeParams = constructChallengeObjectFromString<number>(reqBody.message, Numberify);
+    const reqPayload = req.body as CreateSIWBBRequestPayload;
+    const challengeParams = constructChallengeObjectFromString<number>(reqPayload.message, Numberify);
     if (!challengeParams.address) {
       throw new Error('Invalid address in message.');
     }
@@ -45,32 +46,42 @@ export const createSIWBBRequest = async (
     //IMPORTANT: If we are calling from the frontend, we override the 'Create Siwbb Requests' scope in order to allow the user to not have to authenticate
     //           to the API. This is because it would be two signatures (one for creating the Siwbb request and one for signing in with BitBadges).
     //           We then use the fact that the Siwbb request signature is valid to confirm the user is who they say they are, rather than the req.session.
-    //           This is checked in the middleware.
+    //           This is checked in the middleware. However, if we are calling from the API, we do not override the scope.
+
     const origin = req.headers.origin;
+    const authDetails = await getAuthDetails(req);
+    const isAuthenticated =
+      (await checkIfAuthenticated(req, ['Create Siwbb Requests'])) &&
+      challengeParams.address &&
+      convertToCosmosAddress(challengeParams.address) === authDetails?.cosmosAddress;
+
     const isFromFrontend =
       origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io');
     if (!isFromFrontend) {
-      const isAuthenticated = await checkIfAuthenticated(req, ['Create Siwbb Requests']);
       if (!isAuthenticated) {
         throw new Error('You do not have permission to create Siwbb requests.');
       }
 
-      if (reqBody.redirectUri) {
+      if (reqPayload.redirectUri) {
         throw new Error('Creating Siwbb requests with a redirect URI is not supported for requests that interact with the API directly.');
-      }
-
-      const authDetails = await mustGetAuthDetails(req);
-      if (!challengeParams.address || convertToCosmosAddress(challengeParams.address) !== authDetails.cosmosAddress) {
-        throw new Error('You can only add Siwbb requests for the connected address.');
       }
     }
 
-    const appDoc = await getFromDB(DeveloperAppModel, reqBody.clientId);
+    // If we allow reuse of BitBadges sign in, we need to make sure the user is signed in with BitBadges
+    // Or else, we must get a valid signature from the user
+    // In other words, we "reuse" the BitBadges sign in signature as proof of identity
+    const allowReuseOfBitBadgesSignIn = reqPayload.allowReuseOfBitBadgesSignIn ?? false;
+    let toSkipSignatureVerification = false;
+    if (allowReuseOfBitBadgesSignIn && isAuthenticated) {
+      toSkipSignatureVerification = true;
+    }
+
+    const appDoc = await getFromDB(DeveloperAppModel, reqPayload.clientId);
     if (!appDoc) {
       throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
     }
 
-    if (reqBody.redirectUri && !appDoc.redirectUris.includes(reqBody.redirectUri)) {
+    if (reqPayload.redirectUri && !appDoc.redirectUris.includes(reqPayload.redirectUri)) {
       throw new Error('Invalid redirect URI.');
     }
 
@@ -78,22 +89,23 @@ export const createSIWBBRequest = async (
     //Other stuff just needs to be valid at actual authentication time
     //Verifies from a cryptographic standpoint that the signature and secrets are valid
     const response = await genericBlockinVerify({
-      message: reqBody.message,
-      signature: reqBody.signature,
-      publicKey: reqBody.publicKey,
+      message: reqPayload.message,
+      signature: reqPayload.signature,
+      publicKey: reqPayload.publicKey,
       options: {
         skipTimestampVerification: true,
-        skipAssetVerification: true
+        skipAssetVerification: true,
+        skipSignatureVerification: toSkipSignatureVerification
       },
-      secretsPresentations: reqBody.secretsPresentations?.map((proof) => new SecretsProof(proof))
+      secretsPresentations: reqPayload.secretsPresentations?.map((proof) => new SecretsProof(proof))
     });
 
     if (!response?.success) {
-      throw new Error('Signature was invalid: ' + response?.message);
+      throw new Error('Verification was invalid: ' + response?.message);
     }
 
     const otherSignInsObj: Record<string, any> = {};
-    for (const otherSignIn of reqBody.otherSignIns || []) {
+    for (const otherSignIn of reqPayload.otherSignIns || []) {
       const authDetails = await mustGetAuthDetails(req);
       if (otherSignIn === 'discord') {
         if (!authDetails.discord) {
@@ -154,16 +166,17 @@ export const createSIWBBRequest = async (
     const uniqueId = crypto.randomBytes(32).toString('hex');
     await insertToDB(SIWBBRequestModel, {
       _docId: uniqueId,
-      ...reqBody,
-      publicKey: reqBody.publicKey ?? '',
+      ...reqPayload,
+      allowReuseOfBitBadgesSignIn,
+      publicKey: reqPayload.publicKey ?? '',
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
       params: challengeParams,
-      signature: reqBody.signature,
+      signature: reqPayload.signature,
       createdAt: Date.now(),
-      secretsPresentations: reqBody.secretsPresentations || [],
-      clientId: reqBody.clientId,
+      secretsPresentations: reqPayload.secretsPresentations || [],
+      clientId: reqPayload.clientId,
       otherSignIns: otherSignInsObj,
-      redirectUri: reqBody.redirectUri
+      redirectUri: reqPayload.redirectUri
     });
 
     return res.status(200).send({ code: uniqueId });
@@ -181,8 +194,8 @@ export const getSIWBBRequestsForDeveloperApp = async (
   res: Response<iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as GetAndVerifySIWBBRequestsForDeveloperAppBody;
-    const { clientId, bookmark } = reqBody;
+    const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestsForDeveloperAppPayload;
+    const { clientId, bookmark } = reqPayload;
     const appDoc = await getFromDB(DeveloperAppModel, clientId);
     if (!appDoc) {
       throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
@@ -225,15 +238,15 @@ export const getAndVerifySIWBBRequest = async (
   try {
     setMockSessionIfTestMode(req);
 
-    const reqBody = req.body as GetAndVerifySIWBBRequestBody;
+    const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestPayload;
 
     // For now, we use the approach that if someone has the signature, they can see the message.
 
-    const doc = await mustGetFromDB(SIWBBRequestModel, reqBody.code);
-    const { clientId, clientSecret, redirectUri } = reqBody;
+    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+    const { clientId, clientSecret, redirectUri } = reqPayload;
 
-    const authDetails = await mustGetAuthDetails(req);
-    if (!authDetails.cosmosAddress || convertToCosmosAddress(doc.params.address) !== authDetails.cosmosAddress) {
+    const authDetails = await getAuthDetails(req);
+    if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.params.address) !== authDetails.cosmosAddress) {
       if (!clientId) {
         throw new Error('You are not the owner of this Siwbb request.');
       }
@@ -268,17 +281,21 @@ export const getAndVerifySIWBBRequest = async (
       message: createChallenge(params),
       signature: doc.signature,
       publicKey: doc.publicKey,
-      options: reqBody.options
+      options: {
+        ...reqPayload.options,
+        skipSignatureVerification: doc.allowReuseOfBitBadgesSignIn ? true : reqPayload.options?.skipSignatureVerification
+      }
     });
 
     const blockinRes = new BlockinChallenge({
       ...doc,
       verificationResponse,
-      options: reqBody.options,
+      options: reqPayload.options,
       address: params.address,
       cosmosAddress: convertToCosmosAddress(params.address),
       chain: getChainForAddress(params.address),
       otherSignIns: doc.otherSignIns,
+      allowReuseOfBitBadgesSignIn: doc.allowReuseOfBitBadgesSignIn,
       message: createChallenge(params)
     });
 
@@ -297,10 +314,10 @@ export const deleteSIWBBRequest = async (
   res: Response<iDeleteSIWBBRequestSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as DeleteSIWBBRequestBody;
+    const reqPayload = req.body as DeleteSIWBBRequestPayload;
 
     const authDetails = await mustGetAuthDetails(req);
-    const doc = await mustGetFromDB(SIWBBRequestModel, reqBody.code);
+    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     if (doc.cosmosAddress !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this Siwbb request.');
     }

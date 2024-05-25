@@ -3,8 +3,8 @@ import {
   BigIntify,
   ClaimBuilderDoc,
   CosmosAddress,
-  CreateClaimBody,
-  UpdateClaimBody,
+  CreateClaimPayload,
+  UpdateClaimPayload,
   convertToCosmosAddress,
   iClaimBuilderDoc,
   iClaimDetails,
@@ -17,7 +17,7 @@ import {
   mustConvertToCosmosAddress,
   type ClaimIntegrationPluginType,
   type ErrorResponse,
-  type GetClaimsBody,
+  type GetClaimsPayload,
   type ListActivityDoc,
   type NumberType,
   type iCompleteClaimSuccessResponse,
@@ -198,7 +198,7 @@ export const updateOnChainClaimContextFunction = (
 
 export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateClaimSuccessResponse | ErrorResponse>) => {
   try {
-    const body = req.body as CreateClaimBody<NumberType>;
+    const body = req.body as CreateClaimPayload;
     const { claims } = body;
     const authDetails = await mustGetAuthDetails(req);
     for (const claim of claims) {
@@ -257,7 +257,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 
 export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateClaimSuccessResponse | ErrorResponse>) => {
   try {
-    const body = req.body as UpdateClaimBody<NumberType>;
+    const body = req.body as UpdateClaimPayload;
     const { claims } = body;
     const authDetails = await mustGetAuthDetails(req);
     for (const claim of claims) {
@@ -347,8 +347,8 @@ export const getClaimsHandler = async (
   res: Response<iGetClaimsSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as GetClaimsBody;
-    const query = { docClaimed: true, _docId: { $in: reqBody.claimIds }, deletedAt: { $exists: false } };
+    const reqPayload = req.body as unknown as GetClaimsPayload;
+    const query = { docClaimed: true, _docId: { $in: reqPayload.claimIds }, deletedAt: { $exists: false } };
     const docs = await findInDB(ClaimBuilderModel, { query });
 
     const claims = await getClaimDetailsForFrontend(req, docs);
@@ -372,7 +372,7 @@ export const getClaimsHandler = async (
 
         // Prove knowledge of list link by specifying listId
         if (addressListDoc.viewableWithLink) {
-          hasPermissions = hasPermissions || reqBody.listId === addressListDoc._docId;
+          hasPermissions = hasPermissions || reqPayload.listId === addressListDoc._docId;
         }
 
         if (!hasPermissions) {

@@ -1,4 +1,4 @@
-import { type NumberType, UintRangeArray, type ErrorResponse, type GetMapsBody, type iGetMapsSuccessResponse } from 'bitbadgesjs-sdk';
+import { type NumberType, UintRangeArray, type ErrorResponse, type GetMapsPayload, type iGetMapsSuccessResponse } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { fetchUriFromSource } from '../queue';
@@ -7,8 +7,8 @@ import { FetchModel, MapModel } from '../db/schemas';
 
 export const getMaps = async (req: Request, res: Response<iGetMapsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetMapsBody;
-    const mapIds = reqBody.mapIds;
+    const reqPayload = req.body as unknown as GetMapsPayload;
+    const mapIds = reqPayload.mapIds;
     if (mapIds.length > 100) {
       throw new Error('Cannot fetch more than 100 maps at a time.');
     }

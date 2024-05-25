@@ -19,17 +19,17 @@ import {
   type AccountFetchDetails,
   type AddressListDoc,
   type BalanceDoc,
-  type SIWBBRequestDoc,
   type ClaimAlertDoc,
   type ErrorResponse,
-  type GetAccountsBody,
+  type GetAccountsPayload,
   type ListActivityDoc,
   type NumberType,
   type PaginationInfo,
   type ReviewDoc,
+  type SIWBBRequestDoc,
   type SecretDoc,
   type TransferActivityDoc,
-  type UpdateAccountInfoBody,
+  type UpdateAccountInfoPayload,
   type iAccountDoc,
   type iGetAccountsSuccessResponse,
   type iProfileDoc,
@@ -41,6 +41,7 @@ import type nano from 'nano';
 import { serializeError } from 'serialize-error';
 import {
   checkIfAuthenticated,
+  getAuthDetails,
   mustGetAuthDetails,
   setMockSessionIfTestMode,
   type AuthenticatedRequest,
@@ -58,7 +59,6 @@ import { applyAddressListsToUserPermissions } from './balances';
 import { convertToBitBadgesUserInfo } from './userHelpers';
 import {
   executeActivityQuery,
-  executeSIWBBRequestsQuery,
   executeClaimAlertsQuery,
   executeCollectedQuery,
   executeCreatedByQuery,
@@ -72,6 +72,7 @@ import {
   executePrivateListsQuery,
   executeReceivedSecretsQuery,
   executeReviewsQuery,
+  executeSIWBBRequestsQuery,
   executeSentClaimAlertsQuery
 } from './userQueries';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
@@ -256,19 +257,19 @@ export const getAccountByUsername = async (req: Request, username: string, fetch
 // ENS names are not supported. Convert to address first
 export const getAccounts = async (req: Request, res: Response<iGetAccountsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetAccountsBody;
-    const allDoNotHaveExternalCalls = reqBody.accountsToFetch.every((x) => x.noExternalCalls);
-    if (!allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 250) {
+    const reqPayload = req.body as unknown as GetAccountsPayload;
+    const allDoNotHaveExternalCalls = reqPayload.accountsToFetch.every((x) => x.noExternalCalls);
+    if (!allDoNotHaveExternalCalls && reqPayload.accountsToFetch.length > 250) {
       return res.status(400).send({
         errorMessage: 'You can only fetch up to 250 accounts with external calls at a time. Please structure your request accordingly.'
       });
-    } else if (allDoNotHaveExternalCalls && reqBody.accountsToFetch.length > 10000) {
+    } else if (allDoNotHaveExternalCalls && reqPayload.accountsToFetch.length > 10000) {
       return res.status(400).send({
         errorMessage: 'You can only fetch up to 10,000 accounts without external calls at a time. Please structure your request accordingly.'
       });
     }
 
-    const usernames = reqBody.accountsToFetch
+    const usernames = reqPayload.accountsToFetch
       .filter((x) => x.username)
       .map((x) => x.username)
       .filter((x) => x !== undefined) as string[];
@@ -277,11 +278,11 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsSucces
     const allQueries = profileDocs.map((x) => {
       return {
         address: x._docId,
-        fetchOptions: reqBody.accountsToFetch.find((y) => y.username === x.username)
+        fetchOptions: reqPayload.accountsToFetch.find((y) => y.username === x.username)
       };
     });
 
-    for (const accountFetchOptions of reqBody.accountsToFetch) {
+    for (const accountFetchOptions of reqPayload.accountsToFetch) {
       if (accountFetchOptions.address) {
         allQueries.push({
           address: accountFetchOptions.address,
@@ -371,9 +372,9 @@ const getAdditionalUserInfo = async (
   req: Request | undefined,
   profileInfo: iProfileDoc<bigint>,
   cosmosAddress: string,
-  reqBody: AccountFetchOptions
+  reqPayload: AccountFetchOptions
 ): Promise<GetAdditionalUserInfoRes> => {
-  if (!reqBody.viewsToFetch) {
+  if (!reqPayload.viewsToFetch) {
     return {
       collected: [],
       activity: [],
@@ -388,9 +389,9 @@ const getAdditionalUserInfo = async (
   }
 
   const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-  const authDetails = await mustGetAuthDetails(authReq);
+  const authDetails = await getAuthDetails(authReq);
   const asyncOperations = [];
-  for (const view of reqBody.viewsToFetch) {
+  for (const view of reqPayload.viewsToFetch) {
     const bookmark = view.bookmark;
     const filteredCollections = view.specificCollections;
     const filteredLists = view.specificLists;
@@ -398,7 +399,7 @@ const getAdditionalUserInfo = async (
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Address Lists'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, ['Read Address Lists'])) && !!authDetails && authDetails.cosmosAddress === cosmosAddress;
         asyncOperations.push(async () => await executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst, isAuthenticated));
       }
     } else if (view.viewType === 'transferActivity') {
@@ -487,7 +488,7 @@ const getAdditionalUserInfo = async (
   const results = await Promise.all(asyncOperations.map(async (operation) => await operation()));
   const addressListIdsToFetch: Array<{ collectionId?: NumberType; listId: string }> = [];
   for (let i = 0; i < results.length; i++) {
-    const viewKey = reqBody.viewsToFetch[i].viewType;
+    const viewKey = reqPayload.viewsToFetch[i].viewType;
 
     if (
       viewKey === 'listsActivity' ||
@@ -564,8 +565,8 @@ const getAdditionalUserInfo = async (
   const addressListsToPopulate = await getAddressListsFromDB(addressListIdsToFetch, true);
   const views: Record<string, { ids: string[]; type: string; pagination: PaginationInfo } | undefined> = {};
   for (let i = 0; i < results.length; i++) {
-    const viewKey = reqBody.viewsToFetch[i].viewType;
-    const viewId = reqBody.viewsToFetch[i].viewId;
+    const viewKey = reqPayload.viewsToFetch[i].viewType;
+    const viewId = reqPayload.viewsToFetch[i].viewId;
 
     if (viewKey === 'listsActivity') {
       const result = results[i] as nano.MangoResponse<ListActivityDoc<bigint>>;
@@ -691,7 +692,7 @@ const getAdditionalUserInfo = async (
     views: {}
   };
   for (let i = 0; i < results.length; i++) {
-    const viewKey = reqBody.viewsToFetch[i].viewType;
+    const viewKey = reqPayload.viewsToFetch[i].viewType;
     if (viewKey === 'listsActivity') {
       const result = results[i] as nano.MangoResponse<ListActivityDoc<bigint>>;
       responseObj.listsActivity = result.docs;
@@ -765,7 +766,7 @@ const getAdditionalUserInfo = async (
 
 export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAccountInfoSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as UpdateAccountInfoBody;
+    const reqPayload = req.body as UpdateAccountInfoPayload;
     const authDetails = await mustGetAuthDetails(req);
     const cosmosAddress = authDetails.cosmosAddress;
     let profileInfo = await getFromDB(ProfileModel, cosmosAddress);
@@ -778,10 +779,10 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
 
     if (
       [
-        ...(reqBody.customPages?.badges ?? []),
-        ...(reqBody.customPages?.lists ?? []),
-        ...(reqBody.watchlists?.badges ?? []),
-        ...(reqBody.watchlists?.lists ?? [])
+        ...(reqPayload.customPages?.badges ?? []),
+        ...(reqPayload.customPages?.lists ?? []),
+        ...(reqPayload.watchlists?.badges ?? []),
+        ...(reqPayload.watchlists?.lists ?? [])
       ]?.find(
         (x) =>
           !x.title ||
@@ -800,18 +801,18 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
       });
     }
 
-    if (reqBody.username) {
+    if (reqPayload.username) {
       // No . in username allowed
       // Do standard username regex
-      if (!/^[a-zA-Z0-9_]{1,15}$/.test(reqBody.username)) {
+      if (!/^[a-zA-Z0-9_]{1,15}$/.test(reqPayload.username)) {
         return res.status(400).send({
           errorMessage: 'Username must be 1 to 15 characters long and can only contain letters, numbers, and underscores.'
         });
       }
     }
 
-    const file = reqBody.profilePicImageFile;
-    let profilePicUrl = reqBody.profilePicUrl;
+    const file = reqPayload.profilePicImageFile;
+    let profilePicUrl = reqPayload.profilePicUrl;
     if (file) {
       const binaryData = Buffer.from(file, 'base64');
       const params = {
@@ -827,20 +828,20 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
 
     const newProfileInfo = new ProfileDoc({
       ...profileInfo,
-      discord: reqBody.discord ?? profileInfo.discord,
-      twitter: reqBody.twitter ?? profileInfo.twitter,
-      github: reqBody.github ?? profileInfo.github,
-      telegram: reqBody.telegram ?? profileInfo.telegram,
-      seenActivity: reqBody.seenActivity?.toString() ?? profileInfo.seenActivity,
-      readme: reqBody.readme ?? profileInfo.readme,
-      hiddenBadges: reqBody.hiddenBadges ?? profileInfo.hiddenBadges,
-      customLinks: reqBody.customLinks ?? profileInfo.customLinks,
-      customPages: reqBody.customPages ?? profileInfo.customPages,
-      watchlists: reqBody.watchlists ?? profileInfo.watchlists,
-      hiddenLists: reqBody.hiddenLists ?? profileInfo.hiddenLists,
+      discord: reqPayload.discord ?? profileInfo.discord,
+      twitter: reqPayload.twitter ?? profileInfo.twitter,
+      github: reqPayload.github ?? profileInfo.github,
+      telegram: reqPayload.telegram ?? profileInfo.telegram,
+      seenActivity: reqPayload.seenActivity?.toString() ?? profileInfo.seenActivity,
+      readme: reqPayload.readme ?? profileInfo.readme,
+      hiddenBadges: reqPayload.hiddenBadges ?? profileInfo.hiddenBadges,
+      customLinks: reqPayload.customLinks ?? profileInfo.customLinks,
+      customPages: reqPayload.customPages ?? profileInfo.customPages,
+      watchlists: reqPayload.watchlists ?? profileInfo.watchlists,
+      hiddenLists: reqPayload.hiddenLists ?? profileInfo.hiddenLists,
       profilePicUrl: profilePicUrl ?? profileInfo.profilePicUrl,
-      username: reqBody.username ?? profileInfo.username,
-      approvedSignInMethods: reqBody.approvedSignInMethods ?? profileInfo.approvedSignInMethods
+      username: reqPayload.username ?? profileInfo.username,
+      approvedSignInMethods: reqPayload.approvedSignInMethods ?? profileInfo.approvedSignInMethods
     });
 
     const profileSize = JSON.stringify(newProfileInfo).length;
@@ -851,15 +852,15 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
     }
 
     newProfileInfo.notifications = new NotificationPreferences({ ...profileInfo.notifications });
-    if (reqBody.notifications) {
-      if (reqBody.notifications.discord !== undefined) {
+    if (reqPayload.notifications) {
+      if (reqPayload.notifications.discord !== undefined) {
         newProfileInfo.notifications = newProfileInfo.notifications ?? new NotificationPreferences({});
-        newProfileInfo.notifications.discord = { ...reqBody.notifications.discord, token: profileInfo.notifications?.discord?.token ?? '' };
+        newProfileInfo.notifications.discord = { ...reqPayload.notifications.discord, token: profileInfo.notifications?.discord?.token ?? '' };
 
         //Compare to current. If different, check session
         const currId = profileInfo.notifications?.discord?.id;
-        if (reqBody.notifications.discord.id && currId !== reqBody.notifications.discord.id) {
-          if (authDetails.discord?.id !== reqBody.notifications.discord.id) {
+        if (reqPayload.notifications.discord.id && currId !== reqPayload.notifications.discord.id) {
+          if (authDetails.discord?.id !== reqPayload.notifications.discord.id) {
             return res.status(400).send({
               errorMessage: 'Discord ID does not match your current connected Discord.'
             });
@@ -870,20 +871,20 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
         }
       }
 
-      if (reqBody.notifications.email !== undefined) {
+      if (reqPayload.notifications.email !== undefined) {
         newProfileInfo.notifications = newProfileInfo.notifications ?? new NotificationPreferences({});
-        newProfileInfo.notifications.email = reqBody.notifications.email;
+        newProfileInfo.notifications.email = reqPayload.notifications.email;
 
-        if (reqBody.notifications.email) {
+        if (reqPayload.notifications.email) {
           // Is valid email - regex
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reqBody.notifications.email)) {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reqPayload.notifications.email)) {
             return res.status(400).send({
               errorMessage: 'Email is not valid.'
             });
           }
 
           const isCurrentlyVerified =
-            profileInfo.notifications?.emailVerification?.verified && profileInfo.notifications?.email === reqBody.notifications.email;
+            profileInfo.notifications?.emailVerification?.verified && profileInfo.notifications?.email === reqPayload.notifications.email;
 
           if (!isCurrentlyVerified) {
             const uniqueToken = crypto.randomBytes(32).toString('hex');
@@ -902,10 +903,10 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
               html: string;
             }> = [
               {
-                to: reqBody.notifications.email,
+                to: reqPayload.notifications.email,
                 from: 'info@mail.bitbadges.io',
                 subject: 'Verify your email',
-                html: VerificationEmailHTML(uniqueToken, reqBody.notifications.antiPhishingCode ?? '')
+                html: VerificationEmailHTML(uniqueToken, reqPayload.notifications.antiPhishingCode ?? '')
               }
             ];
             sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : '');
@@ -916,15 +917,15 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
         }
       }
 
-      if (reqBody.notifications.antiPhishingCode !== undefined) {
+      if (reqPayload.notifications.antiPhishingCode !== undefined) {
         newProfileInfo.notifications = newProfileInfo.notifications ?? new NotificationPreferences({});
         newProfileInfo.notifications.emailVerification = newProfileInfo.notifications.emailVerification ?? new EmailVerificationStatus({});
-        newProfileInfo.notifications.emailVerification.antiPhishingCode = reqBody.notifications.antiPhishingCode;
+        newProfileInfo.notifications.emailVerification.antiPhishingCode = reqPayload.notifications.antiPhishingCode;
       }
 
-      if (reqBody.notifications.preferences !== undefined) {
+      if (reqPayload.notifications.preferences !== undefined) {
         newProfileInfo.notifications = newProfileInfo.notifications ?? new NotificationPreferences({});
-        newProfileInfo.notifications.preferences = reqBody.notifications.preferences;
+        newProfileInfo.notifications.preferences = reqPayload.notifications.preferences;
       }
     }
 
@@ -934,10 +935,10 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
     // Didn't want to introduce sessions into this
     // 1. Check if new username exists. If not, claim it
     // 2. Delete any previous usernames
-    if (reqBody.username && reqBody.username !== profileInfo.username) {
+    if (reqPayload.username && reqPayload.username !== profileInfo.username) {
       // fail if already taken (upsert = false)
       try {
-        await UsernameModel.create([{ _docId: reqBody.username }]);
+        await UsernameModel.create([{ _docId: reqPayload.username }]);
         const previouslyHadUsername = !!profileInfo.username;
         if (previouslyHadUsername && profileInfo.username) await deleteMany(UsernameModel, [profileInfo.username]);
       } catch (e) {

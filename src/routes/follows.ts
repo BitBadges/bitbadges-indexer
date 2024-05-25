@@ -6,7 +6,7 @@ import {
   getBalancesForId,
   type iGetFollowDetailsSuccessResponse,
   type BalanceDoc,
-  type GetFollowDetailsBody,
+  type GetFollowDetailsPayload,
   type NumberType,
   type TransferActivityDoc
 } from 'bitbadgesjs-sdk';
@@ -21,14 +21,14 @@ import { findInDB } from '../db/queries';
 // TODO: Eventually, do we want to cache followers as well somehow?
 export const getFollowDetails = async (req: Request, res: Response<iGetFollowDetailsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetFollowDetailsBody;
-    const followersBookmark = reqBody.followersBookmark ?? '';
+    const reqPayload = req.body as unknown as GetFollowDetailsPayload;
+    const followersBookmark = reqPayload.followersBookmark ?? '';
 
-    let followDoc = await getFromDB(FollowDetailsModel, reqBody.cosmosAddress);
+    let followDoc = await getFromDB(FollowDetailsModel, reqPayload.cosmosAddress);
     if (!followDoc) {
       followDoc = new FollowDetailsDoc<bigint>({
-        _docId: reqBody.cosmosAddress,
-        cosmosAddress: reqBody.cosmosAddress,
+        _docId: reqPayload.cosmosAddress,
+        cosmosAddress: reqPayload.cosmosAddress,
         followers: [],
         following: [],
         followingCollectionId: 0n,
@@ -40,7 +40,7 @@ export const getFollowDetails = async (req: Request, res: Response<iGetFollowDet
     // bookmark will be how much to skip
     const followingCollectionId = followDoc.followingCollectionId;
     const countRes = await FollowDetailsModel.aggregate([
-      { $match: { following: reqBody.cosmosAddress } },
+      { $match: { following: reqPayload.cosmosAddress } },
       {
         $group: {
           _id: null,
@@ -51,7 +51,7 @@ export const getFollowDetails = async (req: Request, res: Response<iGetFollowDet
     const followersCount = countRes.length > 0 ? countRes[0].count : 0;
 
     const followersRes = await FollowDetailsModel.aggregate([
-      { $match: { following: reqBody.cosmosAddress } },
+      { $match: { following: reqPayload.cosmosAddress } },
       { $skip: Number(followersBookmark) },
       { $limit: 25 }
     ]).exec();
@@ -60,13 +60,13 @@ export const getFollowDetails = async (req: Request, res: Response<iGetFollowDet
     const following = followDoc.following;
     // const following = followDoc.following.slice(Number(followingBookmark), Number(followingBookmark) + 25);
 
-    const activityBookmark = reqBody.activityBookmark ?? '';
+    const activityBookmark = reqPayload.activityBookmark ?? '';
     const activity: Array<TransferActivityDoc<NumberType>> = [];
     const activityPagination = {
       hasMore: false,
       bookmark: ''
     };
-    if (reqBody.activityBookmark !== undefined) {
+    if (reqPayload.activityBookmark !== undefined) {
       const activityRes = await executeMultiUserActivityQuery(followDoc.following, activityBookmark);
       activity.push(...activityRes.docs);
       activityPagination.hasMore = activityRes.docs.length >= 25;

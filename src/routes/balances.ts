@@ -2,7 +2,7 @@ import {
   BalanceDocWithDetails,
   BigIntify,
   ClaimDetails,
-  GetBadgeBalanceByAddressBody,
+  GetBadgeBalanceByAddressPayload,
   Stringify,
   UintRangeArray,
   UserPermissionsWithDetails,
@@ -70,7 +70,7 @@ export const getBalanceForAddress = async (
   req: MaybeAuthenticatedRequest<NumberType>,
   collectionId: number,
   _cosmosAddress: string,
-  options?: GetBadgeBalanceByAddressBody | undefined
+  options?: GetBadgeBalanceByAddressPayload | undefined
 ) => {
   const cosmosAddress = `${convertToCosmosAddress(_cosmosAddress).toString()}`;
   const docId = `${collectionId}:${cosmosAddress}`;
@@ -295,7 +295,12 @@ export const getBalanceForAddress = async (
 
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<iGetBadgeBalanceByAddressSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const balanceToReturnConverted = await getBalanceForAddress(req, Number(req.params.collectionId), req.params.cosmosAddress, req.body);
+    const balanceToReturnConverted = await getBalanceForAddress(
+      req,
+      Number(req.params.collectionId),
+      req.params.cosmosAddress,
+      req.body as unknown as GetBadgeBalanceByAddressPayload
+    );
     return res.status(200).send(balanceToReturnConverted.convert(Stringify));
   } catch (e) {
     console.error(e);

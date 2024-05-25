@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { type BroadcastTxBody, type ErrorResponse, type iBroadcastTxSuccessResponse, type iSimulateTxSuccessResponse } from 'bitbadgesjs-sdk';
+import { type BroadcastTxPayload, type ErrorResponse, type iBroadcastTxSuccessResponse, type iSimulateTxSuccessResponse } from 'bitbadgesjs-sdk';
 import { generateEndpointBroadcast } from 'bitbadgesjs-sdk/dist/node-rest-api/broadcast';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -44,9 +44,9 @@ async function tidyErrorMessage(originalMessage: string) {
 
 export const broadcastTx = async (req: Request, res: Response<iBroadcastTxSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as BroadcastTxBody;
+    const reqPayload = req.body as BroadcastTxPayload;
 
-    const initialRes = await axios.post(`${process.env.API_URL}${generateEndpointBroadcast()}`, reqBody).catch(async (e) => {
+    const initialRes = await axios.post(`${process.env.API_URL}${generateEndpointBroadcast()}`, reqPayload).catch(async (e) => {
       if (e?.response?.data) {
         return await Promise.reject(e.response.data);
       }
@@ -98,9 +98,9 @@ export const broadcastTx = async (req: Request, res: Response<iBroadcastTxSucces
 
 export const simulateTx = async (req: Request, res: Response<iSimulateTxSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as BroadcastTxBody;
+    const reqPayload = req.body as BroadcastTxPayload;
 
-    const simulatePost = await axios.post(`${process.env.API_URL}${'/cosmos/tx/v1beta1/simulate'}`, reqBody).catch(async (e) => {
+    const simulatePost = await axios.post(`${process.env.API_URL}${'/cosmos/tx/v1beta1/simulate'}`, reqPayload).catch(async (e) => {
       if (e?.response?.data) {
         return await Promise.reject(e.response.data);
       }

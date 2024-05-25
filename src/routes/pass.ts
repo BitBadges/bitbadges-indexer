@@ -1,4 +1,4 @@
-import { NumberType, convertToCosmosAddress } from 'bitbadgesjs-sdk';
+import { GenerateAppleWalletPassPayload, NumberType, convertToCosmosAddress } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -19,7 +19,7 @@ const signerKey = fs.readFileSync(path.join(certDirectory, 'signerKey.key'));
 
 export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Response<any>) => {
   try {
-    const { code } = req.body;
+    const { code } = req.body as unknown as GenerateAppleWalletPassPayload;
 
     const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, code);
     const authDetails = await mustGetAuthDetails(req);

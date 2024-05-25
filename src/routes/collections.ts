@@ -39,10 +39,10 @@ import {
   type ClaimIntegrationPluginType,
   type CollectionDoc,
   type ErrorResponse,
-  type GetAdditionalCollectionDetailsBody,
-  type GetBadgeActivityBody,
-  type GetCollectionsBody,
-  type GetMetadataForCollectionBody,
+  type GetAdditionalCollectionDetailsPayload,
+  type GetBadgeActivityPayload,
+  type GetCollectionsPayload,
+  type GetMetadataForCollectionPayload,
   type IntegrationPluginDetails,
   type IntegrationPluginParams,
   type MetadataFetchOptions,
@@ -106,8 +106,8 @@ const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
  */
 export type CollectionQueryOptions = {
   collectionId: NumberType;
-} & GetMetadataForCollectionBody &
-  GetAdditionalCollectionDetailsBody;
+} & GetMetadataForCollectionPayload &
+  GetAdditionalCollectionDetailsPayload;
 
 export async function executeAdditionalCollectionQueries(
   req: Request,
@@ -952,8 +952,8 @@ export async function executeCollectionsQuery(req: Request, collectionQueries: C
 
 export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActivitySuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetBadgeActivityBody;
-    const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqBody.bookmark, reqBody.cosmosAddress);
+    const reqPayload = req.body as unknown as GetBadgeActivityPayload;
+    const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqPayload.bookmark, reqPayload.cosmosAddress);
 
     return res.json(activityRes);
   } catch (e) {
@@ -967,16 +967,16 @@ export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActi
 
 export const getCollections = async (req: Request, res: Response<iGetCollectionsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    if (req.body.collectionsToFetch.length > 100) {
+    const reqPayload = req.body as unknown as GetCollectionsPayload;
+
+    if (reqPayload.collectionsToFetch.length > 100) {
       return res.status(400).send({
         errorMessage:
           'For scalability purposes, we limit the number of collections that can be fetched at once to 250. Please design your application to fetch collections in batches of 250 or less.'
       });
     }
 
-    const reqBody = req.body as GetCollectionsBody;
-    const collectionResponses = await executeCollectionsQuery(req, reqBody.collectionsToFetch);
-
+    const collectionResponses = await executeCollectionsQuery(req, reqPayload.collectionsToFetch);
     return res.status(200).send({
       collections: collectionResponses
     });

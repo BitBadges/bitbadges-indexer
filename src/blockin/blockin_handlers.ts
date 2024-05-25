@@ -1,18 +1,18 @@
 import {
   BalanceArray,
   BigIntify,
-  GenericVerifyAssetsBody,
+  GenericVerifyAssetsPayload,
   SupportedChain,
   convertToCosmosAddress,
   getChainForAddress,
   isAddressValid,
   verifySecretsPresentationSignatures,
   type ErrorResponse,
-  type GenericBlockinVerifyBody,
-  type GetSignInChallengeBody,
+  type GenericBlockinVerifyPayload,
+  type GetSignInChallengePayload,
   type NumberType,
-  type SignOutBody,
-  type VerifySignInBody,
+  type SignOutPayload,
+  type VerifySignInPayload,
   type iCheckSignInStatusSuccessResponse,
   type iGetSignInChallengeSuccessResponse,
   type iSignOutSuccessResponse,
@@ -231,7 +231,7 @@ export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>,
 
 export function returnUnauthorized(res: Response<ErrorResponse>, managerRoute: boolean = false) {
   return res.status(401).json({
-    errorMessage: `Unauthorized. You must be signed in ${managerRoute ? 'and the manager of the collection' : 'to access this feature'}.`,
+    errorMessage: `Unauthorized. You must be signed in with the correct scopes ${managerRoute ? 'and the manager of the collection' : 'to access this feature'}.`,
     unauthorized: true
   });
 }
@@ -244,9 +244,9 @@ export async function getChallenge(
   res: Response<iGetSignInChallengeSuccessResponse<NumberType> | ErrorResponse>
 ) {
   try {
-    const reqBody = req.body as GetSignInChallengeBody;
+    const reqPayload = req.body as unknown as GetSignInChallengePayload;
 
-    if (!isAddressValid(reqBody.address)) {
+    if (!isAddressValid(reqPayload.address)) {
       return res.status(400).json({ errorMessage: 'Invalid address' });
     }
 
@@ -256,7 +256,7 @@ export async function getChallenge(
     const challengeParams = {
       domain: 'https://bitbadges.io',
       statement,
-      address: reqBody.address,
+      address: reqPayload.address,
       uri: 'https://bitbadges.io',
       nonce: req.session.nonce ?? '',
       expirationDate: undefined,
@@ -305,7 +305,7 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
 }
 
 export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSignOutSuccessResponse>) {
-  const body = req.body as SignOutBody;
+  const body = req.body as SignOutPayload;
 
   const session = req.session;
   if (body.signOutBlockin) {
@@ -349,7 +349,7 @@ export async function verifyBlockinAndGrantSessionCookie(
   req: MaybeAuthenticatedRequest<NumberType>,
   res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
-  const body = req.body as VerifySignInBody;
+  const body = req.body as VerifySignInPayload;
 
   try {
     setMockSessionIfTestMode(req);
@@ -381,6 +381,13 @@ export async function verifyBlockinAndGrantSessionCookie(
 
           if (value.id === id && value.username === username) {
             approved = true;
+            const scopes = value.scopes ?? [];
+            if (!scopes.length) {
+              throw new Error('No scopes found for this sign-in method.');
+            }
+
+            challenge.resources = scopes.map((x) => SupportedScopes.find((scope) => scope.startsWith(x + ':')) ?? []) as string[];
+            body.message = createChallenge(challenge);
             break;
           }
         }
@@ -474,7 +481,7 @@ export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberTy
   req.session.save();
 }
 
-export function authorizeBlockinRequest(expectedScopes?: string[]) {
+export function authorizeBlockinRequest(expectedScopes: string[]) {
   return async (req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) => {
     try {
       setMockSessionIfTestMode(req);
@@ -502,7 +509,7 @@ export function authorizeBlockinRequest(expectedScopes?: string[]) {
   };
 }
 
-export async function genericBlockinVerify(body: GenericBlockinVerifyBody) {
+export async function genericBlockinVerify(body: GenericBlockinVerifyPayload) {
   if (body.options?.beforeVerification != null) {
     throw new Error('You cannot use the beforeVerification option over HTTP.');
   }
@@ -552,7 +559,7 @@ export async function genericBlockinVerifyHandler(
   req: MaybeAuthenticatedRequest<NumberType>,
   res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
-  const body = req.body as VerifySignInBody;
+  const body = req.body as unknown as VerifySignInPayload;
 
   try {
     const verificationResponse = await genericBlockinVerify(body);
@@ -572,7 +579,7 @@ export async function genericBlockinVerifyAssetsHandler(
   req: MaybeAuthenticatedRequest<NumberType>,
   res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
-  const body = req.body as GenericVerifyAssetsBody;
+  const body = req.body as unknown as GenericVerifyAssetsPayload;
 
   try {
     const cosmosAddress = convertToCosmosAddress(body.cosmosAddress);

@@ -1,4 +1,4 @@
-import { BitBadgesApiRoutes, RefreshMetadataBody } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, RefreshMetadataPayload } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { RefreshModel } from '../db/schemas';
@@ -34,7 +34,7 @@ describe('refresh status', () => {
 
   it('should fetch refresh status', async () => {
     const route = BitBadgesApiRoutes.GetRefreshStatusRoute(1);
-    const body: RefreshMetadataBody = {};
+    const body: RefreshMetadataPayload = {};
     const res = await request(app)
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -50,7 +50,7 @@ describe('refresh status', () => {
     await insertToDB(RefreshModel, { ...doc, refreshRequestTime: 1n });
 
     const route = BitBadgesApiRoutes.RefreshMetadataRoute(1);
-    const body: RefreshMetadataBody = {};
+    const body: RefreshMetadataPayload = {};
     const res = await request(app)
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')

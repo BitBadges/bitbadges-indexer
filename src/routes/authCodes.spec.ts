@@ -2,12 +2,12 @@ import { blsCreateProof, blsSign, generateBls12381G2KeyPair } from '@mattrglobal
 import {
   BitBadgesApiRoutes,
   convertToCosmosAddress,
-  CreateSecretBody,
-  GetSecretBody,
-  UpdateSecretBody,
-  type CreateSIWBBRequestBody,
-  type DeleteSIWBBRequestBody,
-  type GetAndVerifySIWBBRequestBody
+  CreateSecretPayload,
+  GetSecretPayload,
+  UpdateSecretPayload,
+  type CreateSIWBBRequestPayload,
+  type DeleteSIWBBRequestPayload,
+  type GetAndVerifySIWBBRequestPayload
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
@@ -74,10 +74,11 @@ describe('get Siwbb requests', () => {
   });
 
   it('should not create Siwbb request in storage without correct scope', async () => {
-    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateSIWBBRequestBody = {
+    const body: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: false,
       clientId,
       message,
       signature,
@@ -123,10 +124,11 @@ describe('get Siwbb requests', () => {
   });
 
   it('should create Siwbb request in storage', async () => {
-    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateSIWBBRequestBody = {
+    const body: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: false,
       clientId,
       message,
       signature,
@@ -159,13 +161,13 @@ describe('get Siwbb requests', () => {
       .send({ ...body, signature: 'invalid' });
     expect(invalidSigRes.status).toBe(500);
 
-    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
-    const getResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestId };
+    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
+    const getResPayload: GetAndVerifySIWBBRequestPayload = { code: siwbbRequestId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getResBody);
+      .send(getResPayload);
     console.log(getRes);
     expect(getRes.status).toBe(200);
     expect(getRes.body.blockin.message).toBeDefined();
@@ -178,26 +180,27 @@ describe('get Siwbb requests', () => {
     expect(invalidGetRes.status).toBe(500);
 
     const unauthorizedDeleteRes = await request(app)
-      .post(BitBadgesApiRoutes.DeleteSIWBBRequestRoute())
+      .delete(BitBadgesApiRoutes.CRUDSIWBBRequestRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ id: siwbbRequestId });
     expect(unauthorizedDeleteRes.status).toBe(401);
 
-    const deleteResRoute = BitBadgesApiRoutes.DeleteSIWBBRequestRoute();
-    const deleteResBody: DeleteSIWBBRequestBody = { code: siwbbRequestId };
+    const deleteResRoute = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
+    const deleteResPayload: DeleteSIWBBRequestPayload = { code: siwbbRequestId };
     const deleteRes = await request(app)
-      .post(deleteResRoute)
+      .delete(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(deleteResBody);
+      .send(deleteResPayload);
     expect(deleteRes.status).toBe(200);
   });
 
   it('should not allow deleting an unowned Siwbb request', async () => {
-    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateSIWBBRequestBody = {
+    const body: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: false,
       clientId,
       message,
       signature,
@@ -214,10 +217,10 @@ describe('get Siwbb requests', () => {
 
     const siwbbRequestId = res.body.code;
 
-    const deleteResRoute = BitBadgesApiRoutes.DeleteSIWBBRequestRoute();
-    const deleteResBody: DeleteSIWBBRequestBody = { code: siwbbRequestId };
+    const deleteResRoute = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
+    const deleteResPayload: DeleteSIWBBRequestPayload = { code: siwbbRequestId };
     const deleteRes = await request(app)
-      .post(deleteResRoute)
+      .delete(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set(
         'x-mock-session',
@@ -226,15 +229,16 @@ describe('get Siwbb requests', () => {
           cosmosAddress: 'cosmos1uqxan5ch2ulhkjrgmre90rr923932w38tn33gu'
         })
       )
-      .send(deleteResBody);
+      .send(deleteResPayload);
     expect(deleteRes.status).toBe(500);
   });
 
   it('should check signature before creating Siwbb request', async () => {
-    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const body: CreateSIWBBRequestBody = {
+    const body: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: false,
       clientId,
       message,
       signature: 'invalid',
@@ -251,9 +255,9 @@ describe('get Siwbb requests', () => {
   });
 
   it('should create secret in storage', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretBody = {
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -307,20 +311,21 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretBody = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
+    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getResBody);
+      .send(getResPayload);
     expect(getRes.status).toBe(200);
     expect(getRes.body.secretId).toBeDefined();
 
-    const createSIWBBRequestRoute = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const CRUDSIWBBRequestRoute = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const createSIWBBRequestBody: CreateSIWBBRequestBody = {
+    const createSIWBBRequestPayload: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: false,
       clientId,
       message,
       signature,
@@ -339,7 +344,7 @@ describe('get Siwbb requests', () => {
     const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
 
-    createSIWBBRequestBody.secretsPresentations = [
+    createSIWBBRequestPayload.secretsPresentations = [
       {
         ...getRes.body,
         proofOfIssuance: {
@@ -355,23 +360,23 @@ describe('get Siwbb requests', () => {
       }
     ];
 
-    await verifySecretsPresentationSignatures(createSIWBBRequestBody.secretsPresentations[0], true);
+    await verifySecretsPresentationSignatures(createSIWBBRequestPayload.secretsPresentations[0], true);
 
     const siwbbRequestRes = await request(app)
-      .post(createSIWBBRequestRoute)
+      .post(CRUDSIWBBRequestRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(createSIWBBRequestBody);
+      .send(createSIWBBRequestPayload);
     console.log(siwbbRequestRes.body);
     expect(siwbbRequestRes.status).toBe(200);
 
-    const getAndVerifySIWBBRequestResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
-    const getAndVerifySIWBBRequestResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestRes.body.code };
+    const getAndVerifySIWBBRequestResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
+    const getAndVerifySIWBBRequestResPayload: GetAndVerifySIWBBRequestPayload = { code: siwbbRequestRes.body.code };
     const getAndVerifySIWBBRequestRes = await request(app)
       .post(getAndVerifySIWBBRequestResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getAndVerifySIWBBRequestResBody);
+      .send(getAndVerifySIWBBRequestResPayload);
     expect(getAndVerifySIWBBRequestRes.status).toBe(200);
     expect(getAndVerifySIWBBRequestRes.body.blockin.message).toBeDefined();
     expect(getAndVerifySIWBBRequestRes.body.blockin.secretsPresentations).toBeDefined();
@@ -571,9 +576,9 @@ describe('get Siwbb requests', () => {
   });
 
   it('should update anchors correctly', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretBody = {
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -627,18 +632,18 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretBody = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
+    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getResBody);
+      .send(getResPayload);
     expect(getRes.status).toBe(200);
     expect(getRes.body.secretId).toBeDefined();
 
-    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretBody = {
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
+    const updateSecretPayload: UpdateSecretPayload = {
       secretId: getRes.body.secretId,
       anchorsToAdd: [
         {
@@ -648,17 +653,17 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretBody);
+      .send(updateSecretPayload);
     expect(updateRes.status).toBe(200);
 
     const secretsDoc = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
     expect(secretsDoc.anchors.length).toBe(1);
     expect(secretsDoc.anchors[0].txHash).toBe('test');
 
-    const updateSecretBody2: UpdateSecretBody = {
+    const updateSecretPayload2: UpdateSecretPayload = {
       secretId: getRes.body.secretId,
       holdersToSet: [
         {
@@ -669,16 +674,16 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes2 = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretBody2);
+      .send(updateSecretPayload2);
     expect(updateRes2.status).toBe(200);
 
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
     expect(secretsDoc2.holders.length).toBe(1);
 
-    const updateSecretBody3: UpdateSecretBody = {
+    const updateSecretPayload3: UpdateSecretPayload = {
       secretId: getRes.body.secretId,
       holdersToSet: [
         {
@@ -689,10 +694,10 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes3 = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretBody3);
+      .send(updateSecretPayload3);
     expect(updateRes3.status).toBe(200);
 
     const secretsDoc3 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
@@ -700,9 +705,9 @@ describe('get Siwbb requests', () => {
   }, 100000);
 
   it('should delete secret', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretBody = {
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -756,31 +761,31 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretBody = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
+    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getResBody);
+      .send(getResPayload);
     expect(getRes.status).toBe(200);
     expect(getRes.body.secretId).toBeDefined();
 
-    const deleteResRoute = BitBadgesApiRoutes.DeleteSecretRoute();
-    const deleteResBody: GetSecretBody = { secretId: getRes.body.secretId };
+    const deleteResRoute = BitBadgesApiRoutes.CRUDSecretRoute();
+    const deleteResPayload: GetSecretPayload = { secretId: getRes.body.secretId };
 
     const invalidDeleteResAnotherUser = await request(app)
-      .post(deleteResRoute)
+      .delete(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(deleteResBody);
+      .send(deleteResPayload);
     expect(invalidDeleteResAnotherUser.status).toBe(500);
 
     const deleteRes = await request(app)
-      .post(deleteResRoute)
+      .delete(deleteResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(deleteResBody);
+      .send(deleteResPayload);
     expect(deleteRes.status).toBe(200);
 
     const secretsDoc = await getFromDB(OffChainSecretsModel, getRes.body.secretId);
@@ -788,9 +793,9 @@ describe('get Siwbb requests', () => {
   });
 
   it('should update correctly', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretBody = {
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -844,18 +849,18 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretRoute();
-    const getResBody: GetSecretBody = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
+    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getResBody);
+      .send(getResPayload);
     expect(getRes.status).toBe(200);
     expect(getRes.body.secretId).toBeDefined();
 
-    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretBody = {
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
+    const updateSecretPayload: UpdateSecretPayload = {
       secretId: getRes.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -863,10 +868,10 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretBody);
+      .send(updateSecretPayload);
     expect(updateRes.status).toBe(200);
 
     const secretsDoc = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
@@ -877,7 +882,7 @@ describe('get Siwbb requests', () => {
     expect(secretsDoc.updateHistory.length).toBe(2);
 
     //reject invalid proofs upon update
-    const updateSecretBody2: UpdateSecretBody = {
+    const updateSecretPayload2: UpdateSecretPayload = {
       secretId: getRes.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -889,10 +894,10 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes2 = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretBody2);
+      .send(updateSecretPayload2);
 
     expect(updateRes2.status).toBe(500);
 
@@ -906,7 +911,7 @@ describe('get Siwbb requests', () => {
     const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair2?.publicKey ?? '').toString('hex'));
     const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
 
-    const updateSecretBody3: UpdateSecretBody = {
+    const updateSecretPayload3: UpdateSecretPayload = {
       secretId: getRes.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -923,10 +928,10 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes3 = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretBody3);
+      .send(updateSecretPayload3);
     console.log(updateRes3.body);
     expect(updateRes3.status).toBe(200);
 
@@ -940,9 +945,9 @@ describe('get Siwbb requests', () => {
   });
 
   it('should not allow non-owners to update important fields', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretBody = {
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -987,8 +992,8 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretBody = {
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
+    const updateSecretPayload: UpdateSecretPayload = {
       secretId: res.body.secretId,
       name: 'test2',
       description: 'test2',
@@ -996,10 +1001,10 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(updateSecretBody);
+      .send(updateSecretPayload);
     expect(updateRes.status).toBeGreaterThan(400);
 
     const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
@@ -1009,9 +1014,9 @@ describe('get Siwbb requests', () => {
 
     //No session
     const updateRes2 = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(updateSecretBody);
+      .send(updateSecretPayload);
     expect(updateRes2.status).toBeGreaterThan(400);
 
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
@@ -1021,9 +1026,9 @@ describe('get Siwbb requests', () => {
   });
 
   it('should update anchors (owner only)', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretBody = {
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -1068,8 +1073,8 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute();
-    const updateSecretBody: UpdateSecretBody = {
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
+    const updateSecretPayload: UpdateSecretPayload = {
       secretId: res.body.secretId,
       anchorsToAdd: [
         {
@@ -1079,16 +1084,16 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
-      .send(updateSecretBody);
+      .send(updateSecretPayload);
     expect(updateRes.status).toBe(200);
 
     const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc.anchors.length).toBe(1);
 
-    const updateSecretBody2: UpdateSecretBody = {
+    const updateSecretPayload2: UpdateSecretPayload = {
       secretId: res.body.secretId,
       anchorsToAdd: [
         {
@@ -1098,16 +1103,16 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes2 = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(updateSecretBody2);
+      .send(updateSecretPayload2);
     expect(updateRes2.status).toBeGreaterThan(400);
 
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc2.anchors.length).toBe(1);
 
-    const updateSecretBody3: UpdateSecretBody = {
+    const updateSecretPayload3: UpdateSecretPayload = {
       secretId: res.body.secretId,
       anchorsToAdd: [
         {
@@ -1117,16 +1122,16 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes3 = await request(app)
-      .post(updateSecretRoute)
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(updateSecretBody3);
+      .send(updateSecretPayload3);
     expect(updateRes3.status).toBeGreaterThan(400);
   });
 
   it('can add holders to secret (self add only)', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretBody = {
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -1171,8 +1176,8 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const updateSecretRoute = BitBadgesApiRoutes.UpdateSecretRoute;
-    const updateSecretBody: UpdateSecretBody = {
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
+    const updateSecretPayload: UpdateSecretPayload = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1183,16 +1188,16 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes = await request(app)
-      .post(updateSecretRoute())
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
-      .send(updateSecretBody);
+      .send(updateSecretPayload);
     expect(updateRes.status).toBe(200);
 
     const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc.holders.length).toBe(1);
 
-    const updateSecretBody2: UpdateSecretBody = {
+    const updateSecretPayload2: UpdateSecretPayload = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1203,16 +1208,16 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes2 = await request(app)
-      .post(updateSecretRoute())
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(updateSecretBody2);
+      .send(updateSecretPayload2);
     expect(updateRes2.status).toBeGreaterThan(400);
 
     const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc2.holders.length).toBe(1);
 
-    const updateSecretBody3: UpdateSecretBody = {
+    const updateSecretPayload3: UpdateSecretPayload = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1223,16 +1228,16 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes3 = await request(app)
-      .post(updateSecretRoute())
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(updateSecretBody3);
+      .send(updateSecretPayload3);
     expect(updateRes3.status).toBeGreaterThan(400);
 
     const secretsDoc3 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
     expect(secretsDoc3.holders.length).toBe(1);
 
     //Test deletes
-    const updateSecretBody4: UpdateSecretBody = {
+    const updateSecretPayload4: UpdateSecretPayload = {
       secretId: res.body.secretId,
       holdersToSet: [
         {
@@ -1243,10 +1248,10 @@ describe('get Siwbb requests', () => {
     };
 
     const updateRes4 = await request(app)
-      .post(updateSecretRoute())
+      .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
-      .send(updateSecretBody4);
+      .send(updateSecretPayload4);
     expect(updateRes4.status).toBe(200);
 
     const secretsDoc4 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
@@ -1254,8 +1259,8 @@ describe('get Siwbb requests', () => {
   }, 20000);
 
   it('should verify standard sig proofs (non BBS)', async () => {
-    const route = BitBadgesApiRoutes.CreateSecretRoute();
-    const body: CreateSecretBody = {
+    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const body: CreateSecretPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
@@ -1298,12 +1303,13 @@ describe('get Siwbb requests', () => {
   });
 
   it('should be able to get client ID with proof of clientSecret', async () => {
-    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
     const clientSecret = clientIdDocs[0].clientSecret;
     const redirectUri = clientIdDocs[0].redirectUris[0];
-    const body: CreateSIWBBRequestBody = {
+    const body: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: false,
       clientId,
       message,
       signature,
@@ -1333,12 +1339,12 @@ describe('get Siwbb requests', () => {
     const siwbbRequestId = res.body.code;
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
-    const getResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestId, clientId, clientSecret, redirectUri };
+    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
+    const getResPayload: GetAndVerifySIWBBRequestPayload = { code: siwbbRequestId, clientId, clientSecret, redirectUri };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getResBody);
+      .send(getResPayload);
     console.log(getRes.body);
 
     expect(getRes.status).toBe(200);
@@ -1348,31 +1354,32 @@ describe('get Siwbb requests', () => {
     const invalidClientIdPresentedRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ ...getResBody, clientId: 'invalid' });
+      .send({ ...getResPayload, clientId: 'invalid' });
 
     expect(invalidClientIdPresentedRes.status).toBeGreaterThanOrEqual(400);
 
     const invalidClientSecretPresentedRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ ...getResBody, clientSecret: 'invalid' });
+      .send({ ...getResPayload, clientSecret: 'invalid' });
 
     expect(invalidClientSecretPresentedRes.status).toBeGreaterThanOrEqual(400);
 
     const invalidRedirectUriPresentedRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ ...getResBody, redirectUri: 'invalid' });
+      .send({ ...getResPayload, redirectUri: 'invalid' });
     expect(invalidRedirectUriPresentedRes.status).toBeGreaterThanOrEqual(400);
   });
 
   it('should work with other sign ins', async () => {
-    const route = BitBadgesApiRoutes.CreateSIWBBRequestRoute();
+    const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
     const clientSecret = clientIdDocs[0].clientSecret;
     const redirectUri = clientIdDocs[0].redirectUris[0];
-    const body: CreateSIWBBRequestBody = {
+    const body: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: false,
       clientId,
       message,
       signature,
@@ -1396,12 +1403,12 @@ describe('get Siwbb requests', () => {
     const siwbbRequestId = res.body.code;
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestRoute();
-    const getResBody: GetAndVerifySIWBBRequestBody = { code: siwbbRequestId, clientId, clientSecret, redirectUri };
+    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
+    const getResPayload: GetAndVerifySIWBBRequestPayload = { code: siwbbRequestId, clientId, clientSecret, redirectUri };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getResBody);
+      .send(getResPayload);
     console.log(getRes.body);
 
     expect(getRes.status).toBe(200);

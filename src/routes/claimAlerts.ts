@@ -4,9 +4,9 @@ import {
   convertToCosmosAddress,
   type iGetClaimAlertsForCollectionSuccessResponse,
   type iSendClaimAlertsSuccessResponse,
-  type GetClaimAlertsForCollectionBody,
+  type GetClaimAlertsForCollectionPayload,
   type NumberType,
-  type SendClaimAlertsBody
+  type SendClaimAlertsPayload
 } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -25,9 +25,9 @@ import crypto from 'crypto';
 
 export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSendClaimAlertsSuccessResponse | ErrorResponse>) => {
   try {
-    const reqBody = req.body as SendClaimAlertsBody;
+    const reqPayload = req.body as SendClaimAlertsPayload;
 
-    for (const claimAlert of reqBody.claimAlerts) {
+    for (const claimAlert of reqPayload.claimAlerts) {
       if (claimAlert.collectionId && Number(claimAlert.collectionId) !== 0) {
         const isManager = await checkIfManager(req, claimAlert.collectionId);
         if (!isManager) {
@@ -83,9 +83,9 @@ export async function getClaimAlertsForCollection(
   res: Response<iGetClaimAlertsForCollectionSuccessResponse<NumberType> | ErrorResponse>
 ) {
   try {
-    const reqBody = req.body as GetClaimAlertsForCollectionBody;
+    const reqPayload = req.body as unknown as GetClaimAlertsForCollectionPayload;
 
-    const collectionId = Number(reqBody.collectionId);
+    const collectionId = Number(reqPayload.collectionId);
 
     const isManager = await checkIfManager(req, collectionId);
     if (!isManager) {
@@ -97,10 +97,10 @@ export async function getClaimAlertsForCollection(
     const claimAlerts = await findInDB(ClaimAlertModel, {
       query: { collectionId },
       limit: 25,
-      skip: reqBody.bookmark ? 25 * Number(reqBody.bookmark) : 0
+      skip: reqPayload.bookmark ? 25 * Number(reqPayload.bookmark) : 0
     });
     const pagination = {
-      bookmark: (reqBody.bookmark ? Number(reqBody.bookmark) + 1 : 1).toString(),
+      bookmark: (reqPayload.bookmark ? Number(reqPayload.bookmark) + 1 : 1).toString(),
       hasMore: claimAlerts.length === 25
     };
 

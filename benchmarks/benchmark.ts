@@ -1,5 +1,5 @@
 import axiosApi from 'axios';
-import { BitBadgesApiRoutes, GetAccountsBody, GetCollectionsBody, GetSearchBody } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, GetAccountsPayload, GetCollectionsPayload, GetSearchPayload } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import https from 'https';
 
@@ -99,7 +99,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           fetchSequence: true
         }
       ]
-    } as GetAccountsBody
+    } as GetAccountsPayload
   },
   {
     name: 'Get user without ENS avatar',
@@ -113,7 +113,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           fetchSequence: true
         }
       ]
-    } as GetAccountsBody
+    } as GetAccountsPayload
   },
   {
     name: 'Get collection',
@@ -134,7 +134,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           ]
         }
       ]
-    } as GetCollectionsBody
+    } as GetCollectionsPayload
   },
   {
     name: 'Get collection w/ activity',
@@ -157,7 +157,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           ]
         }
       ]
-    } as GetCollectionsBody
+    } as GetCollectionsPayload
   },
   {
     name: 'Get collection w/ owners',
@@ -180,7 +180,7 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           ]
         }
       ]
-    } as GetCollectionsBody
+    } as GetCollectionsPayload
   },
   {
     name: 'Get account w/ all views',
@@ -251,25 +251,25 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
           ]
         }
       ]
-    } as GetAccountsBody
+    } as GetAccountsPayload
   },
   {
     name: 'Search names',
     description: 'Search names',
     route: BitBadgesApiRoutes.GetSearchRoute('trev'),
-    body: {} as GetSearchBody
+    body: {} as GetSearchPayload
   },
   {
     name: 'Search IDs',
     description: 'Search IDs',
     route: BitBadgesApiRoutes.GetSearchRoute('1'),
-    body: {} as GetSearchBody
+    body: {} as GetSearchPayload
   },
   {
     name: 'Search non-ENS name',
     description: 'Search non-ENS name',
     route: BitBadgesApiRoutes.GetSearchRoute('dfadfasdfdfaasdfadsf'),
-    body: {} as GetSearchBody
+    body: {} as GetSearchPayload
   }
 ];
 

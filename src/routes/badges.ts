@@ -3,7 +3,7 @@ import {
   iChallengeDetails,
   iMerkleChallenge,
   type ErrorResponse,
-  type GetOwnersForBadgeBody,
+  type GetOwnersForBadgePayload,
   type NumberType,
   type iAddressList,
   type iApprovalCriteria,
@@ -24,7 +24,7 @@ import { getAddressListsFromDB } from './utils';
 
 export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersForBadgeSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqBody = req.body as GetOwnersForBadgeBody;
+    const reqPayload = req.body as unknown as GetOwnersForBadgePayload;
 
     const totalSupplys = await mustGetFromDB(BalanceModel, `${req.params.collectionId}:Total`);
     let maxBadgeId = 1n;
@@ -64,11 +64,11 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
           }
         }
       },
-      skip: reqBody.bookmark ? 25 * Number(reqBody.bookmark) : 0,
+      skip: reqPayload.bookmark ? 25 * Number(reqPayload.bookmark) : 0,
       limit: 25
     });
 
-    const newBookmark = (reqBody.bookmark ? Number(reqBody.bookmark) + 1 : 1).toString();
+    const newBookmark = (reqPayload.bookmark ? Number(reqPayload.bookmark) + 1 : 1).toString();
 
     let addressListIdsToFetch = [];
     for (const balanceDoc of ownersRes) {

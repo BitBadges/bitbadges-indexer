@@ -1,13 +1,13 @@
 import {
   BitBadgesApiRoutes,
   BitBadgesUserInfo,
-  CompleteClaimBody,
-  GetAccountsBody,
-  GetSearchBody,
+  CompleteClaimPayload,
+  GetAccountsPayload,
+  GetSearchPayload,
   convertToCosmosAddress,
-  type DeleteAddressListsBody,
-  type GetAddressListsBody,
-  type UpdateAddressListsBody
+  type DeleteAddressListsPayload,
+  type GetAddressListsPayload,
+  type UpdateAddressListsPayload
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
@@ -44,7 +44,7 @@ describe('get address lists', () => {
 
   it('should get address lists', async () => {
     const route = BitBadgesApiRoutes.GetAddressListsRoute();
-    const body: GetAddressListsBody = {
+    const body: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: 'All',
@@ -64,8 +64,8 @@ describe('get address lists', () => {
   });
 
   it('can create off-chain lists', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -88,7 +88,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsBody = {
+    const getPayload: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -100,20 +100,20 @@ describe('get address lists', () => {
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getBody);
+      .send(getPayload);
     expect(getRes.status).toBe(200); // it is private
 
     const getRes2 = await request(app)
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody);
+      .send(getPayload);
 
     expect(getRes2.status).toBe(401); // it is private
   });
 
   it('can create public off-chain lists', async () => {
-    const route = BitBadgesApiRoutes.UpdateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -128,13 +128,13 @@ describe('get address lists', () => {
     };
 
     const unAuthRes = await request(app)
-      .post(route)
+      .put(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send(body);
     expect(unAuthRes.status).toBe(401);
 
     const res = await request(app)
-      .post(route)
+      .put(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body);
@@ -142,7 +142,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsBody = {
+    const getPayload: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -153,7 +153,7 @@ describe('get address lists', () => {
     const getRes = await request(app)
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody);
+      .send(getPayload);
 
     expect(getRes.status).toBe(200);
     expect(getRes.body.addressLists).toBeDefined();
@@ -162,7 +162,7 @@ describe('get address lists', () => {
 
   it('should return activity for a list', async () => {
     const route = BitBadgesApiRoutes.GetAddressListsRoute();
-    const body: GetAddressListsBody = {
+    const body: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -185,19 +185,19 @@ describe('get address lists', () => {
   });
 
   it('should delete lists', async () => {
-    const route = BitBadgesApiRoutes.DeleteAddressListRoute();
-    const body: DeleteAddressListsBody = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: DeleteAddressListsPayload = {
       listIds: [convertToCosmosAddress(address) + '_testlist123']
     };
 
     const unAuthRes = await request(app)
-      .post(route)
+      .delete(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send(body);
     expect(unAuthRes.status).toBe(401);
 
     const res = await request(app)
-      .post(route)
+      .delete(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body);
@@ -206,8 +206,8 @@ describe('get address lists', () => {
   });
 
   it('should not allow anyone to view private lists', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -230,7 +230,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsBody = {
+    const getPayload: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123',
@@ -241,7 +241,7 @@ describe('get address lists', () => {
     const getRes = await request(app)
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody);
+      .send(getPayload);
 
     expect(getRes.status).toBe(401);
 
@@ -249,13 +249,13 @@ describe('get address lists', () => {
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getBody);
+      .send(getPayload);
     expect(getRes2.status).toBe(200);
   });
 
   it('should not allow overwriting lists', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_testlist123456',
@@ -285,8 +285,8 @@ describe('get address lists', () => {
   });
 
   it('private but viewable with link', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_viewable',
@@ -309,7 +309,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsBody = {
+    const getPayload: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_viewable',
@@ -320,14 +320,14 @@ describe('get address lists', () => {
     const getRes = await request(app)
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody);
+      .send(getPayload);
 
     expect(getRes.status).toBe(200);
   });
 
   it('should not show up in search results if private', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_searchable',
@@ -349,8 +349,8 @@ describe('get address lists', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const searchRoute = BitBadgesApiRoutes.GetSearchRoute(convertToCosmosAddress(address) + '_searchable');
-    const searchBody: GetSearchBody = {
+    const searchRoute = BitBadgesApiRoutes.SearchRoute(convertToCosmosAddress(address) + '_searchable');
+    const searchPayload: GetSearchPayload = {
       noAccounts: true,
       noCollections: true,
       noBadges: true
@@ -358,15 +358,15 @@ describe('get address lists', () => {
     const searchRes = await request(app)
       .post(searchRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(searchBody);
+      .send(searchPayload);
 
     expect(searchRes.status).toBe(200);
     expect(searchRes.body.addressLists.length).toBe(0);
   });
 
   it('should be searchable if public', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_search123',
@@ -388,8 +388,8 @@ describe('get address lists', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const searchRoute = BitBadgesApiRoutes.GetSearchRoute(convertToCosmosAddress(address) + '_search123');
-    const searchBody: GetSearchBody = {
+    const searchRoute = BitBadgesApiRoutes.SearchRoute(convertToCosmosAddress(address) + '_search123');
+    const searchPayload: GetSearchPayload = {
       noAccounts: true,
       noCollections: true,
       noBadges: true
@@ -397,15 +397,15 @@ describe('get address lists', () => {
     const searchRes = await request(app)
       .post(searchRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(searchBody);
+      .send(searchPayload);
 
     expect(searchRes.status).toBe(200);
     expect(searchRes.body.addressLists.length).toBe(1);
   });
 
   it('should not show up in search results if viewable with link', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_search1232',
@@ -427,8 +427,8 @@ describe('get address lists', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const searchRoute = BitBadgesApiRoutes.GetSearchRoute(convertToCosmosAddress(address) + '_search1232');
-    const searchBody: GetSearchBody = {
+    const searchRoute = BitBadgesApiRoutes.SearchRoute(convertToCosmosAddress(address) + '_search1232');
+    const searchPayload: GetSearchPayload = {
       noAccounts: true,
       noCollections: true,
       noBadges: true
@@ -436,15 +436,15 @@ describe('get address lists', () => {
     const searchRes = await request(app)
       .post(searchRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(searchBody);
+      .send(searchPayload);
 
     expect(searchRes.status).toBe(200);
     expect(searchRes.body.addressLists.length).toBe(0);
   });
 
   it('should not show up on user list activity view if private', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_nonviewable',
@@ -466,7 +466,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
-    const getBody: GetAccountsBody = {
+    const getPayload: GetAccountsPayload = {
       accountsToFetch: [
         {
           address: convertToCosmosAddress(address),
@@ -479,7 +479,8 @@ describe('get address lists', () => {
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify({}))
-      .send(getBody);
+      .send(getPayload);
+    console.log(getRes.body);
 
     expect(getRes.status).toBe(200);
     expect(getRes.body.accounts).toBeDefined();
@@ -490,8 +491,8 @@ describe('get address lists', () => {
   });
 
   it('should fail on update non-existent list', async () => {
-    const route = BitBadgesApiRoutes.UpdateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_nonexistent',
@@ -506,7 +507,7 @@ describe('get address lists', () => {
     };
 
     const res = await request(app)
-      .post(route)
+      .put(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body);
@@ -514,8 +515,8 @@ describe('get address lists', () => {
   });
 
   it('should add activity docs', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_activity',
@@ -537,7 +538,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsBody = {
+    const getPayload: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_activity',
@@ -548,7 +549,7 @@ describe('get address lists', () => {
     const getRes = await request(app)
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody);
+      .send(getPayload);
 
     expect(getRes.status).toBe(200);
     expect(getRes.body.addressLists).toBeDefined();
@@ -559,8 +560,8 @@ describe('get address lists', () => {
   });
 
   it('should create an address list w/ private claims', async () => {
-    const route = BitBadgesApiRoutes.CreateAddressListRoute();
-    const body: UpdateAddressListsBody<bigint> = {
+    const route = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const body: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -602,7 +603,7 @@ describe('get address lists', () => {
     expect(res.status).toBe(200);
 
     const claimRoute = BitBadgesApiRoutes.CompleteClaimRoute(convertToCosmosAddress(address) + '_claim123', convertToCosmosAddress(address));
-    const claimBody: CompleteClaimBody = {
+    const claimPayload: CompleteClaimPayload = {
       xyz123: {
         password: 'dfjiaf'
       }
@@ -610,7 +611,7 @@ describe('get address lists', () => {
     const claimRes = await request(app)
       .post(claimRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(claimBody);
+      .send(claimPayload);
     console.log(claimRes.body);
 
     expect(claimRes.status).toBe(200);
@@ -620,7 +621,7 @@ describe('get address lists', () => {
     expect(claimDoc.state[`${numUsesPluginId}`].numUses).toBe(1);
 
     const getRoute = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody: GetAddressListsBody = {
+    const getPayload: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -633,7 +634,7 @@ describe('get address lists', () => {
       .post(getRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getBody);
+      .send(getPayload);
 
     expect(getRes.status).toBe(200);
     expect(getRes.body.addressLists).toBeDefined();
@@ -650,7 +651,7 @@ describe('get address lists', () => {
     expect(getRes.body.addressLists[0].addresses[0]).toBe(convertToCosmosAddress(address));
 
     const getRoute2 = BitBadgesApiRoutes.GetAddressListsRoute();
-    const getBody2: GetAddressListsBody = {
+    const getPayload2: GetAddressListsPayload = {
       listsToFetch: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -664,7 +665,7 @@ describe('get address lists', () => {
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getBody2);
+      .send(getPayload2);
 
     expect(getRes2.status).toBe(200);
     console.log(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password').privateParams?.password);
@@ -674,7 +675,7 @@ describe('get address lists', () => {
     const getRes3 = await request(app)
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(getBody2);
+      .send(getPayload2);
     expect(getRes3.status).toBeGreaterThan(400);
 
     //Different signed in user
@@ -682,12 +683,12 @@ describe('get address lists', () => {
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(getBody2);
+      .send(getPayload2);
     expect(getRes4.status).toBeGreaterThan(400);
 
     //Update state correctly
-    const updateRoute = BitBadgesApiRoutes.UpdateAddressListRoute();
-    const updateBody: UpdateAddressListsBody<bigint> = {
+    const updateRoute = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const updatePayload: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -720,10 +721,10 @@ describe('get address lists', () => {
     };
 
     const updateRes = await request(app)
-      .post(updateRoute)
+      .put(updateRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateBody);
+      .send(updatePayload);
     console.log(updateRes.body);
     expect(updateRes.status).toBe(200);
 
@@ -731,7 +732,7 @@ describe('get address lists', () => {
       .post(getRoute2)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getBody2);
+      .send(getPayload2);
 
     expect(getRes5.status).toBe(200);
 
@@ -739,12 +740,12 @@ describe('get address lists', () => {
     expect(finalDoc).toBeDefined();
     expect(finalDoc.state[`${numUsesPluginId}`].numUses).toBe(1);
 
-    updateBody.addressLists[0].claims[0].plugins[0].resetState = true;
+    updatePayload.addressLists[0].claims[0].plugins[0].resetState = true;
     const updateRes2 = await request(app)
-      .post(updateRoute)
+      .put(updateRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateBody);
+      .send(updatePayload);
     expect(updateRes2.status).toBe(200);
 
     const finalDoc2 = await mustGetFromDB(ClaimBuilderModel, convertToCosmosAddress(address) + '_claim123');
@@ -752,7 +753,7 @@ describe('get address lists', () => {
     expect(finalDoc2.state[`${numUsesPluginId}`].numUses).toBe(0);
 
     //Check that it deletes old claims
-    const updateBody2: UpdateAddressListsBody<bigint> = {
+    const updatePayload2: UpdateAddressListsPayload = {
       addressLists: [
         {
           listId: convertToCosmosAddress(address) + '_claims',
@@ -768,10 +769,10 @@ describe('get address lists', () => {
     };
 
     const updateRes3 = await request(app)
-      .post(updateRoute)
+      .put(updateRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateBody2);
+      .send(updatePayload2);
     expect(updateRes3.status).toBe(200);
 
     const finalDoc3 = await getFromDB(ClaimBuilderModel, convertToCosmosAddress(address) + '_claim123');

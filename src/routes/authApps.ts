@@ -1,10 +1,10 @@
 import {
-  GetDeveloperAppBody,
-  type CreateDeveloperAppBody,
-  type DeleteDeveloperAppBody,
+  GetDeveloperAppPayload,
+  type CreateDeveloperAppPayload,
+  type DeleteDeveloperAppPayload,
   type ErrorResponse,
   type NumberType,
-  type UpdateDeveloperAppBody,
+  type UpdateDeveloperAppPayload,
   type iCreateDeveloperAppSuccessResponse,
   type iDeleteDeveloperAppSuccessResponse,
   type iGetDeveloperAppSuccessResponse,
@@ -24,16 +24,16 @@ export const createDeveloperApp = async (
   res: Response<iCreateDeveloperAppSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as CreateDeveloperAppBody;
+    const reqPayload = req.body as CreateDeveloperAppPayload;
 
     const uniqueClientId = crypto.randomBytes(32).toString('hex');
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
     const authDetails = await mustGetAuthDetails(req);
 
-    if (reqBody.image.startsWith('data:')) {
-      const res = await addMetadataToIpfs([{ name: '', description: '', image: reqBody.image }]);
+    if (reqPayload.image.startsWith('data:')) {
+      const res = await addMetadataToIpfs([{ name: '', description: '', image: reqPayload.image }]);
       const metadata = await getFromIpfs(res[0].cid);
-      reqBody.image = JSON.parse(metadata.file).image;
+      reqPayload.image = JSON.parse(metadata.file).image;
     }
 
     await insertToDB(DeveloperAppModel, {
@@ -41,10 +41,10 @@ export const createDeveloperApp = async (
       _docId: uniqueClientId,
       clientId: uniqueClientId,
       clientSecret: uniqueClientSecret,
-      name: reqBody.name,
-      redirectUris: reqBody.redirectUris,
-      description: reqBody.description,
-      image: reqBody.image
+      name: reqPayload.name,
+      redirectUris: reqPayload.redirectUris,
+      description: reqPayload.description,
+      image: reqPayload.image
     });
 
     return res.status(200).send({ clientId: uniqueClientId, clientSecret: uniqueClientSecret });
@@ -59,7 +59,7 @@ export const createDeveloperApp = async (
 
 export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetDeveloperAppSuccessResponse | ErrorResponse>) => {
   try {
-    const body = req.body as GetDeveloperAppBody;
+    const body = req.body as unknown as GetDeveloperAppPayload;
 
     if (body.clientId) {
       const doc = await mustGetFromDB(DeveloperAppModel, body.clientId);
@@ -93,14 +93,14 @@ export const deleteDeveloperApp = async (
   res: Response<iDeleteDeveloperAppSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const reqBody = req.body as DeleteDeveloperAppBody;
+    const reqPayload = req.body as DeleteDeveloperAppPayload;
     const authDetails = await mustGetAuthDetails(req);
-    const doc = await mustGetFromDB(DeveloperAppModel, reqBody.clientId);
+    const doc = await mustGetFromDB(DeveloperAppModel, reqPayload.clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this Siwbb request.');
     }
 
-    await deleteMany(DeveloperAppModel, [reqBody.clientId]);
+    await deleteMany(DeveloperAppModel, [reqPayload.clientId]);
 
     return res.status(200).send({ success: true });
   } catch (e) {
@@ -117,7 +117,7 @@ export const updateDeveloperApp = async (
   res: Response<iUpdateDeveloperAppSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const { name, description, image, redirectUris, clientId } = req.body as UpdateDeveloperAppBody;
+    const { name, description, image, redirectUris, clientId } = req.body as UpdateDeveloperAppPayload;
     const authDetails = await mustGetAuthDetails(req);
     const doc = await mustGetFromDB(DeveloperAppModel, clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {

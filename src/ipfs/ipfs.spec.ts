@@ -73,7 +73,7 @@ describe('addMetadataToIpfs', () => {
   it('should work with no metadata', async () => {
     const result = await addMetadataToIpfs();
 
-    expect(result).toEqual({ results: [] });
+    expect(result).toEqual([]);
   }, 30000);
 
   it('should work with an image', async () => {

@@ -10,9 +10,9 @@ import {
   iMetadata,
   iPredeterminedBalances,
   validateCollectionApprovalsUpdate,
-  type AddApprovalDetailsToOffChainStorageBody,
-  type AddBalancesToOffChainStorageBody,
-  type AddToIpfsBody,
+  type AddApprovalDetailsToOffChainStoragePayload,
+  type AddBalancesToOffChainStoragePayload,
+  type AddToIpfsPayload,
   type ClaimIntegrationPluginType,
   type ErrorResponse,
   type IntegrationPluginParams,
@@ -358,16 +358,16 @@ export const addBalancesToOffChainStorageHandler = async (
   req: AuthenticatedRequest<NumberType>,
   res: Response<iAddBalancesToOffChainStorageSuccessResponse | ErrorResponse>
 ) => {
-  const reqBody = req.body as AddBalancesToOffChainStorageBody;
+  const reqPayload = req.body as AddBalancesToOffChainStoragePayload;
 
   try {
     const authDetails = await mustGetAuthDetails(req);
     const customData = crypto.randomBytes(32).toString('hex');
-    if (BigInt(reqBody.collectionId) > 0) {
-      const managerCheck = await checkIfManager(req, reqBody.collectionId);
+    if (BigInt(reqPayload.collectionId) > 0) {
+      const managerCheck = await checkIfManager(req, reqPayload.collectionId);
       if (!managerCheck) throw new Error('You are not the manager of this collection');
 
-      const collectionDoc = await mustGetFromDB(CollectionModel, reqBody.collectionId.toString());
+      const collectionDoc = await mustGetFromDB(CollectionModel, reqPayload.collectionId.toString());
       if (collectionDoc.balancesType !== 'Off-Chain - Indexed' && collectionDoc.balancesType !== 'Off-Chain - Non-Indexed') {
         throw new Error('This collection is not an off-chain collection');
       }
@@ -382,13 +382,13 @@ export const addBalancesToOffChainStorageHandler = async (
     let urlPath: string | undefined = customData;
     let result;
     let size = 0;
-    if (reqBody.balances) {
+    if (reqPayload.balances) {
       // get size of req.body in KB
       size = Buffer.byteLength(JSON.stringify(req.body));
 
-      if (BigInt(reqBody.collectionId) > 0) {
+      if (BigInt(reqPayload.collectionId) > 0) {
         // Get existing urlPath
-        const collectionDoc = await mustGetFromDB(CollectionModel, reqBody.collectionId.toString());
+        const collectionDoc = await mustGetFromDB(CollectionModel, reqPayload.collectionId.toString());
         if (collectionDoc.offChainBalancesMetadataTimeline.length > 0) {
           urlPath = collectionDoc.offChainBalancesMetadataTimeline[0].offChainBalancesMetadata.uri.split('/').pop() ?? '';
         }
@@ -397,40 +397,40 @@ export const addBalancesToOffChainStorageHandler = async (
         //Explanation: We can't create a DigitalOceanBalance doc without a collectionId, so we just create it upon first balance update
         //             with a collection ID in addBalancesToOffChainStorage(). In the case of claims (which currently is our only use case),
         //             this will be the first completed claim which expects empty balances.
-        if (Object.keys(reqBody.balances).length !== 0 && reqBody.claims?.length) {
+        if (Object.keys(reqPayload.balances).length !== 0 && reqPayload.claims?.length) {
           throw new Error('Genesis collection with claims must start with empty balances');
         }
       }
 
-      const balances = cleanBalanceMap(reqBody.balances);
-      result = await addBalancesToOffChainStorage(balances, reqBody.method, reqBody.collectionId, urlPath);
+      const balances = cleanBalanceMap(reqPayload.balances);
+      result = await addBalancesToOffChainStorage(balances, reqPayload.method, reqPayload.collectionId, urlPath);
       if (!result) {
         throw new Error('No add result received');
       }
 
       await updateIpfsTotals(authDetails.cosmosAddress, size);
-      if (BigInt(reqBody.collectionId) > 0) await refreshCollection(reqBody.collectionId.toString(), true);
+      if (BigInt(reqPayload.collectionId) > 0) await refreshCollection(reqPayload.collectionId.toString(), true);
     }
 
-    if (reqBody.claims) {
-      if (!reqBody.collectionId && !result) {
+    if (reqPayload.claims) {
+      if (!reqPayload.collectionId && !result) {
         throw new Error('You must upload the balances to IPFS before adding plugins');
       }
 
       const cid = urlPath ?? '';
-      const claimQuery = { collectionId: Number(reqBody.collectionId) };
-      const isNonIndexed = reqBody.isNonIndexed;
+      const claimQuery = { collectionId: Number(reqPayload.collectionId) };
+      const isNonIndexed = reqPayload.isNonIndexed;
 
       await updateClaimDocs(
         req,
         isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed,
         claimQuery,
-        reqBody.claims ?? [],
+        reqPayload.claims ?? [],
         (claim) => {
-          return createOffChainClaimContextFunction(authDetails.cosmosAddress, claim, Number(reqBody.collectionId), cid);
+          return createOffChainClaimContextFunction(authDetails.cosmosAddress, claim, Number(reqPayload.collectionId), cid);
         }
       );
-      await deleteOldClaims(isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, reqBody.claims ?? []);
+      await deleteOldClaims(isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, reqPayload.claims ?? []);
     }
 
     if (!result || !result.uri) {
@@ -448,15 +448,15 @@ export const addBalancesToOffChainStorageHandler = async (
 };
 
 export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddToIpfsSuccessResponse | ErrorResponse>) => {
-  const reqBody = req.body as AddToIpfsBody;
+  const reqPayload = req.body as AddToIpfsPayload;
 
   try {
     const authDetails = await mustGetAuthDetails(req);
-    if (!reqBody.contents) {
+    if (!reqPayload.contents) {
       throw new Error('No metadata provided');
     }
 
-    if (reqBody.contents.length === 0) {
+    if (reqPayload.contents.length === 0) {
       return res.status(200).send({ results: [] });
     }
 
@@ -466,7 +466,7 @@ export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, re
     const metadataToAdd: (iBadgeMetadataDetails<NumberType> | iMetadata<NumberType> | iCollectionMetadataDetails<NumberType>)[] = [];
     const challengeDetailsToAdd: iChallengeDetails<NumberType>[] = [];
     const isMetadata: boolean[] = [];
-    for (const content of reqBody.contents) {
+    for (const content of reqPayload.contents) {
       if ((content as any).leaves) {
         challengeDetailsToAdd.push(content as iChallengeDetails<NumberType>);
         isMetadata.push(false);
@@ -505,7 +505,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
   req: AuthenticatedRequest<NumberType>,
   res: Response<iAddApprovalDetailsToOffChainStorageSuccessResponse | ErrorResponse>
 ) => {
-  const _reqBody = req.body as AddApprovalDetailsToOffChainStorageBody;
+  const _reqPayload = req.body as AddApprovalDetailsToOffChainStoragePayload;
 
   try {
     const authDetails = await mustGetAuthDetails(req);
@@ -516,8 +516,8 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
       approvalResults: []
     };
 
-    for (const reqBody of _reqBody.approvalDetails) {
-      const challengeDetailsArr = reqBody.challengeInfoDetails;
+    for (const reqPayload of _reqPayload.approvalDetails) {
+      const challengeDetailsArr = reqPayload.challengeInfoDetails;
       for (const challengeDetailInfo of challengeDetailsArr ?? []) {
         const claims = challengeDetailInfo.claim ? [challengeDetailInfo.claim] : [];
         const challengeDetails = challengeDetailInfo.challengeDetails;
@@ -538,7 +538,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
         }
       }
 
-      const metadataResults = await addMetadataToIpfs([{ name: reqBody.name, description: reqBody.description, image: '' }]);
+      const metadataResults = await addMetadataToIpfs([{ name: reqPayload.name, description: reqPayload.description, image: '' }]);
       const metadataResult = metadataResults[0];
 
       const challengeResults = await addApprovalDetailsToOffChainStorage(challengeDetailsArr?.map((x) => x.challengeDetails) ?? []);
