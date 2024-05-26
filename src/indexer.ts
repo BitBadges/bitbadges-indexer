@@ -74,7 +74,7 @@ import { getMaps } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
 import { createSecret, deleteSecret, getSecret, updateSecret } from './routes/offChainSecrets';
 import { createPass } from './routes/pass';
-import { createPlugin, getPlugins } from './routes/plugins';
+import { createPlugin, deletePlugin, getPlugins, updatePlugin } from './routes/plugins';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
 import { addReview, deleteReview } from './routes/reviews';
@@ -475,8 +475,8 @@ app.post('/api/v0/developerApp/siwbbRequests', authorizeBlockinRequest(['Full Ac
 // Auth Apps
 app.post('/api/v0/plugins/fetch', websiteOnlyCors, getPlugins);
 app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createPlugin);
-// app.post('/api/v0/developerApp/delete', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteDeveloperApp);
-// app.post('/api/v0/developerApp/update', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateDeveloperApp);
+app.put('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updatePlugin);
+app.delete('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deletePlugin);
 
 app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);

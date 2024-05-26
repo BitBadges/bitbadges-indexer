@@ -85,7 +85,8 @@ const createClaimDoc = async (
     docClaimed: true,
     plugins,
     state: state,
-    lastUpdated: Date.now()
+    lastUpdated: Date.now(),
+    createdAt: Date.now(),
   };
 
   await insertToDB(ClaimBuilderModel, doc);

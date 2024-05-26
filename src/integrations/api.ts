@@ -7,7 +7,7 @@ import { ContextInfo } from './types';
 axios.defaults.timeout = 10000;
 
 export const GenericCustomPluginValidateFunction = async (
-  context: ContextInfo & { pluginId: string; pluginType: string },
+  context: ContextInfo & { pluginId: string; pluginType: string; _isSimulation: boolean },
   publicParams: any,
   privateParams: any,
   customBody: any,
@@ -31,14 +31,19 @@ export const GenericCustomPluginValidateFunction = async (
     ...publicParams,
     ...privateParams,
     ...apiCall?.hardcodedInputs.map((input) => ({ [input.key]: input.value })),
-    claimId: context.claimId,
-    cosmosAddress: apiCall?.passAddress ? context.cosmosAddress : null,
     discord: apiCall?.passDiscord ? adminInfo.discord : null,
     twitter: apiCall?.passTwitter ? adminInfo.twitter : null,
     github: apiCall?.passGithub ? adminInfo.github : null,
     google: apiCall?.passGoogle ? adminInfo.google : null,
     // email: apiCall?.passEmail ? adminInfo.email : null,
-    pluginSecret: pluginDoc.pluginSecret
+
+    // Context info
+    pluginSecret: pluginDoc.pluginSecret,
+    claimId: context.claimId,
+    cosmosAddress: apiCall?.passAddress ? context.cosmosAddress : null,
+    _isSimulation: context._isSimulation,
+    lastUpdated: context.lastUpdated,
+    createdAt: context.createdAt
   };
 
   try {

@@ -108,17 +108,23 @@ export const PluginSchema = new Schema<PluginDoc<JSPrimitiveNumberType>>({
   pluginId: String,
   pluginSecret: String,
   reviewCompleted: Boolean,
+  createdBy: String,
   stateFunctionPreset: String,
   duplicatesAllowed: Boolean,
   requiresSessions: Boolean,
   requiresUserInputs: Boolean,
   reuseForNonIndexed: Boolean,
+  userInputRedirect: Schema.Types.Mixed,
+  claimCreatorRedirect: Schema.Types.Mixed,
   metadata: Schema.Types.Mixed,
   userInputsSchema: [Schema.Types.Mixed],
   publicParamsSchema: [Schema.Types.Mixed],
   privateParamsSchema: [Schema.Types.Mixed],
   verificationCall: Schema.Types.Mixed,
-  lastUpdated: Number
+  lastUpdated: Number,
+  createdAt: Number,
+  deletedAt: Number,
+  toPublish: Boolean
 });
 
 export const MapSchema = new Schema<MapDoc<JSPrimitiveNumberType>>({
@@ -306,6 +312,7 @@ export const ClaimBuilderSchema = new Schema<ClaimBuilderDoc<JSPrimitiveNumberTy
   metadata: Schema.Types.Mixed, // Mixed type for metadata
   trackerDetails: Schema.Types.Mixed, // Mixed type for trackerDetails (ChallengeTrackerIdDetails type)
   lastUpdated: Schema.Types.Mixed, // Mixed type for lastUpdated (number type)
+  createdAt: Schema.Types.Mixed, // Mixed type for createdAt (number type)
   plugins: [Schema.Types.Mixed] // Array of Mixed type for plugins (Plugin type)
 });
 

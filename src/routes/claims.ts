@@ -404,10 +404,6 @@ export const completeClaimHandler = async (
   const fetchedAt = Number(req.body._fetchedAt || 0n);
 
   cosmosAddress = mustConvertToCosmosAddress(cosmosAddress);
-  const context: ContextInfo = Object.freeze({
-    cosmosAddress,
-    claimId
-  });
 
   const useSession = !simulate && !prevCodesOnly;
   let response = {};
@@ -422,6 +418,14 @@ export const completeClaimHandler = async (
     if (BigInt(fetchedAt) && claimBuilderDocResponse[0].lastUpdated > BigInt(fetchedAt)) {
       throw new Error('Claim has been updated since last fetch');
     }
+
+    const context: ContextInfo = Object.freeze({
+      cosmosAddress,
+      claimId,
+      _isSimulation: simulate,
+      lastUpdated: Number(claimBuilderDocResponse[0].lastUpdated),
+      createdAt: Number(claimBuilderDocResponse[0].createdAt)
+    });
 
     const claimBuilderDoc = claimBuilderDocResponse[0];
     if (claimBuilderDoc.manualDistribution) {
@@ -632,7 +636,7 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
 
     await completeClaimHandler(req, claimId, cosmosAddress, simulate);
-    return res.status(200).send({ claimAttemptId: crypto.randomBytes(32).toString('hex') });
+    return res.status(200).send({ claimAttemptId: 'This is just a simulation. Your ID will be returned here when you complete the claim for real.' });
   } catch (e) {
     console.error(e);
     return res.status(500).send({

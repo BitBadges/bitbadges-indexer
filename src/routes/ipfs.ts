@@ -28,7 +28,7 @@ import { serializeError } from 'serialize-error';
 import { checkIfManager, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { AddressListModel, ClaimBuilderModel, CollectionModel, IPFSTotalsModel, OffChainUrlModel } from '../db/schemas';
+import { AddressListModel, ClaimBuilderModel, CollectionModel, IPFSTotalsModel, OffChainUrlModel, PluginModel } from '../db/schemas';
 import { encryptPlugins, getFirstMatchForPluginType, getPlugin } from '../integrations/types';
 import { addApprovalDetailsToOffChainStorage, addBalancesToOffChainStorage, addMetadataToIpfs } from '../ipfs/ipfs';
 import { cleanBalanceMap } from '../utils/dataCleaners';
@@ -58,7 +58,8 @@ export const updateIpfsTotals = async (address: string, size: number, doNotInser
   if (!doNotInsert) await insertToDB(IPFSTotalsModel, ipfsTotalsDoc);
 };
 
-export const assertPluginsUpdateIsValid = (
+export const assertPluginsUpdateIsValid = async (
+  req: AuthenticatedRequest<NumberType>,
   oldPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   newPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   isNonIndexed?: boolean
@@ -103,6 +104,17 @@ export const assertPluginsUpdateIsValid = (
 
     if (newPlugins.filter((x) => x.type === plugin[0]).length > 1) {
       throw new Error('Duplicate plugins are not allowed for type: ' + plugin[0]);
+    }
+  }
+
+  const newPluginTypes = newPlugins.map((x) => x.type).filter((x) => !oldPlugins.map((y) => y.type).includes(x));
+  for (const type of newPluginTypes) {
+    if (!Plugins[type]) {
+      const authDetails = await mustGetAuthDetails(req);
+      const doc = await mustGetFromDB(PluginModel, type);
+      if (!doc.reviewCompleted && doc.createdBy !== authDetails.cosmosAddress) {
+        throw new Error('You must be the owner of private plugins (not published to the directory) to use it.');
+      }
     }
   }
 };
@@ -188,7 +200,7 @@ export const updateClaimDocs = async (
     }
 
     const isNonIndexed = claimType === ClaimType.OffChainNonIndexed;
-    assertPluginsUpdateIsValid(existingDoc?.plugins ?? [], claim.plugins ?? [], isNonIndexed);
+    await assertPluginsUpdateIsValid(req, existingDoc?.plugins ?? [], claim.plugins ?? [], isNonIndexed);
 
     if (claimType == ClaimType.AddressList) {
       if (!isCreation) {
@@ -303,13 +315,15 @@ export const updateClaimDocs = async (
         lastUpdated: BigInt(Date.now())
       });
     } else {
+      const currTime = BigInt(Date.now());
       claimDocsToSet.push({
         ...context(claim),
         _docId: claim.claimId,
         state,
         plugins: encryptedPlugins ?? [],
         deletedAt: undefined,
-        lastUpdated: BigInt(Date.now())
+        lastUpdated: currTime,
+        createdAt: currTime
       });
     }
   }

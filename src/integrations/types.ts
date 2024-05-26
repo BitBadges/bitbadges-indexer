@@ -18,6 +18,9 @@ import { Setter } from './codes';
 export interface ContextInfo {
   cosmosAddress: string;
   claimId: string;
+  _isSimulation: boolean;
+  lastUpdated: number;
+  createdAt: number;
 }
 
 export interface IntegrationMetadata {
