@@ -145,7 +145,11 @@ async function getBatchAccountInformation(queries: Array<{ address: string; fetc
   return accountInfos;
 }
 
-async function getBatchProfileInformation(req: Request | undefined, queries: Array<{ address: string; fetchOptions?: AccountFetchOptions }>) {
+async function getBatchProfileInformation(
+  req: Request | undefined,
+  res: Response,
+  queries: Array<{ address: string; fetchOptions?: AccountFetchOptions }>
+) {
   const profileInfos: Array<ProfileDoc<bigint>> = [];
   const addressesToFetch = queries.map((x) => convertToCosmosAddress(x.address));
 
@@ -171,7 +175,7 @@ async function getBatchProfileInformation(req: Request | undefined, queries: Arr
   // Filter out private info if not authenticated user
   if (req) {
     setMockSessionIfTestMode(req);
-    const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+    const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
     if (!isAuthenticated) {
       for (const profileInfo of profileInfos) {
         profileInfo.notifications = undefined;
@@ -184,10 +188,10 @@ async function getBatchProfileInformation(req: Request | undefined, queries: Arr
   return profileInfos;
 }
 
-export const getAccountByAddress = async (req: Request | undefined, address: string, fetchOptions?: AccountFetchOptions) => {
+export const getAccountByAddress = async (req: Request | undefined, res: Response, address: string, fetchOptions?: AccountFetchOptions) => {
   if (address === 'Mint') return BitBadgesUserInfo.MintAccount();
   const accountInfo = (await getBatchAccountInformation([{ address, fetchOptions }]))[0];
-  const profileInfo = (await getBatchProfileInformation(req, [{ address, fetchOptions }]))[0];
+  const profileInfo = (await getBatchProfileInformation(req, res, [{ address, fetchOptions }]))[0];
 
   let fetchName = true;
   if (fetchOptions?.noExternalCalls) {
@@ -200,6 +204,7 @@ export const getAccountByAddress = async (req: Request | undefined, address: str
     // account is currently a BitBadgesUserInfo with no portfolio info
     const portfolioRes = await getAdditionalUserInfo(
       req,
+      res,
       {
         ...profileInfo,
         _docId: convertToCosmosAddress(address)
@@ -227,7 +232,7 @@ const resolveUsernames = async (usernames: string[]) => {
   return docs;
 };
 
-export const getAccountByUsername = async (req: Request, username: string, fetchOptions?: AccountFetchOptions) => {
+export const getAccountByUsername = async (req: Request, res: Response, username: string, fetchOptions?: AccountFetchOptions) => {
   const profilesRes = await resolveUsernames([username]);
   const profileDoc = profilesRes[0];
 
@@ -243,7 +248,7 @@ export const getAccountByUsername = async (req: Request, username: string, fetch
 
   if (fetchOptions) {
     // account is currently a BitBadgesUserInfo with no portfolio info
-    const portfolioRes = await getAdditionalUserInfo(req, profileDoc, account.cosmosAddress, fetchOptions);
+    const portfolioRes = await getAdditionalUserInfo(req, res, profileDoc, account.cosmosAddress, fetchOptions);
     account = new BitBadgesUserInfo({
       ...account,
       ...portfolioRes
@@ -292,7 +297,7 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsSucces
     }
 
     const accountInfos = await getBatchAccountInformation(allQueries);
-    const profileInfos = await getBatchProfileInformation(req, allQueries);
+    const profileInfos = await getBatchProfileInformation(req, res, allQueries);
 
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
 
@@ -310,6 +315,7 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsSucces
         additionalInfoPromises.push(
           getAdditionalUserInfo(
             req,
+            res,
             {
               ...profileInfos[idx]
             },
@@ -370,6 +376,7 @@ interface GetAdditionalUserInfoRes {
 
 const getAdditionalUserInfo = async (
   req: Request | undefined,
+  res: Response,
   profileInfo: iProfileDoc<bigint>,
   cosmosAddress: string,
   reqPayload: AccountFetchOptions
@@ -389,7 +396,7 @@ const getAdditionalUserInfo = async (
   }
 
   const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-  const authDetails = await getAuthDetails(authReq);
+  const authDetails = await getAuthDetails(authReq, res);
   const asyncOperations = [];
   for (const view of reqPayload.viewsToFetch) {
     const bookmark = view.bookmark;
@@ -399,7 +406,7 @@ const getAdditionalUserInfo = async (
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Address Lists'])) && !!authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, ['Read Address Lists'])) && !!authDetails && authDetails.cosmosAddress === cosmosAddress;
         asyncOperations.push(async () => await executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst, isAuthenticated));
       }
     } else if (view.viewType === 'transferActivity') {
@@ -425,21 +432,21 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'claimAlerts') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'sentClaimAlerts') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeSentClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'siwbbRequests') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Siwbb Requests'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, ['Read Siwbb Requests'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch Siwbb requests.');
         asyncOperations.push(async () => await executeSIWBBRequestsQuery(cosmosAddress, bookmark, oldestFirst));
       }
@@ -458,7 +465,7 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'privateLists') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Address Lists'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, ['Read Address Lists'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch private lists.');
         asyncOperations.push(async () => await executePrivateListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
@@ -469,14 +476,14 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'createdSecrets') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeCreatedSecretsQuery(cosmosAddress, bookmark));
       }
     } else if (view.viewType === 'receivedSecrets') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeReceivedSecretsQuery(cosmosAddress, bookmark));
       }
@@ -767,7 +774,7 @@ const getAdditionalUserInfo = async (
 export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAccountInfoSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as UpdateAccountInfoPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const cosmosAddress = authDetails.cosmosAddress;
     let profileInfo = await getFromDB(ProfileModel, cosmosAddress);
     if (!profileInfo) {

@@ -463,6 +463,7 @@ export const pushBalancesFetchToQueue = async (
   // Also note that there is no need to specify >1 timeline values because they can just do so with ownership times
   const uriToFetch = collection.getOffChainBalancesMetadata()?.uri;
   if (!uriToFetch) return;
+  if (collection.balancesType === 'Off-Chain - Non-Indexed') return;
 
   let timelineVal;
   for (const timelineItem of collection.offChainBalancesMetadataTimeline) {
@@ -749,7 +750,7 @@ export const handleQueueItems = async (block: bigint) => {
       _docId: { $exists: true },
       loadBalanceId: LOAD_BALANCER_ID,
       nextFetchTime: {
-        $lte: Date.now() - 1000 * 1 // If it is too quick, we sometimes have data race issues
+        $lte: Date.now()
       },
       deletedAt: {
         $exists: false

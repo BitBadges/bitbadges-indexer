@@ -60,6 +60,7 @@ export const updateIpfsTotals = async (address: string, size: number, doNotInser
 
 export const assertPluginsUpdateIsValid = async (
   req: AuthenticatedRequest<NumberType>,
+  res: Response,
   oldPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   newPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   isNonIndexed?: boolean
@@ -82,14 +83,14 @@ export const assertPluginsUpdateIsValid = async (
 
   //Assert no duplicate IDs
   for (const plugin of newPlugins) {
-    if (newPlugins.filter((x) => x.id === plugin.id).length > 1) {
+    if (newPlugins.filter((x) => x.instanceId === plugin.instanceId).length > 1) {
       throw new Error('Duplicate plugin IDs are not allowed');
     }
   }
 
   //Assert plugin IDs are alphanumeric
   for (const plugin of newPlugins) {
-    if (!/^[a-zA-Z0-9]*$/.test(plugin.id)) {
+    if (!/^[a-zA-Z0-9]*$/.test(plugin.instanceId)) {
       throw new Error('Plugin IDs must be alphanumeric');
     }
   }
@@ -102,15 +103,15 @@ export const assertPluginsUpdateIsValid = async (
 
     if (duplicatesAllowed) continue;
 
-    if (newPlugins.filter((x) => x.type === plugin[0]).length > 1) {
+    if (newPlugins.filter((x) => x.pluginId === plugin[0]).length > 1) {
       throw new Error('Duplicate plugins are not allowed for type: ' + plugin[0]);
     }
   }
 
-  const newPluginTypes = newPlugins.map((x) => x.type).filter((x) => !oldPlugins.map((y) => y.type).includes(x));
+  const newPluginTypes = newPlugins.map((x) => x.pluginId).filter((x) => !oldPlugins.map((y) => y.pluginId).includes(x));
   for (const type of newPluginTypes) {
     if (!Plugins[type]) {
-      const authDetails = await mustGetAuthDetails(req);
+      const authDetails = await mustGetAuthDetails(req, res);
       const doc = await mustGetFromDB(PluginModel, type);
       if (!doc.reviewCompleted && doc.createdBy !== authDetails.cosmosAddress) {
         throw new Error('You must be the owner of private plugins (not published to the directory) to use it.');
@@ -158,6 +159,7 @@ export interface ContextReturn {
 
 export const updateClaimDocs = async (
   req: AuthenticatedRequest<NumberType>,
+  res: Response,
   claimType: ClaimType,
   oldClaimQuery: Record<string, any>,
   newClaims: Array<iClaimDetails<NumberType>>,
@@ -166,7 +168,7 @@ export const updateClaimDocs = async (
   isCreation?: boolean
 ) => {
   const queryBuilder = constructQuery(claimType, oldClaimQuery);
-  const authDetails = await mustGetAuthDetails(req);
+  const authDetails = await mustGetAuthDetails(req, res);
 
   const claimDocsToSet: Array<iClaimBuilderDoc<NumberType>> = [];
   for (const claim of newClaims ?? []) {
@@ -182,25 +184,25 @@ export const updateClaimDocs = async (
 
     const state: Record<string, any> = {};
     for (const plugin of pluginsWithOptions ?? []) {
-      const pluginObj = await getPlugin(plugin.type);
-      state[plugin.id] = existingDoc?.state[plugin.id] ?? pluginObj.defaultState;
+      const pluginObj = await getPlugin(plugin.pluginId);
+      state[plugin.instanceId] = existingDoc?.state[plugin.instanceId] ?? pluginObj.defaultState;
       if (plugin.resetState) {
-        state[plugin.id] = pluginObj.defaultState;
+        state[plugin.instanceId] = pluginObj.defaultState;
       } else if (plugin.newState) {
-        state[plugin.id] = plugin.newState;
+        state[plugin.instanceId] = plugin.newState;
       }
 
       if (plugin.resetState && plugin.newState) {
         throw new Error('Cannot set both resetState and newState');
       }
 
-      if (claimType == ClaimType.OnChain && plugin.type === 'numUses' && existingDoc && plugin.resetState) {
+      if (claimType == ClaimType.OnChain && plugin.pluginId === 'numUses' && existingDoc && plugin.resetState) {
         throw new Error('numUses plugin is not allowed to be reset for approval claims');
       }
     }
 
     const isNonIndexed = claimType === ClaimType.OffChainNonIndexed;
-    await assertPluginsUpdateIsValid(req, existingDoc?.plugins ?? [], claim.plugins ?? [], isNonIndexed);
+    await assertPluginsUpdateIsValid(req, res, existingDoc?.plugins ?? [], claim.plugins ?? [], isNonIndexed);
 
     if (claimType == ClaimType.AddressList) {
       if (!isCreation) {
@@ -217,7 +219,7 @@ export const updateClaimDocs = async (
     } else {
       const collectionId = Number(context(claim).collectionId);
       if (collectionId > 0) {
-        const isManager = await checkIfManager(req, collectionId);
+        const isManager = await checkIfManager(req, res, collectionId);
         if (!isManager) {
           throw new Error("Permission error: You don't have permission to update this claim");
         }
@@ -229,6 +231,7 @@ export const updateClaimDocs = async (
     if (existingDoc) {
       const decryptedExistingPlugins = await getDecryptedPluginsAndPublicState(
         req,
+        res,
         existingDoc.plugins,
         existingDoc.state,
         true,
@@ -238,6 +241,7 @@ export const updateClaimDocs = async (
 
       const decryptedClaimPlugins = await getDecryptedPluginsAndPublicState(
         req,
+        res,
         encryptedPlugins,
         existingDoc.state, //Doesnt matter since we check resetState are all false
         true,
@@ -256,11 +260,11 @@ export const updateClaimDocs = async (
         const currApprovals = [];
         const updatePermissions = [];
         if (existingDoc.trackerDetails?.approvalLevel === 'collection') {
-          const isManager = await checkIfManager(req, existingDoc.collectionId);
+          const isManager = await checkIfManager(req, res, existingDoc.collectionId);
           if (!isManager) {
             throw new Error("Permission error: You don't have permission to update this claim");
           }
-          const collections = await executeCollectionsQuery({} as Request, [{ collectionId: existingDoc.collectionId }]);
+          const collections = await executeCollectionsQuery({} as Request, {} as Response, [{ collectionId: existingDoc.collectionId }]);
           const collection = collections[0];
           currApprovals.push(...collection.collectionApprovals);
           updatePermissions.push(...collection.collectionPermissions.canUpdateCollectionApprovals);
@@ -375,10 +379,27 @@ export const addBalancesToOffChainStorageHandler = async (
   const reqPayload = req.body as AddBalancesToOffChainStoragePayload;
 
   try {
-    const authDetails = await mustGetAuthDetails(req);
+    const origin = req.headers.origin;
+    const isFromFrontend =
+      origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io');
+    if (!isFromFrontend) {
+      if (reqPayload.claims) {
+        throw new Error('Claims must be managed through other API routes or the frontend, not through here.');
+      }
+
+      if (BigInt(reqPayload.collectionId) === 0n) {
+        throw new Error('You cannot create for new collections (ID 0) through the API.');
+      }
+
+      if (reqPayload.method !== 'centralized') {
+        throw new Error('Only centralized method is allowed for non-frontend requests. For IPFS or other methods, please self-host.');
+      }
+    }
+
+    const authDetails = await mustGetAuthDetails(req, res);
     const customData = crypto.randomBytes(32).toString('hex');
     if (BigInt(reqPayload.collectionId) > 0) {
-      const managerCheck = await checkIfManager(req, reqPayload.collectionId);
+      const managerCheck = await checkIfManager(req, res, reqPayload.collectionId);
       if (!managerCheck) throw new Error('You are not the manager of this collection');
 
       const collectionDoc = await mustGetFromDB(CollectionModel, reqPayload.collectionId.toString());
@@ -417,6 +438,7 @@ export const addBalancesToOffChainStorageHandler = async (
       }
 
       const balances = cleanBalanceMap(reqPayload.balances);
+
       result = await addBalancesToOffChainStorage(balances, reqPayload.method, reqPayload.collectionId, urlPath);
       if (!result) {
         throw new Error('No add result received');
@@ -437,6 +459,7 @@ export const addBalancesToOffChainStorageHandler = async (
 
       await updateClaimDocs(
         req,
+        res,
         isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed,
         claimQuery,
         reqPayload.claims ?? [],
@@ -465,7 +488,7 @@ export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, re
   const reqPayload = req.body as AddToIpfsPayload;
 
   try {
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     if (!reqPayload.contents) {
       throw new Error('No metadata provided');
     }
@@ -522,7 +545,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
   const _reqPayload = req.body as AddApprovalDetailsToOffChainStoragePayload;
 
   try {
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const size = Buffer.byteLength(JSON.stringify(req.body));
     await checkIpfsTotals(authDetails.cosmosAddress, size);
 
@@ -540,7 +563,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
         }
 
         if (claims) {
-          await updateClaimDocs(req, ClaimType.OnChain, {}, claims ?? [], (claim) => {
+          await updateClaimDocs(req, res, ClaimType.OnChain, {}, claims ?? [], (claim) => {
             if (!challengeDetails?.seedCode && !challengeDetails.preimages?.length) {
               throw new Error('Seed code or preimages must be passed for on-chain claim');
             }

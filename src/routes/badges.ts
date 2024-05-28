@@ -132,7 +132,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
     const claimDetails: Array<ClaimDetails<bigint>> = [];
     if (docs.length > 0) {
       for (const doc of docs) {
-        const newClaimDetails = await getClaimDetailsForFrontend(req, [doc], false, doc.trackerDetails);
+        const newClaimDetails = await getClaimDetailsForFrontend(req, res, [doc], false, doc.trackerDetails);
         claimDetails.push(...newClaimDetails);
       }
     }

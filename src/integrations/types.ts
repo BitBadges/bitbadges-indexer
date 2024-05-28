@@ -114,7 +114,7 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
       } else if (doc.stateFunctionPreset === PluginPresetType.ClaimToken) {
         responseHandler = async (axiosRes: any) => {
           const pluginId = context.pluginId;
-          const { claimToken } = axiosRes.data;
+          const claimToken = axiosRes.data.claimToken?.toString();
           if (!claimToken) {
             return { success: false, error: 'Invalid response from API' };
           }
@@ -158,6 +158,19 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
         }
 
         responseHandler = customPlugin.responseHandler;
+      } else if (doc.stateFunctionPreset === PluginPresetType.StateTransitions) {
+        responseHandler = async (axiosRes: any) => {
+          const pluginId = context.pluginId;
+          const newState = JSON.parse(JSON.stringify(axiosRes.data.newState));
+          if (!newState) {
+            return { success: false, error: 'Invalid response from API' };
+          }
+
+          return {
+            success: true,
+            toSet: [{ $set: { [`state.${pluginId}`]: newState } }]
+          };
+        };
       }
 
       return await GenericCustomPluginValidateFunction(
@@ -168,7 +181,8 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
         priorState,
         globalState,
         adminInfo,
-        responseHandler
+        responseHandler,
+        doc.stateFunctionPreset
       );
     },
     defaultState:
@@ -228,7 +242,7 @@ export const getFirstMatchForPluginType = <T extends ClaimIntegrationPluginType>
   type: T,
   detailsArr: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>
 ): IntegrationPluginParams<T> | undefined => {
-  return detailsArr.find((details) => details.type === type) as IntegrationPluginParams<T>;
+  return detailsArr.find((details) => details.pluginId === type) as IntegrationPluginParams<T>;
 };
 
 export const encryptPlugins = async (
@@ -242,7 +256,7 @@ export const encryptPlugins = async (
   for (const plugin of plugins) {
     if (!plugin) throw new Error('No plugin found');
 
-    const pluginInstance = await getPlugin(plugin.type);
+    const pluginInstance = await getPlugin(plugin.pluginId);
     pluginsRes.push({ ...plugin, privateParams: pluginInstance.encryptPrivateParams(plugin.privateParams) });
   }
 

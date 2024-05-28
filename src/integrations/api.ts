@@ -3,6 +3,7 @@ import { getFromDB } from '../db/db';
 import { PluginModel } from '../db/schemas';
 import { handleIntegrationQuery } from './integration-query-handlers/integration-handlers';
 import { ContextInfo } from './types';
+import { PluginPresetType } from 'bitbadgesjs-sdk';
 
 axios.defaults.timeout = 10000;
 
@@ -14,7 +15,8 @@ export const GenericCustomPluginValidateFunction = async (
   priorState: any,
   globalState: any,
   adminInfo: any,
-  onSuccess?: (data: any) => Promise<{ success: boolean; toSet?: any[]; error?: string }>
+  onSuccess?: (data: any) => Promise<{ success: boolean; toSet?: any[]; error?: string }>,
+  stateFunctionPreset?: PluginPresetType
 ) => {
   const pluginDoc = await getFromDB(PluginModel, context.pluginType);
   if (!pluginDoc) {
@@ -31,6 +33,7 @@ export const GenericCustomPluginValidateFunction = async (
     ...publicParams,
     ...privateParams,
     ...apiCall?.hardcodedInputs.map((input) => ({ [input.key]: input.value })),
+    priorState: stateFunctionPreset === PluginPresetType.StateTransitions ? priorState : null,
     discord: apiCall?.passDiscord ? adminInfo.discord : null,
     twitter: apiCall?.passTwitter ? adminInfo.twitter : null,
     github: apiCall?.passGithub ? adminInfo.github : null,

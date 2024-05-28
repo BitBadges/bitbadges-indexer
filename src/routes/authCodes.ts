@@ -49,9 +49,9 @@ export const createSIWBBRequest = async (
     //           This is checked in the middleware. However, if we are calling from the API, we do not override the scope.
 
     const origin = req.headers.origin;
-    const authDetails = await getAuthDetails(req);
+    const authDetails = await getAuthDetails(req, res);
     const isAuthenticated =
-      (await checkIfAuthenticated(req, ['Create Siwbb Requests'])) &&
+      (await checkIfAuthenticated(req, res, ['Create Siwbb Requests'])) &&
       challengeParams.address &&
       convertToCosmosAddress(challengeParams.address) === authDetails?.cosmosAddress;
 
@@ -106,7 +106,7 @@ export const createSIWBBRequest = async (
 
     const otherSignInsObj: Record<string, any> = {};
     for (const otherSignIn of reqPayload.otherSignIns || []) {
-      const authDetails = await mustGetAuthDetails(req);
+      const authDetails = await mustGetAuthDetails(req, res);
       if (otherSignIn === 'discord') {
         if (!authDetails.discord) {
           throw new Error('You must be signed in with Discord to add a Discord sign in.');
@@ -201,7 +201,7 @@ export const getSIWBBRequestsForDeveloperApp = async (
       throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
     }
 
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     if (appDoc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this auth app.');
     }
@@ -245,7 +245,7 @@ export const getAndVerifySIWBBRequest = async (
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { clientId, clientSecret, redirectUri } = reqPayload;
 
-    const authDetails = await getAuthDetails(req);
+    const authDetails = await getAuthDetails(req, res);
     if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.params.address) !== authDetails.cosmosAddress) {
       if (!clientId) {
         throw new Error('You are not the owner of this Siwbb request.');
@@ -316,7 +316,7 @@ export const deleteSIWBBRequest = async (
   try {
     const reqPayload = req.body as DeleteSIWBBRequestPayload;
 
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     if (doc.cosmosAddress !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this Siwbb request.');

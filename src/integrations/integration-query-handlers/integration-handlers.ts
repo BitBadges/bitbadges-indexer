@@ -3,6 +3,7 @@ import { BigIntify, BlockinAndGroup, BlockinAssetConditionGroup, BlockinOrGroup,
 import { AndGroup, OrGroup } from 'blockin';
 import { verifyBitBadgesAssets } from '../../blockin/verifyBitBadgesAssets';
 import { getAccountByAddress } from '../../routes/users';
+import { type Response } from 'express';
 
 axios.defaults.timeout = 10000;
 
@@ -64,7 +65,7 @@ export const handleGithubContributionsQuery = async (body: { github: { username:
 
 const handleMinBadgeQuery = async (body: { cosmosAddress: string; minBalance: number }) => {
   const minBalance = BigInt(body.minBalance);
-  const account = await getAccountByAddress(undefined, body.cosmosAddress, { fetchBalance: true });
+  const account = await getAccountByAddress(undefined, {} as Response, body.cosmosAddress, { fetchBalance: true });
   if (account.balance && BigInt(account.balance.amount) >= minBalance) {
   } else {
     throw new Error('Insufficient balance');

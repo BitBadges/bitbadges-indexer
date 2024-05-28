@@ -22,7 +22,7 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
     const { code } = req.body as unknown as GenerateAppleWalletPassPayload;
 
     const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, code);
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     if (convertToCosmosAddress(siwbbRequestDoc.params.address) !== authDetails.cosmosAddress) {
       return res.status(401).send({ errorMessage: 'Unauthorized' });
     }

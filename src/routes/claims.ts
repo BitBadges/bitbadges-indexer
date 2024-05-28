@@ -200,7 +200,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
   try {
     const body = req.body as CreateClaimPayload;
     const { claims } = body;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     for (const claim of claims) {
       const { listId, collectionId: collId, seedCode } = claim;
       const collectionId = Number(collId) > 0 ? collId : undefined;
@@ -216,7 +216,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 
       if (listId) {
         const query = { 'action.listId': listId };
-        await updateClaimDocs(req, ClaimType.AddressList, query, [claim], (claim) => {
+        await updateClaimDocs(req, res, ClaimType.AddressList, query, [claim], (claim) => {
           return createListClaimContextFunction(authDetails.cosmosAddress, claim, listId);
         });
       } else if (collectionId && collectionDoc && !isOnChain) {
@@ -224,18 +224,18 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
         const cid = claim.cid ?? '';
         const passedInCollectionId = Number(claim.collectionId) ?? 0;
         if (passedInCollectionId > 0) {
-          const isManager = await checkIfManager(req, passedInCollectionId.toString());
+          const isManager = await checkIfManager(req, res, passedInCollectionId.toString());
           if (!isManager) {
             throw new Error('Not authorized to update this claim. Must be manager');
           }
         }
 
         const isNonIndexed = collectionDoc.balancesType === 'Off-Chain - Non-Indexed';
-        await updateClaimDocs(req, isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, [claim], (claim) => {
+        await updateClaimDocs(req, res, isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, [claim], (claim) => {
           return createOffChainClaimContextFunction(authDetails.cosmosAddress, claim, passedInCollectionId, cid);
         });
       } else if (collectionId && collectionDoc && isOnChain) {
-        await updateClaimDocs(req, ClaimType.OnChain, {}, [claim], (claim) => {
+        await updateClaimDocs(req, res, ClaimType.OnChain, {}, [claim], (claim) => {
           if (!seedCode) {
             throw new Error('Seed code required for on-chain claims');
           }
@@ -259,7 +259,7 @@ export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
   try {
     const body = req.body as UpdateClaimPayload;
     const { claims } = body;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     for (const claim of claims) {
       const claimDoc = await mustGetFromDB(ClaimBuilderModel, claim.claimId);
       if (!claimDoc.docClaimed) {
@@ -273,17 +273,17 @@ export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 
       if (listId) {
         const query = { 'action.listId': listId };
-        await updateClaimDocs(req, ClaimType.AddressList, query, [claim], (claim) => {
+        await updateClaimDocs(req, res, ClaimType.AddressList, query, [claim], (claim) => {
           return updateListClaimContextFunction(authDetails.cosmosAddress, claim, claimDoc);
         });
       } else if (collectionId && collectionDoc && !isOnChain) {
         const claimQuery = { collectionId: Number(collectionId) };
         const isNonIndexed = collectionDoc.balancesType === 'Off-Chain - Non-Indexed';
-        await updateClaimDocs(req, isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, [claim], (claim) => {
+        await updateClaimDocs(req, res, isNonIndexed ? ClaimType.OffChainNonIndexed : ClaimType.OffChainIndexed, claimQuery, [claim], (claim) => {
           return updateOffChainClaimContextFunction(authDetails.cosmosAddress, claim, claimDoc);
         });
       } else if (collectionId && collectionDoc && isOnChain) {
-        await updateClaimDocs(req, ClaimType.OnChain, {}, [claim], (claim) => {
+        await updateClaimDocs(req, res, ClaimType.OnChain, {}, [claim], (claim) => {
           return updateOnChainClaimContextFunction(authDetails.cosmosAddress, claim, claimDoc);
         });
       }
@@ -307,13 +307,13 @@ export const deleteClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 
       if (doc.action.listId) {
         const listDoc = await mustGetFromDB(AddressListModel, doc.action.listId);
-        const authDetails = await mustGetAuthDetails(req);
+        const authDetails = await mustGetAuthDetails(req, res);
         const isCreator = authDetails.cosmosAddress === listDoc.createdBy;
         if (!isCreator) {
           throw new Error('Not authorized to delete this claim.');
         }
       } else {
-        const isManager = await checkIfManager(req, doc.collectionId.toString());
+        const isManager = await checkIfManager(req, res, doc.collectionId.toString());
         if (!isManager) {
           throw new Error('Not authorized to delete this claim.');
         }
@@ -351,7 +351,7 @@ export const getClaimsHandler = async (
     const query = { docClaimed: true, _docId: { $in: reqPayload.claimIds }, deletedAt: { $exists: false } };
     const docs = await findInDB(ClaimBuilderModel, { query });
 
-    const claims = await getClaimDetailsForFrontend(req, docs);
+    const claims = await getClaimDetailsForFrontend(req, res, docs);
 
     for (let i = 0; i < claims.length; i++) {
       const claim = claims[i];
@@ -366,7 +366,7 @@ export const getClaimsHandler = async (
         const addressListDoc = await mustGetFromDB(AddressListModel, doc.action.listId);
         let hasPermissions = !(addressListDoc.private || addressListDoc.viewableWithLink);
         if (addressListDoc.private) {
-          const authDetails = await getAuthDetails(req);
+          const authDetails = await getAuthDetails(req, res);
           hasPermissions = hasPermissions || authDetails?.cosmosAddress === addressListDoc.createdBy;
         }
 
@@ -377,7 +377,7 @@ export const getClaimsHandler = async (
 
         if (!hasPermissions) {
           for (const plugin of claim.plugins) {
-            const pluginObj = await getPlugin(plugin.type);
+            const pluginObj = await getPlugin(plugin.pluginId);
             plugin.publicState = pluginObj.getBlankPublicState();
           }
         }
@@ -446,13 +446,13 @@ export const completeClaimHandler = async (
     }
 
     if (getFirstMatchForPluginType('initiatedBy', claimBuilderDoc.plugins)) {
-      const isAuthenticated = await checkIfAuthenticated(req as MaybeAuthenticatedRequest<NumberType>, ['Full Access']);
+      const isAuthenticated = await checkIfAuthenticated(req as MaybeAuthenticatedRequest<NumberType>, {} as Response, ['Complete Claims']);
       if (!isAuthenticated) {
         throw new Error('Authentication required with the Complete Claims scope');
       }
     }
 
-    const numUsesPluginId = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.id;
+    const numUsesPluginId = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.instanceId;
 
     if (actionType === ActionType.Code && prevCodesOnly) {
       const prevUsedIdxs = claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers[context.cosmosAddress] ?? [];
@@ -472,8 +472,8 @@ export const completeClaimHandler = async (
     // let email = '';
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
-      const pluginInstance = await getPlugin(plugin.type);
-      const pluginDoc = await getFromDB(PluginModel, plugin.id, session);
+      const pluginInstance = await getPlugin(plugin.pluginId);
+      const pluginDoc = await getFromDB(PluginModel, plugin.instanceId, session);
 
       if (pluginDoc) {
         if (BigInt(fetchedAt) && BigInt(fetchedAt) > pluginDoc.lastUpdated) {
@@ -485,9 +485,9 @@ export const completeClaimHandler = async (
 
       // const requiresEmail = pluginDoc?.verificationCall?.passEmail;
 
-      // if (requiresEmail && !email && getAuthDetails(req).cosmosAddress) {
+      // if (requiresEmail && !email && getAuthDetails(req, res).cosmosAddress) {
       //   //TODO: Scopes
-      //   const profileDoc = await mustGetFromDB(ProfileModel, getAuthDetails(req).cosmosAddress, session);
+      //   const profileDoc = await mustGetFromDB(ProfileModel, getAuthDetails(req, res).cosmosAddress, session);
       //   if (!profileDoc) {
       //     throw new Error('Email required but no profile found');
       //   }
@@ -507,7 +507,7 @@ export const completeClaimHandler = async (
       //   }
       // }
 
-      const authDetails = await getAuthDetails(req);
+      const authDetails = await getAuthDetails(req, {} as Response);
 
       if (pluginDoc) {
         adminInfo = {
@@ -519,7 +519,7 @@ export const completeClaimHandler = async (
         };
       }
 
-      switch (plugin.type) {
+      switch (plugin.pluginId) {
         case 'initiatedBy':
           adminInfo = authDetails;
           break;
@@ -532,7 +532,7 @@ export const completeClaimHandler = async (
         case 'codes': {
           adminInfo = {
             assignMethod: getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod,
-            numUsesPluginId: getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.id
+            numUsesPluginId: getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.instanceId
           };
           break;
         }
@@ -553,11 +553,11 @@ export const completeClaimHandler = async (
       }
 
       const result = await pluginInstance.validateFunction(
-        { ...context, pluginId: plugin.id, pluginType: plugin.type },
+        { ...context, pluginId: plugin.instanceId, pluginType: plugin.pluginId },
         Object.freeze(plugin.publicParams),
         Object.freeze(pluginInstance.decryptPrivateParams(plugin.privateParams)),
-        req.body[plugin.id],
-        pluginInstance.metadata.stateless ? undefined : claimBuilderDoc.state[plugin.id],
+        req.body[plugin.instanceId],
+        pluginInstance.metadata.stateless ? undefined : claimBuilderDoc.state[plugin.instanceId],
         pluginInstance.metadata.scoped ? undefined : Object.freeze(claimBuilderDoc.state),
         adminInfo
       );
@@ -653,7 +653,7 @@ export const getReservedClaimCodes = async (
   try {
     setMockSessionIfTestMode(req);
 
-    const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+    const isAuthenticated = await checkIfAuthenticated(req, res, ['Complete Claims']);
     if (!isAuthenticated) {
       throw new Error('Unauthorized');
     }
@@ -691,7 +691,7 @@ export const getClaimsStatusHandler = async (
     // Reserved codes reserve the right to initiate an on-chain transaction.
     // To initiate a transaction, a signature is required.
     // We only return the reserved codes if the user is authenticated as themselves.
-    const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+    const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
     if (isAuthenticated) {
       return res.status(200).json({ success: doc.success ?? false, error: doc?.error, code: doc?.code });
     } else {
@@ -721,7 +721,7 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     }
 
     const randomId = crypto.randomBytes(32).toString('hex');
-    const authDetails = await getAuthDetails(req);
+    const authDetails = await getAuthDetails(req, res);
     const newQueueDoc: iQueueDoc<bigint> = {
       _docId: randomId,
       notificationType: 'claim',
@@ -814,7 +814,7 @@ const performBalanceClaimAction = async (doc: iClaimBuilderDoc<NumberType>, sess
   const claimDoc = doc;
   const currBalancesDoc = await getFromDB(DigitalOceanBalancesModel, collectionId.toString(), session);
   const balanceMap = currBalancesDoc?.balances ?? {};
-  const numUsesPluginId = getFirstMatchForPluginType('numUses', claimDoc.plugins)?.id;
+  const numUsesPluginId = getFirstMatchForPluginType('numUses', claimDoc.plugins)?.instanceId;
 
   const entries = Object.entries(claimDoc?.state[`${numUsesPluginId}`].claimedUsers);
   let mostRecentAddress = '';

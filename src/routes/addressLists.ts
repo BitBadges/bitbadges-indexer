@@ -45,7 +45,7 @@ export const deleteAddressLists = async (
       throw new Error('You can only delete up to 100 address lists at a time.');
     }
 
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
 
     const docsToDelete = await mustGetManyFromDB(AddressListModel, listIds);
     for (const doc of docsToDelete) {
@@ -168,7 +168,7 @@ const handleAddressListsUpdateAndCreate = async (
   try {
     const reqPayload = req.body as UpdateAddressListsPayload;
     const lists = reqPayload.addressLists;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const cosmosAddress = authDetails.cosmosAddress;
 
     if (lists.length > 100) {
@@ -218,6 +218,7 @@ const handleAddressListsUpdateAndCreate = async (
         const query = { 'action.listId': list.listId };
         await updateClaimDocs(
           req,
+          res,
           ClaimType.AddressList,
           query,
           list.claims,
@@ -315,9 +316,9 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
       // If it is viewable by link / ID, they have requested it via the API call so they know the link
       if (doc.private && !doc.viewableWithLink) {
         const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-        const isAuthenticated = await checkIfAuthenticated(authReq, ['Full Access']);
+        const isAuthenticated = await checkIfAuthenticated(authReq, res, ['Read Address Lists']);
         if (!isAuthenticated) return returnUnauthorized(res);
-        const authDetails = await mustGetAuthDetails(authReq);
+        const authDetails = await mustGetAuthDetails(authReq, res);
         const cosmosAddress = authDetails.cosmosAddress;
         if (doc.createdBy !== cosmosAddress) {
           return res.status(401).send({
@@ -327,7 +328,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
       }
 
       const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': doc.listId, deletedAt: { $exists: false } } });
-      doc.claims = await getClaimDetailsForFrontend(req, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
+      doc.claims = await getClaimDetailsForFrontend(req, res, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
     }
 
     return res.status(200).send({ addressLists: docs });

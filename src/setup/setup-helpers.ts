@@ -1,7 +1,8 @@
+import { PluginPresetType } from 'bitbadgesjs-sdk';
 import { config } from 'dotenv';
 import { MongoDB, insertToDB } from '../db/db';
 import {
-  AccessTokenModel,
+  AccessTokenSchema,
   AccountModel,
   AccountSchema,
   AddressListModel,
@@ -12,12 +13,9 @@ import {
   ApiKeySchema,
   ApprovalTrackerModel,
   ApprovalTrackerSchema,
-  DeveloperAppModel,
-  AuthorizationCodeModel,
+  AuthorizationCodeSchema,
   BalanceModel,
   BalanceSchema,
-  SIWBBRequestModel,
-  SIWBBRequestSchema,
   BrowseModel,
   BrowseSchema,
   ChallengeSchema,
@@ -29,6 +27,8 @@ import {
   CollectionSchema,
   ComplianceModel,
   ComplianceSchema,
+  DeveloperAppModel,
+  DeveloperAppSchema,
   ErrorModel,
   ErrorSchema,
   EthTxCountModel,
@@ -51,6 +51,7 @@ import {
   PageVisitsModel,
   PageVisitsSchema,
   PluginModel,
+  PluginSchema,
   ProfileModel,
   ProfileSchema,
   QueueModel,
@@ -61,23 +62,23 @@ import {
   ReportSchema,
   ReviewModel,
   ReviewSchema,
+  SIWBBRequestModel,
+  SIWBBRequestSchema,
   StatusModel,
   StatusSchema,
   TransferActivityModel,
   TransferActivitySchema,
   UsernameModel,
-  UsernameSchema,
-  DigitalOceanBalancesModel
+  UsernameSchema
 } from '../db/schemas';
-import { PluginPresetType } from 'bitbadgesjs-sdk';
 
 config();
 
 export async function deleteDatabases(): Promise<void> {
-  await MongoDB.dropCollection(DeveloperAppModel.collection.name);
-  await MongoDB.dropCollection(DigitalOceanBalancesModel.collection.name);
-  await MongoDB.dropCollection(AuthorizationCodeModel.collection.name);
-  await MongoDB.dropCollection(AccessTokenModel.collection.name);
+  // await MongoDB.dropCollection(DeveloperAppModel.collection.name);
+  // await MongoDB.dropCollection(DigitalOceanBalancesModel.collection.name);
+  // await MongoDB.dropCollection(AuthorizationCodeModel.collection.name);
+  // await MongoDB.dropCollection(AccessTokenModel.collection.name);
   await MongoDB.dropCollection(PluginModel.collection.name);
   await MongoDB.dropCollection(DeveloperAppModel.collection.name);
   await MongoDB.dropCollection(BrowseModel.collection.name);
@@ -350,6 +351,11 @@ export async function initStatus(): Promise<void> {
 }
 
 export async function createIndexesAndViews(): Promise<void> {
+  DeveloperAppSchema.index({ _docId: 1 }, { unique: true });
+  PluginSchema.index({ _docId: 1 }, { unique: true });
+  AccessTokenSchema.index({ _docId: 1 }, { unique: true });
+  AuthorizationCodeSchema.index({ _docId: 1 }, { unique: true });
+
   MapSchema.index({ _docId: 1 }, { unique: true });
   BrowseSchema.index({ _docId: 1 }, { unique: true });
   UsernameSchema.index({ _docId: 1 }, { unique: true });

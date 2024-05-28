@@ -19,7 +19,7 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
   try {
     const reviewId = req.params.reviewId;
     const reviewDoc = await mustGetFromDB(ReviewModel, reviewId);
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     if (authDetails.cosmosAddress && reviewDoc.from !== authDetails.cosmosAddress) {
       return res.status(401).send({ errorMessage: 'You can only delete your own reviews.' });
     }
@@ -39,7 +39,7 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
 export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddReviewSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as AddReviewPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     if (!reqPayload.review || reqPayload.review.length > 2048) {
       return res.status(400).send({ errorMessage: 'Review must be 1 to 2048 characters long.' });
     }

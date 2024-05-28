@@ -84,7 +84,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     const reqPayload = req.body as UpdatePluginPayload;
 
     const existingDoc = await mustGetFromDB(PluginModel, reqPayload.pluginId);
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     if (existingDoc.createdBy !== authDetails.cosmosAddress) {
       return res.status(400).send({
         error: 'You must be the owner of the plugin.'
@@ -108,7 +108,9 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     if (reqPayload.claimCreatorRedirect !== undefined) newDoc.claimCreatorRedirect = reqPayload.claimCreatorRedirect;
     if (reqPayload.duplicatesAllowed !== undefined) newDoc.duplicatesAllowed = reqPayload.duplicatesAllowed;
     if (reqPayload.reuseForNonIndexed !== undefined) newDoc.reuseForNonIndexed = reqPayload.reuseForNonIndexed;
-    if (reqPayload.toPublish && !existingDoc.toPublish && !existingDoc.reviewCompleted) newDoc.toPublish = reqPayload.toPublish;
+    if (reqPayload.toPublish !== undefined) newDoc.toPublish = reqPayload.toPublish;
+    if (reqPayload.toPublish === false) newDoc.reviewCompleted = false;
+
     const image = reqPayload.metadata?.image ? await getImage(reqPayload.metadata.image) : reqPayload.metadata?.image;
     if (reqPayload.metadata !== undefined)
       newDoc.metadata = {
@@ -136,7 +138,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
 export const deletePlugin = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdatePluginSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as UpdatePluginPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const existingDoc = await mustGetFromDB(PluginModel, reqPayload.pluginId);
     if (!existingDoc) {
       return res.status(400).send({
@@ -186,7 +188,7 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     }
 
     const image = await getImage(reqPayload.metadata.image);
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     await insertToDB(PluginModel, {
       ...reqPayload,
       createdBy: authDetails.cosmosAddress,
@@ -243,7 +245,7 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
     }
 
     if (!!createdPluginsOnly) {
-      const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+      const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
       if (!isAuthenticated) {
         return res.status(401).send({
           errorMessage: 'Unauthorized. Please sign in to fetch your created plugins.'
@@ -251,7 +253,7 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
       }
     }
 
-    const authDetails = await getAuthDetails(req);
+    const authDetails = await getAuthDetails(req, res);
     const docs = await findInDB(PluginModel, {
       query: {
         // ...(createdPluginsOnly ? {} : { reviewCompleted: true }),

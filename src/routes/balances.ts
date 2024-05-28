@@ -68,6 +68,7 @@ export const applyAddressListsToUserPermissions = <T extends NumberType>(
 
 export const getBalanceForAddress = async (
   req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response,
   collectionId: number,
   _cosmosAddress: string,
   options?: GetBadgeBalanceByAddressPayload | undefined
@@ -116,13 +117,13 @@ export const getBalanceForAddress = async (
       const claim = claimDocs[0];
       let success = true;
       for (const plugin of claimDocs[0].plugins) {
-        const pluginObj = await getPlugin(plugin.type);
+        const pluginObj = await getPlugin(plugin.pluginId);
         const res = await pluginObj.validateFunction(
           {
             cosmosAddress,
             claimId: claim._docId,
-            pluginId: plugin.id,
-            pluginType: plugin.type,
+            pluginId: plugin.instanceId,
+            pluginType: plugin.pluginId,
             _isSimulation: false,
             lastUpdated: Number(claim.lastUpdated),
             createdAt: Number(claim.createdAt)
@@ -234,7 +235,7 @@ export const getBalanceForAddress = async (
     const claimDetails: Array<ClaimDetails<bigint>> = [];
     if (docs.length > 0) {
       for (const doc of docs) {
-        const newClaimDetails = await getClaimDetailsForFrontend(req, [doc], options?.fetchPrivateParams, doc.trackerDetails);
+        const newClaimDetails = await getClaimDetailsForFrontend(req, res, [doc], options?.fetchPrivateParams, doc.trackerDetails);
         claimDetails.push(...newClaimDetails);
       }
     }
@@ -300,6 +301,7 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<iGetB
   try {
     const balanceToReturnConverted = await getBalanceForAddress(
       req,
+      res,
       Number(req.params.collectionId),
       req.params.cosmosAddress,
       req.body as unknown as GetBadgeBalanceByAddressPayload

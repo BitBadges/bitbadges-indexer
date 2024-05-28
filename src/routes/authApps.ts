@@ -28,7 +28,7 @@ export const createDeveloperApp = async (
 
     const uniqueClientId = crypto.randomBytes(32).toString('hex');
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
 
     if (reqPayload.image.startsWith('data:')) {
       const res = await addMetadataToIpfs([{ name: '', description: '', image: reqPayload.image }]);
@@ -67,11 +67,11 @@ export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, re
       doc.clientSecret = '';
       return res.status(200).send({ developerApps: [doc] });
     } else {
-      const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+      const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
       if (!isAuthenticated) {
         return res.status(401).send({ errorMessage: 'You must be authorized.' });
       }
-      const authDetails = await mustGetAuthDetails(req);
+      const authDetails = await mustGetAuthDetails(req, res);
       const docs = await findInDB(DeveloperAppModel, {
         query: {
           createdBy: authDetails.cosmosAddress
@@ -94,7 +94,7 @@ export const deleteDeveloperApp = async (
 ) => {
   try {
     const reqPayload = req.body as DeleteDeveloperAppPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, reqPayload.clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this Siwbb request.');
@@ -118,7 +118,7 @@ export const updateDeveloperApp = async (
 ) => {
   try {
     const { name, description, image, redirectUris, clientId } = req.body as UpdateDeveloperAppPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You must be the owner of the app.');

@@ -111,6 +111,7 @@ export type CollectionQueryOptions = {
 
 export async function executeAdditionalCollectionQueries(
   req: Request,
+  res: Response,
   baseCollections: Array<CollectionDoc<bigint>>,
   collectionQueries: CollectionQueryOptions[]
 ) {
@@ -654,7 +655,7 @@ export async function executeAdditionalCollectionQueries(
         query: { collectionId: Number(collectionToReturn.collectionId), docClaimed: true, deletedAt: { $exists: false } }
       });
 
-      const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, {
+      const claims = await getClaimDetailsForFrontend(req, res, docs, query.fetchPrivateParams, {
         collectionId: collectionToReturn.collectionId,
         approverAddress: '',
         approvalLevel: 'collection',
@@ -703,7 +704,7 @@ export async function executeAdditionalCollectionQueries(
           query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: challengeTrackerId, deletedAt: { $exists: false } }
         });
         if (docs.length > 0) {
-          const claims = await getClaimDetailsForFrontend(req, docs, query.fetchPrivateParams, docs[0].trackerDetails);
+          const claims = await getClaimDetailsForFrontend(req, res, docs, query.fetchPrivateParams, docs[0].trackerDetails);
           merkleChallenge.challengeInfoDetails.claim = claims[0];
         }
       }
@@ -722,6 +723,7 @@ export async function executeAdditionalCollectionQueries(
 
 const getDecryptedInfo = async (
   req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response,
   doc: ClaimBuilderDoc<bigint>,
   plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   state: any,
@@ -729,9 +731,9 @@ const getDecryptedInfo = async (
   trackerDetails?: iChallengeTrackerIdDetails<bigint>,
   listId?: string
 ) => {
-  const decryptedPlugins = await getDecryptedPluginsAndPublicState(req, plugins, state, fetchPrivate, trackerDetails, listId);
+  const decryptedPlugins = await getDecryptedPluginsAndPublicState(req, res, plugins, state, fetchPrivate, trackerDetails, listId);
 
-  await checkIfAuthenticatedForPrivateParams(req, fetchPrivate, trackerDetails, listId);
+  await checkIfAuthenticatedForPrivateParams(req, res, fetchPrivate, trackerDetails, listId);
 
   return {
     plugins: decryptedPlugins,
@@ -741,6 +743,7 @@ const getDecryptedInfo = async (
 
 export const getClaimDetailsForFrontend = async (
   req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response,
   docs: Array<ClaimBuilderDoc<bigint>>,
   fetchPrivate?: boolean,
   trackerDetails?: iChallengeTrackerIdDetails<bigint>,
@@ -748,7 +751,7 @@ export const getClaimDetailsForFrontend = async (
 ) => {
   const claimDetails: Array<iClaimDetails<bigint>> = [];
   for (const doc of docs) {
-    const decryptedInfo = await getDecryptedInfo(req, doc, doc.plugins, doc.state, fetchPrivate, trackerDetails, listId);
+    const decryptedInfo = await getDecryptedInfo(req, res, doc, doc.plugins, doc.state, fetchPrivate, trackerDetails, listId);
     const decryptedPlugins = decryptedInfo.plugins;
     const seedCode = decryptedInfo.seedCode;
 
@@ -768,17 +771,18 @@ export const getClaimDetailsForFrontend = async (
 
 const checkIfAuthenticatedForPrivateParams = async (
   req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response,
   includePrivateParams?: boolean,
   trackerDetails?: iChallengeTrackerIdDetails<bigint>,
   listId?: string
 ) => {
   if (includePrivateParams) {
-    const auth = await checkIfAuthenticated(req, ['Read Private Claim Data']);
+    const auth = await checkIfAuthenticated(req, res, ['Read Private Claim Data']);
     if (!auth) {
       throw new Error('You must be authenticated to fetch private params');
     }
 
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
 
     if (!trackerDetails && !listId) {
       throw new Error('You must provide either a collectionId or listId to fetch private params');
@@ -788,7 +792,7 @@ const checkIfAuthenticatedForPrivateParams = async (
 
     if (collectionId && Number(collectionId) > 0) {
       if (trackerDetails.approvalLevel === 'collection') {
-        const manager = await checkIfManager(req, collectionId ?? 0);
+        const manager = await checkIfManager(req, res, collectionId ?? 0);
         if (!manager) {
           throw new Error('You must be a manager to fetch private params');
         }
@@ -815,24 +819,25 @@ const checkIfAuthenticatedForPrivateParams = async (
 
 export const getDecryptedPluginsAndPublicState = async (
   req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response,
   plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   state: any,
   includePrivateParams?: boolean,
   trackerDetails?: iChallengeTrackerIdDetails<bigint>,
   listId?: string
 ): Promise<Array<IntegrationPluginDetails<ClaimIntegrationPluginType>>> => {
-  await checkIfAuthenticatedForPrivateParams(req, includePrivateParams, trackerDetails, listId);
+  await checkIfAuthenticatedForPrivateParams(req, res, includePrivateParams, trackerDetails, listId);
 
   const pluginsRes = [];
   for (const x of plugins) {
-    const pluginInstance = await getPlugin(x.type);
+    const pluginInstance = await getPlugin(x.pluginId);
     pluginsRes.push({
-      type: x.type,
-      id: x.id,
+      pluginId: x.pluginId,
+      instanceId: x.instanceId,
       publicParams: x.publicParams,
       privateParams: includePrivateParams ? pluginInstance.decryptPrivateParams(x.privateParams) : {},
-      publicState: pluginInstance.getPublicState(state[x.id] ?? { ...pluginInstance.defaultState }),
-      privateState: includePrivateParams ? state[x.id] : undefined
+      publicState: pluginInstance.getPublicState(state[x.instanceId] ?? { ...pluginInstance.defaultState }),
+      privateState: includePrivateParams ? state[x.instanceId] : undefined
     });
   }
 
@@ -941,13 +946,13 @@ async function incrementPageVisits(collectionId: NumberType, badgeIds: Array<Uin
   }
 }
 
-export async function executeCollectionsQuery(req: Request, collectionQueries: CollectionQueryOptions[]) {
+export async function executeCollectionsQuery(req: Request, res: Response, collectionQueries: CollectionQueryOptions[]) {
   const baseCollections = await mustGetManyFromDB(
     CollectionModel,
     collectionQueries.map((query) => `${query.collectionId.toString()}`)
   );
-  const res = await executeAdditionalCollectionQueries(req, baseCollections, collectionQueries);
-  return res;
+  const collRes = await executeAdditionalCollectionQueries(req, res, baseCollections, collectionQueries);
+  return collRes;
 }
 
 export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActivitySuccessResponse<NumberType> | ErrorResponse>) => {
@@ -976,7 +981,7 @@ export const getCollections = async (req: Request, res: Response<iGetCollections
       });
     }
 
-    const collectionResponses = await executeCollectionsQuery(req, reqPayload.collectionsToFetch);
+    const collectionResponses = await executeCollectionsQuery(req, res, reqPayload.collectionsToFetch);
     return res.status(200).send({
       collections: collectionResponses
     });

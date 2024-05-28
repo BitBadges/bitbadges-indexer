@@ -403,10 +403,10 @@ app.post(
   express.json({ limit: '100mb' }),
   addApprovalDetailsToOffChainStorageHandler
 ); //
+
 app.post(
   '/api/v0/addBalancesToOffChainStorage',
-  websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
+  authorizeBlockinRequest(['Manage Off-Chain Balances']),
   express.json({ limit: '100mb' }),
   addBalancesToOffChainStorageHandler
 ); //
@@ -501,7 +501,7 @@ app.post(
       }
 
       if (response_type === 'code') {
-        const authDetails = await mustGetAuthDetails(req);
+        const authDetails = await mustGetAuthDetails(req, res);
         const code: iAuthorizationCodeDoc = {
           _docId: crypto.randomBytes(32).toString('hex'),
           clientId: client_id,
@@ -631,7 +631,7 @@ app.post(
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
+      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
       const docs = await findInDB(AccessTokenModel, { query: { cosmosAddress } });
       const clientIds = docs.map((doc) => doc.clientId);
       const developerApps = await mustGetManyFromDB(DeveloperAppModel, clientIds);
@@ -657,7 +657,7 @@ app.post(
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
+      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
       const currApiKeys = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 50 });
 
       if (currApiKeys.filter((key) => key.expiry > Date.now()).length > 5) {
@@ -695,7 +695,7 @@ app.delete(
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
+      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
       const keyToDelete = req.body.key;
       const doc = await mustGetFromDB(ApiKeyModel, keyToDelete);
       if (doc.cosmosAddress !== cosmosAddress) {
@@ -723,7 +723,7 @@ app.post(
   authorizeBlockinRequest(['Full Access']),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = (await mustGetAuthDetails(req)).cosmosAddress;
+      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
       const docs = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 100 });
       return res.status(200).json({ docs });
     } catch (e) {

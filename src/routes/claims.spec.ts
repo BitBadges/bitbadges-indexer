@@ -70,8 +70,8 @@ const createClaimDoc = async (
 
   const state: any = {};
   for (const plugin of plugins) {
-    const pluginObj = await getPlugin(plugin.type);
-    state[plugin.id] = { ...pluginObj.defaultState };
+    const pluginObj = await getPlugin(plugin.pluginId);
+    state[plugin.instanceId] = { ...pluginObj.defaultState };
   }
 
   const doc: iClaimBuilderDoc<NumberType> = {
@@ -86,7 +86,7 @@ const createClaimDoc = async (
     plugins,
     state: state,
     lastUpdated: Date.now(),
-    createdAt: Date.now(),
+    createdAt: Date.now()
   };
 
   await insertToDB(ClaimBuilderModel, doc);
@@ -283,8 +283,8 @@ describe('claims', () => {
     const doc = await createClaimDoc([
       numUsesPlugin(10, 0),
       {
-        type: 'codes',
-        id: 'dsfhsfd',
+        pluginId: 'codes',
+        instanceId: 'dsfhsfd',
         publicParams: {
           numCodes: 5
         },
@@ -634,7 +634,7 @@ describe('claims', () => {
           ...createExampleReqForAddress(wallet.address).session,
           discord: {
             username: 'testuser',
-            id: '123456789',
+            instanceId: '123456789',
             discriminator: ''
           }
         })
@@ -655,7 +655,7 @@ describe('claims', () => {
           ...createExampleReqForAddress(wallet.address).session,
           discord: {
             username: 'testuser',
-            id: '123456789',
+            instanceId: '123456789',
             discriminator: '1234'
           }
         })
@@ -698,7 +698,7 @@ describe('claims', () => {
           ...createExampleReqForAddress(wallet.address).session,
           discord: {
             username: 'invaliduser',
-            id: '123456789',
+            instanceId: '123456789',
             discriminator: ''
           }
         })
@@ -1077,8 +1077,8 @@ describe('claims', () => {
       apiPlugin(
         // [
         //   {
-        //     type: 'custom',
-        //     id: 'fdhgasdgfhkj',
+        //     pluginId: 'custom',
+        //     instanceId: 'fdhgasdgfhkj',
         //     method: 'GET',
         //     name: 'Test',
         //     userInputsSchema: [],

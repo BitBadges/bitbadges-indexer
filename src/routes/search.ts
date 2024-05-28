@@ -379,6 +379,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
         ? Promise.resolve([])
         : executeAdditionalCollectionQueries(
             req,
+            res,
             collectionsRes,
             collectionsRes.map((doc) => {
               return {

@@ -29,7 +29,7 @@ export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>,
 
     for (const claimAlert of reqPayload.claimAlerts) {
       if (claimAlert.collectionId && Number(claimAlert.collectionId) !== 0) {
-        const isManager = await checkIfManager(req, claimAlert.collectionId);
+        const isManager = await checkIfManager(req, res, claimAlert.collectionId);
         if (!isManager) {
           return res.status(401).send({
             errorMessage: 'You must be a manager of the collection you are trying to send claim alerts for.'
@@ -37,9 +37,9 @@ export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>,
         }
       }
 
-      const authDetails = await getAuthDetails(req);
+      const authDetails = await getAuthDetails(req, res);
       if (authDetails?.cosmosAddress) {
-        const authenticated = await checkIfAuthenticated(req, ['Send Claim Alerts']);
+        const authenticated = await checkIfAuthenticated(req, res, ['Send Claim Alerts']);
         if (!authenticated) {
           return res.status(401).send({
             errorMessage: 'To send claim alerts from ' + authDetails?.cosmosAddress + ', you must be authenticated with the Send Claim Alerts scope.'
@@ -87,7 +87,7 @@ export async function getClaimAlertsForCollection(
 
     const collectionId = Number(reqPayload.collectionId);
 
-    const isManager = await checkIfManager(req, collectionId);
+    const isManager = await checkIfManager(req, res, collectionId);
     if (!isManager) {
       return res.status(401).send({
         errorMessage: 'You must be the manager of the collection you are trying to get claim alerts for.'

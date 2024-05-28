@@ -577,8 +577,8 @@ describe('get address lists', () => {
               plugins: [
                 numUsesPlugin(10, 0),
                 {
-                  type: 'password',
-                  id: 'xyz123',
+                  pluginId: 'password',
+                  instanceId: 'xyz123',
                   publicParams: {},
                   privateParams: {
                     password: 'dfjiaf'
@@ -592,7 +592,7 @@ describe('get address lists', () => {
         }
       ]
     };
-    const numUsesPluginId = body.addressLists[0].claims[0].plugins[0].id;
+    const numUsesPluginId = body.addressLists[0].claims[0].plugins[0].instanceId;
 
     const res = await request(app)
       .post(route)
@@ -642,8 +642,8 @@ describe('get address lists', () => {
     expect(getRes.body.addressLists[0].claims.length).toBe(1);
     expect(getRes.body.addressLists[0].claims[0].plugins).toBeDefined();
     expect(getRes.body.addressLists[0].claims[0].plugins.length).toBe(2);
-    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password')).toBeDefined();
-    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password').privateParams?.password).toBeFalsy();
+    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.pluginId === 'password')).toBeDefined();
+    expect(getRes.body.addressLists[0].claims[0].plugins.find((x: any) => x.pluginId === 'password').privateParams?.password).toBeFalsy();
 
     //Check that the claim action worked
     console.log(getRes.body.addressLists);
@@ -668,8 +668,8 @@ describe('get address lists', () => {
       .send(getPayload2);
 
     expect(getRes2.status).toBe(200);
-    console.log(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password').privateParams?.password);
-    expect(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.type === 'password').privateParams?.password).toBe('dfjiaf');
+    console.log(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.pluginId === 'password').privateParams?.password);
+    expect(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.pluginId === 'password').privateParams?.password).toBe('dfjiaf');
 
     //Make sure another user cannot fetch private params
     const getRes3 = await request(app)
@@ -704,8 +704,8 @@ describe('get address lists', () => {
               plugins: [
                 { ...body.addressLists[0].claims[0].plugins[0] },
                 {
-                  type: 'password',
-                  id: 'fadskjh',
+                  pluginId: 'password',
+                  instanceId: 'fadskjh',
                   publicParams: {},
                   privateParams: {
                     password: 'dfjiaf'

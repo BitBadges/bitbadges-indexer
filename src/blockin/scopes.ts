@@ -1,5 +1,6 @@
 import { type NumberType } from 'bitbadgesjs-sdk';
 import { getAuthDetails, type MaybeAuthenticatedRequest } from './blockin_handlers';
+import { type Response } from 'express';
 
 // We use a "Label : Explanation" format for the scopes
 export const SupportedScopes = [
@@ -30,7 +31,9 @@ export const SupportedScopes = [
   'Update Secrets: Update secrets on behalf of the user.',
 
   'Read Private Claim Data: Read private claim data on behalf of the user (e.g. codes, passwords, private user lists, etc.).',
-  'Complete Claims: Complete claims on behalf of the user.'
+  'Complete Claims: Complete claims on behalf of the user.',
+
+  'Manage Off-Chain Balances: Manage off-chain balances on behalf of the user.'
 ];
 
 function checkScope(scope: string, resources: string[]): boolean {
@@ -43,8 +46,8 @@ function checkScope(scope: string, resources: string[]): boolean {
   return true;
 }
 
-export async function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, expectedScopeLabels: string[]): Promise<boolean> {
-  const resources = (await getAuthDetails(req))?.blockinParams?.resources ?? [];
+export async function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, res: Response, expectedScopeLabels: string[]): Promise<boolean> {
+  const resources = (await getAuthDetails(req, res))?.blockinParams?.resources ?? [];
   if (checkScope('Full Access', resources)) {
     return true;
   }

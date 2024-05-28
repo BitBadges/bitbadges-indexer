@@ -35,11 +35,11 @@ export const getTokensFromFaucet = async (
   res: Response<iGetTokensFromFaucetSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
 
     // acquire the mutex for the documentMutexes map
     const returnValue = await faucetMutex.runExclusive(async () => {
-      const isAuthenticated = await checkIfAuthenticated(req, ['Full Access']);
+      const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
       if (!isAuthenticated) {
         return { authenticated: false, errorMessage: 'You must be authorized.' };
       }

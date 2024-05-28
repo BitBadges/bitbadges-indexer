@@ -129,9 +129,10 @@ export interface AuthenticatedRequest<T extends NumberType> extends Request {
 }
 
 export async function mustGetAuthDetails<T extends NumberType>(
-  req: MaybeAuthenticatedRequest<T>
+  req: MaybeAuthenticatedRequest<T>,
+  res: Response
 ): Promise<BlockinSession<T> & { blockin: string; blockinParams: ChallengeParams<T>; cosmosAddress: string; address: string }> {
-  const authDetails = await getAuthDetails(req);
+  const authDetails = await getAuthDetails(req, res);
   if (!authDetails) {
     throw new Error('Not authenticated');
   }
@@ -144,7 +145,8 @@ export async function mustGetAuthDetails<T extends NumberType>(
 }
 
 export async function getAuthDetails<T extends NumberType>(
-  req: MaybeAuthenticatedRequest<T> | { session: BlockinSession<T>; body: any; header?: never }
+  req: MaybeAuthenticatedRequest<T> | { session: BlockinSession<T>; body: any; header?: never },
+  res: Response
 ): Promise<BlockinSessionDetails<T> | null> {
   if (!req) {
     return null;
@@ -155,6 +157,11 @@ export async function getAuthDetails<T extends NumberType>(
   if (authHeader == null) {
     return req.session;
   } else {
+    //Check cached value
+    if (res && res.locals && res.locals.authDetails) {
+      return res.locals.authDetails;
+    }
+
     const authHeaderParts = authHeader.split(' ');
     if (authHeaderParts.length !== 2) {
       throw new Error('Invalid Authorization header');
@@ -177,6 +184,15 @@ export async function getAuthDetails<T extends NumberType>(
       resources: tokenDoc.scopes.map((x) => SupportedScopes.find((scope) => scope.startsWith(x + ':')) ?? []) as string[]
     };
 
+    //Save to cache
+    res.locals.authDetails = {
+      address: tokenDoc.address,
+      cosmosAddress: tokenDoc.cosmosAddress,
+      blockin: createChallenge(defaultChallengeParams),
+      blockinParams: defaultChallengeParams,
+      nonce: '*'
+    };
+
     return {
       address: tokenDoc.address,
       cosmosAddress: tokenDoc.cosmosAddress,
@@ -187,17 +203,17 @@ export async function getAuthDetails<T extends NumberType>(
   }
 }
 
-export async function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, expectedScopes?: string[]): Promise<boolean> {
+export async function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, res: Response, expectedScopes?: string[]): Promise<boolean> {
   setMockSessionIfTestMode(req);
 
-  const authDetails = await getAuthDetails(req);
+  const authDetails = await getAuthDetails(req, res);
 
   if (!req || authDetails == null) {
     return false;
   }
 
   if (expectedScopes != null) {
-    const hasCorrectScopes = await hasScopes(req, expectedScopes);
+    const hasCorrectScopes = await hasScopes(req, res, expectedScopes);
     if (!hasCorrectScopes) {
       return false;
     }
@@ -213,8 +229,8 @@ export async function checkIfAuthenticated(req: MaybeAuthenticatedRequest<Number
   );
 }
 
-export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>, collectionId: NumberType): Promise<boolean> {
-  const isAuthenticated = await checkIfAuthenticated(req);
+export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>, res: Response, collectionId: NumberType): Promise<boolean> {
+  const isAuthenticated = await checkIfAuthenticated(req, res);
   if (!isAuthenticated) return false;
 
   // Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
@@ -223,7 +239,7 @@ export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>,
   const collection = await mustGetFromDB(CollectionModel, collectionId.toString());
   const manager = collection.getManager();
 
-  const authDetails = await mustGetAuthDetails(req);
+  const authDetails = await mustGetAuthDetails(req, res);
   if (!manager) return false;
   if (manager !== authDetails.cosmosAddress) return false;
   return true;
@@ -282,7 +298,7 @@ export async function getChallenge(
 
 export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusSuccessResponse>) {
   return res.status(200).send({
-    signedIn: !!(await checkIfAuthenticated(req)),
+    signedIn: !!(await checkIfAuthenticated(req, res)),
     message: req.session.blockin ?? '',
     discord: {
       id: req.session.discord?.id ?? '',
@@ -486,10 +502,10 @@ export function authorizeBlockinRequest(expectedScopes: string[]) {
     try {
       setMockSessionIfTestMode(req);
 
-      const isAuthenticated = await checkIfAuthenticated(req, expectedScopes);
+      const isAuthenticated = await checkIfAuthenticated(req, res, expectedScopes);
       if (isAuthenticated) {
         if (expectedScopes?.length) {
-          const hasCorrectScopes = await hasScopes(req, expectedScopes);
+          const hasCorrectScopes = await hasScopes(req, res, expectedScopes);
           if (!hasCorrectScopes) {
             return returnUnauthorized(res);
           }

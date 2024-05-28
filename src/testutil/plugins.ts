@@ -12,13 +12,13 @@ import crypto from 'crypto';
 import { AES } from 'crypto-js';
 import { getCorePlugin, getFirstMatchForPluginType } from '../integrations/types';
 
-export const getPluginStateByType = (doc: iClaimBuilderDoc<NumberType>, type: ClaimIntegrationPluginType): any => {
-  const id = getFirstMatchForPluginType(type, doc.plugins ?? [])?.id ?? '';
+export const getPluginStateByType = (doc: iClaimBuilderDoc<NumberType>, pluginId: ClaimIntegrationPluginType): any => {
+  const id = getFirstMatchForPluginType(pluginId, doc.plugins ?? [])?.instanceId ?? '';
   return doc.state[id];
 };
 
-export const getPluginIdByType = (doc: iClaimBuilderDoc<NumberType>, type: ClaimIntegrationPluginType): string => {
-  return getFirstMatchForPluginType(type, doc.plugins ?? [])?.id ?? '';
+export const getPluginIdByType = (doc: iClaimBuilderDoc<NumberType>, pluginId: ClaimIntegrationPluginType): string => {
+  return getFirstMatchForPluginType(pluginId, doc.plugins ?? [])?.instanceId ?? '';
 };
 
 export const numUsesPlugin = (
@@ -27,8 +27,8 @@ export const numUsesPlugin = (
   assignMethod: 'firstComeFirstServe' | 'codeIdx' = 'firstComeFirstServe'
 ): IntegrationPluginDetails<'numUses'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'numUses',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'numUses',
     publicParams: {
       maxUses,
       maxUsesPerAddress,
@@ -41,8 +41,8 @@ export const numUsesPlugin = (
 
 export const codesPlugin = (numCodes: number, seedCode: string): IntegrationPluginDetails<'codes'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'codes',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'codes',
     publicParams: {
       numCodes
     },
@@ -59,8 +59,8 @@ export const codesPlugin = (numCodes: number, seedCode: string): IntegrationPlug
 
 export const passwordPlugin = (password: string): IntegrationPluginDetails<'password'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'password',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'password',
     publicParams: {},
     privateParams: {
       password: AES.encrypt(password, process.env.SYM_KEY ?? '').toString()
@@ -72,8 +72,8 @@ export const passwordPlugin = (password: string): IntegrationPluginDetails<'pass
 
 export const transferTimesPlugin = (transferTimes: iUintRange<number>): IntegrationPluginDetails<'transferTimes'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'transferTimes',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'transferTimes',
     publicParams: {
       transferTimes: UintRangeArray.From(transferTimes)
     },
@@ -85,8 +85,8 @@ export const transferTimesPlugin = (transferTimes: iUintRange<number>): Integrat
 
 export const whitelistPlugin = (privateMode: boolean, list?: iAddressList, listId?: string): IntegrationPluginDetails<'whitelist'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'whitelist',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'whitelist',
     publicParams: privateMode
       ? {}
       : {
@@ -106,8 +106,8 @@ export const whitelistPlugin = (privateMode: boolean, list?: iAddressList, listI
 
 export const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'discord'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'discord',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'discord',
     publicParams: {
       hasPrivateList: false,
       maxUsesPerUser: 1
@@ -122,8 +122,8 @@ export const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'di
 
 export const twitterPlugin = (usernames: string[]): IntegrationPluginDetails<'twitter'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'twitter',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'twitter',
     publicParams: {
       hasPrivateList: false,
       maxUsesPerUser: 1
@@ -138,8 +138,8 @@ export const twitterPlugin = (usernames: string[]): IntegrationPluginDetails<'tw
 
 export const initiatedByPlugin = (): IntegrationPluginDetails<'initiatedBy'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'initiatedBy',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'initiatedBy',
     publicParams: {},
     privateParams: {},
     publicState: {},
@@ -149,8 +149,8 @@ export const initiatedByPlugin = (): IntegrationPluginDetails<'initiatedBy'> => 
 
 export const mustOwnBadgesPlugin = (ownershipReqs: BlockinAssetConditionGroup<NumberType>): IntegrationPluginDetails<'must-own-badges'> => {
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: 'must-own-badges',
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'must-own-badges',
     publicParams: {
       ownershipRequirements: ownershipReqs
     },
@@ -164,8 +164,8 @@ export const apiPlugin = (customPluginId: string, publicParams: any, privatePara
   // const doc = await mustGetFromDB(PluginModel, customPluginId);
 
   return {
-    id: crypto.randomBytes(32).toString('hex'),
-    type: customPluginId,
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: customPluginId,
     publicParams: publicParams,
     privateParams: privateParams,
     publicState: {},

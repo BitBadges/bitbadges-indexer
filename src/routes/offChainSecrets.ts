@@ -24,7 +24,7 @@ import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as CreateSecretPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     await verifySecretsPresentationSignatures({
       ...reqPayload,
       createdBy: authDetails.cosmosAddress
@@ -100,7 +100,7 @@ export const getSecret = async (req: Request, res: Response<iGetSecretSuccessRes
 export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as DeleteSecretPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this Siwbb request.');
@@ -121,7 +121,7 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
 export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as UpdateSecretPayload;
-    const authDetails = await mustGetAuthDetails(req);
+    const authDetails = await mustGetAuthDetails(req, res);
     let doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
 
     for (const viewerToAdd of reqPayload.holdersToSet ?? []) {

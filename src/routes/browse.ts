@@ -117,7 +117,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
         condensedToFetch.push(fetch);
       }
     }
-    const collections = await executeCollectionsQuery(req, condensedToFetch);
+    const collections = await executeCollectionsQuery(req, res, condensedToFetch);
 
     const addressListsToReturn = await getAddressListsFromDB(
       addressLists.map((x) => {
@@ -131,7 +131,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
     const promises = [];
     for (const profile of [...allProfiles]) {
       promises.push(
-        getAccountByAddress(req, profile._docId, {
+        getAccountByAddress(req, res, profile._docId, {
           viewsToFetch: []
         })
       );

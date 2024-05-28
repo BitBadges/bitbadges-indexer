@@ -12,7 +12,7 @@ import { type AndGroup, type AssetConditionGroup, type OrGroup, type OwnershipRe
 import Moralis from 'moralis';
 import { getBalanceForAddress } from '../routes/balances';
 import { getAddressListsFromDB } from '../routes/utils';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 
 export async function verifyBitBadgesAssets(
   bitbadgesAssets: AssetConditionGroup<bigint> | undefined,
@@ -185,7 +185,7 @@ export async function verifyBitBadgesAssets(
         let docBalances = new BalanceArray<bigint>();
         if (!balancesSnapshot) {
           const req: Request = {} as Request;
-          const balanceDoc = await getBalanceForAddress(req, Number(asset.collectionId), address);
+          const balanceDoc = await getBalanceForAddress(req, {} as Response, Number(asset.collectionId), address);
 
           if (!balanceDoc) {
             throw new Error(`Error fetching balance for collection ${asset.collectionId} and address ${address}`); //Should return a doc even if owns x0
