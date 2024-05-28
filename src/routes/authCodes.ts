@@ -203,7 +203,7 @@ export const getSIWBBRequestsForDeveloperApp = async (
 
     const authDetails = await mustGetAuthDetails(req, res);
     if (appDoc.createdBy !== authDetails.cosmosAddress) {
-      throw new Error('You are not the owner of this auth app.');
+      throw new Error('You are not the owner of this app.');
     }
 
     const docsRes = await executeSIWBBRequestsForAppQuery(clientId, bookmark);

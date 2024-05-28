@@ -1149,7 +1149,7 @@ paths:
   /developerApp/siwbbRequests:
     post:
       operationId: getSIWBBRequestsForDeveloperApp
-      summary: Get Siwbb Requests For Auth App
+      summary: Get Siwbb Requests For Developer App
       tags:
         - Sign In with BitBadges
       description: |-

@@ -52,7 +52,7 @@ export const createDeveloperApp = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: e.message || 'Error creating auth app.'
+      errorMessage: e.message || 'Error creating app.'
     });
   }
 };
@@ -83,7 +83,7 @@ export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, re
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: e.message || 'Error getting auth app.'
+      errorMessage: e.message || 'Error getting app.'
     });
   }
 };
@@ -107,7 +107,7 @@ export const deleteDeveloperApp = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: e.message || 'Error deleting auth app.'
+      errorMessage: e.message || 'Error deleting app.'
     });
   }
 };
@@ -153,7 +153,7 @@ export const updateDeveloperApp = async (
     console.error(e);
     return res.status(500).send({
       error: serializeError(e),
-      errorMessage: e.message || 'Error updating auth app.'
+      errorMessage: e.message || 'Error updating app.'
     });
   }
 };
