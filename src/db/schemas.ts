@@ -498,7 +498,8 @@ export const ClaimAttemptStatusSchema = new Schema({
   error: Schema.Types.Mixed,
   success: Boolean,
   _docId: String,
-  code: String
+  code: String,
+  claimInfo: Schema.Types.Mixed
 });
 
 export const OffChainUrlSchema = new Schema<OffChainUrlDoc>({

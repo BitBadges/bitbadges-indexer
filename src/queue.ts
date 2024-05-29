@@ -835,7 +835,8 @@ export const handleQueueItems = async (block: bigint) => {
         await ClaimAttemptStatusModel.create({
           _docId: queueObj._docId,
           success: true,
-          code: response.code
+          code: response.code,
+          claimInfo: queueObj.claimInfo
         });
       } catch (e) {
         let reason = '';
@@ -852,7 +853,8 @@ export const handleQueueItems = async (block: bigint) => {
         await ClaimAttemptStatusModel.create({
           _docId: queueObj._docId,
           success: false,
-          error: reason
+          error: reason,
+          claimInfo: queueObj.claimInfo
         });
         await deleteMany(QueueModel, [queueObj._docId]);
       }
