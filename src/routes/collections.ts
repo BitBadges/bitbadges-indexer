@@ -777,7 +777,7 @@ const checkIfAuthenticatedForPrivateParams = async (
   listId?: string
 ) => {
   if (includePrivateParams) {
-    const auth = await checkIfAuthenticated(req, res, ['Read Private Claim Data']);
+    const auth = await checkIfAuthenticated(req, res, [{ scopeName: 'Read Private Claim Data' }]);
     if (!auth) {
       throw new Error('You must be authenticated to fetch private params');
     }

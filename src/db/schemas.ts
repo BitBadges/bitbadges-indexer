@@ -85,7 +85,7 @@ export const AuthorizationCodeSchema = new Schema<AuthorizationCodeDoc>({
   _docId: String,
   clientId: String,
   redirectUri: String,
-  scopes: [String],
+  scopes: Schema.Types.Mixed,
   address: String,
   cosmosAddress: String
 });
@@ -100,7 +100,7 @@ export const AccessTokenSchema = new Schema<AccessTokenDoc>({
   cosmosAddress: String,
   address: String,
   clientId: String,
-  scopes: [String]
+  scopes: Schema.Types.Mixed
 });
 
 export const PluginSchema = new Schema<PluginDoc<JSPrimitiveNumberType>>({

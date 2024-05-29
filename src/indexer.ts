@@ -6,7 +6,8 @@ import {
   iAccessTokenDoc,
   iAuthorizationCodeDoc,
   mustConvertToCosmosAddress,
-  type ErrorResponse
+  type ErrorResponse,
+  OauthAuthorizePayload
 } from 'bitbadgesjs-sdk';
 import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
@@ -360,7 +361,7 @@ app.get('/auth/google', passport.authenticate('google', { session: false, scope:
 app.get('/auth/google/callback', googleCallbackHandler);
 
 // Reports
-app.post('/api/v0/report', authorizeBlockinRequest(['Report']), addReport);
+app.post('/api/v0/report', authorizeBlockinRequest([{ scopeName: 'Report' }]), addReport);
 
 // Search
 app.post('/api/v0/search/:searchValue', searchHandler);
@@ -381,32 +382,38 @@ app.post('/api/v0/claims/reserved/:claimId/:cosmosAddress', getReservedClaimCode
 app.post('/api/v0/claims/status/:claimAttemptId', getClaimsStatusHandler);
 
 app.post('/api/v0/claims/fetch', getClaimsHandler);
-app.post('/api/v0/claims', authorizeBlockinRequest(['Full Access']), createClaimHandler);
-app.put('/api/v0/claims', authorizeBlockinRequest(['Full Access']), updateClaimHandler);
-app.delete('/api/v0/claims', authorizeBlockinRequest(['Full Access']), deleteClaimHandler);
+app.post('/api/v0/claims', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createClaimHandler);
+app.put('/api/v0/claims', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), updateClaimHandler);
+app.delete('/api/v0/claims', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), deleteClaimHandler);
 
 //Reviews
-app.post('/api/v0/reviews/add', authorizeBlockinRequest(['Reviews']), addReview);
-app.delete('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest(['Reviews']), deleteReview);
+app.post('/api/v0/reviews/add', authorizeBlockinRequest([{ scopeName: 'Reviews' }]), addReview);
+app.delete('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest([{ scopeName: 'Reviews' }]), deleteReview);
 
 // User
 app.post('/api/v0/users', getAccounts);
-app.post('/api/v0/user/updateAccount', authorizeBlockinRequest(['Profile']), upload.single('profilePicImageFile'), updateAccountInfo);
+app.post('/api/v0/user/updateAccount', authorizeBlockinRequest([{ scopeName: 'Profile' }]), upload.single('profilePicImageFile'), updateAccountInfo);
 
 // IPFS
-app.post('/api/v0/addToIpfs', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), express.json({ limit: '100mb' }), addToIpfsHandler);
+app.post(
+  '/api/v0/addToIpfs',
+  websiteOnlyCors,
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
+  express.json({ limit: '100mb' }),
+  addToIpfsHandler
+);
 
 app.post(
   '/api/v0/addApprovalDetailsToOffChainStorage',
   websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   express.json({ limit: '100mb' }),
   addApprovalDetailsToOffChainStorageHandler
 ); //
 
 app.post(
   '/api/v0/addBalancesToOffChainStorage',
-  authorizeBlockinRequest(['Manage Off-Chain Balances']),
+  authorizeBlockinRequest([{ scopeName: 'Manage Off-Chain Balances' }]),
   express.json({ limit: '100mb' }),
   addBalancesToOffChainStorageHandler
 ); //
@@ -431,22 +438,22 @@ app.post('/api/v0/broadcast', broadcastTx);
 app.post('/api/v0/simulate', simulateTx);
 
 // Faucet
-app.post('/api/v0/faucet', authorizeBlockinRequest(['Full Access']), getTokensFromFaucet);
+app.post('/api/v0/faucet', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getTokensFromFaucet);
 
 // Address Lists
 app.post('/api/v0/addressLists/fetch', getAddressLists);
-app.post('/api/v0/addressLists', authorizeBlockinRequest(['Create Address Lists']), createAddressLists);
-app.put('/api/v0/addressLists', authorizeBlockinRequest(['Update Address Lists']), updateAddressLists);
-app.delete('/api/v0/addressLists', authorizeBlockinRequest(['Delete Address Lists']), deleteAddressLists);
+app.post('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Create Address Lists' }]), createAddressLists);
+app.put('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Update Address Lists' }]), updateAddressLists);
+app.delete('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Delete Address Lists' }]), deleteAddressLists);
 
 // Blockin Siwbb Requests
 app.post('/api/v0/siwbbRequest/fetch', getAndVerifySIWBBRequest);
-app.post('/api/v0/siwbbRequest', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest(['Full Access']))
-app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest(['Delete Siwbb Requests']), deleteSIWBBRequest);
+app.post('/api/v0/siwbbRequest', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest([{ scopeName: 'Full Access']))
+app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest([{ scopeName: 'Delete Siwbb Requests' }]), deleteSIWBBRequest);
 
 // Claim Alerts
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);
-app.post('/api/v0/claimAlerts', authorizeBlockinRequest(['Read Claim Alerts']), getClaimAlertsForCollection);
+app.post('/api/v0/claimAlerts', authorizeBlockinRequest([{ scopeName: 'Read Claim Alerts' }]), getClaimAlertsForCollection);
 
 // Follow Protocol
 app.post('/api/v0/follow-protocol', getFollowDetails);
@@ -457,26 +464,26 @@ app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 // Maps
 app.post('/api/v0/maps', getMaps);
 
-app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest(['Full Access']), createPass);
+app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createPass);
 
 // Off-Chain Secret Sigs
 app.post('/api/v0/secret/fetch', getSecret);
-app.post('/api/v0/secret', authorizeBlockinRequest(['Create Secrets']), createSecret);
-app.delete('/api/v0/secret', authorizeBlockinRequest(['Delete Secrets']), deleteSecret);
-app.put('/api/v0/secret', authorizeBlockinRequest(['Update Secrets']), updateSecret);
+app.post('/api/v0/secret', authorizeBlockinRequest([{ scopeName: 'Create Secrets' }]), createSecret);
+app.delete('/api/v0/secret', authorizeBlockinRequest([{ scopeName: 'Delete Secrets' }]), deleteSecret);
+app.put('/api/v0/secret', authorizeBlockinRequest([{ scopeName: 'Update Secrets' }]), updateSecret);
 
 // Auth Apps
 app.post('/api/v0/developerApp/fetch', websiteOnlyCors, getDeveloperApps);
-app.post('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createDeveloperApp);
-app.delete('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deleteDeveloperApp);
-app.put('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updateDeveloperApp);
-app.post('/api/v0/developerApp/siwbbRequests', authorizeBlockinRequest(['Full Access']), getSIWBBRequestsForDeveloperApp);
+app.post('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createDeveloperApp);
+app.delete('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), deleteDeveloperApp);
+app.put('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), updateDeveloperApp);
+app.post('/api/v0/developerApp/siwbbRequests', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getSIWBBRequestsForDeveloperApp);
 
 // Auth Apps
 app.post('/api/v0/plugins/fetch', websiteOnlyCors, getPlugins);
-app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), createPlugin);
-app.put('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), updatePlugin);
-app.delete('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest(['Full Access']), deletePlugin);
+app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createPlugin);
+app.put('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), updatePlugin);
+app.delete('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), deletePlugin);
 
 app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
@@ -484,16 +491,16 @@ app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
 app.post(
   '/api/v0/oauth/authorize',
   websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
       const {
         response_type,
         client_id,
         redirect_uri,
-        scope
+        scopes
         // state
-      } = req.body;
+      } = req.body as OauthAuthorizePayload;
 
       const developerAppDoc = await mustGetFromDB(DeveloperAppModel, client_id);
       if (developerAppDoc.redirectUris.indexOf(redirect_uri) === -1) {
@@ -506,7 +513,7 @@ app.post(
           _docId: crypto.randomBytes(32).toString('hex'),
           clientId: client_id,
           redirectUri: redirect_uri,
-          scopes: scope.split(',').map((s: string) => s.trim()),
+          scopes: scopes,
           address: authDetails.address,
           cosmosAddress: authDetails.cosmosAddress,
           expiresAt: Date.now() + 1000 * 60 * 2
@@ -628,7 +635,7 @@ app.post('/api/v0/oauth/token/revoke', async (req: AuthenticatedRequest<NumberTy
 app.post(
   '/api/v0/oauth/authorizations',
   websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
       const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
@@ -654,7 +661,7 @@ app.post(
 app.post(
   '/api/v0/apiKeys',
   websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
       const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
@@ -692,7 +699,7 @@ app.post(
 app.delete(
   '/api/v0/apiKeys',
   websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
       const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
@@ -720,7 +727,7 @@ app.delete(
 app.post(
   '/api/v0/apiKeys/fetch',
   websiteOnlyCors,
-  authorizeBlockinRequest(['Full Access']),
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
       const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;

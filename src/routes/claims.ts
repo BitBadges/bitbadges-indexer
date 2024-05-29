@@ -446,7 +446,9 @@ export const completeClaimHandler = async (
     }
 
     if (getFirstMatchForPluginType('initiatedBy', claimBuilderDoc.plugins)) {
-      const isAuthenticated = await checkIfAuthenticated(req as MaybeAuthenticatedRequest<NumberType>, {} as Response, ['Complete Claims']);
+      const isAuthenticated = await checkIfAuthenticated(req as MaybeAuthenticatedRequest<NumberType>, {} as Response, [
+        { scopeName: 'Complete Claims' }
+      ]);
       if (!isAuthenticated) {
         throw new Error('Authentication required with the Complete Claims scope');
       }
@@ -660,7 +662,7 @@ export const getReservedClaimCodes = async (
   try {
     setMockSessionIfTestMode(req);
 
-    const isAuthenticated = await checkIfAuthenticated(req, res, ['Complete Claims']);
+    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Complete Claims' }]);
     if (!isAuthenticated) {
       throw new Error('Unauthorized');
     }
@@ -698,7 +700,7 @@ export const getClaimsStatusHandler = async (
     // Reserved codes reserve the right to initiate an on-chain transaction.
     // To initiate a transaction, a signature is required.
     // We only return the reserved codes if the user is authenticated as themselves.
-    const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
+    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Full Access' }]);
     if (isAuthenticated) {
       return res.status(200).json({ success: doc.success ?? false, error: doc?.error, code: doc?.code });
     } else {

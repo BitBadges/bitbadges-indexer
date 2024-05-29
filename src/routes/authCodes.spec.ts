@@ -1417,4 +1417,53 @@ describe('get Siwbb requests', () => {
     expect(getRes.body.blockin.otherSignIns?.github?.username).toBe('testuser');
     expect(getRes.body.blockin.otherSignIns?.google?.username).toBeUndefined();
   });
+
+  it('should allow for reuse of BitBadges sign in', async () => {
+    const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
+    const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
+    const clientId = clientIdDocs[0]._docId;
+    const clientSecret = clientIdDocs[0].clientSecret;
+    const redirectUri = clientIdDocs[0].redirectUris[0];
+    const body: CreateSIWBBRequestPayload = {
+      allowReuseOfBitBadgesSignIn: true,
+      clientId,
+      message,
+      signature: '',
+      name: 'test',
+      image: '',
+      description: '',
+      redirectUri: ''
+    };
+
+    const invalidResWithoutAuth = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
+    expect(invalidResWithoutAuth.status).toBeGreaterThanOrEqual(400);
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+    expect(res.status).toBe(200);
+
+    const doc = await mustGetFromDB(SIWBBRequestModel, res.body.code);
+    await insertToDB(SIWBBRequestModel, { ...doc, redirectUri });
+
+    const siwbbRequestId = res.body.code;
+    console.log(res.body);
+
+    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
+    const getResPayload: GetAndVerifySIWBBRequestPayload = { code: siwbbRequestId, clientId, clientSecret, redirectUri };
+    const getRes = await request(app)
+      .post(getResRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(getResPayload);
+    console.log(getRes.body);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.blockin).toBeDefined();
+    expect(getRes.body.blockin.otherSignIns?.discord).toBeUndefined();
+  });
 });

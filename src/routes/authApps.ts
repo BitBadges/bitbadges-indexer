@@ -67,7 +67,7 @@ export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, re
       doc.clientSecret = '';
       return res.status(200).send({ developerApps: [doc] });
     } else {
-      const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
+      const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Full Access' }]);
       if (!isAuthenticated) {
         return res.status(401).send({ errorMessage: 'You must be authorized.' });
       }

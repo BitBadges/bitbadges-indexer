@@ -154,55 +154,57 @@ describe('checkIfAuthenticated function', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('should add a report w/ the correct scope', async () => {
-    // Mock session object with all required properties
-    // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
-    // Set up a mock session middleware
+  //TODO: We went away from storing scopes in resources, so this test is no longer valid
+  //      We should update it to use the new scopes system with OAuth tokens
+  // it('should add a report w/ the correct scope', async () => {
+  //   // Mock session object with all required properties
+  //   // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
+  //   // Set up a mock session middleware
 
-    const reportRoute = '/api/v0/report';
-    const res = await request(app)
-      .post(reportRoute)
-      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .set(
-        'x-mock-session',
-        JSON.stringify({
-          ...exampleReq.session,
-          blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: Report users or collections.'] }
-        })
-      )
-      .send({
-        collectionId: '1',
-        addressOrUsername: 'exampleAddressOrUsername',
-        reason: 'exampleReason'
-      });
+  //   const reportRoute = '/api/v0/report';
+  //   const res = await request(app)
+  //     .post(reportRoute)
+  //     .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+  //     .set(
+  //       'x-mock-session',
+  //       JSON.stringify({
+  //         ...exampleReq.session,
+  //         blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: Report users or collections.'] }
+  //       })
+  //     )
+  //     .send({
+  //       collectionId: '1',
+  //       addressOrUsername: 'exampleAddressOrUsername',
+  //       reason: 'exampleReason'
+  //     });
+  //   console.log(res);
+  //   expect(res.statusCode).toBe(200);
+  // });
 
-    expect(res.statusCode).toBe(200);
-  });
+  // it('should not add a report w/ the correct scope but incorrect message', async () => {
+  //   // Mock session object with all required properties
+  //   // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
+  //   // Set up a mock session middleware
 
-  it('should not add a report w/ the correct scope but incorrect message', async () => {
-    // Mock session object with all required properties
-    // const req = { ...exampleReq } as MaybeAuthenticatedRequest<bigint>;
-    // Set up a mock session middleware
+  //   const reportRoute = '/api/v0/report';
+  //   const res = await request(app)
+  //     .post(reportRoute)
+  //     .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+  //     .set(
+  //       'x-mock-session',
+  //       JSON.stringify({
+  //         ...exampleReq.session,
+  //         blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: This is a malicious message.'] }
+  //       })
+  //     )
+  //     .send({
+  //       collectionId: '1',
+  //       addressOrUsername: 'exampleAddressOrUsername',
+  //       reason: 'exampleReason'
+  //     });
 
-    const reportRoute = '/api/v0/report';
-    const res = await request(app)
-      .post(reportRoute)
-      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .set(
-        'x-mock-session',
-        JSON.stringify({
-          ...exampleReq.session,
-          blockinParams: { ...exampleReq.session.blockinParams, resources: ['Report: This is a malicious message.'] }
-        })
-      )
-      .send({
-        collectionId: '1',
-        addressOrUsername: 'exampleAddressOrUsername',
-        reason: 'exampleReason'
-      });
-
-    expect(res.statusCode).toBe(401);
-  });
+  //   expect(res.statusCode).toBe(401);
+  // });
 
   it('should pass manager route with a session', async () => {
     // Mock session object with all required properties
@@ -238,7 +240,7 @@ describe('checkIfAuthenticated function', () => {
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(managerReq.session))
       .send(body);
-
+    console.log(res.body);
     expect(res.statusCode).toBe(401);
   });
 
@@ -1189,15 +1191,28 @@ describe('checkIfAuthenticated function', () => {
         })
       )
       .send({ message: messageToSign });
+    console.log(verifyRes.body);
     expect(verifyRes.statusCode).toBe(200);
 
-    const signInStatusRoute = BitBadgesApiRoutes.CheckIfSignedInRoute();
-    const signInStatusRes = await request(app)
-      .post(signInStatusRoute)
-      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+    // TODO: The idea is there but supertest doesn't save sessions
+    // const signInStatusRoute = BitBadgesApiRoutes.CheckIfSignedInRoute();
+    // const signInStatusRes = await request(app)
+    //   .post(signInStatusRoute)
+    //   .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+    //   .send({ address });
 
-    expect(signInStatusRes.statusCode).toBe(200);
+    // expect(signInStatusRes.statusCode).toBe(200);
+    // expect(signInStatusRes.body.signedIn).toBe(true);
+    // expect(signInStatusRes.body.scopes).toStrictEqual([{ scopeName: 'Complete Claims' }]);
+
+    // // Test getting profile (they dont have the Read Profile scope)
+    // const getProfileRes = await request(app)
+    //   .post(BitBadgesApiRoutes.GetAccountsRoute())
+    //   .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+    //   .send({ accountsToFecth: [{ address }] });
+
+    // expect(getProfileRes.statusCode).toBe(200);
+    // expect(getProfileRes.body.accounts[0].approvedSignInMethods).toBeFalsy();
   });
 
   it('should not approve discord sign in if set but not matching', async () => {

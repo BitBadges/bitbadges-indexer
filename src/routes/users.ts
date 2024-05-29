@@ -175,13 +175,17 @@ async function getBatchProfileInformation(
   // Filter out private info if not authenticated user
   if (req) {
     setMockSessionIfTestMode(req);
-    const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
-    if (!isAuthenticated) {
-      for (const profileInfo of profileInfos) {
-        profileInfo.notifications = undefined;
-        profileInfo.approvedSignInMethods = undefined;
-        profileInfo.socialConnections = undefined;
+    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Read Profile' }]);
+    const authAddress = (await getAuthDetails(req, res))?.cosmosAddress;
+
+    for (const profileInfo of profileInfos) {
+      if (isAuthenticated && profileInfo._docId === authAddress) {
+        continue;
       }
+
+      profileInfo.notifications = undefined;
+      profileInfo.approvedSignInMethods = undefined;
+      profileInfo.socialConnections = undefined;
     }
   }
 
@@ -300,7 +304,6 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsSucces
     const profileInfos = await getBatchProfileInformation(req, res, allQueries);
 
     const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
-
     const additionalInfoPromises = [];
     for (const query of allQueries) {
       if (query.fetchOptions) {
@@ -406,7 +409,9 @@ const getAdditionalUserInfo = async (
     if (view.viewType === 'listsActivity') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, ['Read Address Lists'])) && !!authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Address Lists' }])) &&
+          !!authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
         asyncOperations.push(async () => await executeListsActivityQuery(cosmosAddress, profileInfo, false, bookmark, oldestFirst, isAuthenticated));
       }
     } else if (view.viewType === 'transferActivity') {
@@ -432,21 +437,27 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'claimAlerts') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Claim Alerts' }])) &&
+          authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'sentClaimAlerts') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, ['Read Claim Alerts'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Claim Alerts' }])) &&
+          authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeSentClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'siwbbRequests') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, ['Read Siwbb Requests'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Siwbb Requests' }])) &&
+          authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch Siwbb requests.');
         asyncOperations.push(async () => await executeSIWBBRequestsQuery(cosmosAddress, bookmark, oldestFirst));
       }
@@ -465,7 +476,9 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'privateLists') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, ['Read Address Lists'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Address Lists' }])) &&
+          authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch private lists.');
         asyncOperations.push(async () => await executePrivateListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
@@ -476,14 +489,14 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'createdSecrets') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Secrets' }])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeCreatedSecretsQuery(cosmosAddress, bookmark));
       }
     } else if (view.viewType === 'receivedSecrets') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, ['Read Secrets'])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Secrets' }])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
         asyncOperations.push(async () => await executeReceivedSecretsQuery(cosmosAddress, bookmark));
       }

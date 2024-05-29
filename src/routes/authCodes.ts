@@ -51,7 +51,7 @@ export const createSIWBBRequest = async (
     const origin = req.headers.origin;
     const authDetails = await getAuthDetails(req, res);
     const isAuthenticated =
-      (await checkIfAuthenticated(req, res, ['Create Siwbb Requests'])) &&
+      (await checkIfAuthenticated(req, res, [{ scopeName: 'Create Siwbb Requests' }])) &&
       challengeParams.address &&
       convertToCosmosAddress(challengeParams.address) === authDetails?.cosmosAddress;
 

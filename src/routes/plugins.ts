@@ -248,7 +248,7 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
     }
 
     if (!!createdPluginsOnly) {
-      const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
+      const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Full Access' }]);
       if (!isAuthenticated) {
         return res.status(401).send({
           errorMessage: 'Unauthorized. Please sign in to fetch your created plugins.'

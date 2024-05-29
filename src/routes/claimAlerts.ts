@@ -39,7 +39,7 @@ export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>,
 
       const authDetails = await getAuthDetails(req, res);
       if (authDetails?.cosmosAddress) {
-        const authenticated = await checkIfAuthenticated(req, res, ['Send Claim Alerts']);
+        const authenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Send Claim Alerts' }]);
         if (!authenticated) {
           return res.status(401).send({
             errorMessage: 'To send claim alerts from ' + authDetails?.cosmosAddress + ', you must be authenticated with the Send Claim Alerts scope.'

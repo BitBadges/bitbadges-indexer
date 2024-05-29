@@ -1,6 +1,6 @@
-import { type NumberType } from 'bitbadgesjs-sdk';
-import { getAuthDetails, type MaybeAuthenticatedRequest } from './blockin_handlers';
+import { OAuthScopeDetails, type NumberType } from 'bitbadgesjs-sdk';
 import { type Response } from 'express';
+import { getAuthDetails, type MaybeAuthenticatedRequest } from './blockin_handlers';
 
 // We use a "Label : Explanation" format for the scopes
 export const SupportedScopes = [
@@ -46,18 +46,61 @@ function checkScope(scope: string, resources: string[]): boolean {
   return true;
 }
 
-export async function hasScopes(req: MaybeAuthenticatedRequest<NumberType>, res: Response, expectedScopeLabels: string[]): Promise<boolean> {
+export async function hasScopes(
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response,
+  expectedScopes: { scopeName: string; toCheck?: object }[]
+): Promise<boolean> {
+  console.log('CHECKING SCOPES');
+
+  const authDetails = await getAuthDetails(req, res);
+  if (!authDetails) {
+    return false;
+  }
+
   const resources = (await getAuthDetails(req, res))?.blockinParams?.resources ?? [];
   if (checkScope('Full Access', resources)) {
     return true;
   }
 
-  // We need to check that a) the message was signed with the expected scope and b) the scope message matches.
-  for (const expectedScopeLabel of expectedScopeLabels) {
-    if (!checkScope(expectedScopeLabel, resources)) {
+  //We use the scopes from OAuth to determine what the user can do.
+  const scopes = authDetails.scopes ?? [];
+  for (const expectedScope of expectedScopes) {
+    const matchingScope = scopes.find((s) => s.scopeName === expectedScope.scopeName);
+    if (!matchingScope) {
+      return false;
+    }
+
+    if (!checkScopeOptions(matchingScope, expectedScope.toCheck)) {
       return false;
     }
   }
 
+  return true;
+}
+
+function checkScopeOptions(scope: OAuthScopeDetails, toCheck?: object) {
+  if (!toCheck) return true;
+
+  if (toCheck) {
+    switch (scope.scopeName) {
+      case 'Complete Claims':
+        return checkCompleteClaimScope(scope.options, toCheck);
+    }
+
+    return false;
+  } else {
+    return true;
+  }
+}
+
+//------------------HANDLERS------------------
+
+//TODO: Handle
+function checkCompleteClaimScope(scopeOptions: any | undefined, toCheck: any): boolean {
+  console.log(scopeOptions, toCheck);
+
+  // Example
+  // return toCheck.claimIds.every((claimId) => scopeOptions?.claimIds?.includes(claimId));
   return true;
 }

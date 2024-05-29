@@ -189,7 +189,15 @@ export const updateClaimDocs = async (
       if (plugin.resetState) {
         state[plugin.instanceId] = pluginObj.defaultState;
       } else if (plugin.newState) {
-        state[plugin.instanceId] = plugin.newState;
+        if (plugin.onlyUpdateProvidedNewState) {
+          state[plugin.instanceId] = {
+            ...state[plugin.instanceId],
+            ...plugin.newState
+          };
+        } else {
+          //Completely overwrite the state
+          state[plugin.instanceId] = plugin.newState;
+        }
       }
 
       if (plugin.resetState && plugin.newState) {

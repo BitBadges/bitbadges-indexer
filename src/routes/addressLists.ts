@@ -316,7 +316,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
       // If it is viewable by link / ID, they have requested it via the API call so they know the link
       if (doc.private && !doc.viewableWithLink) {
         const authReq = req as MaybeAuthenticatedRequest<NumberType>;
-        const isAuthenticated = await checkIfAuthenticated(authReq, res, ['Read Address Lists']);
+        const isAuthenticated = await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Address Lists' }]);
         if (!isAuthenticated) return returnUnauthorized(res);
         const authDetails = await mustGetAuthDetails(authReq, res);
         const cosmosAddress = authDetails.cosmosAddress;

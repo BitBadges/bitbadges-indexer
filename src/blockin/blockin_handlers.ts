@@ -16,7 +16,8 @@ import {
   type iCheckSignInStatusSuccessResponse,
   type iGetSignInChallengeSuccessResponse,
   type iSignOutSuccessResponse,
-  type iVerifySignInSuccessResponse
+  type iVerifySignInSuccessResponse,
+  OAuthScopeDetails
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge, verifyChallenge, type ChallengeParams } from 'blockin';
 import { type NextFunction, type Request, type Response } from 'express';
@@ -147,7 +148,7 @@ export async function mustGetAuthDetails<T extends NumberType>(
 export async function getAuthDetails<T extends NumberType>(
   req: MaybeAuthenticatedRequest<T> | { session: BlockinSession<T>; body: any; header?: never },
   res: Response
-): Promise<BlockinSessionDetails<T> | null> {
+): Promise<(BlockinSessionDetails<T> & { scopes?: OAuthScopeDetails[] }) | null> {
   if (!req) {
     return null;
   }
@@ -155,6 +156,13 @@ export async function getAuthDetails<T extends NumberType>(
   // Check Authorization header
   const authHeader = !req.header ? null : req.header('Authorization');
   if (authHeader == null) {
+    if (req.session.blockin) {
+      return {
+        ...req.session,
+        scopes: [{ scopeName: 'Full Access' }]
+      };
+    }
+
     return req.session;
   } else {
     //Check cached value
@@ -181,7 +189,7 @@ export async function getAuthDetails<T extends NumberType>(
       nonce: '*',
       expirationDate: undefined,
       notBefore: undefined,
-      resources: tokenDoc.scopes.map((x) => SupportedScopes.find((scope) => scope.startsWith(x + ':')) ?? []) as string[]
+      resources: tokenDoc.scopes.map((x) => SupportedScopes.find((scope) => scope.startsWith(x.scopeName + ':')) ?? []) as string[]
     };
 
     //Save to cache
@@ -190,7 +198,8 @@ export async function getAuthDetails<T extends NumberType>(
       cosmosAddress: tokenDoc.cosmosAddress,
       blockin: createChallenge(defaultChallengeParams),
       blockinParams: defaultChallengeParams,
-      nonce: '*'
+      nonce: '*',
+      scopes: tokenDoc.scopes
     };
 
     return {
@@ -198,40 +207,45 @@ export async function getAuthDetails<T extends NumberType>(
       cosmosAddress: tokenDoc.cosmosAddress,
       blockin: createChallenge(defaultChallengeParams),
       blockinParams: defaultChallengeParams,
-      nonce: '*'
+      nonce: '*',
+      scopes: tokenDoc.scopes
     };
   }
 }
 
-export async function checkIfAuthenticated(req: MaybeAuthenticatedRequest<NumberType>, res: Response, expectedScopes?: string[]): Promise<boolean> {
+export async function checkIfAuthenticated(
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response,
+  expectedScopes: OAuthScopeDetails[]
+): Promise<boolean> {
   setMockSessionIfTestMode(req);
 
   const authDetails = await getAuthDetails(req, res);
-
+  console.log('authDetails', authDetails);
   if (!req || authDetails == null) {
     return false;
   }
 
-  if (expectedScopes != null) {
-    const hasCorrectScopes = await hasScopes(req, res, expectedScopes);
-    if (!hasCorrectScopes) {
-      return false;
-    }
+  const hasCorrectScopes = await hasScopes(req, res, expectedScopes);
+  if (!hasCorrectScopes) {
+    return false;
+  } else {
+    return true;
   }
 
-  // Nonce should not be checked in case you are prompting a new sign-in (we generate and verify the new sign-in with req.sesssion.nonce)
-  return Boolean(
-    authDetails?.blockin &&
-      authDetails?.blockinParams &&
-      authDetails?.cosmosAddress &&
-      authDetails?.address &&
-      authDetails?.blockinParams?.address === authDetails?.address
-  );
+  // // Nonce should not be checked in case you are prompting a new sign-in (we generate and verify the new sign-in with req.sesssion.nonce)
+  // return Boolean(
+  //   authDetails?.blockin &&
+  //     authDetails?.blockinParams &&
+  //     authDetails?.cosmosAddress &&
+  //     authDetails?.address &&
+  //     authDetails?.blockinParams?.address === authDetails?.address
+  // );
 }
 
 export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>, res: Response, collectionId: NumberType): Promise<boolean> {
-  const isAuthenticated = await checkIfAuthenticated(req, res);
-  if (!isAuthenticated) return false;
+  const authDetails = await getAuthDetails(req, res);
+  if (!authDetails) return false;
 
   // Should we account for if the indexer is out of sync / catching up and managerTimeline is potentially different now?
   // I don't think it is that big of a deal. 1) Important stuff is already on the blockchain and 2) they have to be a prev manager
@@ -239,7 +253,6 @@ export async function checkIfManager(req: MaybeAuthenticatedRequest<NumberType>,
   const collection = await mustGetFromDB(CollectionModel, collectionId.toString());
   const manager = collection.getManager();
 
-  const authDetails = await mustGetAuthDetails(req, res);
   if (!manager) return false;
   if (manager !== authDetails.cosmosAddress) return false;
   return true;
@@ -297,9 +310,12 @@ export async function getChallenge(
 }
 
 export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusSuccessResponse>) {
+  const authDetails = await getAuthDetails(req, res);
+
   return res.status(200).send({
-    signedIn: !!(await checkIfAuthenticated(req, res)),
-    message: req.session.blockin ?? '',
+    signedIn: !!authDetails?.blockin,
+    scopes: authDetails?.scopes ?? [],
+    message: authDetails?.blockin ?? '',
     discord: {
       id: req.session.discord?.id ?? '',
       username: req.session.discord?.username ?? '',
@@ -370,6 +386,8 @@ export async function verifyBlockinAndGrantSessionCookie(
   try {
     setMockSessionIfTestMode(req);
 
+    console.log('verifyBlockinAndGrantSessionCookie', body);
+
     const generatedEIP4361ChallengeStr = body.message;
     const challenge = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const chain = getChainForAddress(challenge.address);
@@ -402,13 +420,14 @@ export async function verifyBlockinAndGrantSessionCookie(
               throw new Error('No scopes found for this sign-in method.');
             }
 
-            challenge.resources = scopes.map((x) => SupportedScopes.find((scope) => scope.startsWith(x + ':')) ?? []) as string[];
+            challenge.resources = scopes.map((x) => SupportedScopes.find((scope) => scope.startsWith(x.scopeName + ':')) ?? []) as string[];
             body.message = createChallenge(challenge);
             break;
           }
         }
       }
 
+      console.log('approved', approved, profileDoc.approvedSignInMethods, req.session);
       if (!approved) {
         return res
           .status(401)
@@ -497,7 +516,7 @@ export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberTy
   req.session.save();
 }
 
-export function authorizeBlockinRequest(expectedScopes: string[]) {
+export function authorizeBlockinRequest(expectedScopes: OAuthScopeDetails[]) {
   return async (req: MaybeAuthenticatedRequest<NumberType>, res: Response<ErrorResponse>, next: NextFunction) => {
     try {
       setMockSessionIfTestMode(req);

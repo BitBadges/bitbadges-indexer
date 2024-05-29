@@ -39,7 +39,7 @@ export const getTokensFromFaucet = async (
 
     // acquire the mutex for the documentMutexes map
     const returnValue = await faucetMutex.runExclusive(async () => {
-      const isAuthenticated = await checkIfAuthenticated(req, res, ['Full Access']);
+      const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Full Access' }]);
       if (!isAuthenticated) {
         return { authenticated: false, errorMessage: 'You must be authorized.' };
       }
