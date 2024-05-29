@@ -565,7 +565,7 @@ export const completeClaimHandler = async (
       results.push(result);
 
       if (!result.success) {
-        throw new Error('One or more of the challenges were not satisfied. ' + result.error);
+        throw new Error('One or more of the challenges were not satisfied (' + pluginInstance.metadata.name + '):' + result.error);
       }
     }
 
