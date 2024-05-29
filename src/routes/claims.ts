@@ -473,7 +473,7 @@ export const completeClaimHandler = async (
     const results = [];
     for (const plugin of claimBuilderDoc.plugins) {
       const pluginInstance = await getPlugin(plugin.pluginId);
-      const pluginDoc = await getFromDB(PluginModel, plugin.instanceId, session);
+      const pluginDoc = await getFromDB(PluginModel, plugin.pluginId, session);
 
       if (pluginDoc) {
         if (BigInt(fetchedAt) && BigInt(fetchedAt) > pluginDoc.lastUpdated) {
@@ -524,7 +524,6 @@ export const completeClaimHandler = async (
           adminInfo = authDetails;
           break;
         case 'discord':
-        case 'discord-server':
           adminInfo = authDetails?.discord;
           break;
         case 'twitter':
@@ -538,7 +537,6 @@ export const completeClaimHandler = async (
           break;
         }
         case 'github':
-        case 'github-contributions':
           adminInfo = authDetails?.github;
           break;
         case 'google':

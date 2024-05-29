@@ -27,7 +27,7 @@ export const GenericCustomPluginValidateFunction = async (
   if (!apiCall) {
     return { success: false, error: `No verification call found for plugin ${context.pluginId}.` };
   }
-  
+
   const body = {
     ...customBody,
     ...publicParams,
