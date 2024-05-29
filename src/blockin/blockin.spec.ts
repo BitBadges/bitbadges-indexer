@@ -1166,7 +1166,7 @@ describe('checkIfAuthenticated function', () => {
       });
     profileDoc.approvedSignInMethods = {
       discord: {
-        scopes: ['Complete Claims'],
+        scopes: [{ scopeName: 'Complete Claims' }],
         id: '123456789',
         username: 'test',
         discriminator: '0'
@@ -1217,7 +1217,7 @@ describe('checkIfAuthenticated function', () => {
       });
     profileDoc.approvedSignInMethods = {
       discord: {
-        scopes: ['Complete Claims'],
+        scopes: [{ scopeName: 'Complete Claims' }],
         id: '123456789',
         username: 'test',
         discriminator: '0'

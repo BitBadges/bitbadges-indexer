@@ -189,6 +189,7 @@ export async function initStatus(): Promise<void> {
 
   await insertToDB(PluginModel, {
     _docId: 'min-badge',
+    approvedUsers: [],
     createdBy: '',
     pluginId: 'min-badge',
     requiresSessions: false,
@@ -227,6 +228,7 @@ export async function initStatus(): Promise<void> {
 
   await insertToDB(PluginModel, {
     _docId: 'must-own-badges',
+    approvedUsers: [],
     lastUpdated: Date.now(),
     createdAt: Date.now(),
     toPublish: false,
@@ -265,6 +267,7 @@ export async function initStatus(): Promise<void> {
 
   await insertToDB(PluginModel, {
     _docId: 'github-contributions',
+    approvedUsers: [],
     createdBy: '',
     lastUpdated: Date.now(),
     createdAt: Date.now(),
@@ -277,7 +280,7 @@ export async function initStatus(): Promise<void> {
 
     metadata: {
       name: 'Github Contributions',
-      description: "Check a user's Github contributions.",
+      description: "Check a user's Github contributions to a specific repository.",
       image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/GitHub_Invertocat_Logo.svg/640px-GitHub_Invertocat_Logo.svg.png',
       createdBy: 'BitBadges',
       documentation: 'https://docs.bitbadges.io',
@@ -286,7 +289,7 @@ export async function initStatus(): Promise<void> {
 
     userInputsSchema: [],
     privateParamsSchema: [],
-    publicParamsSchema: [{ key: 'repository', label: 'Repository', type: 'string' }],
+    publicParamsSchema: [{ key: 'repository', label: 'Repository', type: 'string', helper: 'Ex: bitbadges/bitbadges-frontend' }],
     verificationCall: {
       method: 'POST',
       uri: 'https://api.bitbadges.io/api/v0/integrations/query/github-contributions',
@@ -305,6 +308,7 @@ export async function initStatus(): Promise<void> {
 
   await insertToDB(PluginModel, {
     _docId: 'discord-server',
+    approvedUsers: [],
     createdBy: '',
     lastUpdated: Date.now(),
     createdAt: Date.now(),

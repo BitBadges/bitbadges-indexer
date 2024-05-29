@@ -6,7 +6,8 @@ import {
   type iCreatePluginSuccessResponse,
   type iGetPluginSuccessResponse,
   UpdatePluginPayload,
-  iUpdatePluginSuccessResponse
+  iUpdatePluginSuccessResponse,
+  convertToCosmosAddress
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Response } from 'express';
@@ -110,6 +111,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     if (reqPayload.reuseForNonIndexed !== undefined) newDoc.reuseForNonIndexed = reqPayload.reuseForNonIndexed;
     if (reqPayload.toPublish !== undefined) newDoc.toPublish = reqPayload.toPublish;
     if (reqPayload.toPublish === false) newDoc.reviewCompleted = false;
+    if (reqPayload.approvedUsers !== undefined) newDoc.approvedUsers = reqPayload.approvedUsers.map((user) => convertToCosmosAddress(user));
 
     const image = reqPayload.metadata?.image ? await getImage(reqPayload.metadata.image) : reqPayload.metadata?.image;
     if (reqPayload.metadata !== undefined)
@@ -196,6 +198,7 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
         ...reqPayload.metadata,
         image
       },
+      approvedUsers: reqPayload.approvedUsers?.map((user) => convertToCosmosAddress(user)) ?? [],
       verificationCall: reqPayload.verificationCall
         ? {
             ...reqPayload.verificationCall,
@@ -263,13 +266,31 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
       limit: 1000
     });
 
-    return res.status(200).send({
-      plugins: docs.map((doc) => {
-        if (!createdPluginsOnly) {
+    // We also need to fetch the plugins that the user has been approved / invited to
+    if (createdPluginsOnly && authDetails?.cosmosAddress) {
+      const approvedDocs = await findInDB(PluginModel, {
+        query: {
+          approvedUsers: { $elemMatch: { $eq: authDetails.cosmosAddress } }
+        },
+        limit: 1000
+      });
+      docs.push(
+        ...approvedDocs.map((doc) => {
           delete doc.pluginSecret;
-        }
-        return doc;
-      })
+          return doc;
+        })
+      );
+    }
+
+    return res.status(200).send({
+      plugins: docs
+        .map((doc) => {
+          if (!createdPluginsOnly) {
+            delete doc.pluginSecret;
+          }
+          return doc;
+        })
+        .filter((x, i, self) => self.findIndex((t) => t._docId === x._docId) === i)
     });
   } catch (e) {
     console.error(e);

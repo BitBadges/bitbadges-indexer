@@ -124,7 +124,8 @@ export const PluginSchema = new Schema<PluginDoc<JSPrimitiveNumberType>>({
   lastUpdated: Number,
   createdAt: Number,
   deletedAt: Number,
-  toPublish: Boolean
+  toPublish: Boolean,
+  approvedUsers: [String]
 });
 
 export const MapSchema = new Schema<MapDoc<JSPrimitiveNumberType>>({

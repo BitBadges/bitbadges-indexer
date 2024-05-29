@@ -471,7 +471,14 @@ export const completeClaimHandler = async (
     // Must be logged in
     // let email = '';
     const results = [];
+    const specificPluginIdsOnly = req.body._specificPluginsOnly;
     for (const plugin of claimBuilderDoc.plugins) {
+      if (simulate && specificPluginIdsOnly !== undefined) {
+        if (!specificPluginIdsOnly.includes(plugin.instanceId)) {
+          continue;
+        }
+      }
+
       const pluginInstance = await getPlugin(plugin.pluginId);
       const pluginDoc = await getFromDB(PluginModel, plugin.pluginId, session);
 
@@ -565,7 +572,7 @@ export const completeClaimHandler = async (
       results.push(result);
 
       if (!result.success) {
-        throw new Error('One or more of the challenges were not satisfied (' + pluginInstance.metadata.name + '):' + result.error);
+        throw new Error('One or more of the challenges were not satisfied (' + pluginInstance.metadata.name + ') :' + result.error);
       }
     }
 

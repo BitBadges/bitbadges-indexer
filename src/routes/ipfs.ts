@@ -113,8 +113,8 @@ export const assertPluginsUpdateIsValid = async (
     if (!Plugins[type]) {
       const authDetails = await mustGetAuthDetails(req, res);
       const doc = await mustGetFromDB(PluginModel, type);
-      if (!doc.reviewCompleted && doc.createdBy !== authDetails.cosmosAddress) {
-        throw new Error('You must be the owner of private plugins (not published to the directory) to use it.');
+      if (!doc.reviewCompleted && doc.createdBy !== authDetails.cosmosAddress && !doc.approvedUsers.includes(authDetails.cosmosAddress)) {
+        throw new Error('You must be the owner of non-published plugins or approved to use them by the owner.');
       }
     }
   }

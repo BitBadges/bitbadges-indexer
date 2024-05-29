@@ -216,7 +216,7 @@ describe('users', () => {
     profileDoc.notifications = new NotificationPreferences({});
     profileDoc.socialConnections = new SocialConnections({ discord: { username: 'test', id: 'test', lastUpdated: 1n } });
     profileDoc.approvedSignInMethods = {
-      discord: { username: 'test', id: 'test', scopes: ['Complete Claims'] }
+      discord: { username: 'test', id: 'test', scopes: [{ scopeName: 'Complete Claims' }] }
     };
     await insertToDB(ProfileModel, profileDoc);
 
