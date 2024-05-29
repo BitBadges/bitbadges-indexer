@@ -524,6 +524,7 @@ export const completeClaimHandler = async (
           adminInfo = authDetails;
           break;
         case 'discord':
+        case 'discord-server':
           adminInfo = authDetails?.discord;
           break;
         case 'twitter':
@@ -537,6 +538,7 @@ export const completeClaimHandler = async (
           break;
         }
         case 'github':
+        case 'github-contributions':
           adminInfo = authDetails?.github;
           break;
         case 'google':
