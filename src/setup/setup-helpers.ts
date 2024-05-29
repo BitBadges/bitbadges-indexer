@@ -317,7 +317,7 @@ export async function initStatus(): Promise<void> {
     metadata: {
       name: 'Discord Server',
       description: 'Check if a user is in a Discord server.',
-      image: 'https://assets-global.website-files.com/6257adef93867e50d84d30e2/636e0a6a49cf127bf92de1e2_icon_clyde_blurple_RGB.png',
+      image: 'https://static.vecteezy.com/system/resources/previews/006/892/625/original/discord-logo-icon-editorial-free-vector.jpg',
       createdBy: 'BitBadges',
       documentation: 'https://docs.bitbadges.io',
       sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
