@@ -179,7 +179,6 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
         };
       } else if (doc.stateFunctionPreset === PluginPresetType.ClaimNumbers) {
         responseHandler = async (axiosRes: any) => {
-          console.log('axiosRes', axiosRes.data);
           const claimNumber = axiosRes.claimNumber;
           if (claimNumber === undefined) {
             return { success: false, error: 'Invalid response from API' };
