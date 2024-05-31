@@ -1,5 +1,7 @@
 import {
   CollectionApprovalWithDetails,
+  CreateClaimRequest,
+  UpdateClaimRequest,
   deepCopyPrimitives,
   iBadgeMetadataDetails,
   iChallengeDetails,
@@ -63,44 +65,35 @@ export const assertPluginsUpdateIsValid = async (
   res: Response,
   oldPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
   newPlugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>,
+  oldAssignMethod: string | undefined,
+  newAssignMethod: string | undefined,
   isNonIndexed?: boolean
 ) => {
   // cant change assignmethods
 
-  const oldNumUses = getFirstMatchForPluginType('numUses', oldPlugins);
+  // const oldNumUses = getFirstMatchForPluginType('numUses', oldPlugins);
   const newNumUses = getFirstMatchForPluginType('numUses', newPlugins);
 
   if (!newNumUses && !isNonIndexed) {
     throw new Error('numUses plugin is required');
   }
 
-  // In practice, we could allow firstComeFirstServe -> codeIdx
-  // We could also allow codeIdx -> firstComeFirstServe if all codes are linear from 1 (no gaps)
-  // But, for simplicity, we will not allow this for now
-  if (oldNumUses && newNumUses && oldNumUses.publicParams.assignMethod !== newNumUses.publicParams.assignMethod) {
-    throw new Error('Cannot change assignMethod');
-  }
-
   //Assert no duplicate IDs
   for (const plugin of newPlugins) {
     if (newPlugins.filter((x) => x.instanceId === plugin.instanceId).length > 1) {
-      throw new Error('Duplicate plugin IDs are not allowed');
+      throw new Error('Duplicate instance IDs are not allowed');
     }
   }
 
   //Assert plugin IDs are alphanumeric
   for (const plugin of newPlugins) {
     if (!/^[a-zA-Z0-9]*$/.test(plugin.instanceId)) {
-      throw new Error('Plugin IDs must be alphanumeric');
+      throw new Error('Plugin instance IDs must be alphanumeric');
     }
   }
 
   for (const plugin of Object.entries(Plugins)) {
-    let duplicatesAllowed = plugin[1].metadata.duplicatesAllowed;
-    if (newNumUses?.publicParams.assignMethod === 'codeIdx' && plugin[0] === 'codes') {
-      duplicatesAllowed = false;
-    }
-
+    const duplicatesAllowed = plugin[1].metadata.duplicatesAllowed;
     if (duplicatesAllowed) continue;
 
     if (newPlugins.filter((x) => x.pluginId === plugin[0]).length > 1) {
@@ -115,6 +108,21 @@ export const assertPluginsUpdateIsValid = async (
       const doc = await mustGetFromDB(PluginModel, type);
       if (!doc.reviewCompleted && doc.createdBy !== authDetails.cosmosAddress && !doc.approvedUsers.includes(authDetails.cosmosAddress)) {
         throw new Error('You must be the owner of non-published plugins or approved to use them by the owner.');
+      }
+    }
+  }
+
+  if (!newAssignMethod || newAssignMethod === 'firstComeFirstServe') {
+  } else {
+    //Assert that exactly one plugin instance ID is set to assign the claim number
+    let found = false;
+    for (const plugin of newPlugins) {
+      if (plugin.instanceId === newAssignMethod) {
+        if (found) {
+          throw new Error('Only one plugin can assign the claim number');
+        }
+
+        found = true;
       }
     }
   }
@@ -162,8 +170,8 @@ export const updateClaimDocs = async (
   res: Response,
   claimType: ClaimType,
   oldClaimQuery: Record<string, any>,
-  newClaims: Array<iClaimDetails<NumberType>>,
-  context: (claim: iClaimDetails<NumberType>) => ContextReturn,
+  newClaims: Array<CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>>,
+  context: (claim: CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>) => ContextReturn,
   session?: mongoose.ClientSession,
   isCreation?: boolean
 ) => {
@@ -182,6 +190,26 @@ export const updateClaimDocs = async (
     const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
     const encryptedPlugins = await encryptPlugins(claim.plugins ?? []);
 
+    function deepMerge(target: Record<string, any>, source: Record<string, any>) {
+      // Check if the source is an object and not null
+      if (typeof source === 'object' && source !== null) {
+        // Iterate through each key in the source
+        for (const key in source) {
+          // If the source property is also an object, recursively merge
+          if (typeof source[key] === 'object' && source[key] !== null) {
+            if (!target[key]) {
+              target[key] = {};
+            }
+            deepMerge(target[key], source[key]);
+          } else {
+            // Otherwise, directly assign the value
+            target[key] = source[key];
+          }
+        }
+      }
+      return target;
+    }
+
     const state: Record<string, any> = {};
     for (const plugin of pluginsWithOptions ?? []) {
       const pluginObj = await getPlugin(plugin.pluginId);
@@ -190,10 +218,9 @@ export const updateClaimDocs = async (
         state[plugin.instanceId] = pluginObj.defaultState;
       } else if (plugin.newState) {
         if (plugin.onlyUpdateProvidedNewState) {
-          state[plugin.instanceId] = {
-            ...state[plugin.instanceId],
-            ...plugin.newState
-          };
+          console.log('Only updating provided new state', plugin.newState, state[plugin.instanceId]);
+          state[plugin.instanceId] = deepMerge(state[plugin.instanceId], plugin.newState);
+          console.log('After merge', state[plugin.instanceId]);
         } else {
           //Completely overwrite the state
           state[plugin.instanceId] = plugin.newState;
@@ -210,7 +237,15 @@ export const updateClaimDocs = async (
     }
 
     const isNonIndexed = claimType === ClaimType.OffChainNonIndexed;
-    await assertPluginsUpdateIsValid(req, res, existingDoc?.plugins ?? [], claim.plugins ?? [], isNonIndexed);
+    await assertPluginsUpdateIsValid(
+      req,
+      res,
+      existingDoc?.plugins ?? [],
+      claim.plugins ?? [],
+      existingDoc?.assignMethod,
+      existingDoc?.assignMethod ?? (claim as CreateClaimRequest<NumberType>).assignMethod,
+      isNonIndexed
+    );
 
     if (claimType == ClaimType.AddressList) {
       if (!isCreation) {
@@ -258,7 +293,8 @@ export const updateClaimDocs = async (
       );
 
       const isUpdate =
-        pluginsWithOptions.some((x) => x.resetState) || JSON.stringify(decryptedClaimPlugins) !== JSON.stringify(decryptedExistingPlugins);
+        pluginsWithOptions.some((x) => x.resetState || x.newState) ||
+        JSON.stringify(decryptedClaimPlugins) !== JSON.stringify(decryptedExistingPlugins);
       if (!isUpdate) {
         continue;
       }
@@ -330,6 +366,7 @@ export const updateClaimDocs = async (
       const currTime = BigInt(Date.now());
       claimDocsToSet.push({
         ...context(claim),
+        assignMethod: (claim as CreateClaimRequest<NumberType>).assignMethod,
         _docId: claim.claimId,
         state,
         plugins: encryptedPlugins ?? [],
@@ -339,6 +376,7 @@ export const updateClaimDocs = async (
       });
     }
   }
+  console.log(JSON.stringify(claimDocsToSet, null, 2));
 
   if (claimDocsToSet.length > 0) {
     await insertMany(ClaimBuilderModel, claimDocsToSet, session);

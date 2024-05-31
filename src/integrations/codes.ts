@@ -50,8 +50,8 @@ export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
       seedCode: privateParams.seedCode ? AES.decrypt(privateParams.seedCode, symKey).toString(CryptoJS.enc.Utf8) : ''
     };
   },
-  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
-    const pluginId = context.pluginId;
+  validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
+    const instanceId = context.instanceId;
     if (!customBody?.code) {
       return { success: false, error: 'Invalid code in body provided.' };
     }
@@ -75,26 +75,12 @@ export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
     if (priorState.usedCodeIndices[codeIdx]) {
       return { success: false, error: 'Code already used' };
     }
-    const assignMethod = adminInfo.assignMethod;
-    const numUsesPluginId = adminInfo.numUsesPluginId;
 
-    const toSet: Setter[] = [{ $set: { [`state.${pluginId}.usedCodeIndices.${codeIdx}`]: 1 } }];
-    const cosmosAddress = context.cosmosAddress;
-    const claimedUsers = globalState[`${numUsesPluginId}`].claimedUsers;
-
-    if (assignMethod === 'codeIdx') {
-      toSet.push({
-        $set: {
-          [`state.${numUsesPluginId}.claimedUsers.${cosmosAddress}`]: {
-            $concatArrays: [claimedUsers[cosmosAddress] ?? [], [codeIdx]]
-          }
-        }
-      });
-    }
-
+    const toSet: Setter[] = [{ $set: { [`state.${instanceId}.usedCodeIndices.${codeIdx}`]: 1 } }];
     return {
       success: true,
-      toSet
+      toSet,
+      claimNumber: context.isClaimNumberAssigner ? codeIdx : undefined
     };
   },
   getPublicState: (currState) => {

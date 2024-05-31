@@ -20,7 +20,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, twitterInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, context.pluginId);
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, context.instanceId);
   },
   getPublicState: () => {
     return {};
@@ -39,7 +39,7 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
   priorState?: any,
   globalState?: any,
   oauthInfo?: any,
-  pluginId?: string
+  instanceId?: string
 ) => {
   const params = privateParams;
   const maxUsesPerUser = publicParams.maxUsesPerUser || 0;
@@ -64,7 +64,8 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
   // Handle "." in oauthInfo.username
   oauthInfo.username = oauthInfo.username.replace(/\./g, '[dot]');
 
-  if (priorState.ids[oauthInfo.id] && maxUsesPerUser > 0 && priorState.ids[oauthInfo.id] >= maxUsesPerUser) {
+  const currNumUses = priorState.ids[oauthInfo.id] || 0;
+  if (maxUsesPerUser > 0 && currNumUses >= maxUsesPerUser) {
     return { success: false, error: 'User already exceeded max uses' };
   }
 
@@ -87,8 +88,8 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
   return {
     success: true,
     toSet: [
-      { $set: { [`state.${pluginId}.ids.${oauthInfo.id}`]: 1 } },
-      { $set: { [`state.${pluginId}.usernames.${oauthInfo.username}`]: oauthInfo.id } }
+      { $set: { [`state.${instanceId}.ids.${oauthInfo.id}`]: currNumUses + 1 } },
+      { $set: { [`state.${instanceId}.usernames.${oauthInfo.username}`]: oauthInfo.id } }
     ]
   };
 };
@@ -112,7 +113,7 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, googleInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, context.pluginId);
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, context.instanceId);
   },
   getPublicState: () => {
     return {};
@@ -141,7 +142,7 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
 //     return privateParams;
 //   },
 //   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
-//     return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, context.pluginId);
+//     return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, context.instanceId);
 //   },
 //   getPublicState: () => {
 //     return {};
@@ -170,7 +171,7 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, githubInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, context.pluginId);
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, context.instanceId);
   },
   getPublicState: () => {
     return {};
@@ -208,7 +209,7 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
       priorState,
       globalState,
       { ...adminInfo, username },
-      context.pluginId
+      context.instanceId
     );
   },
   getPublicState: () => {

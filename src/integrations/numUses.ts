@@ -16,57 +16,22 @@ export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
     duplicatesAllowed: false
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
-    const pluginId = context.pluginId;
+    const instanceId = context.instanceId;
     if (publicParams.maxUses && priorState.numUses >= publicParams.maxUses) {
       return { success: false, error: 'Overall max uses exceeded' };
     }
 
-    const maxUsesPerAddress = publicParams.maxUsesPerAddress;
-
-    const claimedUsers = priorState?.claimedUsers ? priorState.claimedUsers : {};
-    const cosmosAddress = context.cosmosAddress;
-    const prevUsedIdxs = claimedUsers[cosmosAddress] ?? [];
-
-    if (maxUsesPerAddress) {
-      if (prevUsedIdxs.length >= maxUsesPerAddress) {
-        return { success: false, error: 'Exceeded max uses for this address' };
-      }
-    }
-
-    const assignMethod = publicParams.assignMethod;
-    if (assignMethod === 'firstComeFirstServe' || !assignMethod) {
-      // defaults to this
-      return {
-        success: true,
-        toSet: [
-          {
-            $set: {
-              [`state.${pluginId}.numUses`]: { $add: [`$state.${pluginId}.numUses`, 1] }
-            }
-          },
-          {
-            $set: {
-              [`state.${pluginId}.claimedUsers.${cosmosAddress}`]: {
-                $concatArrays: [claimedUsers[cosmosAddress] ?? [], [{ $subtract: [`$state.${pluginId}.numUses`, 1] }]]
-              }
-            }
+    return {
+      success: true,
+      claimNumber: context.isClaimNumberAssigner ? priorState.numUses : undefined,
+      toSet: [
+        {
+          $set: {
+            [`state.${instanceId}.numUses`]: { $add: [`$state.${instanceId}.numUses`, 1] }
           }
-        ]
-      };
-    } else if (assignMethod === 'codeIdx') {
-      return {
-        success: true,
-        toSet: [
-          {
-            $set: {
-              [`state.${pluginId}.numUses`]: { $add: [`$state.${pluginId}.numUses`, 1] }
-            }
-          }
-        ]
-      };
-    } else {
-      throw new Error('Invalid assignMethod');
-    }
+        }
+      ]
+    };
   },
   getPublicState: (currState) => {
     return {

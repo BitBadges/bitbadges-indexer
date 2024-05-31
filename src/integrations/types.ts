@@ -6,7 +6,8 @@ import {
   type ClaimIntegrationPrivateParamsType,
   type ClaimIntegrationPublicParamsType,
   type ClaimIntegrationPublicStateType,
-  type IntegrationPluginParams
+  type IntegrationPluginParams,
+  BigIntify
 } from 'bitbadgesjs-sdk';
 import { mustGetFromDB } from '../db/db';
 import { PluginModel } from '../db/schemas';
@@ -21,6 +22,11 @@ export interface ContextInfo {
   _isSimulation: boolean;
   lastUpdated: number;
   createdAt: number;
+  claimAttemptId: string;
+  assignMethod: string | undefined;
+  isClaimNumberAssigner: boolean;
+  maxUses: number;
+  currUses: number;
 }
 
 export interface IntegrationMetadata {
@@ -43,14 +49,14 @@ export interface BackendIntegrationPlugin<P extends ClaimIntegrationPluginType> 
   type: P;
   metadata: IntegrationMetadata;
   validateFunction: (
-    context: ContextInfo & { pluginId: string; pluginType: string },
+    context: ContextInfo & { instanceId: string; pluginId: string },
     publicParams: ClaimIntegrationPublicParamsType<P>,
     privateParams: ClaimIntegrationPrivateParamsType<P>,
     customBody?: ClaimIntegrationCustomBodyType<P>, // if stateless, we will have no customBody
     priorState?: any, // if stateless, we will have no priorState
     globalState?: any, // if not scoped, we will have a readonly globalState
     adminInfo?: any // if not scoped, we will have a readonly globalState
-  ) => Promise<{ success: boolean; error?: string; toSet?: object[]; data?: any }>;
+  ) => Promise<{ success: boolean; error?: string; toSet?: object[]; data?: any; claimNumber?: number }>;
   defaultState: any;
   getPublicState: (currState: any) => ClaimIntegrationPublicStateType<P>;
   getPrivateState?: (currState: any) => ClaimIntegrationPrivateStateType<P>;
@@ -63,7 +69,7 @@ interface CustomIntegrationPlugin<T extends ClaimIntegrationPluginType> {
   type: T;
   responseHandler?: (data: any) => Promise<{ success: boolean; error?: string; toSet?: object[] }>;
   validateFunction?: (
-    context: ContextInfo & { pluginId: string; pluginType: string },
+    context: ContextInfo & { instanceId: string; pluginId: string },
     publicParams: ClaimIntegrationPublicParamsType<T>,
     privateParams: ClaimIntegrationPrivateParamsType<T>,
     customBody?: ClaimIntegrationCustomBodyType<T>, // if stateless, we will have no customBody
@@ -89,7 +95,7 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
     metadata: {
       ...doc.metadata,
       duplicatesAllowed: doc.duplicatesAllowed,
-      stateless: doc.stateFunctionPreset === PluginPresetType.Stateless,
+      stateless: doc.stateFunctionPreset === PluginPresetType.Stateless || doc.stateFunctionPreset === PluginPresetType.ClaimNumbers,
       scoped: false
     },
     validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
@@ -108,12 +114,12 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
             priorState,
             globalState,
             { id, username },
-            context.pluginId
+            context.instanceId
           );
         };
       } else if (doc.stateFunctionPreset === PluginPresetType.ClaimToken) {
         responseHandler = async (axiosRes: any) => {
-          const pluginId = context.pluginId;
+          const instanceId = context.instanceId;
           const claimToken = axiosRes.data.claimToken?.toString();
           if (!claimToken) {
             return { success: false, error: 'Invalid response from API' };
@@ -123,7 +129,7 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
             return { success: false, error: 'Claim token already used' };
           }
 
-          const toSet: Setter[] = [{ $set: { [`state.${pluginId}.usedTokens.${claimToken}`]: 1 } }];
+          const toSet: Setter[] = [{ $set: { [`state.${instanceId}.usedTokens.${claimToken}`]: 1 } }];
 
           return {
             success: true,
@@ -160,7 +166,7 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
         responseHandler = customPlugin.responseHandler;
       } else if (doc.stateFunctionPreset === PluginPresetType.StateTransitions) {
         responseHandler = async (axiosRes: any) => {
-          const pluginId = context.pluginId;
+          const pluginId = context.instanceId;
           const newState = JSON.parse(JSON.stringify(axiosRes.data.newState));
           if (!newState) {
             return { success: false, error: 'Invalid response from API' };
@@ -169,6 +175,25 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
           return {
             success: true,
             toSet: [{ $set: { [`state.${pluginId}`]: newState } }]
+          };
+        };
+      } else if (doc.stateFunctionPreset === PluginPresetType.ClaimNumbers) {
+        responseHandler = async (axiosRes: any) => {
+          const claimNumber = axiosRes.data.claimNumber;
+          if (claimNumber === undefined) {
+            return { success: false, error: 'Invalid response from API' };
+          }
+
+          BigIntify(claimNumber);
+
+          if (claimNumber < 0) {
+            return { success: false, error: 'Invalid claim number' };
+          }
+
+          return {
+            success: true,
+            toSet: [],
+            claimNumber
           };
         };
       }
@@ -192,7 +217,9 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
           ? {}
           : doc.stateFunctionPreset === PluginPresetType.CompletelyCustom || doc.stateFunctionPreset === PluginPresetType.CustomResponseHandler
             ? CustomPluginFunctions[doc.pluginId].defaultState
-            : { usedTokens: {} },
+            : doc.stateFunctionPreset === PluginPresetType.ClaimToken
+              ? { usedTokens: {} }
+              : {},
     getPublicState: () => {
       if (doc.stateFunctionPreset === PluginPresetType.CompletelyCustom || doc.stateFunctionPreset === PluginPresetType.CustomResponseHandler) {
         return CustomPluginFunctions[doc.pluginId].getPublicState({}) as ClaimIntegrationPublicStateType<T>;

@@ -829,6 +829,7 @@ export const handleQueueItems = async (block: bigint) => {
           { session: queueObj.claimInfo.session, body: queueObj.claimInfo.body },
           queueObj.claimInfo.claimId,
           queueObj.claimInfo.cosmosAddress,
+          queueObj._docId,
           false
         );
         await deleteMany(QueueModel, [queueObj._docId]);

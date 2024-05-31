@@ -122,11 +122,17 @@ export const getBalanceForAddress = async (
           {
             cosmosAddress,
             claimId: claim._docId,
-            pluginId: plugin.instanceId,
-            pluginType: plugin.pluginId,
+            claimAttemptId: '',
+            instanceId: plugin.instanceId,
+            pluginId: plugin.pluginId,
             _isSimulation: false,
             lastUpdated: Number(claim.lastUpdated),
-            createdAt: Number(claim.createdAt)
+            createdAt: Number(claim.createdAt),
+            // Not applicable
+            assignMethod: claim.assignMethod,
+            isClaimNumberAssigner: false,
+            maxUses: 0,
+            currUses: 0
           },
           plugin.publicParams,
           plugin.privateParams

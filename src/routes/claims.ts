@@ -4,10 +4,11 @@ import {
   ClaimBuilderDoc,
   CosmosAddress,
   CreateClaimPayload,
+  CreateClaimRequest,
   UpdateClaimPayload,
+  UpdateClaimRequest,
   convertToCosmosAddress,
   iClaimBuilderDoc,
-  iClaimDetails,
   iCreateClaimSuccessResponse,
   iGetClaimAttemptStatusSuccessResponse,
   iGetReservedClaimCodesSuccessResponse,
@@ -88,7 +89,11 @@ enum ActionType {
 
 //Wrappers so we don't have to repeat the context functions
 
-export const createListClaimContextFunction = (cosmosAddress: string, claim: iClaimDetails<NumberType>, listId: string): ContextReturn => {
+export const createListClaimContextFunction = (
+  cosmosAddress: string,
+  claim: CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>,
+  listId: string
+): ContextReturn => {
   return {
     metadata: claim.metadata,
     automatic: claim.automatic,
@@ -102,7 +107,7 @@ export const createListClaimContextFunction = (cosmosAddress: string, claim: iCl
 
 export const createOffChainClaimContextFunction = (
   cosmosAddress: string,
-  claim: iClaimDetails<NumberType>,
+  claim: CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>,
   collectionId: number,
   cid: string
 ): ContextReturn => {
@@ -124,7 +129,11 @@ export const createOffChainClaimContextFunction = (
   };
 };
 
-export const createOnChainClaimContextFunction = (cosmosAddress: string, claim: iClaimDetails<NumberType>, seedCode: string): ContextReturn => {
+export const createOnChainClaimContextFunction = (
+  cosmosAddress: string,
+  claim: CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>,
+  seedCode: string
+): ContextReturn => {
   const encryptedAction = getCorePlugin('codes').encryptPrivateParams({
     codes: [],
     seedCode: seedCode ?? ''
@@ -146,7 +155,7 @@ export const createOnChainClaimContextFunction = (cosmosAddress: string, claim: 
 
 export const updateListClaimContextFunction = (
   cosmosAddress: string,
-  claim: iClaimDetails<NumberType>,
+  claim: CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>,
   claimDoc: ClaimBuilderDoc<NumberType>
 ): ContextReturn => {
   return {
@@ -162,7 +171,7 @@ export const updateListClaimContextFunction = (
 
 export const updateOffChainClaimContextFunction = (
   cosmosAddress: string,
-  claim: iClaimDetails<NumberType>,
+  claim: CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>,
   claimDoc: ClaimBuilderDoc<NumberType>
 ): ContextReturn => {
   return {
@@ -179,7 +188,7 @@ export const updateOffChainClaimContextFunction = (
 
 export const updateOnChainClaimContextFunction = (
   cosmosAddress: string,
-  claim: iClaimDetails<NumberType>,
+  claim: CreateClaimRequest<NumberType> | UpdateClaimRequest<NumberType>,
   claimDoc: ClaimBuilderDoc<NumberType>
 ): ContextReturn => {
   return {
@@ -397,6 +406,7 @@ export const completeClaimHandler = async (
   req: { session: BlockinSession<NumberType>; body: any },
   claimId: string,
   cosmosAddress: CosmosAddress,
+  claimAttemptId: string,
   simulate = false,
   prevCodesOnly = false
 ): Promise<iGetReservedClaimCodesSuccessResponse> => {
@@ -418,14 +428,6 @@ export const completeClaimHandler = async (
     if (BigInt(fetchedAt) && claimBuilderDocResponse[0].lastUpdated > BigInt(fetchedAt)) {
       throw new Error('Claim has been updated since last fetch');
     }
-
-    const context: ContextInfo = Object.freeze({
-      cosmosAddress,
-      claimId,
-      _isSimulation: simulate,
-      lastUpdated: Number(claimBuilderDocResponse[0].lastUpdated),
-      createdAt: Number(claimBuilderDocResponse[0].createdAt)
-    });
 
     const claimBuilderDoc = claimBuilderDocResponse[0];
     if (claimBuilderDoc.manualDistribution) {
@@ -456,6 +458,19 @@ export const completeClaimHandler = async (
 
     const numUsesPluginId = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.instanceId;
 
+    const context: ContextInfo = Object.freeze({
+      cosmosAddress,
+      claimId,
+      _isSimulation: simulate,
+      assignMethod: claimBuilderDoc.assignMethod,
+      lastUpdated: Number(claimBuilderDocResponse[0].lastUpdated),
+      createdAt: Number(claimBuilderDocResponse[0].createdAt),
+      claimAttemptId,
+      isClaimNumberAssigner: false,
+      maxUses: getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.maxUses ?? 0,
+      currUses: claimBuilderDoc.state[`${numUsesPluginId}`].numUses ?? 0
+    });
+
     if (actionType === ActionType.Code && prevCodesOnly) {
       const prevUsedIdxs = claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers[context.cosmosAddress] ?? [];
 
@@ -474,6 +489,7 @@ export const completeClaimHandler = async (
     // let email = '';
     const results = [];
     const specificPluginIdsOnly = req.body._specificPluginsOnly;
+    let claimNumber = -1;
     for (const plugin of claimBuilderDoc.plugins) {
       if (simulate && specificPluginIdsOnly !== undefined) {
         if (!specificPluginIdsOnly.includes(plugin.instanceId)) {
@@ -523,8 +539,10 @@ export const completeClaimHandler = async (
           discord: authDetails?.discord,
           twitter: authDetails?.twitter,
           github: authDetails?.github,
-          google: authDetails?.google
+          google: authDetails?.google,
           // email
+
+          numUsesState: claimBuilderDoc.state[`${numUsesPluginId}`]
         };
       }
 
@@ -540,7 +558,7 @@ export const completeClaimHandler = async (
           break;
         case 'codes': {
           adminInfo = {
-            assignMethod: getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.assignMethod,
+            assignMethod: claimBuilderDoc.assignMethod,
             numUsesPluginId: getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.instanceId
           };
           break;
@@ -561,8 +579,15 @@ export const completeClaimHandler = async (
           break;
       }
 
+      let isClaimNumberAssigner = false;
+      if (plugin.pluginId === 'numUses' && claimBuilderDoc.plugins.every((x) => claimBuilderDoc.assignMethod !== x.instanceId)) {
+        isClaimNumberAssigner = true;
+      } else if (claimBuilderDoc.assignMethod === plugin.instanceId) {
+        isClaimNumberAssigner = true;
+      }
+
       const result = await pluginInstance.validateFunction(
-        { ...context, pluginId: plugin.instanceId, pluginType: plugin.pluginId },
+        { ...context, instanceId: plugin.instanceId, pluginId: plugin.pluginId, isClaimNumberAssigner: isClaimNumberAssigner },
         Object.freeze(plugin.publicParams),
         Object.freeze(pluginInstance.decryptPrivateParams(plugin.privateParams)),
         req.body[plugin.instanceId],
@@ -574,8 +599,34 @@ export const completeClaimHandler = async (
       results.push(result);
 
       if (!result.success) {
-        throw new Error('One or more of the challenges were not satisfied (' + pluginInstance.metadata.name + ') :' + result.error);
+        throw new Error('One or more of the challenges were not satisfied (' + pluginInstance.metadata.name + ') : ' + result.error);
       }
+
+      if (isClaimNumberAssigner) {
+        if (result.claimNumber === undefined) {
+          throw new Error('Claim number not found');
+        }
+
+        claimNumber = result.claimNumber;
+        if (claimNumber < 0) {
+          throw new Error('Invalid claim number');
+        }
+
+        BigIntify(claimNumber); // Ensure it's a BigInt compatible number
+      }
+    }
+
+    BigIntify(claimNumber); // Ensure it's a BigInt compatible number
+
+    const maxUses = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.maxUses;
+    if (claimNumber < 0 || (maxUses && claimNumber >= maxUses)) {
+      throw new Error('Invalid claim number');
+    }
+
+    //Check if already used
+    const allUsedClaimNumbers = Object.values(claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers).flat();
+    if (allUsedClaimNumbers.includes(claimNumber)) {
+      throw new Error('Claim number already used: ' + claimNumber);
     }
 
     if (simulate) {
@@ -586,6 +637,16 @@ export const completeClaimHandler = async (
       .map((result) => result.toSet)
       .filter((x) => x)
       .flat();
+
+    // Handle setting the claim number
+    const claimedUsers = claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers;
+    setters.push({
+      $set: {
+        [`state.${numUsesPluginId}.claimedUsers.${cosmosAddress}`]: {
+          $concatArrays: [claimedUsers[cosmosAddress] ?? [], [claimNumber]]
+        }
+      }
+    });
 
     // Find the doc, increment currCode, and add the given code idx to claimedUsers
     const newDoc = await ClaimBuilderModel.findOneAndUpdate(
@@ -644,7 +705,7 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     const simulate = true;
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
 
-    await completeClaimHandler(req, claimId, cosmosAddress, simulate);
+    await completeClaimHandler(req, claimId, cosmosAddress, '', simulate);
     return res.status(200).send({ claimAttemptId: 'This is just a simulation. Your ID will be returned here when you complete the claim for real.' });
   } catch (e) {
     console.error(e);
@@ -669,7 +730,7 @@ export const getReservedClaimCodes = async (
 
     const claimId = req.params.claimId;
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
-    const response = await completeClaimHandler(req, claimId, cosmosAddress, true, true);
+    const response = await completeClaimHandler(req, claimId, cosmosAddress, '', true, true);
     return res.status(200).send(response);
   } catch (e) {
     console.error(e);
@@ -722,14 +783,14 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     //Simulate and return an error immediately if not valid
     const claimId = req.params.claimId;
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
-    const response = await completeClaimHandler(req, claimId, cosmosAddress, process.env.TEST_MODE !== 'true');
+    const randomId = crypto.randomBytes(32).toString('hex');
+    const response = await completeClaimHandler(req, claimId, cosmosAddress, randomId, process.env.TEST_MODE !== 'true');
 
     //For tessting purposes, return a random claimAttemptId and do not use queue
     if (process.env.TEST_MODE === 'true') {
       return res.status(200).send(response as any); // For testing purposes
     }
 
-    const randomId = crypto.randomBytes(32).toString('hex');
     const authDetails = await getAuthDetails(req, res);
     const newQueueDoc: iQueueDoc<bigint> = {
       _docId: randomId,

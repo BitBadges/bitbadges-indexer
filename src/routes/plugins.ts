@@ -12,7 +12,13 @@ import {
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { checkIfAuthenticated, type AuthenticatedRequest, mustGetAuthDetails, getAuthDetails } from '../blockin/blockin_handlers';
+import {
+  checkIfAuthenticated,
+  type AuthenticatedRequest,
+  mustGetAuthDetails,
+  getAuthDetails,
+  setMockSessionIfTestMode
+} from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { PluginModel } from '../db/schemas';
@@ -82,6 +88,8 @@ export const validatePlugin = (reqPayload: CreatePluginPayload) => {
 
 export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdatePluginSuccessResponse | ErrorResponse>) => {
   try {
+    setMockSessionIfTestMode(req);
+
     const reqPayload = req.body as UpdatePluginPayload;
 
     const existingDoc = await mustGetFromDB(PluginModel, reqPayload.pluginId);
@@ -139,6 +147,8 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
 
 export const deletePlugin = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdatePluginSuccessResponse | ErrorResponse>) => {
   try {
+    setMockSessionIfTestMode(req);
+
     const reqPayload = req.body as UpdatePluginPayload;
     const authDetails = await mustGetAuthDetails(req, res);
     const existingDoc = await mustGetFromDB(PluginModel, reqPayload.pluginId);
@@ -173,6 +183,8 @@ export const deletePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
 
 export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreatePluginSuccessResponse | ErrorResponse>) => {
   try {
+    setMockSessionIfTestMode(req);
+
     const reqPayload = req.body as CreatePluginPayload;
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
     const validationErr = validatePlugin(reqPayload);
@@ -219,7 +231,7 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
       pluginSecret: uniqueClientSecret,
       reviewCompleted: false,
       userInputRedirect: reqPayload.requiresUserInputs ? reqPayload.userInputRedirect : undefined,
-      claimCreatorRedirect: reqPayload.requiresUserInputs ? reqPayload.claimCreatorRedirect : undefined,
+      claimCreatorRedirect: reqPayload.claimCreatorRedirect,
       lastUpdated: Date.now(),
       createdAt: Date.now()
     });
@@ -236,6 +248,8 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
 
 export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetPluginSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
+    setMockSessionIfTestMode(req);
+
     const reqPayload = req.body as unknown as GetPluginPayload;
     const { createdPluginsOnly, pluginId } = reqPayload;
 

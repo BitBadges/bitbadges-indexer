@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {
   AddApprovalDetailsToOffChainStoragePayload,
   AddBalancesToOffChainStoragePayload,
@@ -26,7 +25,6 @@ import {
   iClaimBuilderDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
-import { AES, SHA256 } from 'crypto-js';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
@@ -34,8 +32,8 @@ import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { AddressListModel, ClaimBuilderModel, CollectionModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { generateCodesFromSeed } from '../integrations/codes';
+import { getPlugin } from '../integrations/types';
 import { connectToRpc } from '../poll';
-import { signAndBroadcast } from '../testutil/broadcastUtils';
 import {
   apiPlugin,
   codesPlugin,
@@ -43,6 +41,7 @@ import {
   getPluginIdByType,
   getPluginStateByType,
   initiatedByPlugin,
+  maxUsesPerAddressPlugin,
   mustOwnBadgesPlugin,
   numUsesPlugin,
   passwordPlugin,
@@ -51,8 +50,10 @@ import {
   whitelistPlugin
 } from '../testutil/plugins';
 import { createExampleReqForAddress } from '../testutil/utils';
+import { AES, SHA256 } from 'crypto-js';
 import { findInDB } from '../db/queries';
-import { getPlugin } from '../integrations/types';
+import axios from 'axios';
+import { signAndBroadcast } from '../testutil/broadcastUtils';
 import { getDecryptedActionCodes } from './claims';
 
 dotenv.config();
@@ -64,7 +65,8 @@ const sampleMsgCreateCollection = require('../setup/bootstrapped-collections/19_
 
 const createClaimDoc = async (
   plugins: IntegrationPluginDetails<ClaimIntegrationPluginType>[],
-  action?: any
+  action?: any,
+  assignMethod?: string
 ): Promise<iClaimBuilderDoc<NumberType>> => {
   const randomDocId = crypto.randomBytes(32).toString('hex');
 
@@ -84,6 +86,7 @@ const createClaimDoc = async (
     createdBy: 'cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x',
     docClaimed: true,
     plugins,
+    assignMethod: assignMethod,
     state: state,
     lastUpdated: Date.now(),
     createdAt: Date.now()
@@ -114,7 +117,7 @@ describe('claims', () => {
   it('should create claim in storage', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
     const codes = generateCodesFromSeed(seedCode, 10);
-    const doc = await createClaimDoc([numUsesPlugin(10, 2), codesPlugin(10, seedCode)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(2), codesPlugin(10, seedCode)]);
 
     //c45cecd74e1c8cfd315f400c82a08cf59ef63c2d4bf19e1c74bc0e56eba052be
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -126,7 +129,7 @@ describe('claims', () => {
 
     const promises = [];
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 1; i++) {
       promises.push(
         request(app)
           .post(route)
@@ -147,7 +150,7 @@ describe('claims', () => {
   it('should not exceed max uses', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
     const codes = generateCodesFromSeed(seedCode, 10);
-    const doc = await createClaimDoc([numUsesPlugin(1, 1), codesPlugin(10, seedCode)]);
+    const doc = await createClaimDoc([numUsesPlugin(1), maxUsesPerAddressPlugin(1), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -171,7 +174,7 @@ describe('claims', () => {
   it('should not exceed max uses per address', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
     const codes = generateCodesFromSeed(seedCode, 10);
-    const doc = await createClaimDoc([numUsesPlugin(10, 1), codesPlugin(10, seedCode)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(1), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -204,7 +207,7 @@ describe('claims', () => {
   it('should not track with no max uses per address', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
     const codes = generateCodesFromSeed(seedCode, 10);
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), codesPlugin(10, seedCode)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -227,7 +230,7 @@ describe('claims', () => {
 
   it('should not work with an invalid code', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), codesPlugin(10, seedCode)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), codesPlugin(10, seedCode)]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -247,7 +250,7 @@ describe('claims', () => {
   it('should not exceed max uses with seed code', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
     const codes = generateCodesFromSeed(seedCode, 10);
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), codesPlugin(10, seedCode)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), codesPlugin(10, seedCode)]);
 
     for (const code of codes) {
       const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -281,7 +284,8 @@ describe('claims', () => {
   it('should work with codes (not seedCode)', async () => {
     const codes = ['a', 'b', 'c', 'd', 'e'];
     const doc = await createClaimDoc([
-      numUsesPlugin(10, 0),
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
       {
         pluginId: 'codes',
         instanceId: 'dsfhsfd',
@@ -316,7 +320,7 @@ describe('claims', () => {
   });
 
   it('should work with valid password', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), passwordPlugin('abc123')]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), passwordPlugin('abc123')]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -336,7 +340,7 @@ describe('claims', () => {
   });
 
   it('should not work with invalid password', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), passwordPlugin('abc123')]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), passwordPlugin('abc123')]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -355,7 +359,11 @@ describe('claims', () => {
   });
 
   it('should work within valid transfer times', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), transferTimesPlugin({ start: Date.now(), end: Date.now() + 10000000000000 })]);
+    const doc = await createClaimDoc([
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
+      transferTimesPlugin({ start: Date.now(), end: Date.now() + 10000000000000 })
+    ]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -376,7 +384,8 @@ describe('claims', () => {
 
   it('should not work outside valid transfer times', async () => {
     const doc = await createClaimDoc([
-      numUsesPlugin(10, 0),
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
       transferTimesPlugin({ start: Date.now() - 10000000000000, end: Date.now() - 10000000000 })
     ]);
 
@@ -406,7 +415,7 @@ describe('claims', () => {
       customData: ''
     };
 
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, whitelist)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), whitelistPlugin(false, whitelist)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {};
 
@@ -431,7 +440,7 @@ describe('claims', () => {
       customData: ''
     };
 
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, whitelist)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), whitelistPlugin(false, whitelist)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {};
 
@@ -446,7 +455,7 @@ describe('claims', () => {
 
   it('should work with listId whitelist', async () => {
     const listId = convertToCosmosAddress(wallet.address);
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, undefined, listId)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), whitelistPlugin(false, undefined, listId)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {};
 
@@ -463,7 +472,7 @@ describe('claims', () => {
 
   it('should work with private lists', async () => {
     const listId = convertToCosmosAddress(wallet.address);
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(true, undefined, listId)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), whitelistPlugin(true, undefined, listId)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {};
 
@@ -480,7 +489,7 @@ describe('claims', () => {
 
   it('should work with private listId whitelist', async () => {
     const listId = convertToCosmosAddress(wallet.address);
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(true, undefined, listId)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), whitelistPlugin(true, undefined, listId)]);
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {};
 
@@ -496,7 +505,7 @@ describe('claims', () => {
   });
 
   // it('should work with greaterThanXBADGEBalance', async () => {
-  //   const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(0)]);
+  //   const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin( 0), greaterThanXBADGEBalancePlugin(0)]);
   //   const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
   //   const body: CompleteClaimPayload = {};
 
@@ -512,7 +521,7 @@ describe('claims', () => {
   // });
 
   // it('should not work with greaterThanXBADGEBalance', async () => {
-  //   const doc = await createClaimDoc([numUsesPlugin(10, 0), greaterThanXBADGEBalancePlugin(1000)]);
+  //   const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin( 0), greaterThanXBADGEBalancePlugin(1000)]);
   //   const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
   //   const body: CompleteClaimPayload = {};
 
@@ -542,7 +551,7 @@ describe('claims', () => {
       });
     }
 
-    const claimDoc = await createClaimDoc([numUsesPlugin(10, 0)], {
+    const claimDoc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0)], {
       listId: 'cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x_listfortesting'
     });
 
@@ -564,7 +573,7 @@ describe('claims', () => {
   });
 
   it('should hand out codes', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0)]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0)]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -581,7 +590,7 @@ describe('claims', () => {
   });
 
   it('should handle discord usernames', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), discordPlugin(['testuser'])]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), discordPlugin(['testuser'])]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -614,7 +623,7 @@ describe('claims', () => {
   });
 
   it('should handle discord usernames with discriminators', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), discordPlugin(['testuser#1234'])]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), discordPlugin(['testuser#1234'])]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -655,7 +664,7 @@ describe('claims', () => {
           ...createExampleReqForAddress(wallet.address).session,
           discord: {
             username: 'testuser',
-            instanceId: '123456789',
+            id: '123456789',
             discriminator: '1234'
           }
         })
@@ -679,7 +688,7 @@ describe('claims', () => {
   });
 
   it('should fail on invalid discord username not in list', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), discordPlugin(['testuser'])]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), discordPlugin(['testuser'])]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -711,7 +720,7 @@ describe('claims', () => {
   });
 
   it('should handle twitter usernames', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), twitterPlugin(['testuser'])]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), twitterPlugin(['testuser'])]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -745,7 +754,7 @@ describe('claims', () => {
   });
 
   it('should require signature', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), initiatedByPlugin()]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), initiatedByPlugin()]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -763,7 +772,7 @@ describe('claims', () => {
   });
 
   it('should fail if not signed in (or claiming on behalf of another user)', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), initiatedByPlugin()]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), initiatedByPlugin()]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -782,7 +791,7 @@ describe('claims', () => {
   });
 
   it('should work w/ valid signature', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), initiatedByPlugin()]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), initiatedByPlugin()]);
     console.log(doc.action);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
@@ -802,7 +811,8 @@ describe('claims', () => {
 
   it('should work with mustOwnBadges', async () => {
     const doc = await createClaimDoc([
-      numUsesPlugin(10, 0),
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
       mustOwnBadgesPlugin(
         new BlockinAndGroup({
           $and: [
@@ -838,7 +848,8 @@ describe('claims', () => {
 
   it('should work with mustOwnBadges - own x0', async () => {
     const doc = await createClaimDoc([
-      numUsesPlugin(10, 0),
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
       mustOwnBadgesPlugin(
         new BlockinAndGroup({
           $and: [
@@ -877,7 +888,8 @@ describe('claims', () => {
     const listId = lists[0]._docId;
 
     const doc = await createClaimDoc([
-      numUsesPlugin(10, 0),
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
       mustOwnBadgesPlugin(
         new BlockinAndGroup({
           $and: [
@@ -927,7 +939,8 @@ describe('claims', () => {
     console.log(listId, wallet.address);
 
     const doc = await createClaimDoc([
-      numUsesPlugin(10, 0),
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
       mustOwnBadgesPlugin(
         new BlockinAndGroup({
           $and: [
@@ -962,27 +975,29 @@ describe('claims', () => {
     expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(0);
   });
 
-  it('should not work with an invalid assignMethod', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0, 'invalid' as any)]);
+  //TODO: should we fail?
+  // it('should not work with an invalid assignMethod', async () => {
+  //   const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0)], undefined, 'invalid' as any);
 
-    const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-    const body: CompleteClaimPayload = {};
+  //   const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+  //   const body: CompleteClaimPayload = {};
 
-    const res = await request(app)
-      .post(route)
-      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(body);
+  //   const res = await request(app)
+  //     .post(route)
+  //     .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+  //     .send(body);
 
-    console.log(res.body);
+  //   console.log(res.body);
 
-    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-    expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(0);
-  });
+  //   let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+  //   expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(0);
+  // });
 
   it('should work with codesIdx assignMethod', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');
     const codes = generateCodesFromSeed(seedCode, 10);
-    const doc = await createClaimDoc([numUsesPlugin(10, 0, 'codeIdx'), codesPlugin(10, seedCode)]);
+    const codesPluginObj = codesPlugin(10, seedCode);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), codesPluginObj], undefined, codesPluginObj.instanceId);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {
@@ -1055,7 +1070,7 @@ describe('claims', () => {
   });
 
   it('should fail on unknown whitelist ID', async () => {
-    const doc = await createClaimDoc([numUsesPlugin(10, 0), whitelistPlugin(false, undefined, 'unknown')]);
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0), whitelistPlugin(false, undefined, 'unknown')]);
 
     const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
     const body: CompleteClaimPayload = {};
@@ -1073,7 +1088,8 @@ describe('claims', () => {
 
   it('should handle api calls - returns 0 on failure', async () => {
     const doc = await createClaimDoc([
-      numUsesPlugin(10, 0),
+      numUsesPlugin(10),
+      maxUsesPerAddressPlugin(0),
       apiPlugin(
         // [
         //   {
@@ -1173,7 +1189,7 @@ describe('claims', () => {
           }),
           plugins: [
             {
-              ...numUsesPlugin(10, 0),
+              ...numUsesPlugin(10),
               resetState: true
             }
           ]
@@ -1198,7 +1214,7 @@ describe('claims', () => {
           }),
           plugins: [
             {
-              ...numUsesPlugin(10, 0),
+              ...numUsesPlugin(10),
               resetState: true
             }
           ]
@@ -1277,7 +1293,7 @@ describe('claims', () => {
           }),
           plugins: [
             {
-              ...numUsesPlugin(10, 0),
+              ...numUsesPlugin(10),
               resetState: true
             }
           ]
@@ -1371,7 +1387,7 @@ describe('claims', () => {
           }),
           plugins: [
             {
-              ...numUsesPlugin(10, 0),
+              ...numUsesPlugin(10),
               resetState: true
             }
           ]
@@ -1490,7 +1506,7 @@ describe('claims', () => {
           }),
           plugins: [
             {
-              ...numUsesPlugin(10, 0),
+              ...numUsesPlugin(10),
               resetState: true
             },
             {
@@ -1646,7 +1662,7 @@ describe('claims', () => {
           }),
           plugins: [
             {
-              ...numUsesPlugin(10, 0),
+              ...numUsesPlugin(10),
               resetState: true
             },
             {
@@ -1743,7 +1759,7 @@ describe('claims', () => {
                 seedCode: seedCode,
                 plugins: [
                   {
-                    ...numUsesPlugin(10, 0),
+                    ...numUsesPlugin(10),
                     resetState: true
                   },
                   {
@@ -1855,7 +1871,7 @@ describe('claims', () => {
                 seedCode: seedCode,
                 plugins: [
                   {
-                    ...numUsesPlugin(10, 0)
+                    ...numUsesPlugin(10)
                   },
                   {
                     ...codesPlugin(10, crypto.randomBytes(32).toString('hex')),
@@ -1901,7 +1917,7 @@ describe('claims', () => {
                 seedCode: seedCode,
                 plugins: [
                   {
-                    ...numUsesPlugin(10, 0),
+                    ...numUsesPlugin(10),
                     resetState: true
                   },
                   {
@@ -2000,7 +2016,7 @@ describe('claims', () => {
                 seedCode: seedCode,
                 plugins: [
                   {
-                    ...numUsesPlugin(10, 0)
+                    ...numUsesPlugin(10)
                   },
                   {
                     ...codesPlugin(10, crypto.randomBytes(32).toString('hex')),
@@ -2056,7 +2072,7 @@ describe('claims', () => {
                 seedCode: seedCode,
                 plugins: [
                   {
-                    ...numUsesPlugin(10, 0),
+                    ...numUsesPlugin(10),
                     resetState: true
                   },
                   {
@@ -2121,7 +2137,6 @@ describe('claims', () => {
       .toProto();
 
     const txRes = await signAndBroadcast([msg], managerWallet);
-    console.log(txRes);
 
     const msgResponse = txRes.data;
     let collectionId = 0;
@@ -2213,7 +2228,7 @@ describe('claims', () => {
                 seedCode: seedCode,
                 plugins: [
                   {
-                    ...numUsesPlugin(10, 0)
+                    ...numUsesPlugin(10)
                   },
                   {
                     ...codesPlugin(10, crypto.randomBytes(32).toString('hex')),

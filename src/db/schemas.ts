@@ -314,6 +314,7 @@ export const ClaimBuilderSchema = new Schema<ClaimBuilderDoc<JSPrimitiveNumberTy
   trackerDetails: Schema.Types.Mixed, // Mixed type for trackerDetails (ChallengeTrackerIdDetails type)
   lastUpdated: Schema.Types.Mixed, // Mixed type for lastUpdated (number type)
   createdAt: Schema.Types.Mixed, // Mixed type for createdAt (number type)
+  assignMethod: String, // String type for assignMethod
   plugins: [Schema.Types.Mixed] // Array of Mixed type for plugins (Plugin type)
 });
 

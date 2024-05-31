@@ -51,8 +51,6 @@ export async function hasScopes(
   res: Response,
   expectedScopes: { scopeName: string; toCheck?: object }[]
 ): Promise<boolean> {
-  console.log('CHECKING SCOPES');
-
   const authDetails = await getAuthDetails(req, res);
   if (!authDetails) {
     return false;

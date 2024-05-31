@@ -519,7 +519,6 @@ app.post(
           expiresAt: Date.now() + 1000 * 60 * 2
         };
         await insertToDB(AuthorizationCodeModel, code);
-        console.log('Authorization code created:', code);
         return res.json({ code: code._docId });
       } else {
         throw new Error('Invalid response type. Only "code" is supported.');

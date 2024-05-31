@@ -575,7 +575,7 @@ describe('get address lists', () => {
             {
               claimId: convertToCosmosAddress(address) + '_claim123',
               plugins: [
-                numUsesPlugin(10, 0),
+                numUsesPlugin(10),
                 {
                   pluginId: 'password',
                   instanceId: 'xyz123',

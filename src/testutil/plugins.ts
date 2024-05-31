@@ -21,18 +21,12 @@ export const getPluginIdByType = (doc: iClaimBuilderDoc<NumberType>, pluginId: C
   return getFirstMatchForPluginType(pluginId, doc.plugins ?? [])?.instanceId ?? '';
 };
 
-export const numUsesPlugin = (
-  maxUses: number,
-  maxUsesPerAddress: number,
-  assignMethod: 'firstComeFirstServe' | 'codeIdx' = 'firstComeFirstServe'
-): IntegrationPluginDetails<'numUses'> => {
+export const numUsesPlugin = (maxUses: number): IntegrationPluginDetails<'numUses'> => {
   return {
     instanceId: crypto.randomBytes(32).toString('hex'),
     pluginId: 'numUses',
     publicParams: {
-      maxUses,
-      maxUsesPerAddress,
-      assignMethod
+      maxUses
     },
     privateParams: {},
     publicState: getCorePlugin('numUses').getBlankPublicState()
@@ -76,6 +70,20 @@ export const transferTimesPlugin = (transferTimes: iUintRange<number>): Integrat
     pluginId: 'transferTimes',
     publicParams: {
       transferTimes: UintRangeArray.From(transferTimes)
+    },
+    privateParams: {},
+    publicState: {},
+    resetState: true
+  };
+};
+
+//for legacy purposes
+export const maxUsesPerAddressPlugin = (maxUsesPerAddress: number): IntegrationPluginDetails<'whitelist'> => {
+  return {
+    instanceId: crypto.randomBytes(32).toString('hex'),
+    pluginId: 'whitelist',
+    publicParams: {
+      maxUsesPerAddress
     },
     privateParams: {},
     publicState: {},

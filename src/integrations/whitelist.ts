@@ -9,20 +9,26 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
     description: 'A whitelist challenge',
     image: 'https://bitbadges.s3.amazonaws.com/whitelist.png',
     createdBy: 'BitBadges',
-    stateless: true,
+    stateless: false,
     scoped: true,
     duplicatesAllowed: false
   },
-  defaultState: {},
+  defaultState: {
+    addresses: {}
+  },
   encryptPrivateParams: (privateParams) => {
     return privateParams;
   },
   decryptPrivateParams: (privateParams) => {
     return privateParams;
   },
-  validateFunction: async (context, publicParams, privateParams) => {
+  validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
     const targetUser = context.cosmosAddress;
     const params = publicParams.list || publicParams.listId ? publicParams : privateParams;
+
+    const maxUsesPerUser = publicParams.maxUsesPerAddress;
+    const cosmosAddress = context.cosmosAddress;
+    const id = cosmosAddress;
 
     if (params.listId) {
       const addressListRes = await getAddressListsFromDB([{ listId: params.listId }], false);
@@ -43,7 +49,16 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
       }
     }
 
-    return { success: true };
+    const instanceId = context.instanceId;
+    const currNumUses = priorState?.addresses[id] || 0;
+    if (maxUsesPerUser && maxUsesPerUser > 0 && currNumUses >= maxUsesPerUser) {
+      return { success: false, error: 'User already exceeded max uses' };
+    }
+
+    return {
+      success: true,
+      toSet: [{ $set: { [`state.${instanceId}.addresses.${cosmosAddress}`]: currNumUses + 1 } }]
+    };
   },
   getPublicState: () => {
     return {};

@@ -221,7 +221,6 @@ export async function checkIfAuthenticated(
   setMockSessionIfTestMode(req);
 
   const authDetails = await getAuthDetails(req, res);
-  console.log('authDetails', authDetails);
   if (!req || authDetails == null) {
     return false;
   }

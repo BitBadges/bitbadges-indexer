@@ -8,7 +8,7 @@ import { PluginPresetType } from 'bitbadgesjs-sdk';
 axios.defaults.timeout = 10000;
 
 export const GenericCustomPluginValidateFunction = async (
-  context: ContextInfo & { pluginId: string; pluginType: string; _isSimulation: boolean },
+  context: ContextInfo & { instanceId: string; pluginId: string; _isSimulation: boolean },
   publicParams: any,
   privateParams: any,
   customBody: any,
@@ -18,9 +18,9 @@ export const GenericCustomPluginValidateFunction = async (
   onSuccess?: (data: any) => Promise<{ success: boolean; toSet?: any[]; error?: string }>,
   stateFunctionPreset?: PluginPresetType
 ) => {
-  const pluginDoc = await getFromDB(PluginModel, context.pluginType);
+  const pluginDoc = await getFromDB(PluginModel, context.pluginId);
   if (!pluginDoc) {
-    return { success: false, error: `Plugin ${context.pluginType} not found.` };
+    return { success: false, error: `Plugin ${context.pluginId} not found.` };
   }
 
   const apiCall = pluginDoc.verificationCall;
@@ -33,7 +33,12 @@ export const GenericCustomPluginValidateFunction = async (
     ...publicParams,
     ...privateParams,
     ...apiCall?.hardcodedInputs.map((input) => ({ [input.key]: input.value })),
-    priorState: stateFunctionPreset === PluginPresetType.StateTransitions ? priorState : null,
+    priorState:
+      stateFunctionPreset === PluginPresetType.StateTransitions
+        ? priorState
+        : stateFunctionPreset === PluginPresetType.ClaimNumbers
+          ? adminInfo.numUsesState
+          : null,
     discord: apiCall?.passDiscord ? adminInfo.discord : null,
     twitter: apiCall?.passTwitter ? adminInfo.twitter : null,
     github: apiCall?.passGithub ? adminInfo.github : null,
@@ -43,7 +48,10 @@ export const GenericCustomPluginValidateFunction = async (
     // Context info
     pluginSecret: pluginDoc.pluginSecret,
     claimId: context.claimId,
-    cosmosAddress: apiCall?.passAddress ? context.cosmosAddress : null,
+    maxUses: context.maxUses,
+    currUses: context.currUses,
+    cosmosAddress: context.cosmosAddress,
+    claimAttemptId: context.claimAttemptId,
     _isSimulation: context._isSimulation,
     lastUpdated: context.lastUpdated,
     createdAt: context.createdAt

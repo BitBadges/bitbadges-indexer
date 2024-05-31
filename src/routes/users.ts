@@ -48,7 +48,7 @@ import {
   type MaybeAuthenticatedRequest
 } from '../blockin/blockin_handlers';
 import { type CleanedCosmosAccountInformation } from '../chain-client/queries';
-import { deleteMany, getFromDB, getManyFromDB, insertToDB } from '../db/db';
+import { deleteMany, getFromDB, getManyFromDB, insertMany, insertToDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AccountModel, FetchModel, ProfileModel, UsernameModel } from '../db/schemas';
 import { client } from '../indexer';
@@ -152,25 +152,41 @@ async function getBatchProfileInformation(
 ) {
   const profileInfos: Array<ProfileDoc<bigint>> = [];
   const addressesToFetch = queries.map((x) => convertToCosmosAddress(x.address));
+  const nativeAddresses = queries.map((x) => x.address);
 
   if (addressesToFetch.length === 0) {
     return addressesToFetch.map((x) => new ProfileDoc<bigint>({ _docId: x }));
   }
 
   const docs = await getManyFromDB(ProfileModel, addressesToFetch);
-
-  for (const address of addressesToFetch) {
+  const solanaDocsToAdd = [];
+  for (let i = 0; i < addressesToFetch.length; i++) {
+    const address = addressesToFetch[i];
+    const nativeAddress = nativeAddresses[i];
     const doc = docs.find((x) => x && x._docId === address);
     if (doc) {
       profileInfos.push(doc);
     } else {
+      const isSolAddress = getChainForAddress(nativeAddress) === SupportedChain.SOLANA;
+      if (isSolAddress) {
+        solanaDocsToAdd.push(
+          new ProfileDoc<bigint>({
+            _docId: address,
+            solAddress: nativeAddress
+          })
+        );
+      }
+
       profileInfos.push(
         new ProfileDoc<bigint>({
-          _docId: address
+          _docId: address,
+          solAddress: isSolAddress ? nativeAddress : undefined
         })
       );
     }
   }
+
+  if (solanaDocsToAdd.length) await insertMany(ProfileModel, solanaDocsToAdd);
 
   // Filter out private info if not authenticated user
   if (req) {
