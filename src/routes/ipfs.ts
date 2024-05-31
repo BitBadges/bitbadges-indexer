@@ -113,6 +113,7 @@ export const assertPluginsUpdateIsValid = async (
   }
 
   if (!newAssignMethod || newAssignMethod === 'firstComeFirstServe') {
+    // Defaults to incrementing claim numbers
   } else {
     //Assert that exactly one plugin instance ID is set to assign the claim number
     let found = false;
@@ -124,6 +125,11 @@ export const assertPluginsUpdateIsValid = async (
 
         found = true;
       }
+    }
+
+    //We should also fail if it doesn't match any
+    if (!found) {
+      throw new Error('Assign method must match a plugin instance ID, be blank / empty, or be firstComeFirstServe');
     }
   }
 };
@@ -165,6 +171,26 @@ export interface ContextReturn {
   trackerDetails?: iChallengeTrackerIdDetails<NumberType>;
 }
 
+function deepMerge(target: Record<string, any>, source: Record<string, any>) {
+  // Check if the source is an object and not null
+  if (typeof source === 'object' && source !== null) {
+    // Iterate through each key in the source
+    for (const key in source) {
+      // If the source property is also an object, recursively merge
+      if (typeof source[key] === 'object' && source[key] !== null) {
+        if (!target[key]) {
+          target[key] = {};
+        }
+        deepMerge(target[key], source[key]);
+      } else {
+        // Otherwise, directly assign the value
+        target[key] = source[key];
+      }
+    }
+  }
+  return target;
+}
+
 export const updateClaimDocs = async (
   req: AuthenticatedRequest<NumberType>,
   res: Response,
@@ -190,26 +216,6 @@ export const updateClaimDocs = async (
     const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
     const encryptedPlugins = await encryptPlugins(claim.plugins ?? []);
 
-    function deepMerge(target: Record<string, any>, source: Record<string, any>) {
-      // Check if the source is an object and not null
-      if (typeof source === 'object' && source !== null) {
-        // Iterate through each key in the source
-        for (const key in source) {
-          // If the source property is also an object, recursively merge
-          if (typeof source[key] === 'object' && source[key] !== null) {
-            if (!target[key]) {
-              target[key] = {};
-            }
-            deepMerge(target[key], source[key]);
-          } else {
-            // Otherwise, directly assign the value
-            target[key] = source[key];
-          }
-        }
-      }
-      return target;
-    }
-
     const state: Record<string, any> = {};
     for (const plugin of pluginsWithOptions ?? []) {
       const pluginObj = await getPlugin(plugin.pluginId);
@@ -218,9 +224,7 @@ export const updateClaimDocs = async (
         state[plugin.instanceId] = pluginObj.defaultState;
       } else if (plugin.newState) {
         if (plugin.onlyUpdateProvidedNewState) {
-          console.log('Only updating provided new state', plugin.newState, state[plugin.instanceId]);
           state[plugin.instanceId] = deepMerge(state[plugin.instanceId], plugin.newState);
-          console.log('After merge', state[plugin.instanceId]);
         } else {
           //Completely overwrite the state
           state[plugin.instanceId] = plugin.newState;
@@ -376,7 +380,6 @@ export const updateClaimDocs = async (
       });
     }
   }
-  console.log(JSON.stringify(claimDocsToSet, null, 2));
 
   if (claimDocsToSet.length > 0) {
     await insertMany(ClaimBuilderModel, claimDocsToSet, session);

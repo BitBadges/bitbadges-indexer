@@ -5,18 +5,19 @@ import {
   GetPluginPayload,
   PluginPresetType,
   UpdateAddressListsPayload,
+  UpdateClaimPayload,
   UpdatePluginPayload,
   convertToCosmosAddress
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
-import { MongoDB, getFromDB } from '../db/db';
+import { MongoDB, getFromDB, mustGetFromDB } from '../db/db';
 import { ClaimBuilderModel, PluginModel } from '../db/schemas';
 import app, { gracefullyShutdown } from '../indexer';
 import { connectToRpc } from '../poll';
 import { createExampleReqForAddress } from '../testutil/utils';
-import { numUsesPlugin } from '../testutil/plugins';
+import { getPluginStateByType, numUsesPlugin } from '../testutil/plugins';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ const body: CreatePluginPayload = {
   requiresUserInputs: false,
   duplicatesAllowed: true,
   reuseForNonIndexed: false,
+  reuseForLists: true,
 
   userInputRedirect: {
     baseUri: 'https://bitbadges.io'
@@ -187,7 +189,7 @@ describe('plugins', () => {
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '');
 
     expect(res.status).toBe(200);
-    expect(res.body.plugins.length).toBeGreaterThan(10);
+    expect(res.body.plugins.find((x: any) => x.metadata.createdBy === 'BitBadges')).toBeTruthy();
 
     // none should have plugin secrets
     for (const plugin of res.body.plugins) {
@@ -273,10 +275,7 @@ describe('plugins', () => {
         {
           claimId: 'test' + Math.random(),
           listId,
-          plugins: [
-            numUsesPlugin(10),
-            { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }
-          ]
+          plugins: [numUsesPlugin(10), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }]
         }
       ]
     };
@@ -358,10 +357,7 @@ describe('plugins', () => {
         {
           claimId: 'test' + Math.random(),
           listId,
-          plugins: [
-            numUsesPlugin(10),
-            { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }
-          ]
+          plugins: [numUsesPlugin(10), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }]
         }
       ]
     };
@@ -376,4 +372,460 @@ describe('plugins', () => {
     const claimDoc2 = await getFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
     expect(claimDoc2).toBeTruthy();
   });
+
+  it('should work with custom plugin preset type', async () => {
+    const pluginId = 'test' + Math.random();
+    const createRoute = BitBadgesApiRoutes.CRUDPluginRoute();
+    const createPayload: CreatePluginPayload = {
+      ...body,
+      pluginId,
+      stateFunctionPreset: PluginPresetType.ClaimNumbers,
+      verificationCall: {
+        method: 'POST',
+        uri: 'random-claim-number' //mocked
+      }
+    };
+
+    const res = await request(app)
+      .post(createRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(createPayload);
+
+    expect(res.status).toBe(200);
+
+    const listId = convertToCosmosAddress(address) + '_testlist123' + Math.random();
+    const alRoute = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const alBody: UpdateAddressListsPayload = {
+      addressLists: [
+        {
+          listId,
+          private: true,
+          addresses: [convertToCosmosAddress(address)],
+          whitelist: true,
+          uri: '',
+          customData: '',
+          claims: []
+        }
+      ]
+    };
+
+    const alRes = await request(app)
+      .post(alRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(alBody);
+    console.log(alRes.body);
+    expect(alRes.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CRUDClaimsRoute();
+    const claimPayload: CreateClaimPayload = {
+      claims: [
+        {
+          claimId: 'test' + Math.random(),
+          listId,
+          plugins: [numUsesPlugin(100), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }],
+          assignMethod: 'test'
+        }
+      ]
+    };
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(claimPayload);
+    expect(claimRes.status).toBe(200);
+
+    const claimDoc2 = await getFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+    expect(claimDoc2).toBeTruthy();
+
+    const completeClaimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimPayload.claims[0].claimId, convertToCosmosAddress(address));
+    const completeClaimRes = await request(app)
+      .post(completeClaimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({});
+
+    expect(completeClaimRes.status).toBe(200);
+
+    await request(app)
+      .post(completeClaimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({});
+
+    expect(completeClaimRes.status).toBe(200);
+
+    const finalDoc = await mustGetFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+    expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(2);
+    expect(getPluginStateByType(finalDoc, 'numUses').claimedUsers[convertToCosmosAddress(address)].length).toBe(2);
+    expect(getPluginStateByType(finalDoc, 'numUses').claimedUsers[convertToCosmosAddress(address)][0]).toBeGreaterThan(1);
+
+    //update max uses to be 1
+    const updatePayload: UpdateClaimPayload = {
+      claims: [
+        {
+          claimId: claimPayload.claims[0].claimId,
+          plugins: [numUsesPlugin(1), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {}, publicState: {} }],
+          assignMethod: 'test'
+        }
+      ]
+    };
+
+    await request(app)
+      .put(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(updatePayload);
+
+    //claim number should be > max so should fail
+    const completeClaimRes2 = await request(app)
+      .post(completeClaimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({});
+    expect(completeClaimRes2.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('should not allow duplicate claim numbers to be processes', async () => {
+    const pluginId = 'test' + Math.random();
+    const createRoute = BitBadgesApiRoutes.CRUDPluginRoute();
+    const createPayload: CreatePluginPayload = {
+      ...body,
+      pluginId,
+      stateFunctionPreset: PluginPresetType.ClaimNumbers,
+      verificationCall: {
+        method: 'POST',
+        uri: 'same-claim-number' //mocked
+      }
+    };
+
+    const res = await request(app)
+      .post(createRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(createPayload);
+
+    expect(res.status).toBe(200);
+
+    const listId = convertToCosmosAddress(address) + '_testlist123' + Math.random();
+    const alRoute = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const alBody: UpdateAddressListsPayload = {
+      addressLists: [
+        {
+          listId,
+          private: true,
+          addresses: [convertToCosmosAddress(address)],
+          whitelist: true,
+          uri: '',
+          customData: '',
+          claims: []
+        }
+      ]
+    };
+
+    const alRes = await request(app)
+      .post(alRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(alBody);
+    console.log(alRes.body);
+    expect(alRes.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CRUDClaimsRoute();
+    const claimPayload: CreateClaimPayload = {
+      claims: [
+        {
+          claimId: 'test' + Math.random(),
+          listId,
+          plugins: [numUsesPlugin(100), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }],
+          assignMethod: 'test'
+        }
+      ]
+    };
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(claimPayload);
+    expect(claimRes.status).toBe(200);
+
+    const claimDoc2 = await getFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+    expect(claimDoc2).toBeTruthy();
+
+    const completeClaimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimPayload.claims[0].claimId, convertToCosmosAddress(address));
+    const completeClaimRes = await request(app)
+      .post(completeClaimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({});
+
+    expect(completeClaimRes.status).toBe(200);
+
+    const res2 = await request(app)
+      .post(completeClaimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({});
+
+    expect(res2.status).toBeGreaterThanOrEqual(400);
+
+    const finalDoc = await mustGetFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+    expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(1);
+    expect(getPluginStateByType(finalDoc, 'numUses').claimedUsers[convertToCosmosAddress(address)].length).toBe(1);
+  });
+
+  it('should support state transition plugin presets', async () => {
+    const pluginId = 'test' + Math.random();
+    const createRoute = BitBadgesApiRoutes.CRUDPluginRoute();
+    const createPayload: CreatePluginPayload = {
+      ...body,
+      pluginId,
+      stateFunctionPreset: PluginPresetType.StateTransitions,
+      verificationCall: {
+        method: 'POST',
+        uri: 'random-state-transition' //mocked
+      }
+    };
+
+    const res = await request(app)
+      .post(createRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(createPayload);
+
+    expect(res.status).toBe(200);
+
+    const listId = convertToCosmosAddress(address) + '_testlist123' + Math.random();
+    const alRoute = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const alBody: UpdateAddressListsPayload = {
+      addressLists: [
+        {
+          listId,
+          private: true,
+          addresses: [convertToCosmosAddress(address)],
+          whitelist: true,
+          uri: '',
+          customData: '',
+          claims: []
+        }
+      ]
+    };
+
+    const alRes = await request(app)
+      .post(alRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(alBody);
+    console.log(alRes.body);
+    expect(alRes.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CRUDClaimsRoute();
+    const claimPayload: CreateClaimPayload = {
+      claims: [
+        {
+          claimId: 'test' + Math.random(),
+          listId,
+          plugins: [numUsesPlugin(100), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }]
+        }
+      ]
+    };
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(claimPayload);
+    expect(claimRes.status).toBe(200);
+
+    const claimDoc2 = await getFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+    expect(claimDoc2).toBeTruthy();
+
+    const completeClaimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimPayload.claims[0].claimId, convertToCosmosAddress(address));
+
+    let prevState = null;
+    for (let i = 0; i <= 20; i++) {
+      const completeClaimRes = await request(app)
+        .post(completeClaimRoute)
+        .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+        .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+        .send({});
+
+      expect(completeClaimRes.status).toBe(200);
+
+      let claimDoc = await mustGetFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+
+      expect(getPluginStateByType(claimDoc, createPayload.pluginId)).toBeTruthy();
+      console.log(getPluginStateByType(claimDoc, createPayload.pluginId));
+      expect(JSON.stringify(getPluginStateByType(claimDoc, createPayload.pluginId)) !== JSON.stringify(prevState)).toBeTruthy();
+
+      prevState = getPluginStateByType(claimDoc, createPayload.pluginId);
+    }
+  }, 30000);
+
+  it('should support the one-time use claim token preset', async () => {
+    const pluginId = 'test' + Math.random();
+    const createRoute = BitBadgesApiRoutes.CRUDPluginRoute();
+    const createPayload: CreatePluginPayload = {
+      ...body,
+      pluginId,
+      stateFunctionPreset: PluginPresetType.ClaimToken,
+      verificationCall: {
+        method: 'POST',
+        uri: 'claim-tokens-different' //mocked
+      }
+    };
+
+    const res = await request(app)
+      .post(createRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(createPayload);
+
+    expect(res.status).toBe(200);
+
+    const listId = convertToCosmosAddress(address) + '_testlist123' + Math.random();
+    const alRoute = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const alBody: UpdateAddressListsPayload = {
+      addressLists: [
+        {
+          listId,
+          private: true,
+          addresses: [convertToCosmosAddress(address)],
+          whitelist: true,
+          uri: '',
+          customData: '',
+          claims: []
+        }
+      ]
+    };
+
+    const alRes = await request(app)
+      .post(alRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(alBody);
+    console.log(alRes.body);
+    expect(alRes.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CRUDClaimsRoute();
+    const claimPayload: CreateClaimPayload = {
+      claims: [
+        {
+          claimId: 'test' + Math.random(),
+          listId,
+          plugins: [numUsesPlugin(100), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }]
+        }
+      ]
+    };
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(claimPayload);
+    expect(claimRes.status).toBe(200);
+
+    const claimDoc2 = await getFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+    expect(claimDoc2).toBeTruthy();
+
+    const completeClaimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimPayload.claims[0].claimId, convertToCosmosAddress(address));
+
+    for (let i = 0; i <= 5; i++) {
+      const completeClaimRes = await request(app)
+        .post(completeClaimRoute)
+        .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+        .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+        .send({});
+
+      expect(completeClaimRes.status).toBe(200);
+    }
+  }, 30000);
+
+  it('should support the one-time use claim token preset - do not allow token reuse', async () => {
+    const pluginId = 'test' + Math.random();
+    const createRoute = BitBadgesApiRoutes.CRUDPluginRoute();
+    const createPayload: CreatePluginPayload = {
+      ...body,
+      pluginId,
+      stateFunctionPreset: PluginPresetType.ClaimToken,
+      verificationCall: {
+        method: 'POST',
+        uri: 'claim-tokens-same' //mocked
+      }
+    };
+
+    const res = await request(app)
+      .post(createRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(createPayload);
+
+    expect(res.status).toBe(200);
+
+    const listId = convertToCosmosAddress(address) + '_testlist123' + Math.random();
+    const alRoute = BitBadgesApiRoutes.CRUDAddressListsRoute();
+    const alBody: UpdateAddressListsPayload = {
+      addressLists: [
+        {
+          listId,
+          private: true,
+          addresses: [convertToCosmosAddress(address)],
+          whitelist: true,
+          uri: '',
+          customData: '',
+          claims: []
+        }
+      ]
+    };
+
+    const alRes = await request(app)
+      .post(alRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(alBody);
+    console.log(alRes.body);
+    expect(alRes.status).toBe(200);
+
+    const claimRoute = BitBadgesApiRoutes.CRUDClaimsRoute();
+    const claimPayload: CreateClaimPayload = {
+      claims: [
+        {
+          claimId: 'test' + Math.random(),
+          listId,
+          plugins: [numUsesPlugin(100), { pluginId: createPayload.pluginId, instanceId: 'test', publicParams: {}, privateParams: {} }]
+        }
+      ]
+    };
+
+    const claimRes = await request(app)
+      .post(claimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(claimPayload);
+    expect(claimRes.status).toBe(200);
+
+    const claimDoc2 = await getFromDB(ClaimBuilderModel, claimPayload.claims[0].claimId);
+    expect(claimDoc2).toBeTruthy();
+
+    const completeClaimRoute = BitBadgesApiRoutes.CompleteClaimRoute(claimPayload.claims[0].claimId, convertToCosmosAddress(address));
+
+    const completeClaimRes = await request(app)
+      .post(completeClaimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({});
+
+    expect(completeClaimRes.status).toBe(200);
+
+    const completeClaimRes2 = await request(app)
+      .post(completeClaimRoute)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send({});
+
+    expect(completeClaimRes2.status).toBeGreaterThanOrEqual(400);
+  }, 30000);
 });

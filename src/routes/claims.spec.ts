@@ -620,6 +620,16 @@ describe('claims', () => {
     finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
     expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(1);
     expect(getPluginStateByType(finalDoc, 'discord').ids['123456789']).toBe(1);
+
+    await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(wallet.address).session))
+      .send(body);
+
+    finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(2);
+    expect(getPluginStateByType(finalDoc, 'discord').ids['123456789']).toBe(2);
   });
 
   it('should handle discord usernames with discriminators', async () => {
@@ -975,23 +985,22 @@ describe('claims', () => {
     expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(0);
   });
 
-  //TODO: should we fail?
-  // it('should not work with an invalid assignMethod', async () => {
-  //   const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0)], undefined, 'invalid' as any);
+  it('should not work with an invalid assignMethod', async () => {
+    const doc = await createClaimDoc([numUsesPlugin(10), maxUsesPerAddressPlugin(0)], undefined, 'invalid' as any);
 
-  //   const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
-  //   const body: CompleteClaimPayload = {};
+    const route = BitBadgesApiRoutes.CompleteClaimRoute(doc._docId, convertToCosmosAddress(wallet.address));
+    const body: CompleteClaimPayload = {};
 
-  //   const res = await request(app)
-  //     .post(route)
-  //     .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-  //     .send(body);
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .send(body);
 
-  //   console.log(res.body);
+    console.log(res.body);
 
-  //   let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
-  //   expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(0);
-  // });
+    let finalDoc = await mustGetFromDB(ClaimBuilderModel, doc._docId);
+    expect(getPluginStateByType(finalDoc, 'numUses').numUses).toBe(0);
+  });
 
   it('should work with codesIdx assignMethod', async () => {
     const seedCode = crypto.randomBytes(32).toString('hex');

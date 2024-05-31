@@ -196,6 +196,7 @@ export async function initStatus(): Promise<void> {
     requiresUserInputs: false,
     duplicatesAllowed: false,
     reuseForNonIndexed: true,
+    reuseForLists: true,
     metadata: {
       name: 'Min $BADGE',
       description: 'Users must have a minimum balance of $BADGE.',
@@ -209,7 +210,7 @@ export async function initStatus(): Promise<void> {
     lastUpdated: Date.now(),
     createdAt: Date.now(),
     toPublish: false,
-    publicParamsSchema: [{ key: 'minBalance', label: 'Minimum Balance', type: 'number' }],
+    publicParamsSchema: [{ key: 'minBalance', label: 'Min $BADGE Balance', type: 'number' }],
     verificationCall: {
       method: 'POST',
       uri: 'https://api.bitbadges.io/api/v0/integrations/query/min-badge',
@@ -238,6 +239,7 @@ export async function initStatus(): Promise<void> {
     requiresUserInputs: false,
     duplicatesAllowed: true,
     reuseForNonIndexed: true,
+    reuseForLists: true,
     metadata: {
       name: 'Ownership Requirements',
       description: 'Which badges / lists must the user own / be on to claim this badge?',
@@ -277,7 +279,7 @@ export async function initStatus(): Promise<void> {
     requiresUserInputs: false,
     duplicatesAllowed: true,
     reuseForNonIndexed: false,
-
+    reuseForLists: true,
     metadata: {
       name: 'Github Contributions',
       description: "Check a user's Github contributions to a specific repository.",
@@ -318,6 +320,7 @@ export async function initStatus(): Promise<void> {
     requiresUserInputs: false,
     duplicatesAllowed: true,
     reuseForNonIndexed: false,
+    reuseForLists: true,
     metadata: {
       name: 'Discord Server',
       description: 'Check if a user is in a Discord server.',

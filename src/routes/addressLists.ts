@@ -109,14 +109,14 @@ export function getActivityDocsForListUpdate(
   for (const address of oldAddresses) {
     if (newAddresses.includes(address)) {
       duplicates.push(address);
-      const idx = newAddresses.findIndex((x) => x !== address);
+      const idx = newAddresses.findIndex((x) => x === address);
       newAddresses = newAddresses.slice(0, idx).concat(newAddresses.slice(idx + 1));
     }
   }
 
   //Remove duplicates from old addresses accounting for frequency
   for (const duplicate of duplicates) {
-    const idx = oldAddresses.findIndex((x) => x !== duplicate);
+    const idx = oldAddresses.findIndex((x) => x === duplicate);
     oldAddresses = oldAddresses.slice(0, idx).concat(oldAddresses.slice(idx + 1));
   }
 

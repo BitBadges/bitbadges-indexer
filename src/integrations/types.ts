@@ -120,7 +120,7 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
       } else if (doc.stateFunctionPreset === PluginPresetType.ClaimToken) {
         responseHandler = async (axiosRes: any) => {
           const instanceId = context.instanceId;
-          const claimToken = axiosRes.data.claimToken?.toString();
+          const claimToken = axiosRes.claimToken?.toString();
           if (!claimToken) {
             return { success: false, error: 'Invalid response from API' };
           }
@@ -167,7 +167,7 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
       } else if (doc.stateFunctionPreset === PluginPresetType.StateTransitions) {
         responseHandler = async (axiosRes: any) => {
           const pluginId = context.instanceId;
-          const newState = JSON.parse(JSON.stringify(axiosRes.data.newState));
+          const newState = JSON.parse(JSON.stringify(axiosRes.newState));
           if (!newState) {
             return { success: false, error: 'Invalid response from API' };
           }
@@ -179,7 +179,8 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
         };
       } else if (doc.stateFunctionPreset === PluginPresetType.ClaimNumbers) {
         responseHandler = async (axiosRes: any) => {
-          const claimNumber = axiosRes.data.claimNumber;
+          console.log('axiosRes', axiosRes.data);
+          const claimNumber = axiosRes.claimNumber;
           if (claimNumber === undefined) {
             return { success: false, error: 'Invalid response from API' };
           }

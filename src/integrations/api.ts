@@ -4,6 +4,7 @@ import { PluginModel } from '../db/schemas';
 import { handleIntegrationQuery } from './integration-query-handlers/integration-handlers';
 import { ContextInfo } from './types';
 import { PluginPresetType } from 'bitbadgesjs-sdk';
+import { getMockAxiosResponse } from '../testutil/mockrequests';
 
 axios.defaults.timeout = 10000;
 
@@ -65,8 +66,10 @@ export const GenericCustomPluginValidateFunction = async (
         __type: apiCall.uri.split('/').pop()
       });
     } else {
-      if (apiCall?.uri.includes('localhost') || apiCall?.uri.includes('api.bitbadges.io')) {
-        throw new Error('Cannot call localhost or BitBadges API.');
+      if (process.env.TEST_MODE !== 'true') {
+        if (apiCall?.uri.includes('localhost') || apiCall?.uri.includes('api.bitbadges.io')) {
+          throw new Error('Cannot call localhost or BitBadges API.');
+        }
       }
 
       //IMPORTANT: Don't send access tokens and other sensitive info
@@ -93,32 +96,37 @@ export const GenericCustomPluginValidateFunction = async (
       }
 
       let axiosRes = null;
-      if (apiCall.method === 'GET') {
-        axiosRes = await axios.get(apiCall.uri, {
-          params: {
+      if (process.env.TEST_MODE === 'true') {
+        axiosRes = getMockAxiosResponse(apiCall.uri);
+      } else {
+        if (apiCall.method === 'GET') {
+          axiosRes = await axios.get(apiCall.uri, {
+            params: {
+              ...body
+            }
+          });
+        } else if (apiCall.method === 'POST' || !apiCall.method) {
+          //default to POST
+          axiosRes = await axios.post(apiCall.uri, {
             ...body
-          }
-        });
-      } else if (apiCall.method === 'POST' || !apiCall.method) {
-        //default to POST
-        axiosRes = await axios.post(apiCall.uri, {
-          ...body
-        });
-      } else if (apiCall.method === 'PUT') {
-        axiosRes = await axios.put(apiCall.uri, {
-          ...body
-        });
-      } else if (apiCall.method === 'DELETE') {
-        axiosRes = await axios.delete(apiCall.uri, {
-          data: {
+          });
+        } else if (apiCall.method === 'PUT') {
+          axiosRes = await axios.put(apiCall.uri, {
             ...body
-          }
-        });
+          });
+        } else if (apiCall.method === 'DELETE') {
+          axiosRes = await axios.delete(apiCall.uri, {
+            data: {
+              ...body
+            }
+          });
+        }
       }
 
       if (!axiosRes || axiosRes.status !== 200) {
         return { success: false, error: `Error calling API` };
       }
+
       if (onSuccess) {
         return await onSuccess(axiosRes.data);
       }

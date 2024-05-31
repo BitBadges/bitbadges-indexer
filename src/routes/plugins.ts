@@ -117,6 +117,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     if (reqPayload.claimCreatorRedirect !== undefined) newDoc.claimCreatorRedirect = reqPayload.claimCreatorRedirect;
     if (reqPayload.duplicatesAllowed !== undefined) newDoc.duplicatesAllowed = reqPayload.duplicatesAllowed;
     if (reqPayload.reuseForNonIndexed !== undefined) newDoc.reuseForNonIndexed = reqPayload.reuseForNonIndexed;
+    if (reqPayload.reuseForLists !== undefined) newDoc.reuseForLists = reqPayload.reuseForLists;
     if (reqPayload.toPublish !== undefined) newDoc.toPublish = reqPayload.toPublish;
     if (reqPayload.toPublish === false) newDoc.reviewCompleted = false;
     if (reqPayload.approvedUsers !== undefined) newDoc.approvedUsers = reqPayload.approvedUsers.map((user) => convertToCosmosAddress(user));
