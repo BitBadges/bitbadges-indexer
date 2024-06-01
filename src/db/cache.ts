@@ -16,7 +16,7 @@ import {
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
-import { handleFollowsByBalanceDocId } from '../routes/follows';
+// import { handleFollowsByBalanceDocId } from '../routes/follows';
 import { setStatus } from './status';
 import {
   type AccountDocs,
@@ -360,7 +360,7 @@ export async function flushCachedDocs(
           continue;
         }
 
-        await handleFollowsByBalanceDocId(doc._docId, []);
+        // await handleFollowsByBalanceDocId(doc._docId, []);
       }
     }
 

@@ -308,7 +308,7 @@ export const ClaimBuilderSchema = new Schema<ClaimBuilderDoc<JSPrimitiveNumberTy
   collectionId: Schema.Types.Mixed, // Mixed type for collectionId (number type)
   action: Schema.Types.Mixed, // Mixed type for action
   manualDistribution: Boolean, // Boolean type for manualDistribution
-  automatic: Boolean, // Boolean type for automatic
+  approach: String,
   state: Schema.Types.Mixed, // Mixed type for state
   deletedAt: Schema.Types.Mixed, // Mixed type for deletedAt (number type)
   metadata: Schema.Types.Mixed, // Mixed type for metadata

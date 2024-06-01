@@ -5,6 +5,8 @@
 .env
 test.env
 
+testoutput.txt
+
 # Testing
 /coverage
 

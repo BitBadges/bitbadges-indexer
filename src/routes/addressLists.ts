@@ -327,7 +327,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
         }
       }
 
-      const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': doc.listId, deletedAt: { $exists: false } } });
+      const claimDocs = await findInDB(ClaimBuilderModel, { query: { 'action.listId': { $eq: doc.listId }, deletedAt: { $exists: false } } });
       doc.claims = await getClaimDetailsForFrontend(req, res, claimDocs, query.fetchPrivateParams, undefined, doc.listId);
     }
 

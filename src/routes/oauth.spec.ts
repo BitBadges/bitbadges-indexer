@@ -8,11 +8,11 @@ import {
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
+import { Express } from 'express';
 import request from 'supertest';
-import { MongoDB, getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, ProfileModel } from '../db/schemas';
-import app, { gracefullyShutdown } from '../indexer';
-import { connectToRpc } from '../poll';
+const app = (global as any).app as Express;
 
 import { createExampleReqForAddress } from '../testutil/utils';
 
@@ -25,16 +25,6 @@ const address = wallet.address;
 
 describe('oauth', () => {
   beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-
-    while (!MongoDB.readyState) {}
-
-    await connectToRpc();
-
     const devApp = await getFromDB(DeveloperAppModel, 'test');
     if (!devApp) {
       await insertToDB(DeveloperAppModel, {
@@ -49,10 +39,6 @@ describe('oauth', () => {
       });
     }
   }, 15000);
-
-  afterAll(async () => {
-    await gracefullyShutdown();
-  });
 
   it('should correctly authorize', async () => {
     const devApp = await mustGetFromDB(DeveloperAppModel, 'test');

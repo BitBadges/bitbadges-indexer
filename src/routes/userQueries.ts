@@ -8,7 +8,7 @@ import {
   type iProfileDoc,
   type iUintRange
 } from 'bitbadgesjs-sdk';
-import { getManyFromDB } from '../db/db';
+import { getFromDB, getManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import {
   AddressListModel,
@@ -20,10 +20,10 @@ import {
   OffChainSecretsModel,
   ReviewModel,
   TransferActivityModel,
-  type BitBadgesDoc
+  type BitBadgesDoc,
+  ComplianceModel
 } from '../db/schemas';
 import { findWithPagination, getQueryParamsFromBookmark } from '../db/utils';
-import { complianceDoc } from '../poll';
 
 // Basically queries then filters until we get at least 25 results
 // Max tries is 25
@@ -87,6 +87,7 @@ export const filterActivityFunc = async (viewDocs: Array<TransferActivityDoc<big
 };
 
 export async function executeMultiUserActivityQuery(cosmosAddresses: string[], bookmark?: string, oldestFirst?: boolean) {
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   const queryFunc = async (currBookmark?: string) => {
     const paginationParams = await getQueryParamsFromBookmark(TransferActivityModel, currBookmark, oldestFirst, 'timestamp', '_id');
     return await findInDB(TransferActivityModel, {
@@ -133,6 +134,7 @@ export async function executeActivityQuery(
   bookmark?: string,
   oldestFirst?: boolean
 ) {
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   const hiddenBadges = [...(profileInfo.hiddenBadges ?? []), ...(complianceDoc?.badges.reported ?? [])];
 
   const queryFunc = async (currBookmark?: string) => {
@@ -218,7 +220,7 @@ export async function executeCollectedQuery(
   oldestFirst?: boolean
 ) {
   // keep searching until we have min 25 non-hidden docs
-
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   const hiddenBadges = [...(profileInfo.hiddenBadges ?? []), ...(complianceDoc?.badges.reported ?? [])];
 
   const queryFunc = async (currBookmark?: string) => {
@@ -254,6 +256,7 @@ export async function executeCollectedQuery(
 }
 
 export const filterListsFunc = async (viewDocs: any[]) => {
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   return viewDocs.filter((doc) => complianceDoc?.addressLists?.reported?.find((reported) => reported.listId === doc.listId) === undefined);
 };
 
@@ -420,6 +423,7 @@ export async function executeClaimAlertsQuery(cosmosAddress: string, bookmark?: 
 }
 
 export const filterCollectionsFunc = async (viewDocs: any[], hiddenBadges: Array<{ collectionId: bigint; badgeIds: Array<iUintRange<bigint>> }>) => {
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   return viewDocs.filter((doc) => {
     if (hiddenBadges?.find((hiddenBadge) => hiddenBadge.collectionId === BigInt(doc.collectionId))) {
       return false;
@@ -501,7 +505,7 @@ export async function executeCreatedByQuery(
 export async function executeSIWBBRequestsForAppQuery(clientId: string, bookmark?: string, oldestFirst?: boolean) {
   const paginationParams = await getQueryParamsFromBookmark(SIWBBRequestModel, bookmark, oldestFirst, 'createdAt');
   const res = await findWithPagination(SIWBBRequestModel, {
-    query: { clientId, deletedAt: { $exists: false }, redirectUri: { $exists: false }, ...paginationParams },
+    query: { clientId: { $eq: clientId }, deletedAt: { $exists: false }, redirectUri: { $exists: false }, ...paginationParams },
     sort: { createdAt: oldestFirst ? 1 : -1 },
     limit: 25
   });
@@ -558,6 +562,7 @@ export async function executeListsActivityQuery(
   oldestFirst?: boolean,
   fetchPrivate?: boolean
 ) {
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   const hiddenLists = [...(profileInfo.hiddenLists ?? []), ...(complianceDoc?.addressLists.reported.map((x) => x.listId) ?? [])];
 
   const queryFunc = async (currBookmark?: string) => {
@@ -615,6 +620,7 @@ export async function executeListsActivityQuery(
 }
 
 export async function executeListsActivityQueryForList(listId: string, fetchHidden: boolean, bookmark?: string, oldestFirst?: boolean) {
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   const hiddenLists = [...(complianceDoc?.addressLists.reported.map((x) => x.listId) ?? [])];
 
   const queryFunc = async (currBookmark?: string) => {

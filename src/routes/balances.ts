@@ -28,19 +28,12 @@ import { cleanBalanceArray } from '../utils/dataCleaners';
 import { addChallengeDetailsToCriteria } from './badges';
 import { getClaimDetailsForFrontend } from './collections';
 import { getBalancesForEthFirstTx } from './ethFirstTx';
-import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
-
-export function mustFind<T>(arr: T[], callbackFunc: (x: T) => boolean) {
-  const found = arr.find(callbackFunc);
-  if (!found) {
-    throw new Error('Not found in mustFind');
-  }
-  return found;
-}
-
-export function mustFindAddressList(addressLists: iAddressList[], id: string) {
-  return mustFind(addressLists, (x) => x.listId === id);
-}
+import {
+  appendSelfInitiatedIncomingApprovalToApprovals,
+  appendSelfInitiatedOutgoingApprovalToApprovals,
+  getAddressListsFromDB,
+  mustFindAddressList
+} from './utils';
 
 // Precondition: we assume all address lists are present
 export const applyAddressListsToUserPermissions = <T extends NumberType>(

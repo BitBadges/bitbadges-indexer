@@ -2,14 +2,12 @@ import { sha256 } from '@cosmjs/crypto';
 import { toHex } from '@cosmjs/encoding';
 import { decodeTxRaw, type DecodedTxRaw } from '@cosmjs/proto-signing';
 import { type Block, type IndexedTx } from '@cosmjs/stargate';
-import sgMail from '@sendgrid/mail';
 import {
   ApprovalTrackerDoc,
   BalanceArray,
   BigIntify,
   MapDoc,
   MerkleChallengeDoc,
-  type MerkleProof,
   MsgCreateAddressLists,
   MsgCreateCollection,
   MsgDeleteCollection,
@@ -17,18 +15,18 @@ import {
   MsgUniversalUpdateCollection,
   MsgUpdateCollection,
   MsgUpdateUserApprovals,
-  type NumberType,
-  QueueDoc,
   Transfer,
   UintRangeArray,
   UpdateHistory,
-  type ZkProofSolution,
+  UsedLeafStatus,
   convertToCosmosAddress,
-  type ComplianceDoc,
-  type StatusDoc,
-  type iBalance,
   type AddressListDoc,
-  UsedLeafStatus
+  type ComplianceDoc,
+  type MerkleProof,
+  type NumberType,
+  type StatusDoc,
+  type ZkProofSolution,
+  type iBalance
 } from 'bitbadgesjs-sdk';
 import * as tx from 'bitbadgesjs-sdk/dist/proto/badges/tx_pb';
 import * as bank from 'bitbadgesjs-sdk/dist/proto/cosmos/bank/v1beta1/tx_pb';
@@ -36,12 +34,12 @@ import * as maps from 'bitbadgesjs-sdk/dist/proto/maps/tx_pb';
 import * as solana from 'bitbadgesjs-sdk/dist/proto/solana/web3_pb';
 import { ValueStore } from 'bitbadgesjs-sdk/dist/transactions/messages/bitbadges/maps';
 import { type Attribute, type StringEvent } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
-import crypto from 'crypto';
+
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
 import { IndexerStargateClient } from './chain-client/indexer_stargateclient';
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from './db/cache';
-import { MongoDB, deleteMany, getFromDB, getManyFromDB, insertMany, insertToDB, mustGetFromDB } from './db/db';
+import { MongoDB, deleteMany, getManyFromDB, insertMany, mustGetFromDB } from './db/db';
 import { findInDB } from './db/queries';
 import {
   AddressListModel,
@@ -50,15 +48,14 @@ import {
   ErrorModel,
   ListActivityModel,
   MapModel,
-  ProfileModel,
-  QueueModel,
   StatusModel,
   TransferActivityModel
 } from './db/schemas';
 import { getStatus } from './db/status';
 import { type DocsCache } from './db/types';
-import { SHUTDOWN, client, setClient, setNotificationPollerTimer, setTimer, setUriPollerTimer } from './indexer';
+import { SHUTDOWN, setNotificationPollerTimer, setTimer, setUriPollerTimer } from './indexer';
 import { getMapIdForQueueDb, handleQueueItems, pushMapFetchToQueue } from './queue';
+import { initializeFollowProtocol, unsetFollowCollection } from './routes/follows';
 import { handleMsgCreateAddressLists } from './tx-handlers/handleMsgCreateAddressLists';
 import { handleMsgCreateCollection } from './tx-handlers/handleMsgCreateCollection';
 import { handleMsgDeleteCollection } from './tx-handlers/handleMsgDeleteCollection';
@@ -69,9 +66,8 @@ import { handleMsgUpdateUserApprovals } from './tx-handlers/handleMsgUpdateUserA
 import { handleNewAccountByAddress } from './tx-handlers/handleNewAccount';
 import { handleTransfers } from './tx-handlers/handleTransfers';
 import { getLoadBalancerId } from './utils/loadBalancer';
-import { unsetFollowCollection, initializeFollowProtocol } from './routes/follows';
-import { PushNotificationEmailHTML } from './routes/users';
-import * as Discord from 'discord.js';
+import { NotificationType, sendPushNotification } from './pollutils';
+import { setClient, client } from './indexer-vars';
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000;
 const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000;
@@ -126,155 +122,15 @@ export const pollUris = async () => {
     }
   }
 
-  if (SHUTDOWN) return;
+  if (SHUTDOWN) {
+    console.log('Shutting down URI poller');
+    setUriPollerTimer(undefined);
+    return;
+  }
+
   const newTimer = setTimeout(pollUris, uriPollIntervalMs);
   setUriPollerTimer(newTimer);
 };
-
-enum NotificationType {
-  TransferActivity = 'transfer',
-  List = 'list',
-  ClaimAlert = 'claimAlert'
-}
-
-export async function sendPushNotificationToDiscord(user: string, message: string) {
-  try {
-    // Initialize Discord client
-    const client = new Discord.Client({
-      intents: ['Guilds', 'GuildMembers']
-    });
-
-    // Login to Discord with your bot token
-    await client.login(process.env.BOT_TOKEN);
-
-    // Find the user by their username and discriminator
-    const targetUser = await client.guilds.fetch('846474505189588992').then((guild) => {
-      return guild.members.fetch(user);
-    });
-
-    // If the user is found, send them a direct message
-    if (targetUser) {
-      await targetUser.send(message);
-      console.log(`Message sent to ${user}: ${message}`);
-    } else {
-      console.error(`User ${user} not found.`);
-    }
-
-    // Logout from Discord
-    await client.destroy();
-  } catch (error) {
-    console.error('Error sending Discord message:', error);
-  }
-}
-
-export async function sendPushNotification(
-  address: string,
-  type: string,
-  message: string,
-  docId: string,
-  initiatedBy?: string,
-  queueDoc?: QueueDoc<bigint>
-) {
-  try {
-    const profile = await getFromDB(ProfileModel, address);
-    if (!profile) return;
-
-    let subject = '';
-    switch (type) {
-      case NotificationType.TransferActivity:
-        subject = 'BitBadges Notification - Transfer Activity';
-        break;
-      case NotificationType.List:
-        subject = 'BitBadges Notification - List Activity';
-        break;
-      case NotificationType.ClaimAlert:
-        subject = 'BitBadges Notification - Claim Alert';
-        break;
-    }
-
-    const toReceiveListActivity = profile.notifications?.preferences?.listActivity;
-    const toReceiveTransferActivity = profile.notifications?.preferences?.transferActivity;
-    const toReceiveClaimAlerts = profile.notifications?.preferences?.claimAlerts;
-
-    const ignoreIfInitiator = profile.notifications?.preferences?.ignoreIfInitiator;
-    if (ignoreIfInitiator && initiatedBy && initiatedBy === address) return;
-
-    if (type === NotificationType.List && !toReceiveListActivity) return;
-    if (type === NotificationType.TransferActivity && !toReceiveTransferActivity) return;
-    if (type === NotificationType.ClaimAlert && !toReceiveClaimAlerts) return;
-
-    const antiPhishingCode = profile.notifications?.emailVerification?.antiPhishingCode ?? '';
-
-    if (profile.notifications?.email) {
-      if (!profile.notifications?.emailVerification?.verified) return;
-
-      const token = profile.notifications.emailVerification.token;
-      if (!token) return;
-
-      const emails: Array<{
-        to: string;
-        from: string;
-        subject: string;
-        html: string;
-      }> = [
-        {
-          to: profile.notifications.email,
-          from: 'info@mail.bitbadges.io',
-          subject,
-          html: PushNotificationEmailHTML(message, antiPhishingCode, token)
-        }
-      ];
-
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : '');
-      await sgMail.send(emails, true);
-    }
-
-    if (profile.notifications?.discord && profile.notifications.discord.id) {
-      const discordUser = profile.notifications.discord.id;
-      const discordMessage = `**${subject}**\n\n${message}\n\nAnti-Phishing Code: ${antiPhishingCode}\n\nUnsubscribe?: Go to https://api.bitbadges.io/api/v0/unsubscribe/${profile.notifications.discord.token}`;
-      await sendPushNotificationToDiscord(discordUser, discordMessage);
-    }
-  } catch (e) {
-    const queueObj = queueDoc ?? {
-      _docId: crypto.randomBytes(16).toString('hex'),
-      uri: '',
-      collectionId: 0n,
-      loadBalanceId: 0n,
-      activityDocId: docId,
-      refreshRequestTime: BigInt(Date.now()),
-      numRetries: 0n,
-      lastFetchedAt: BigInt(Date.now()),
-      nextFetchTime: BigInt(Date.now() + 1000 * 60),
-      emailMessage: message,
-      recipientAddress: address,
-      notificationType: type
-    };
-
-    const BASE_DELAY = process.env.BASE_DELAY ? Number(process.env.BASE_DELAY) : 1000 * 60 * 60 * 1; // 1 hour
-    const delay = BASE_DELAY * Math.pow(2, Number(queueObj.numRetries + 1n));
-
-    let reason = '';
-    try {
-      reason = e.toString();
-    } catch (e) {
-      try {
-        reason = JSON.stringify(e);
-      } catch (e) {
-        reason = 'Could not stringify error message';
-      }
-    }
-    await insertToDB(
-      QueueModel,
-      new QueueDoc({
-        ...queueObj,
-        lastFetchedAt: BigInt(Date.now()),
-        error: reason,
-        numRetries: BigInt(queueObj.numRetries + 1n),
-        nextFetchTime: BigInt(delay) + BigInt(Date.now())
-      })
-    );
-  }
-}
 
 export const pollNotifications = async () => {
   try {
@@ -358,7 +214,10 @@ export const pollNotifications = async () => {
     }
   }
 
-  if (SHUTDOWN) return;
+  if (SHUTDOWN) {
+    setNotificationPollerTimer(undefined);
+    return;
+  }
 
   const newTimer = setTimeout(pollNotifications, notificationPollIntervalMs);
   setNotificationPollerTimer(newTimer);
@@ -372,6 +231,10 @@ export const poll = async () => {
     // This could be in init() but it is here in case indexer is started w/o the chain running
     if (!client) {
       await connectToRpc();
+    }
+
+    if (!client) {
+      throw new Error('Could not connect to any chain client');
     }
 
     const clientHeight = await client.getHeight();
@@ -392,7 +255,6 @@ export const poll = async () => {
     while (!caughtUp) {
       // We fetch initial status at beginning of block and do not write anything in DB until flush at end of block
       // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
-
       if (status.block.height >= clientHeight) {
         caughtUp = true;
         break;
@@ -483,7 +345,10 @@ export const poll = async () => {
     }
   }
 
-  if (SHUTDOWN) return;
+  if (SHUTDOWN) {
+    setTimer(undefined);
+    return;
+  }
 
   const newTimer = setTimeout(poll, pollIntervalMs);
   setTimer(newTimer);
@@ -618,6 +483,10 @@ const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCa
   // Handle each tx consecutively
   while (status.block.txIndex < block.txs.length) {
     const txHash: string = toHex(sha256(block.txs[Number(status.block.txIndex)])).toUpperCase();
+    if (!client) {
+      throw new Error('Could not connect to any chain client');
+    }
+
     const indexed: IndexedTx | null = await client.getTx(txHash);
     if (!indexed) throw new Error(`Could not find indexed tx: ${txHash}`);
     await handleTx(indexed, status, docs, session);

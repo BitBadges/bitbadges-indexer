@@ -33,7 +33,7 @@ import { BalanceModel, ClaimAttemptStatusModel, ErrorModel, FetchModel, QueueMod
 import { type DocsCache } from './db/types';
 import { LOAD_BALANCER_ID } from './indexer-vars';
 import { getFromIpfs } from './ipfs/ipfs';
-import { sendPushNotification } from './poll';
+import { sendPushNotification } from './pollutils';
 import { getAddressListsFromDB } from './routes/utils';
 import { cleanApprovalInfo, cleanBalanceMap, cleanMetadata } from './utils/dataCleaners';
 import { getLoadBalancerId } from './utils/loadBalancer';
@@ -775,6 +775,10 @@ export const handleQueueItems = async (block: bigint) => {
 
   const executeFunc = async (queueObj: QueueDoc<bigint>) => {
     try {
+      if (Joi.string().uri().validate(queueObj.uri).error) {
+        throw new Error('Invalid URI: ' + queueObj.uri);
+      }
+
       await fetchUriFromSourceAndUpdateDb(queueObj.uri, queueObj, block);
       const queueDocs = await findInDB(QueueModel, { query: { uri: queueObj.uri } });
       const queueDocsIds = queueDocs.map((x) => x._docId);

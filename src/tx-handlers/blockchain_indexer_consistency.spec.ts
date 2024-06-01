@@ -1,20 +1,18 @@
 import {
-  areBalancesEqual,
   Balance,
   BigIntify,
   CollectionDoc,
   Stringify,
   UserPermissions,
-  type iCollectionDoc,
-  type NumberType
+  areBalancesEqual,
+  type NumberType,
+  type iCollectionDoc
 } from 'bitbadgesjs-sdk';
 import { type BadgeCollection } from 'bitbadgesjs-sdk/dist/proto/badges/collections_pb';
-import mongoose from 'mongoose';
 import { getFromDB, mustGetFromDB } from '../db/db';
 import { AccountModel, AddressListModel, ApprovalTrackerModel, BalanceModel, CollectionModel, MapModel, MerkleChallengeModel } from '../db/schemas';
 import { getStatus } from '../db/status';
-import { client, server } from '../indexer';
-import { connectToRpc } from '../poll';
+import { client } from '../indexer-vars';
 
 // This file simply brute forces all the data in the DB and compares it to the data on the blockchain to ensure consistency
 // This is a very slow test and should only be run when necessary
@@ -22,30 +20,9 @@ import { connectToRpc } from '../poll';
 // set env vars to false
 
 describe('queryClient', () => {
-  beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-    await connectToRpc();
-
-    console.log('queryClient ready');
-  });
-
-  afterAll(async () => {
-    await mongoose.disconnect().catch(console.error);
-    // shut down server
-    server?.close();
-  });
-
-  afterAll(async () => {
-    await mongoose.disconnect();
-  });
-
   it('all collections should be indexed correctly', async () => {
-    const queryClient = client.badgesQueryClient;
-    if (!queryClient) throw new Error('queryClient not ready');
+    const queryClient = client?.badgesQueryClient;
+    if (!client || !queryClient) throw new Error('queryClient not ready');
 
     const status = await getStatus();
 
@@ -76,8 +53,8 @@ describe('queryClient', () => {
   }, 10000);
 
   it('all accounts should be indexed correctly', async () => {
-    const queryClient = client.badgesQueryClient;
-    if (!queryClient) throw new Error('queryClient not ready');
+    const queryClient = client?.badgesQueryClient;
+    if (!client || !queryClient) throw new Error('queryClient not ready');
 
     // iterate through all AccountModel
     const allAccounts = await AccountModel.find({}).lean().exec();
@@ -94,8 +71,8 @@ describe('queryClient', () => {
   });
 
   it('all balances should be indexed correctly', async () => {
-    const queryClient = client.badgesQueryClient;
-    if (!queryClient) throw new Error('queryClient not ready');
+    const queryClient = client?.badgesQueryClient;
+    if (!client || !queryClient) throw new Error('queryClient not ready');
 
     const allBalances = await BalanceModel.find({
       onChain: true
@@ -161,8 +138,8 @@ describe('queryClient', () => {
   }, 0);
 
   it('all challenges should be indexed correctly', async () => {
-    const queryClient = client.badgesQueryClient;
-    if (!queryClient) throw new Error('queryClient not ready');
+    const queryClient = client?.badgesQueryClient;
+    if (!client || !queryClient) throw new Error('queryClient not ready');
 
     const allChallenges = await MerkleChallengeModel.find({}).lean().exec();
 
@@ -204,8 +181,8 @@ describe('queryClient', () => {
   });
 
   it('all address lists should be indexed correctly', async () => {
-    const queryClient = client.badgesQueryClient;
-    if (!queryClient) throw new Error('queryClient not ready');
+    const queryClient = client?.badgesQueryClient;
+    if (!client || !queryClient) throw new Error('queryClient not ready');
 
     const allAddressLists = await AddressListModel.find({
       _docId: {
@@ -222,6 +199,7 @@ describe('queryClient', () => {
       if (!addressListRes) continue; // For TS
 
       for (const key of Object.keys(addressListRes)) {
+        console.log('key', key);
         expect(JSON.stringify(addressListRes[key as keyof typeof addressListRes])).toEqual(
           JSON.stringify(indexedAddressList[key as keyof typeof indexedAddressList])
         );
@@ -230,8 +208,8 @@ describe('queryClient', () => {
   });
 
   it('all approvals trackers should be indexed correctly', async () => {
-    const queryClient = client.badgesQueryClient;
-    if (!queryClient) throw new Error('queryClient not ready');
+    const queryClient = client?.badgesQueryClient;
+    if (!client || !queryClient) throw new Error('queryClient not ready');
 
     const allApprovalTrackers = await ApprovalTrackerModel.find({}).lean().exec();
 
@@ -256,8 +234,8 @@ describe('queryClient', () => {
   });
 
   it('all maps should be indexed correctly', async () => {
-    const queryClient = client.badgesQueryClient;
-    if (!queryClient) throw new Error('queryClient not ready');
+    const queryClient = client?.badgesQueryClient;
+    if (!client || !queryClient) throw new Error('queryClient not ready');
 
     const allMaps = await MapModel.find({}).lean().exec();
 

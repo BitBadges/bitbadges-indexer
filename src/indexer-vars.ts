@@ -1,5 +1,6 @@
 import { S3 } from '@aws-sdk/client-s3';
 import { create } from 'ipfs-http-client';
+import { IndexerStargateClient } from './chain-client/indexer_stargateclient';
 
 // Created a separate file bc for test cases, I did not want to trigger the poller / indexer but still needed access to these variables
 
@@ -28,3 +29,8 @@ export const ipfsClient = create({
   },
   timeout: process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000
 });
+
+export let client: IndexerStargateClient | undefined = (global as any).client ?? undefined; // global for testing
+export const setClient = (newClient: IndexerStargateClient) => {
+  client = newClient;
+};

@@ -11,10 +11,28 @@ import {
 } from 'bitbadgesjs-sdk';
 import { mustGetFromDB } from '../db/db';
 import { PluginModel } from '../db/schemas';
-import { Plugins } from '../routes/claims';
 import { GenericCustomPluginValidateFunction } from './api';
-import { GenericOauthValidateFunction } from './auth';
-import { Setter } from './codes';
+import { DiscordPluginDetails, GenericOauthValidateFunction, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from './auth';
+import { CodesPluginDetails, Setter } from './codes';
+import { NumUsesDetails } from './numUses';
+import { PasswordPluginDetails } from './passwords';
+import { RequiresSignaturePluginDetails } from './signature';
+import { TransferTimesPluginDetails } from './transferTimes';
+import { WhitelistPluginDetails } from './whitelist';
+
+export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<key> } = {
+  codes: CodesPluginDetails,
+  password: PasswordPluginDetails,
+  numUses: NumUsesDetails,
+  transferTimes: TransferTimesPluginDetails,
+  initiatedBy: RequiresSignaturePluginDetails,
+  whitelist: WhitelistPluginDetails,
+  github: GitHubPluginDetails,
+  google: GooglePluginDetails,
+  // email: EmailPluginDetails,
+  twitter: TwitterPluginDetails,
+  discord: DiscordPluginDetails
+};
 
 export interface ContextInfo {
   cosmosAddress: string;

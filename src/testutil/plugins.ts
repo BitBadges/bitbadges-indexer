@@ -112,13 +112,13 @@ export const whitelistPlugin = (privateMode: boolean, list?: iAddressList, listI
   };
 };
 
-export const discordPlugin = (usernames: string[]): IntegrationPluginDetails<'discord'> => {
+export const discordPlugin = (usernames: string[], maxUsesPerUser?: number): IntegrationPluginDetails<'discord'> => {
   return {
     instanceId: crypto.randomBytes(32).toString('hex'),
     pluginId: 'discord',
     publicParams: {
       hasPrivateList: false,
-      maxUsesPerUser: 1
+      maxUsesPerUser: maxUsesPerUser ?? 1
     },
     privateParams: {
       usernames: usernames

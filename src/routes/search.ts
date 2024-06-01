@@ -59,7 +59,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
     const currentMetadataUris = firstMatchesTimeline.map((x) => x.uri);
 
     const metadataQuery: any = {
-      db: 'Metadata',
+      db: { $eq: 'Metadata' },
       $or: [
         {
           _docId: {
@@ -93,8 +93,8 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
       const elemMatches = attributes.map((attr) => ({
         'content.attributes': {
           $elemMatch: {
-            name: attr.name,
-            value: attr.value
+            name: { $eq: attr.name },
+            value: { $eq: attr.value }
           }
         }
       }));
@@ -138,7 +138,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
 
 export const searchHandler = async (req: Request, res: Response<iGetSearchSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const searchValue = req.params.searchValue;
+    const searchValue = req.params.searchValue.toString();
     const { noCollections, noAddressLists, noAccounts, specificCollectionId } = req.body as unknown as GetSearchPayload;
 
     if (!searchValue || searchValue.length === 0) {
@@ -167,15 +167,26 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
       db: 'Metadata'
     };
 
-    const usernameRes = noAccounts ? [] : await findInDB(ProfileModel, { query: { username: searchValue }, limit: 1 });
+    const usernameRes = noAccounts
+      ? []
+      : await findInDB(ProfileModel, {
+          query: {
+            username: {
+              $eq: searchValue
+            }
+          },
+          limit: 1
+        });
     const cosmosAddresses = usernameRes.map((doc) => doc._docId);
 
+    // All addresses should be alphanumeric only
+    const sanitizedSearchValue = searchValue.replace(/[^a-zA-Z0-9]/g, '');
     const selectorCriteria: any[] = [
       { cosmosAddress: { $in: cosmosAddresses } },
-      { ethAddress: { $regex: `(?i)${searchValue}` } },
-      { solAddress: { $regex: `(?i)${searchValue}` } },
-      { cosmosAddress: { $regex: `(?i)${searchValue}` } },
-      { btcAddress: { $regex: `(?i)${searchValue}` } }
+      { ethAddress: { $regex: `(?i)${sanitizedSearchValue}` } },
+      { solAddress: { $regex: `(?i)${sanitizedSearchValue}` } },
+      { cosmosAddress: { $regex: `(?i)${sanitizedSearchValue}` } },
+      { btcAddress: { $regex: `(?i)${sanitizedSearchValue}` } }
     ];
 
     if (resolvedEnsAddress) {

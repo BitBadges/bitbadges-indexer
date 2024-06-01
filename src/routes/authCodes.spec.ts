@@ -1,24 +1,24 @@
 import { blsCreateProof, blsSign, generateBls12381G2KeyPair } from '@mattrglobal/bbs-signatures';
 import {
   BitBadgesApiRoutes,
-  convertToCosmosAddress,
   CreateSecretPayload,
   GetSecretPayload,
   UpdateSecretPayload,
+  convertToCosmosAddress,
+  verifySecretsPresentationSignatures,
   type CreateSIWBBRequestPayload,
   type DeleteSIWBBRequestPayload,
   type GetAndVerifySIWBBRequestPayload
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
+import { Express } from 'express';
 import request from 'supertest';
-import { getFromDB, insertToDB, MongoDB, mustGetFromDB } from '../db/db';
-import { DeveloperAppModel, SIWBBRequestModel, OffChainSecretsModel } from '../db/schemas';
-import app, { gracefullyShutdown } from '../indexer';
-import { createExampleReqForAddress } from '../testutil/utils';
-import { verifySecretsPresentationSignatures } from 'bitbadgesjs-sdk';
-import { connectToRpc } from '../poll';
+import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
+import { DeveloperAppModel, OffChainSecretsModel, SIWBBRequestModel } from '../db/schemas';
+import { createExampleReqForAddress } from '../testutil/utils';
+const app = (global as any).app as Express;
 
 dotenv.config();
 
@@ -56,21 +56,7 @@ const deriveProof = async (keyPair: any, messages: string[], dataIntegrityProof:
 
 describe('get Siwbb requests', () => {
   beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-
-    while (!MongoDB.readyState) {}
-
-    await connectToRpc();
-
     signature = await wallet.signMessage(message ?? '');
-  });
-
-  afterAll(async () => {
-    await gracefullyShutdown();
   });
 
   it('should not create Siwbb request in storage without correct scope', async () => {

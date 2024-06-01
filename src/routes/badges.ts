@@ -1,7 +1,7 @@
 import {
+  ClaimDetails,
   iApprovalInfoDetails,
   iChallengeDetails,
-  iMerkleChallenge,
   type ErrorResponse,
   type GetOwnersForBadgePayload,
   type NumberType,
@@ -9,8 +9,7 @@ import {
   type iApprovalCriteria,
   type iGetOwnersForBadgeSuccessResponse,
   type iIncomingApprovalCriteria,
-  type iOutgoingApprovalCriteria,
-  ClaimDetails
+  type iOutgoingApprovalCriteria
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
@@ -208,29 +207,4 @@ export function addChallengeDetailsToCriteria(
       };
     })
   };
-}
-
-export function addBlankChallengeDetailsToCriteria(
-  approvalCriteria?: iApprovalCriteria<bigint> | iIncomingApprovalCriteria<bigint> | iOutgoingApprovalCriteria<bigint>
-) {
-  if (!approvalCriteria) return approvalCriteria;
-
-  return {
-    ...approvalCriteria,
-    merkleChallenges: addBlankChallengeDetails(approvalCriteria.merkleChallenges ?? [])
-  };
-}
-
-export function addBlankChallengeDetails(merkleChallenges: Array<iMerkleChallenge<bigint>>) {
-  return merkleChallenges.map((y) => {
-    return {
-      ...y,
-      challengeInfoDetails: {
-        challengeDetails: {
-          leaves: [],
-          isHashed: false
-        }
-      }
-    };
-  });
 }

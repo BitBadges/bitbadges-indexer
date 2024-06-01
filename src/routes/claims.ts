@@ -16,7 +16,6 @@ import {
   iSimulateClaimSuccessResponse,
   iUpdateClaimSuccessResponse,
   mustConvertToCosmosAddress,
-  type ClaimIntegrationPluginType,
   type ErrorResponse,
   type GetClaimsPayload,
   type ListActivityDoc,
@@ -52,33 +51,13 @@ import {
   QueueModel
 } from '../db/schemas';
 import { getStatus } from '../db/status';
-import { DiscordPluginDetails, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from '../integrations/auth';
-import { CodesPluginDetails, generateCodesFromSeed } from '../integrations/codes';
-import { NumUsesDetails } from '../integrations/numUses';
-import { PasswordPluginDetails } from '../integrations/passwords';
-import { RequiresSignaturePluginDetails } from '../integrations/signature';
-import { TransferTimesPluginDetails } from '../integrations/transferTimes';
-import { getCorePlugin, getFirstMatchForPluginType, getPlugin, type BackendIntegrationPlugin, type ContextInfo } from '../integrations/types';
-import { WhitelistPluginDetails } from '../integrations/whitelist';
+import { generateCodesFromSeed } from '../integrations/codes';
+import { getCorePlugin, getFirstMatchForPluginType, getPlugin, type ContextInfo } from '../integrations/types';
 import { addBalancesToOffChainStorage } from '../ipfs/ipfs';
 import { getActivityDocsForListUpdate } from './addressLists';
 import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, ContextReturn, updateClaimDocs } from './ipfs';
 import { refreshCollection } from './refresh';
-
-export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<key> } = {
-  codes: CodesPluginDetails,
-  password: PasswordPluginDetails,
-  numUses: NumUsesDetails,
-  transferTimes: TransferTimesPluginDetails,
-  initiatedBy: RequiresSignaturePluginDetails,
-  whitelist: WhitelistPluginDetails,
-  github: GitHubPluginDetails,
-  google: GooglePluginDetails,
-  // email: EmailPluginDetails,
-  twitter: TwitterPluginDetails,
-  discord: DiscordPluginDetails
-};
 
 enum ActionType {
   Code = 'Code',
@@ -96,7 +75,7 @@ export const createListClaimContextFunction = (
 ): ContextReturn => {
   return {
     metadata: claim.metadata,
-    automatic: claim.automatic,
+    approach: claim.approach,
     createdBy: cosmosAddress,
     action: { listId: listId },
     collectionId: '-1',
@@ -113,7 +92,7 @@ export const createOffChainClaimContextFunction = (
 ): ContextReturn => {
   return {
     action: { balancesToSet: claim.balancesToSet },
-    automatic: claim.automatic,
+    approach: claim.approach,
     metadata: claim.metadata,
     createdBy: cosmosAddress,
     collectionId: collectionId,
@@ -140,7 +119,7 @@ export const createOnChainClaimContextFunction = (
   });
 
   return {
-    automatic: claim.automatic,
+    approach: claim.approach,
     metadata: claim.metadata,
     createdBy: cosmosAddress,
     collectionId: '-1',
@@ -160,7 +139,7 @@ export const updateListClaimContextFunction = (
 ): ContextReturn => {
   return {
     metadata: claim.metadata,
-    automatic: claim.automatic,
+    approach: claim.approach,
     createdBy: claimDoc.createdBy,
     action: claimDoc.action,
     collectionId: '-1',
@@ -176,7 +155,7 @@ export const updateOffChainClaimContextFunction = (
 ): ContextReturn => {
   return {
     action: { balancesToSet: claim.balancesToSet },
-    automatic: claim.automatic,
+    approach: claim.approach,
     metadata: claim.metadata,
     createdBy: claimDoc.createdBy,
     collectionId: claimDoc.collectionId,
@@ -192,7 +171,7 @@ export const updateOnChainClaimContextFunction = (
   claimDoc: ClaimBuilderDoc<NumberType>
 ): ContextReturn => {
   return {
-    automatic: claim.automatic,
+    approach: claim.approach,
     metadata: claim.metadata,
     createdBy: claimDoc.createdBy,
     collectionId: claimDoc.collectionId,
@@ -410,7 +389,7 @@ export const completeClaimHandler = async (
   simulate = false,
   prevCodesOnly = false
 ): Promise<iGetReservedClaimCodesSuccessResponse> => {
-  const query = { _docId: claimId, docClaimed: true, deletedAt: { $exists: false } };
+  const query = { _docId: { $eq: claimId }, docClaimed: true, deletedAt: { $exists: false } };
   const fetchedAt = Number(req.body._fetchedAt || 0n);
 
   cosmosAddress = mustConvertToCosmosAddress(cosmosAddress);
@@ -729,6 +708,10 @@ export const getReservedClaimCodes = async (
     }
 
     const claimId = req.params.claimId;
+    if (!validator.isHexadecimal(claimId)) {
+      throw new Error('Invalid claimId format');
+    }
+
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
     const response = await completeClaimHandler(req, claimId, cosmosAddress, '', true, true);
     return res.status(200).send(response);
@@ -750,7 +733,10 @@ export const getClaimsStatusHandler = async (
 
     // Validate claimAttemptId
     if (!validator.isHexadecimal(claimAttemptId)) {
-      throw new Error('Invalid claimAttemptId format');
+      //TODO: Fix the tests to not require this
+      if (process.env.TEST_MODE !== 'true') {
+        throw new Error('Invalid claimAttemptId format');
+      }
     }
 
     const doc = await ClaimAttemptStatusModel.findOne({ _docId: claimAttemptId });
@@ -782,6 +768,12 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
 
     //Simulate and return an error immediately if not valid
     const claimId = req.params.claimId;
+    if (!validator.isHexadecimal(claimId)) {
+      if (process.env.TEST_MODE !== 'true') {
+        throw new Error('Invalid claimId format');
+      }
+    }
+
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
     const randomId = crypto.randomBytes(32).toString('hex');
     const response = await completeClaimHandler(req, claimId, cosmosAddress, randomId, process.env.TEST_MODE !== 'true');

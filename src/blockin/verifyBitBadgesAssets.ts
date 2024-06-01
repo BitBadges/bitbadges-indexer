@@ -9,7 +9,7 @@ import {
   type UintRange
 } from 'bitbadgesjs-sdk';
 import { type AndGroup, type AssetConditionGroup, type OrGroup, type OwnershipRequirements } from 'blockin';
-import Moralis from 'moralis';
+import _Moralis from 'moralis';
 import { getBalanceForAddress } from '../routes/balances';
 import { getAddressListsFromDB } from '../routes/utils';
 import { Request, Response } from 'express';
@@ -134,6 +134,8 @@ export async function verifyBitBadgesAssets(
           chain: moralisChainId,
           address: mustConvertToEthAddress(address)
         };
+
+        const Moralis = ((global as any).moralis as typeof _Moralis) ?? _Moralis; //For testing
         const assetsForAddress = (await Moralis.EvmApi.nft.getWalletNFTs(options)).result;
 
         // little hacky but makes it compatible with UintRange interface

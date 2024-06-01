@@ -15,7 +15,8 @@ import {
   type AuthenticatedRequest,
   MaybeAuthenticatedRequest,
   checkIfAuthenticated,
-  getAuthDetails
+  getAuthDetails,
+  setMockSessionIfTestMode
 } from '../blockin/blockin_handlers';
 import { getStatus } from '../db/status';
 import { insertToDB } from '../db/db';
@@ -26,13 +27,14 @@ import crypto from 'crypto';
 export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSendClaimAlertsSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as SendClaimAlertsPayload;
+    setMockSessionIfTestMode(req);
 
     for (const claimAlert of reqPayload.claimAlerts) {
       if (claimAlert.collectionId && Number(claimAlert.collectionId) !== 0) {
         const isManager = await checkIfManager(req, res, claimAlert.collectionId);
         if (!isManager) {
           return res.status(401).send({
-            errorMessage: 'You must be a manager of the collection you are trying to send claim alerts for.'
+            errorMessage: 'You must be the manager of the collection you are trying to send claim alerts for.'
           });
         }
       }

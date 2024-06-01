@@ -1,9 +1,7 @@
 import { BigIntify, QueueDoc, convertOffChainBalancesMap, convertToCosmosAddress } from 'bitbadgesjs-sdk';
 import mongoose from 'mongoose';
-import { MongoDB, deleteMany, getFromDB, insertToDB } from './db/db';
+import { deleteMany, getFromDB, insertToDB } from './db/db';
 import { AddressListModel, BalanceModel, QueueModel } from './db/schemas';
-import { gracefullyShutdown } from './indexer';
-import { connectToRpc } from './poll';
 import { handleBalances } from './queue';
 
 const helperAddressesArr = [
@@ -17,22 +15,6 @@ const helperAddressesArr = [
 // set env variables
 
 describe('queue works', () => {
-  beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'false';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-
-    while (!MongoDB.readyState) {}
-
-    await connectToRpc();
-  });
-
-  afterAll(async () => {
-    await gracefullyShutdown();
-  });
-
   it('adds to queue', async () => {
     const docId = Date.now().toString();
 

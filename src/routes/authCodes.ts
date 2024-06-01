@@ -55,8 +55,7 @@ export const createSIWBBRequest = async (
       challengeParams.address &&
       convertToCosmosAddress(challengeParams.address) === authDetails?.cosmosAddress;
 
-    const isFromFrontend =
-      origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io');
+    const isFromFrontend = origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io';
     if (!isFromFrontend) {
       if (!isAuthenticated) {
         throw new Error('You do not have permission to create Siwbb requests.');

@@ -9,11 +9,12 @@ import {
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
-import { MongoDB, insertToDB, mustGetFromDB } from '../db/db';
-import app, { gracefullyShutdown } from '../indexer';
-import { connectToRpc } from '../poll';
-import { createExampleReqForAddress } from '../testutil/utils';
+import { insertToDB, mustGetFromDB } from '../db/db';
 import { CollectionModel } from '../db/schemas';
+
+import { createExampleReqForAddress } from '../testutil/utils';
+import { Express } from 'express';
+const app = (global as any).app as Express;
 
 dotenv.config();
 
@@ -24,19 +25,7 @@ const address = wallet.address;
 
 describe('claim alerts', () => {
   beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-
-    while (!MongoDB.readyState) {}
-
-    await connectToRpc();
-  });
-
-  afterAll(async () => {
-    await gracefullyShutdown();
+    console.log('app', (global as any).app);
   });
 
   it('should send claim alert', async () => {
@@ -108,6 +97,7 @@ describe('claim alerts', () => {
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body);
+    console.log(res.body);
 
     expect(res.status).toBe(200);
 

@@ -1,6 +1,6 @@
 import { AccountDoc, BigIntify, type NumberType } from 'bitbadgesjs-sdk';
 import { fetchDocsForCacheIfEmpty } from '../db/cache';
-import { client } from '../indexer';
+import { client } from '../indexer-vars';
 import { type DocsCache } from '../db/types';
 /**
  * This is a little tricky because we need to handle the case where a user registers
@@ -31,7 +31,7 @@ export const handleNewAccountByAddress = async (cosmosAddress: string, docs: Doc
     return; // Already handled
   }
 
-  const accountInfo = await client.badgesQueryClient?.badges.getAccountInfo(cosmosAddress);
+  const accountInfo = await client?.badgesQueryClient?.badges.getAccountInfo(cosmosAddress);
   if (accountInfo) {
     docs.accounts[cosmosAddress] = new AccountDoc<NumberType>({
       _docId: `${cosmosAddress}`,

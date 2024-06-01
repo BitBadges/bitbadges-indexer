@@ -445,6 +445,8 @@ export async function verifyBlockinAndGrantSessionCookie(
           statement
         },
         beforeVerification: async (challengeParams) => {
+          // setMockSessionIfTestMode(req);
+          console.log('beforeVerification');
           if (process.env.TEST_MODE === 'true') return;
 
           if (!req.session.nonce) {

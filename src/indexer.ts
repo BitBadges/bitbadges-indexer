@@ -1,20 +1,33 @@
+import { config } from 'dotenv';
+import Moralis from 'moralis';
+config();
+
+if (process.env.TEST_MODE === 'true') {
+  // If in test mode, do not start the Moralis server (handled in setup file)
+} else {
+  console.log('Starting Moralis server...');
+  Moralis.start({
+    apiKey: process.env.MORALIS_API_KEY
+  }).catch(console.error);
+}
+
 import axios from 'axios';
 import {
   NumberType,
+  OauthAuthorizePayload,
   SocialConnectionInfo,
   SocialConnections,
   iAccessTokenDoc,
   iAuthorizationCodeDoc,
   mustConvertToCosmosAddress,
-  type ErrorResponse,
-  OauthAuthorizePayload
+  type ErrorResponse
 } from 'bitbadgesjs-sdk';
 import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import crypto from 'crypto';
-import { config } from 'dotenv';
+
 import express, { type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import expressSession from 'express-session';
@@ -22,7 +35,7 @@ import fs from 'fs';
 import helmet from 'helmet';
 import https from 'https';
 import mongoose from 'mongoose';
-import Moralis from 'moralis';
+
 import multer from 'multer';
 import passport from 'passport';
 import querystring from 'querystring';
@@ -41,10 +54,9 @@ import {
   verifyBlockinAndGrantSessionCookie,
   type BlockinSession
 } from './blockin/blockin_handlers';
-import { type IndexerStargateClient } from './chain-client/indexer_stargateclient';
 import { deleteMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
 import { findInDB } from './db/queries';
-import { AccessTokenModel, ApiKeyModel, DeveloperAppModel, AuthorizationCodeModel, ProfileModel } from './db/schemas';
+import { AccessTokenModel, ApiKeyModel, AuthorizationCodeModel, DeveloperAppModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE } from './indexer-vars';
 import { poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
@@ -82,13 +94,9 @@ import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
+import validator from 'validator';
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
-config();
-
-Moralis.start({
-  apiKey: process.env.MORALIS_API_KEY
-}).catch(console.error);
 
 // Basic rate limiting middleware for Express. Limits requests to 30 per minute.
 // Initially put in place to protect against infinite loops.
@@ -110,28 +118,23 @@ export const getAttributeValueByKey = (attributes: Attribute[], key: string): st
   return attributes.find((attribute: Attribute) => attribute.key === key)?.value;
 };
 
-export let client: IndexerStargateClient;
-export const setClient = (newClient: IndexerStargateClient) => {
-  client = newClient;
-};
-
 export let timer: NodeJS.Timer | undefined;
-export const setTimer = (newTimer: NodeJS.Timer) => {
+export const setTimer = (newTimer: NodeJS.Timer | undefined) => {
   timer = newTimer;
 };
 
 export let uriPollerTimer: NodeJS.Timer | undefined;
-export const setUriPollerTimer = (newTimer: NodeJS.Timer) => {
+export const setUriPollerTimer = (newTimer: NodeJS.Timer | undefined) => {
   uriPollerTimer = newTimer;
 };
 
 export let heartbeatTimer: NodeJS.Timer | undefined;
-export const setHeartbeatTimer = (newTimer: NodeJS.Timer) => {
+export const setHeartbeatTimer = (newTimer: NodeJS.Timer | undefined) => {
   heartbeatTimer = newTimer;
 };
 
 export let notificationPollerTimer: NodeJS.Timer | undefined;
-export const setNotificationPollerTimer = (newTimer: NodeJS.Timer) => {
+export const setNotificationPollerTimer = (newTimer: NodeJS.Timer | undefined) => {
   notificationPollerTimer = newTimer;
 };
 
@@ -151,7 +154,7 @@ app.use(async (req, res, next) => {
   // Check if trusted origin
 
   const origin = req.headers.origin;
-  if (origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io')) {
+  if (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io') {
     next();
     return;
   } else if (
@@ -211,7 +214,9 @@ const websiteOnlyCorsOptions = {
 const websiteOnlyCors = cors(websiteOnlyCorsOptions);
 
 // Use limiter but provide a custom error response
-app.use(limiter);
+if (process.env.TEST_MODE !== 'true') {
+  app.use(limiter);
+}
 // console.log the repsonse
 app.use(responseTime({ suffix: false }));
 
@@ -577,7 +582,11 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
 
       return res.json(token);
     } else if (grant_type === 'refresh_token') {
-      const refreshTokenRes = await findInDB(AccessTokenModel, { query: { refreshToken: refresh_token } });
+      if (!validator.isHexadecimal(refresh_token)) {
+        return res.status(400).json({ error: 'Invalid refresh token' });
+      }
+
+      const refreshTokenRes = await findInDB(AccessTokenModel, { query: { refreshToken: { $eq: refresh_token } } });
       if (refreshTokenRes.length === 0) {
         return res.status(400).json({ error: 'Invalid refresh token' });
       }
@@ -800,24 +809,20 @@ export const gracefullyShutdown = async () => {
     console.log('server closed');
   });
 
+  console.log('clearing timer');
+  clearTimeout(timer);
+
+  console.log('clearing uriPollerTimer');
+  clearTimeout(uriPollerTimer);
+
+  console.log('clearing heartbeatTimer');
+  clearTimeout(heartbeatTimer);
+
+  console.log('clearing notificationPollerTimer');
+  clearTimeout(notificationPollerTimer);
+
   await mongoose.connection.close();
   console.log('mongoose connection closed');
-
-  if (timer) {
-    clearTimeout(timer);
-  }
-
-  if (uriPollerTimer) {
-    clearTimeout(uriPollerTimer);
-  }
-
-  if (heartbeatTimer) {
-    clearTimeout(heartbeatTimer);
-  }
-
-  if (notificationPollerTimer) {
-    clearTimeout(notificationPollerTimer);
-  }
 };
 
 process.on('SIGINT', gracefullyShutdown);

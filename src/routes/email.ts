@@ -8,7 +8,7 @@ import { ProfileModel } from '../db/schemas';
 export const unsubscribeHandler = async (req: Request, res: Response) => {
   try {
     const docs = await findInDB(ProfileModel, {
-      query: { 'notifications.emailVerification.token': req.params.token }
+      query: { 'notifications.emailVerification.token': { $eq: req.params.token } }
     });
     const doc = docs.length > 0 ? docs[0] : undefined;
     if (doc) {
@@ -30,7 +30,7 @@ export const unsubscribeHandler = async (req: Request, res: Response) => {
     }
 
     const discordDocs = await findInDB(ProfileModel, {
-      query: { 'notifications.discord.token': req.params.token }
+      query: { 'notifications.discord.token': { $eq: req.params.token } }
     });
     const discordDoc = discordDocs.length > 0 ? discordDocs[0] : undefined;
     if (discordDoc) {
@@ -62,7 +62,7 @@ export const unsubscribeHandler = async (req: Request, res: Response) => {
 export const verifyEmailHandler = async (req: Request, res: Response) => {
   try {
     const docs = await findInDB(ProfileModel, {
-      query: { 'notifications.emailVerification.token': req.params.token }
+      query: { 'notifications.emailVerification.token': { $eq: req.params.token } }
     });
     const doc = docs.length > 0 ? docs[0] : undefined;
 

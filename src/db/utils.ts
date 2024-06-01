@@ -43,6 +43,9 @@ export const getQueryParamsFromBookmark = async (
   let lastFetchedDoc: any = null;
   if (bookmark) {
     lastFetchedDoc = await model.findOne({ _id: bookmark }).lean().exec();
+    if (!lastFetchedDoc) {
+      throw new Error('Invalid bookmark');
+    }
   }
 
   const operator = oldestFirst ? '$gt' : '$lt';

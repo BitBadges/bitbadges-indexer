@@ -1,21 +1,21 @@
 import {
-  BitBadgesApiRoutes,
-  type UpdateAccountInfoPayload,
-  convertToCosmosAddress,
-  GetAccountsPayload,
   AccountViewKey,
+  BitBadgesApiRoutes,
   BitBadgesUserInfo,
+  GetAccountsPayload,
   NotificationPreferences,
-  SocialConnections
+  SocialConnections,
+  convertToCosmosAddress,
+  type UpdateAccountInfoPayload
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
-import { ProfileModel } from '../db/schemas';
+import { Express } from 'express';
 import request from 'supertest';
-import { MongoDB, insertToDB, mustGetFromDB } from '../db/db';
-import app, { gracefullyShutdown } from '../indexer';
+import { insertToDB, mustGetFromDB } from '../db/db';
+import { ProfileModel } from '../db/schemas';
 import { createExampleReqForAddress } from '../testutil/utils';
-import { connectToRpc } from '../poll';
+const app = (global as any).app as Express;
 
 dotenv.config();
 
@@ -23,22 +23,6 @@ const wallet = ethers.Wallet.createRandom();
 const address = wallet.address;
 
 describe('users', () => {
-  beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-
-    await connectToRpc();
-
-    while (!MongoDB.readyState) {}
-  });
-
-  afterAll(async () => {
-    await gracefullyShutdown();
-  });
-
   it('should create user profile in storage', async () => {
     const route = BitBadgesApiRoutes.UpdateAccountInfoRoute();
     const randomUsername = Math.random().toString(36).substring(7);

@@ -1,29 +1,7 @@
 import { Metadata } from 'bitbadgesjs-sdk';
 import { addMetadataToIpfs, getFromIpfs } from './ipfs'; // Import your module and types
-import mongoose from 'mongoose';
-import { MongoDB } from '../db/db';
-import { server } from '../indexer';
-import { connectToRpc } from '../poll';
 
 describe('addMetadataToIpfs', () => {
-  beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-
-    while (!MongoDB.readyState) {}
-
-    await connectToRpc();
-  });
-
-  afterAll(async () => {
-    await mongoose.disconnect().catch(console.error);
-    // shut down server
-    server?.close();
-  });
-
   it('should add collection metadata to IPFS', async () => {
     // Arrange
     const collectionMetadata = new Metadata<number>({

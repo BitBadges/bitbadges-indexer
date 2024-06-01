@@ -64,9 +64,8 @@ import { checkIfAuthenticated, checkIfManager, mustGetAuthDetails, type MaybeAut
 import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
 import { PageVisitsDoc } from '../db/docs';
 import { findInDB } from '../db/queries';
-import { ClaimBuilderModel, CollectionModel, MapModel, PageVisitsModel } from '../db/schemas';
+import { ClaimBuilderModel, CollectionModel, ComplianceModel, MapModel, PageVisitsModel } from '../db/schemas';
 import { getPlugin } from '../integrations/types';
-import { complianceDoc } from '../poll';
 import { fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import {
   executeApprovalTrackersByIdsQuery,
@@ -366,6 +365,7 @@ export async function executeAdditionalCollectionQueries(
   const claimFetchesFlat = claimFetches.flat();
 
   const badgeIdsFetched = new Array<UintRangeArray<bigint>>();
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   for (const query of collectionQueries) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
     if (!collectionRes) continue;
@@ -701,7 +701,14 @@ export async function executeAdditionalCollectionQueries(
         merkleChallenge.challengeInfoDetails.challengeDetails = claimFetch.content as ChallengeDetails<bigint>;
         const challengeTrackerId = merkleChallenge.challengeTrackerId;
         const docs = await findInDB(ClaimBuilderModel, {
-          query: { collectionId: Number(collectionRes.collectionId), docClaimed: true, cid: challengeTrackerId, deletedAt: { $exists: false } }
+          query: {
+            collectionId: Number(collectionRes.collectionId),
+            docClaimed: true,
+            cid: {
+              $eq: challengeTrackerId
+            },
+            deletedAt: { $exists: false }
+          }
         });
         if (docs.length > 0) {
           const claims = await getClaimDetailsForFrontend(req, res, docs, query.fetchPrivateParams, docs[0].trackerDetails);
@@ -760,7 +767,7 @@ export const getClaimDetailsForFrontend = async (
       balancesToSet: doc.action.balancesToSet,
       plugins: decryptedPlugins,
       manualDistribution: doc.manualDistribution,
-      automatic: doc.automatic,
+      approach: doc.approach,
       metadata: doc.metadata,
       seedCode
     });

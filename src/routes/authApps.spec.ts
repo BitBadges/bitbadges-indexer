@@ -1,12 +1,12 @@
 import { BitBadgesApiRoutes, CreateDeveloperAppPayload, UpdateDeveloperAppPayload } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
+import { Express } from 'express';
 import request from 'supertest';
-import { MongoDB, getFromDB } from '../db/db';
-import app, { gracefullyShutdown } from '../indexer';
-import { connectToRpc } from '../poll';
-import { createExampleReqForAddress } from '../testutil/utils';
+import { getFromDB } from '../db/db';
 import { DeveloperAppModel } from '../db/schemas';
+import { createExampleReqForAddress } from '../testutil/utils';
+const app = (global as any).app as Express;
 
 dotenv.config();
 
@@ -16,22 +16,6 @@ const address = wallet.address;
 // const message = exampleSession.blockin ?? '';
 
 describe('auth apps', () => {
-  beforeAll(async () => {
-    process.env.DISABLE_API = 'false';
-    process.env.DISABLE_URI_POLLER = 'true';
-    process.env.DISABLE_BLOCKCHAIN_POLLER = 'true';
-    process.env.DISABLE_NOTIFICATION_POLLER = 'true';
-    process.env.TEST_MODE = 'true';
-
-    while (!MongoDB.readyState) {}
-
-    await connectToRpc();
-  });
-
-  afterAll(async () => {
-    await gracefullyShutdown();
-  });
-
   it('should create and update auth apps', async () => {
     const route = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
     const body: CreateDeveloperAppPayload = {

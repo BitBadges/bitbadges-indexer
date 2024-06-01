@@ -197,9 +197,18 @@ export async function getFromDB<T extends BitBadgesDoc<JSPrimitiveNumberType>, S
 ) {
   let res;
   if (session) {
-    res = await model.find({ _docId: id }).limit(1).lean().session(session).exec();
+    res = await model
+      .find({ _docId: { $eq: id } })
+      .limit(1)
+      .lean()
+      .session(session)
+      .exec();
   } else {
-    res = await model.find({ _docId: id }).limit(1).lean().exec();
+    res = await model
+      .find({ _docId: { $eq: id } })
+      .limit(1)
+      .lean()
+      .exec();
   }
 
   if (res.length > 0) {
@@ -219,9 +228,18 @@ export async function mustGetFromDB<T extends BitBadgesDoc<JSPrimitiveNumberType
 ): Promise<S> {
   let res;
   if (session) {
-    res = await model.find({ _docId: id }).limit(1).lean().session(session).exec();
+    res = await model
+      .find({ _docId: { $eq: id } })
+      .limit(1)
+      .lean()
+      .session(session)
+      .exec();
   } else {
-    res = await model.find({ _docId: id }).limit(1).lean().exec();
+    res = await model
+      .find({ _docId: { $eq: id } })
+      .limit(1)
+      .lean()
+      .exec();
   }
 
   if (res.length === 0) {
@@ -262,7 +280,7 @@ export async function insertMany<T extends BitBadgesDoc<JSPrimitiveNumberType>, 
     // if (docsToInsert.length > 1000) console.time('insertMany');
     const bulkOps = docsToInsert.map((doc) => ({
       updateOne: {
-        filter: { _id: doc._id },
+        filter: { _id: { $eq: doc._id } },
         update: doc,
         upsert: true
       }

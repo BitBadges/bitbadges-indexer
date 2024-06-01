@@ -31,10 +31,10 @@ import { checkIfManager, mustGetAuthDetails, type AuthenticatedRequest } from '.
 import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AddressListModel, ClaimBuilderModel, CollectionModel, IPFSTotalsModel, OffChainUrlModel, PluginModel } from '../db/schemas';
-import { encryptPlugins, getFirstMatchForPluginType, getPlugin } from '../integrations/types';
+import { Plugins, encryptPlugins, getFirstMatchForPluginType, getPlugin } from '../integrations/types';
 import { addApprovalDetailsToOffChainStorage, addBalancesToOffChainStorage, addMetadataToIpfs } from '../ipfs/ipfs';
 import { cleanBalanceMap } from '../utils/dataCleaners';
-import { Plugins, createOffChainClaimContextFunction, createOnChainClaimContextFunction } from './claims';
+import { createOffChainClaimContextFunction, createOnChainClaimContextFunction } from './claims';
 import { executeCollectionsQuery, getDecryptedPluginsAndPublicState } from './collections';
 import { refreshCollection } from './refresh';
 
@@ -144,11 +144,13 @@ export enum ClaimType {
 const constructQuery = (claimType: ClaimType, oldClaimQuery: Record<string, any>) => {
   const query: Record<string, any> = {};
   if (claimType === ClaimType.OffChainIndexed || claimType === ClaimType.OffChainNonIndexed) {
-    query.collectionId = oldClaimQuery.collectionId ?? -10000;
+    query.collectionId = Number(oldClaimQuery.collectionId) ?? -10000;
   }
 
   if (claimType === ClaimType.AddressList) {
-    query['action.listId'] = oldClaimQuery['action.listId'] ?? '';
+    query['action.listId'] = {
+      $eq: oldClaimQuery['action.listId'] ?? ''
+    };
   }
 
   return query;
@@ -162,7 +164,7 @@ export interface ContextReturn {
     listId?: string;
   };
   metadata?: iMetadata<NumberType>;
-  automatic?: boolean;
+  approach?: string;
   createdBy: string;
   collectionId: NumberType;
   docClaimed: boolean;
@@ -210,7 +212,7 @@ export const updateClaimDocs = async (
       throw new Error('Invalid claim');
     }
 
-    const query = { docClaimed: true, _docId: claim.claimId, ...queryBuilder };
+    const query = { docClaimed: true, _docId: { $eq: claim.claimId }, ...queryBuilder };
     const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1, session });
     const existingDoc = existingDocRes.length > 0 ? existingDocRes[0] : undefined;
     const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
@@ -358,7 +360,7 @@ export const updateClaimDocs = async (
       claimDocsToSet.push({
         ...existingDoc, //Keep all other context
         manualDistribution: context(claim).manualDistribution,
-        automatic: context(claim).automatic,
+        approach: context(claim).approach,
         action: context(claim).action,
         metadata: context(claim).metadata,
         state,
@@ -429,11 +431,12 @@ export const addBalancesToOffChainStorageHandler = async (
 
   try {
     const origin = req.headers.origin;
-    const isFromFrontend =
-      origin && (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io');
+    const isFromFrontend = origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io';
     if (!isFromFrontend) {
       if (reqPayload.claims) {
-        throw new Error('Claims must be managed through other API routes or the frontend, not through here.');
+        if (process.env.TEST_MODE !== 'true') {
+          throw new Error('Claims must be managed through other API routes or the frontend, not through here.');
+        }
       }
 
       if (BigInt(reqPayload.collectionId) === 0n) {

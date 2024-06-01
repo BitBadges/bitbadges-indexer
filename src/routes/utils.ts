@@ -12,14 +12,52 @@ import {
   type iUserIncomingApproval,
   type iUserIncomingApprovalWithDetails,
   type iUserOutgoingApproval,
-  type iUserOutgoingApprovalWithDetails
+  type iUserOutgoingApprovalWithDetails,
+  iApprovalCriteria,
+  iIncomingApprovalCriteria,
+  iMerkleChallenge,
+  iOutgoingApprovalCriteria
 } from 'bitbadgesjs-sdk';
-import { getManyFromDB } from '../db/db';
-import { AddressListModel, FetchModel } from '../db/schemas';
-import { complianceDoc } from '../poll';
-import { addBlankChallengeDetailsToCriteria } from './badges';
-import { mustFindAddressList } from './balances';
+import { getFromDB, getManyFromDB } from '../db/db';
+import { AddressListModel, ComplianceModel, FetchModel } from '../db/schemas';
 import { executeListsActivityQueryForList } from './userQueries';
+
+export function mustFind<T>(arr: T[], callbackFunc: (x: T) => boolean) {
+  const found = arr.find(callbackFunc);
+  if (!found) {
+    throw new Error('Not found in mustFind');
+  }
+  return found;
+}
+
+export function mustFindAddressList(addressLists: iAddressList[], id: string) {
+  return mustFind(addressLists, (x) => x.listId === id);
+}
+
+export function addBlankChallengeDetails(merkleChallenges: Array<iMerkleChallenge<bigint>>) {
+  return merkleChallenges.map((y) => {
+    return {
+      ...y,
+      challengeInfoDetails: {
+        challengeDetails: {
+          leaves: [],
+          isHashed: false
+        }
+      }
+    };
+  });
+}
+
+export function addBlankChallengeDetailsToCriteria(
+  approvalCriteria?: iApprovalCriteria<bigint> | iIncomingApprovalCriteria<bigint> | iOutgoingApprovalCriteria<bigint>
+) {
+  if (!approvalCriteria) return approvalCriteria;
+
+  return {
+    ...approvalCriteria,
+    merkleChallenges: addBlankChallengeDetails(approvalCriteria.merkleChallenges ?? [])
+  };
+}
 
 export async function getAddressListsFromDB(
   listsToFetch: Array<{
@@ -113,11 +151,12 @@ export async function getAddressListsFromDB(
         }
       });
     }
-  }
 
-  for (const list of addressLists) {
-    list.nsfw = complianceDoc?.addressLists.nsfw.find((y) => y.listId === list.listId);
-    list.reported = complianceDoc?.addressLists.reported.find((y) => y.listId === list.listId);
+    const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
+    for (const list of addressLists) {
+      list.nsfw = complianceDoc?.addressLists.nsfw.find((y) => y.listId === list.listId);
+      list.reported = complianceDoc?.addressLists.reported.find((y) => y.listId === list.listId);
+    }
   }
 
   return addressLists;

@@ -10,11 +10,10 @@ import {
   convertToBtcAddress,
   type MapDoc
 } from 'bitbadgesjs-sdk';
-import { AddressListModel, AirdropModel, CollectionModel, EthTxCountModel, MapModel } from '../db/schemas';
+import { AddressListModel, AirdropModel, CollectionModel, ComplianceModel, EthTxCountModel, MapModel } from '../db/schemas';
 import { getFromDB, insertToDB } from '../db/db';
-import { client } from '../indexer';
+import { client } from '../indexer-vars';
 import { OFFLINE_MODE } from '../indexer-vars';
-import { complianceDoc, connectToRpc } from '../poll';
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from '../utils/ensResolvers';
 import { findInDB } from '../db/queries';
 
@@ -28,7 +27,7 @@ export const convertToBitBadgesUserInfo = async (
   }
 
   if (!client) {
-    await connectToRpc();
+    throw new Error('Blockchain is not connected. This is an error on BitBadges end. Please try again later.');
   }
 
   const promises = [];
@@ -188,7 +187,7 @@ export const convertToBitBadgesUserInfo = async (
   );
 
   const resultsToReturn: Array<BitBadgesUserInfo<NumberType>> = [];
-
+  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   for (let i = 0; i < results.length; i += 6) {
     const profileInfo = profileInfos[i / 6];
     const accountInfo = accountInfos[i / 6];
