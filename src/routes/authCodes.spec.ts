@@ -8,7 +8,8 @@ import {
   verifySecretsPresentationSignatures,
   type CreateSIWBBRequestPayload,
   type DeleteSIWBBRequestPayload,
-  type GetAndVerifySIWBBRequestPayload
+  type GetAndVerifySIWBBRequestPayload,
+  CreateDeveloperAppPayload
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
@@ -56,6 +57,22 @@ const deriveProof = async (keyPair: any, messages: string[], dataIntegrityProof:
 
 describe('get Siwbb requests', () => {
   beforeAll(async () => {
+    const route = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
+    const body: CreateDeveloperAppPayload = {
+      name: 'test',
+      description: '',
+      image: '',
+      redirectUris: ['http://localhost:3000']
+    };
+
+    const res = await request(app)
+      .post(route)
+      .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
+      .send(body);
+
+    expect(res.status).toBe(200);
+
     signature = await wallet.signMessage(message ?? '');
   });
 
