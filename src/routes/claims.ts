@@ -588,28 +588,31 @@ export const completeClaimHandler = async (
 
         claimNumber = result.claimNumber;
         if (claimNumber < 0) {
-          throw new Error('Invalid claim number');
+          throw new Error('Invalid claim number: ' + claimNumber);
         }
 
         BigIntify(claimNumber); // Ensure it's a BigInt compatible number
+
+        const maxUses = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.maxUses;
+        if (claimNumber < 0 || (maxUses && claimNumber >= maxUses)) {
+          throw new Error('Invalid claim number: ' + claimNumber);
+        }
+
+        //Check if already used
+        const allUsedClaimNumbers = Object.values(claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers).flat();
+        if (allUsedClaimNumbers.includes(claimNumber)) {
+          throw new Error('Claim number already used: ' + claimNumber);
+        }
       }
-    }
-
-    BigIntify(claimNumber); // Ensure it's a BigInt compatible number
-
-    const maxUses = getFirstMatchForPluginType('numUses', claimBuilderDoc.plugins)?.publicParams.maxUses;
-    if (claimNumber < 0 || (maxUses && claimNumber >= maxUses)) {
-      throw new Error('Invalid claim number');
-    }
-
-    //Check if already used
-    const allUsedClaimNumbers = Object.values(claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers).flat();
-    if (allUsedClaimNumbers.includes(claimNumber)) {
-      throw new Error('Claim number already used: ' + claimNumber);
     }
 
     if (simulate) {
       return {};
+    }
+
+    BigIntify(claimNumber); // Ensure it's a BigInt compatible number
+    if (claimNumber < 0) {
+      throw new Error('Invalid claim number: ' + claimNumber);
     }
 
     const setters = results
