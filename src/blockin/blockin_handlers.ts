@@ -385,8 +385,6 @@ export async function verifyBlockinAndGrantSessionCookie(
   try {
     setMockSessionIfTestMode(req);
 
-    console.log('verifyBlockinAndGrantSessionCookie', body);
-
     const generatedEIP4361ChallengeStr = body.message;
     const challenge = constructChallengeObjectFromString(generatedEIP4361ChallengeStr, BigIntify);
     const chain = getChainForAddress(challenge.address);

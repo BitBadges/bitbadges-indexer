@@ -1,21 +1,21 @@
 import {
+  UintRangeArray,
+  convertToCosmosAddress,
   type ErrorResponse,
   type NumberType,
   type UintRange,
-  UintRangeArray,
-  convertToCosmosAddress,
   type iGetBrowseCollectionsSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { DEV_MODE } from '../constants';
+import { mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
+import { AddressListModel, BrowseModel, CollectionModel, ProfileModel, TransferActivityModel } from '../db/schemas';
 import { complianceDoc } from '../poll';
 import { executeCollectionsQuery, type CollectionQueryOptions } from './collections';
 import { getAccountByAddress } from './users';
-import { getAddressListsFromDB } from './utils';
-import { mustGetFromDB } from '../db/db';
-import { BrowseModel, CollectionModel, TransferActivityModel, AddressListModel, ProfileModel } from '../db/schemas';
-import { findInDB } from '../db/queries';
+import { mustGetAddressListsFromDB } from './utils';
 
 let cachedResult: iGetBrowseCollectionsSuccessResponse<NumberType> | ErrorResponse | undefined;
 let lastFetchTime = 0;
@@ -119,7 +119,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
     }
     const collections = await executeCollectionsQuery(req, res, condensedToFetch);
 
-    const addressListsToReturn = await getAddressListsFromDB(
+    const addressListsToReturn = await mustGetAddressListsFromDB(
       addressLists.map((x) => {
         return {
           listId: x._docId

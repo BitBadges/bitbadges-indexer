@@ -1,5 +1,5 @@
 import { AddressList, BitBadgesAddressList } from 'bitbadgesjs-sdk';
-import { getAddressListsFromDB } from '../routes/utils';
+import { mustGetAddressListsFromDB } from '../routes/utils';
 import { type BackendIntegrationPlugin } from './types';
 
 export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
@@ -31,7 +31,7 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
     const id = cosmosAddress;
 
     if (params.listId) {
-      const addressListRes = await getAddressListsFromDB([{ listId: params.listId }], false);
+      const addressListRes = await mustGetAddressListsFromDB([{ listId: params.listId }], false);
       if (addressListRes.length === 0) {
         return { success: false, error: 'List not found' };
       }

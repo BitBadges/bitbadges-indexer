@@ -60,6 +60,33 @@ export function addBlankChallengeDetailsToCriteria(
   };
 }
 
+export async function mustGetAddressListsFromDB(
+  listsToFetch: Array<{
+    listId: string;
+    viewsToFetch?: Array<{
+      viewId: string;
+      viewType: 'listActivity';
+      bookmark: string;
+    }>;
+  }>,
+  fetchMetadata: boolean,
+  fetchActivity?: boolean,
+  fetchedLists?: iAddressListDoc<bigint>[]
+) {
+  const lists = await getAddressListsFromDB(listsToFetch, fetchMetadata, fetchActivity, fetchedLists);
+  if (lists.length !== listsToFetch.length) {
+    throw new Error('Not all lists found');
+  }
+
+  for (let i = 0; i < lists.length; i++) {
+    if (lists[i].listId !== listsToFetch[i].listId) {
+      throw new Error('List IDs do not match');
+    }
+  }
+
+  return lists;
+}
+
 export async function getAddressListsFromDB(
   listsToFetch: Array<{
     listId: string;
@@ -111,6 +138,17 @@ export async function getAddressListsFromDB(
         : [];
 
     const addressListDocs = [...(fetchedLists ?? []), ...addressListDocsFromDB];
+    for (const doc of addressListDocs) {
+      if (!doc) continue;
+      addressLists.push(
+        new BitBadgesAddressList({
+          ...doc,
+          claims: [],
+          listsActivity: [],
+          views: {}
+        })
+      );
+    }
 
     if (fetchActivity) {
       const listActivityPromises = listsToFetch.map(async (listToFetch) => {
@@ -128,27 +166,17 @@ export async function getAddressListsFromDB(
       const listActivityResults = await Promise.all(listActivityPromises);
 
       listActivityResults.forEach(({ listToFetch, listActivity }) => {
-        const doc = addressListDocs.find((x) => x && x.listId === listToFetch.listId);
-        if (doc) {
-          addressLists.push(
-            new BitBadgesAddressList<bigint>({
-              ...doc,
-              claims: [],
-              listsActivity: listActivity.docs,
-              views: fetchMetadata
-                ? {
-                    listActivity: {
-                      ids: listActivity.docs.map((x) => x._docId),
-                      type: 'List Activity',
-                      pagination: {
-                        bookmark: listActivity.bookmark ?? '',
-                        hasMore: listActivity.docs.length >= 25
-                      }
-                    }
-                  }
-                : {}
-            })
-          );
+        const list = addressLists.find((x) => x.listId === listToFetch.listId);
+        if (list) {
+          list.listsActivity = listActivity.docs;
+          list.views.listActivity = {
+            ids: listActivity.docs.map((x) => x._docId),
+            type: 'List Activity',
+            pagination: {
+              bookmark: listActivity.bookmark ?? '',
+              hasMore: listActivity.docs.length >= 25
+            }
+          };
         }
       });
     }

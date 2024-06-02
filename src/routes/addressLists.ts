@@ -31,7 +31,7 @@ import { getStatus } from '../db/status';
 import { createListClaimContextFunction } from './claims';
 import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, deleteOldClaims, updateClaimDocs } from './ipfs';
-import { getAddressListsFromDB } from './utils';
+import { mustGetAddressListsFromDB } from './utils';
 
 export const deleteAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
@@ -301,7 +301,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
     }
 
     const reservedStatuses = listsToFetch.map((x) => isReserved(x.listId));
-    const docs = await getAddressListsFromDB(
+    const docs = await mustGetAddressListsFromDB(
       listsToFetch,
       reservedStatuses.some((x) => !x) // Reserved lists will not have metadata
     );

@@ -3,7 +3,6 @@ import request from 'supertest';
 import { Express } from 'express';
 const app = (global as any).app as Express;
 
-
 import {
   BitBadgesApiRoutes,
   BlockinChallengeParams,
@@ -887,6 +886,10 @@ describe('checkIfAuthenticated function', () => {
     const session = createExampleReqForAddress(ethWallet.address);
     if (!session.session.blockinParams) throw new Error('No blockinParams found in session');
     const list = addressLists[0];
+
+    console.log(list.addresses);
+    console.log(list.addresses.includes(convertToCosmosAddress(ethWallet.address)));
+
     const params = new BlockinChallengeParams<bigint>({
       ...session.session.blockinParams,
       assetOwnershipRequirements: {
@@ -901,6 +904,8 @@ describe('checkIfAuthenticated function', () => {
         ]
       }
     });
+
+
     const challenge = createChallenge(params);
     const messageToSign = challenge;
     const signature = await ethWallet.signMessage(messageToSign);
@@ -909,6 +914,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GenericVerifyRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ message: challenge, signature });
+  
     console.log(challengeRes.body);
     expect(challengeRes.statusCode).toBe(200);
   });

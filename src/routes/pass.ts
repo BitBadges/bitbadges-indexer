@@ -7,11 +7,11 @@ import { mustGetFromDB } from '../db/db';
 import { SIWBBRequestModel } from '../db/schemas';
 
 // For running tests (TS bugs out)
-// import { PKPass } from 'passkit-generator';
+import { PKPass } from 'passkit-generator';
 
 // For running
-import passkit from 'passkit-generator';
-const { PKPass } = passkit;
+// import passkit from 'passkit-generator';
+// const { PKPass } = passkit;
 
 const certDirectory = path.resolve(process.cwd(), 'cert');
 const wwdr = fs.readFileSync(path.join(certDirectory, 'wwdr.pem'));

@@ -26,10 +26,10 @@ import { findInDB } from '../db/queries';
 import { AccountModel, AddressListModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel } from '../db/schemas';
 import { getQueryParamsFromBookmark } from '../db/utils';
 import { complianceDoc } from '../poll';
+import { getAddressForName } from '../utils/ensResolvers';
 import { executeAdditionalCollectionQueries } from './collections';
 import { convertToBitBadgesUserInfo } from './userHelpers';
-import { getAddressListsFromDB } from './utils';
-import { getAddressForName } from '../utils/ensResolvers';
+import { mustGetAddressListsFromDB } from './utils';
 
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
   try {
@@ -427,7 +427,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
     const addressListsToReturnPromise =
       noAddressLists || [...listsRes, ...addressListsResponseDocs].length === 0
         ? Promise.resolve([])
-        : getAddressListsFromDB(
+        : mustGetAddressListsFromDB(
             [...listsRes, ...addressListsResponseDocs].map((x) => {
               return {
                 listId: x._docId

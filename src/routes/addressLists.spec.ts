@@ -651,6 +651,7 @@ describe('get address lists', () => {
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(getPayload2);
 
+    console.log(getRes2.body);
     expect(getRes2.status).toBe(200);
     console.log(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.pluginId === 'password').privateParams?.password);
     expect(getRes2.body.addressLists[0].claims[0].plugins.find((x: any) => x.pluginId === 'password').privateParams?.password).toBe('dfjiaf');

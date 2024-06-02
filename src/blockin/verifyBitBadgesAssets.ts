@@ -9,10 +9,10 @@ import {
   type UintRange
 } from 'bitbadgesjs-sdk';
 import { type AndGroup, type AssetConditionGroup, type OrGroup, type OwnershipRequirements } from 'blockin';
+import { Request, Response } from 'express';
 import _Moralis from 'moralis';
 import { getBalanceForAddress } from '../routes/balances';
-import { getAddressListsFromDB } from '../routes/utils';
-import { Request, Response } from 'express';
+import { mustGetAddressListsFromDB } from '../routes/utils';
 
 export async function verifyBitBadgesAssets(
   bitbadgesAssets: AssetConditionGroup<bigint> | undefined,
@@ -159,19 +159,26 @@ export async function verifyBitBadgesAssets(
         balances = getBalancesForIds([{ start: 1n, end: BigInt(asset.assetIds.length) }], asset.ownershipTimes, balances);
       } else if (asset.collectionId === 'BitBadges Lists') {
         // Little hacky but it works
-        const res = await getAddressListsFromDB(
+        const res = await mustGetAddressListsFromDB(
           (asset.assetIds as string[]).map((x) => ({ listId: x })),
           false
         );
 
+        // console.log(res.addresses);
+        console.log(address);
+
         for (let i = 0; i < res.length; i++) {
           const list = res[i];
+          console.log('inside for loop');
+
           const badgeId = BigInt(i + 1);
           if (!list) {
             throw new Error('Could not find list in DB');
           }
 
           list.addresses = list.addresses.map((x) => convertToCosmosAddress(x));
+          console.log(new AddressList(list).checkAddress(convertToCosmosAddress(address)));
+
           balances.addBalances([
             {
               badgeIds: [{ start: badgeId, end: badgeId }],
@@ -251,6 +258,7 @@ export async function verifyBitBadgesAssets(
     }
 
     if (numSatisfied < numToSatisfy) {
+      console.log(`numSatisfied: ${numSatisfied}, numToSatisfy: ${numToSatisfy}`);
       throw new Error(`Address ${address} did not meet the ownership requirements.`);
     }
   }
