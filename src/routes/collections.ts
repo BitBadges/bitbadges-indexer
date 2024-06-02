@@ -61,11 +61,11 @@ import { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
 import { checkIfAuthenticated, checkIfManager, mustGetAuthDetails, type MaybeAuthenticatedRequest } from '../blockin/blockin_handlers';
-import { getFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
+import { getFromDB, getManyFromDB, insertToDB, mustGetManyFromDB } from '../db/db';
 import { PageVisitsDoc } from '../db/docs';
 import { findInDB } from '../db/queries';
 import { ClaimBuilderModel, CollectionModel, ComplianceModel, MapModel, PageVisitsModel } from '../db/schemas';
-import { getPlugin } from '../integrations/types';
+import { getPlugins } from '../integrations/types';
 import { fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import {
   executeApprovalTrackersByIdsQuery,
@@ -360,12 +360,25 @@ export async function executeAdditionalCollectionQueries(
   }
 
   const addressListsPromise = getAddressListsFromDB(addressListIdsToFetch, false);
+  const mapDocPromise = getManyFromDB(
+    MapModel,
+    baseCollections.map((x) => x.collectionId.toString())
+  );
+  const allClaimDocsPromise = findInDB(ClaimBuilderModel, {
+    query: { collectionId: { $in: baseCollections.map((x) => Number(x.collectionId)) } }
+  });
 
-  const [addressLists, claimFetches] = await Promise.all([addressListsPromise, Promise.all(claimFetchesPromises)]);
+  const [addressLists, claimFetches, mapDocs, allClaimDocs] = await Promise.all([
+    addressListsPromise,
+    Promise.all(claimFetchesPromises),
+    mapDocPromise,
+    allClaimDocsPromise
+  ]);
   const claimFetchesFlat = claimFetches.flat();
 
   const badgeIdsFetched = new Array<UintRangeArray<bigint>>();
   const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
+
   for (const query of collectionQueries) {
     const collectionRes = baseCollections.find((collection) => collection.collectionId.toString() === query.collectionId.toString());
     if (!collectionRes) continue;
@@ -648,13 +661,9 @@ export async function executeAdditionalCollectionQueries(
       );
     }
 
-    // TODO: Parallelize this
     // Perform off-chain claims query (on-chain ones are handled below with approval fetches)
     if (collectionToReturn.balancesType !== 'Standard') {
-      const docs = await findInDB(ClaimBuilderModel, {
-        query: { collectionId: Number(collectionToReturn.collectionId), docClaimed: true, deletedAt: { $exists: false } }
-      });
-
+      const docs = allClaimDocs.filter((x) => Number(x.collectionId) === Number(collectionToReturn.collectionId) && x.docClaimed && !x.deletedAt);
       const claims = await getClaimDetailsForFrontend(req, res, docs, query.fetchPrivateParams, {
         collectionId: collectionToReturn.collectionId,
         approverAddress: '',
@@ -666,7 +675,7 @@ export async function executeAdditionalCollectionQueries(
       collectionToReturn.claims = claims as Array<Required<ClaimDetails<bigint>>>;
     }
 
-    const reservedMap = await getFromDB(MapModel, `${collectionToReturn.collectionId}`);
+    const reservedMap = mapDocs.find((x) => Number(x?._docId) === Number(collectionToReturn.collectionId));
     if (reservedMap) {
       collectionToReturn.reservedMap = reservedMap;
     }
@@ -700,16 +709,10 @@ export async function executeAdditionalCollectionQueries(
 
         merkleChallenge.challengeInfoDetails.challengeDetails = claimFetch.content as ChallengeDetails<bigint>;
         const challengeTrackerId = merkleChallenge.challengeTrackerId;
-        const docs = await findInDB(ClaimBuilderModel, {
-          query: {
-            collectionId: Number(collectionRes.collectionId),
-            docClaimed: true,
-            cid: {
-              $eq: challengeTrackerId
-            },
-            deletedAt: { $exists: false }
-          }
-        });
+        const docs = allClaimDocs.filter(
+          (x) => Number(x.collectionId) === Number(collectionRes.collectionId) && x.docClaimed && !x.deletedAt && x.cid === challengeTrackerId
+        );
+
         if (docs.length > 0) {
           const claims = await getClaimDetailsForFrontend(req, res, docs, query.fetchPrivateParams, docs[0].trackerDetails);
           merkleChallenge.challengeInfoDetails.claim = claims[0];
@@ -836,8 +839,13 @@ export const getDecryptedPluginsAndPublicState = async (
   await checkIfAuthenticatedForPrivateParams(req, res, includePrivateParams, trackerDetails, listId);
 
   const pluginsRes = [];
+
+  const mappedPlugins = await getPlugins(plugins.map((x) => x.pluginId));
+
   for (const x of plugins) {
-    const pluginInstance = await getPlugin(x.pluginId);
+    const pluginInstance = mappedPlugins.find((y) => y.pluginId === x.pluginId);
+    if (!pluginInstance) throw new Error(`Plugin ${x.pluginId} not found`);
+
     pluginsRes.push({
       pluginId: x.pluginId,
       instanceId: x.instanceId,
@@ -958,6 +966,7 @@ export async function executeCollectionsQuery(req: Request, res: Response, colle
     CollectionModel,
     collectionQueries.map((query) => `${query.collectionId.toString()}`)
   );
+
   const collRes = await executeAdditionalCollectionQueries(req, res, baseCollections, collectionQueries);
   return collRes;
 }

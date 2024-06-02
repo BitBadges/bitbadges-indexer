@@ -125,7 +125,8 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
           listId: x._docId
         };
       }),
-      true
+      true,
+      false
     );
 
     const promises = [];

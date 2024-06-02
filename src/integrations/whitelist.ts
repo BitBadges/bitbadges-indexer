@@ -3,7 +3,7 @@ import { getAddressListsFromDB } from '../routes/utils';
 import { type BackendIntegrationPlugin } from './types';
 
 export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
-  type: 'whitelist',
+  pluginId: 'whitelist',
   metadata: {
     name: 'Whitelist',
     description: 'A whitelist challenge',

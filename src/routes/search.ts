@@ -21,15 +21,15 @@ import {
 } from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import { findInDB } from '../db/queries';
 import { convertDocs, getManyFromDB, mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
 import { AccountModel, AddressListModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel } from '../db/schemas';
+import { getQueryParamsFromBookmark } from '../db/utils';
 import { complianceDoc } from '../poll';
-import { getAddressForName } from '../utils/ensResolvers';
 import { executeAdditionalCollectionQueries } from './collections';
 import { convertToBitBadgesUserInfo } from './userHelpers';
 import { getAddressListsFromDB } from './utils';
-import { getQueryParamsFromBookmark } from '../db/utils';
+import { getAddressForName } from '../utils/ensResolvers';
 
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
   try {
@@ -182,7 +182,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
     // All addresses should be alphanumeric only
     const sanitizedSearchValue = searchValue.replace(/[^a-zA-Z0-9]/g, '');
     const selectorCriteria: any[] = [
-      { cosmosAddress: { $in: cosmosAddresses } },
+      { cosmosAddress: { $eq: cosmosAddresses[0] } },
       { ethAddress: { $regex: `(?i)${sanitizedSearchValue}` } },
       { solAddress: { $regex: `(?i)${sanitizedSearchValue}` } },
       { cosmosAddress: { $regex: `(?i)${sanitizedSearchValue}` } },
@@ -203,9 +203,9 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
     };
 
     const results = await Promise.all([
-      noCollections && noAddressLists ? Promise.resolve([]) : findInDB(FetchModel, { query: metadataQuery }),
-      noAccounts ? Promise.resolve([]) : findInDB(AccountModel, { query: accountQuery }),
-      noAddressLists ? Promise.resolve([]) : findInDB(AddressListModel, { query: addressListsQuery })
+      noCollections && noAddressLists ? Promise.resolve([]) : findInDB(FetchModel, { query: metadataQuery, limit: 10 }),
+      noAccounts ? Promise.resolve([]) : findInDB(AccountModel, { query: accountQuery, limit: 10 }),
+      noAddressLists ? Promise.resolve([]) : findInDB(AddressListModel, { query: addressListsQuery, limit: 10 })
 
       // TODO: Fetch Solana accounts by regex from profiles DB? If they are not in the accounts DB, we can't fetch them
       // noAccounts ? Promise.resolve([]) : findInDB(AccountModel, { query: { solAddress: { $regex: `(?i)${searchValue}` } } })
@@ -361,7 +361,9 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
           }
         });
 
-    const listsPromise = noAddressLists ? Promise.resolve([]) : findInDB(AddressListModel, { query: { uri: { $in: uris } }, limit: 10 });
+    const listsPromise = noAddressLists
+      ? Promise.resolve([])
+      : findInDB(AddressListModel, { query: { uri: { $in: uris }, private: { $ne: true } }, limit: 10 });
 
     const fetchKeys = allAccounts.map((account) => account.cosmosAddress);
     const fetchPromise = fetchKeys.length > 0 ? getManyFromDB(ProfileModel, fetchKeys) : Promise.resolve([]);
@@ -376,6 +378,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
     const docs = fetchRes;
     for (const account of allAccounts) {
       const doc = docs.find((doc) => doc && doc._docId === account.cosmosAddress);
+
       if (doc) {
         profileDocs.push(doc);
       } else {
@@ -386,7 +389,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
     }
 
     const collectionsResponsesPromise =
-      collectionsRes.length === 0
+      collectionsRes.length === 0 || noCollections
         ? Promise.resolve([])
         : executeAdditionalCollectionQueries(
             req,
@@ -412,10 +415,17 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
             })
           );
 
-    const convertToBitBadgesUserInfoPromise = noAccounts ? Promise.resolve([]) : convertToBitBadgesUserInfo(profileDocs, allAccounts);
+    const convertToBitBadgesUserInfoPromise = noAccounts
+      ? Promise.resolve([])
+      : convertToBitBadgesUserInfo(profileDocs, allAccounts, true, [
+          {
+            resolvedName: ensToAttempt,
+            ethAddress: resolvedEnsAddress
+          }
+        ]);
 
     const addressListsToReturnPromise =
-      [...listsRes, ...addressListsResponseDocs].length === 0
+      noAddressLists || [...listsRes, ...addressListsResponseDocs].length === 0
         ? Promise.resolve([])
         : getAddressListsFromDB(
             [...listsRes, ...addressListsResponseDocs].map((x) => {
@@ -423,7 +433,9 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
                 listId: x._docId
               };
             }),
-            true
+            true,
+            false,
+            [...listsRes, ...addressListsResponseDocs]
           );
 
     const [collectionsResponses, accounts, addressListsToReturn] = await Promise.all([

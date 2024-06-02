@@ -2,7 +2,7 @@ import { UintRangeArray } from 'bitbadgesjs-sdk';
 import { type BackendIntegrationPlugin } from './types';
 
 export const TransferTimesPluginDetails: BackendIntegrationPlugin<'transferTimes'> = {
-  type: 'transferTimes',
+  pluginId: 'transferTimes',
   metadata: {
     name: 'Transfer Times',
     description: 'A transfer times challenge',

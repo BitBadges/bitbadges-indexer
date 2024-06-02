@@ -25,7 +25,7 @@ export interface Setter {
 }
 
 export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
-  type: 'codes',
+  pluginId: 'codes',
   metadata: {
     name: 'Codes',
     description: 'A code challenge',

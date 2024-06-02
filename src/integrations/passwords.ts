@@ -8,7 +8,7 @@ if (!symKey) {
 }
 
 export const PasswordPluginDetails: BackendIntegrationPlugin<'password'> = {
-  type: 'password',
+  pluginId: 'password',
   metadata: {
     name: 'Password',
     description: 'A password challenge',

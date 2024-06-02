@@ -9,7 +9,7 @@ import {
   type IntegrationPluginParams,
   BigIntify
 } from 'bitbadgesjs-sdk';
-import { mustGetFromDB } from '../db/db';
+import { mustGetFromDB, mustGetManyFromDB } from '../db/db';
 import { PluginModel } from '../db/schemas';
 import { GenericCustomPluginValidateFunction } from './api';
 import { DiscordPluginDetails, GenericOauthValidateFunction, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from './auth';
@@ -64,7 +64,7 @@ export type ClaimIntegrationCustomBodyType<T extends ClaimIntegrationPluginType>
     : object;
 
 export interface BackendIntegrationPlugin<P extends ClaimIntegrationPluginType> {
-  type: P;
+  pluginId: P;
   metadata: IntegrationMetadata;
   validateFunction: (
     context: ContextInfo & { instanceId: string; pluginId: string },
@@ -84,7 +84,7 @@ export interface BackendIntegrationPlugin<P extends ClaimIntegrationPluginType> 
 }
 
 interface CustomIntegrationPlugin<T extends ClaimIntegrationPluginType> {
-  type: T;
+  pluginId: T;
   responseHandler?: (data: any) => Promise<{ success: boolean; error?: string; toSet?: object[] }>;
   validateFunction?: (
     context: ContextInfo & { instanceId: string; pluginId: string },
@@ -109,7 +109,7 @@ const CustomPluginFunctions: { [key: string]: CustomIntegrationPlugin<any> } = {
 
 export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc: PluginDoc<bigint>): BackendIntegrationPlugin<T> => {
   return {
-    type: doc.pluginId as T,
+    pluginId: doc.pluginId as T,
     metadata: {
       ...doc.metadata,
       duplicatesAllowed: doc.duplicatesAllowed,
@@ -271,6 +271,24 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
 
 export const getCorePlugin = <T extends ClaimIntegrationPluginType>(type: T): BackendIntegrationPlugin<T> => {
   return Plugins[type] as BackendIntegrationPlugin<T>;
+};
+
+export const getPlugins = async <T extends ClaimIntegrationPluginType>(types: T[]): Promise<Array<BackendIntegrationPlugin<T>>> => {
+  const toFetch = types.filter((type) => !Plugins[type]);
+  const docs = await mustGetManyFromDB(PluginModel, toFetch);
+
+  return types.map((type) => {
+    if (!Plugins[type]) {
+      const doc = docs.find((doc) => doc.pluginId === type);
+      if (!doc) {
+        throw new Error('Plugin not found');
+      }
+
+      return castPluginDocToPlugin(doc);
+    }
+
+    return Plugins[type] as BackendIntegrationPlugin<T>;
+  });
 };
 
 export const getPlugin = async <T extends ClaimIntegrationPluginType>(type: T): Promise<BackendIntegrationPlugin<T>> => {

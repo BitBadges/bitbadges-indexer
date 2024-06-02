@@ -1,27 +1,28 @@
 import {
   GetPluginPayload,
+  UpdatePluginPayload,
+  convertToCosmosAddress,
+  iUpdatePluginSuccessResponse,
   type CreatePluginPayload,
   type ErrorResponse,
   type NumberType,
   type iCreatePluginSuccessResponse,
   type iGetPluginSuccessResponse,
-  UpdatePluginPayload,
-  iUpdatePluginSuccessResponse,
-  convertToCosmosAddress
+  NumberifyIfPossible
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import {
   checkIfAuthenticated,
-  type AuthenticatedRequest,
-  mustGetAuthDetails,
   getAuthDetails,
-  setMockSessionIfTestMode
+  mustGetAuthDetails,
+  setMockSessionIfTestMode,
+  type AuthenticatedRequest
 } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { PluginModel } from '../db/schemas';
+import { PluginDocHistoryModel, PluginModel } from '../db/schemas';
 import { getCorePlugin } from '../integrations/types';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 
@@ -135,6 +136,15 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
       ...newDoc,
       lastUpdated: Date.now()
     });
+
+    await PluginDocHistoryModel.insertMany([
+      {
+        _docId: reqPayload.pluginId,
+        pluginId: reqPayload.pluginId,
+        updatedAt: Date.now(),
+        prevDoc: existingDoc.convert(NumberifyIfPossible)
+      }
+    ]);
 
     return res.status(200).send({});
   } catch (e) {

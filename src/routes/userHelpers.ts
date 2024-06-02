@@ -11,7 +11,7 @@ import {
   type MapDoc
 } from 'bitbadgesjs-sdk';
 import { AddressListModel, AirdropModel, CollectionModel, ComplianceModel, EthTxCountModel, MapModel } from '../db/schemas';
-import { getFromDB, insertToDB } from '../db/db';
+import { getFromDB, getManyFromDB, insertToDB } from '../db/db';
 import { client } from '../indexer-vars';
 import { OFFLINE_MODE } from '../indexer-vars';
 import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from '../utils/ensResolvers';
@@ -20,7 +20,8 @@ import { findInDB } from '../db/queries';
 export const convertToBitBadgesUserInfo = async (
   profileInfos: Array<iProfileDoc<NumberType>>,
   accountInfos: Array<iAccountDoc<NumberType> & { chain: SupportedChain }>,
-  fetchName = true
+  fetchName = true,
+  resolvedNames: { ethAddress: string; resolvedName: string }[] = []
 ): Promise<Array<BitBadgesUserInfo<NumberType>>> => {
   if (profileInfos.length !== accountInfos.length) {
     throw new Error('Account info and cosmos account details must be the same length');
@@ -29,20 +30,34 @@ export const convertToBitBadgesUserInfo = async (
   if (!client) {
     throw new Error('Blockchain is not connected. This is an error on BitBadges end. Please try again later.');
   }
+  const airdropDocsPromsie = getManyFromDB(
+    AirdropModel,
+    accountInfos.map((x) => x.cosmosAddress)
+  );
+  const mapDocsPromise = getManyFromDB(
+    MapModel,
+    accountInfos.map((x) => x.cosmosAddress)
+  );
+  const complianceDocPromise = getFromDB(ComplianceModel, 'compliance');
+
+  const [airdropDocs, mapDocs, complianceDoc] = await Promise.all([airdropDocsPromsie, mapDocsPromise, complianceDocPromise]);
 
   const promises = [];
   for (let i = 0; i < profileInfos.length; i++) {
     const cosmosAccountInfo = accountInfos[i];
     const profileDoc = profileInfos[i];
     const isMint = accountInfos[i].cosmosAddress === 'Mint';
+    const prevResolvedName = resolvedNames?.find((x) => x.ethAddress === cosmosAccountInfo.ethAddress)?.resolvedName;
 
     promises.push(
       isMint || OFFLINE_MODE || !fetchName || (cosmosAccountInfo.pubKeyType !== 'ethsecp256k1' && cosmosAccountInfo.publicKey)
         ? { resolvedName: '' }
-        : getNameAndAvatar(cosmosAccountInfo.ethAddress, !!profileDoc.profilePicUrl)
+        : prevResolvedName
+          ? { resolvedName: prevResolvedName }
+          : getNameAndAvatar(cosmosAccountInfo.ethAddress, true) // profileDoc.profilePicUrl)
     );
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
-    promises.push(isMint ? undefined : getFromDB(AirdropModel, cosmosAccountInfo.cosmosAddress));
+    promises.push(isMint ? undefined : airdropDocs.find((x) => x && x._docId === cosmosAccountInfo.cosmosAddress));
     promises.push(
       isMint
         ? async () => {
@@ -173,7 +188,7 @@ export const convertToBitBadgesUserInfo = async (
           }
     );
 
-    promises.push(getFromDB(MapModel, cosmosAccountInfo.cosmosAddress));
+    promises.push(mapDocs.find((x) => x && x._docId === cosmosAccountInfo.cosmosAddress));
   }
 
   const results = await Promise.all(
@@ -187,7 +202,6 @@ export const convertToBitBadgesUserInfo = async (
   );
 
   const resultsToReturn: Array<BitBadgesUserInfo<NumberType>> = [];
-  const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
   for (let i = 0; i < results.length; i += 6) {
     const profileInfo = profileInfos[i / 6];
     const accountInfo = accountInfos[i / 6];

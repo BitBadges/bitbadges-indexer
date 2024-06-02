@@ -30,7 +30,15 @@ import { serializeError } from 'serialize-error';
 import { checkIfManager, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { AddressListModel, ClaimBuilderModel, CollectionModel, IPFSTotalsModel, OffChainUrlModel, PluginModel } from '../db/schemas';
+import {
+  AddressListModel,
+  ClaimBuilderModel,
+  ClaimDocHistoryModel,
+  CollectionModel,
+  IPFSTotalsModel,
+  OffChainUrlModel,
+  PluginModel
+} from '../db/schemas';
 import { Plugins, encryptPlugins, getFirstMatchForPluginType, getPlugin } from '../integrations/types';
 import { addApprovalDetailsToOffChainStorage, addBalancesToOffChainStorage, addMetadataToIpfs } from '../ipfs/ipfs';
 import { cleanBalanceMap } from '../utils/dataCleaners';
@@ -207,6 +215,7 @@ export const updateClaimDocs = async (
   const authDetails = await mustGetAuthDetails(req, res);
 
   const claimDocsToSet: Array<iClaimBuilderDoc<NumberType>> = [];
+  const historyDocsToSet: Array<any> = [];
   for (const claim of newClaims ?? []) {
     if (!claim.claimId) {
       throw new Error('Invalid claim');
@@ -368,6 +377,13 @@ export const updateClaimDocs = async (
         deletedAt: undefined,
         lastUpdated: BigInt(Date.now())
       });
+
+      historyDocsToSet.push({
+        _docId: crypto.randomBytes(32).toString('hex'),
+        updatedAt: Number(Date.now()),
+        claimId: existingDoc._docId,
+        prevDoc: existingDoc
+      });
     } else {
       const currTime = BigInt(Date.now());
       claimDocsToSet.push({
@@ -385,6 +401,10 @@ export const updateClaimDocs = async (
 
   if (claimDocsToSet.length > 0) {
     await insertMany(ClaimBuilderModel, claimDocsToSet, session);
+  }
+
+  if (historyDocsToSet.length > 0) {
+    await ClaimDocHistoryModel.insertMany(historyDocsToSet, { session });
   }
 };
 

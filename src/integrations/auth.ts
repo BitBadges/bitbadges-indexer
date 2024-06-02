@@ -2,7 +2,7 @@ import { type ClaimIntegrationPrivateParamsType, type ClaimIntegrationPublicPara
 import { type BackendIntegrationPlugin, type ClaimIntegrationCustomBodyType } from './types';
 
 export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
-  type: 'twitter',
+  pluginId: 'twitter',
   metadata: {
     name: 'Twitter',
     description: 'A twitter challenge',
@@ -95,7 +95,7 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
 };
 
 export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
-  type: 'google',
+  pluginId: 'google',
   metadata: {
     name: 'Google',
     description: 'A google challenge',
@@ -124,7 +124,7 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
 };
 
 // export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
-//   type: 'email',
+//   pluginId: 'email',
 //   metadata: {
 //     name: 'Email',
 //     description: 'Gate claims by email.',
@@ -153,7 +153,7 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
 // };
 
 export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
-  type: 'github',
+  pluginId: 'github',
   metadata: {
     name: 'GitHub',
     description: 'A github challenge',
@@ -182,7 +182,7 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
 };
 
 export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
-  type: 'discord',
+  pluginId: 'discord',
   metadata: {
     name: 'Discord',
     description: 'A discord challenge',

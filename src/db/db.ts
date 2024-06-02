@@ -120,10 +120,13 @@ const { SHA256 } = crypto;
 config();
 
 export let MONGO_CONNECTED = false;
+
 mongoose.connect(`${process.env.DB_URL}`).catch((e) => {
   console.error('Error connecting to MongoDB:', e);
 });
+
 export const MongoDB = mongoose.connection;
+
 MongoDB.on('error', console.error.bind(console, 'MongoDB connection error:'));
 MongoDB.once('open', () => {
   MONGO_CONNECTED = true;

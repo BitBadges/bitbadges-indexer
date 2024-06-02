@@ -504,6 +504,20 @@ export const ClaimAttemptStatusSchema = new Schema({
   claimInfo: Schema.Types.Mixed
 });
 
+export const ClaimDocHistorySchema = new Schema({
+  _docId: String,
+  claimId: String,
+  updatedAt: Number,
+  prevDoc: Schema.Types.Mixed
+});
+
+export const PluginDocHistorySchema = new Schema({
+  _docId: String,
+  pluginId: String,
+  updatedAt: Number,
+  prevDoc: Schema.Types.Mixed
+});
+
 export const OffChainUrlSchema = new Schema<OffChainUrlDoc>({
   collectionId: Number,
   _docId: String,
@@ -549,6 +563,8 @@ export const DigitalOceanBalancesModel = mongoose.model<DigitalOceanBalancesDoc<
 export const AuthorizationCodeModel = mongoose.model<AuthorizationCodeDoc>('authorization-codes', AuthorizationCodeSchema);
 export const AccessTokenModel = mongoose.model<AccessTokenDoc>('access-tokens', AccessTokenSchema);
 export const ClaimAttemptStatusModel = mongoose.model('claim-attempt-status', ClaimAttemptStatusSchema);
+export const ClaimDocHistoryModel = mongoose.model('claim-doc-history', ClaimDocHistorySchema);
+export const PluginDocHistoryModel = mongoose.model('plugin-doc-history', PluginDocHistorySchema);
 export const PluginModel = mongoose.model<PluginDoc<JSPrimitiveNumberType>>('plugins', PluginSchema);
 export const DeveloperAppModel = mongoose.model<DeveloperAppDoc>('auth-apps', DeveloperAppSchema);
 export const MapModel = mongoose.model<MapDoc<JSPrimitiveNumberType>>('maps', MapSchema);

@@ -57,8 +57,8 @@ import {
 import { deleteMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
 import { findInDB } from './db/queries';
 import { AccessTokenModel, ApiKeyModel, AuthorizationCodeModel, DeveloperAppModel, ProfileModel } from './db/schemas';
-import { OFFLINE_MODE } from './indexer-vars';
-import { poll, pollNotifications, pollUris } from './poll';
+import { OFFLINE_MODE, client } from './indexer-vars';
+import { connectToRpc, poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
 import { createDeveloperApp, deleteDeveloperApp, getDeveloperApps, updateDeveloperApp } from './routes/authApps';
 import { createSIWBBRequest, deleteSIWBBRequest, getAndVerifySIWBBRequest, getSIWBBRequestsForDeveloperApp } from './routes/authCodes';
@@ -770,6 +770,26 @@ const init = async () => {
     }
   }
 };
+
+function checkIfConnected() {
+  try {
+    if (!client) connectToRpc();
+  } catch (e) {
+    console.error(e);
+  }
+
+  if (!SHUTDOWN) {
+    setTimeout(checkIfConnected, 15000);
+  }
+}
+
+if (process.env.DISABLE_BLOCKCHAIN_POLLER === 'true') {
+  //we need to connect the client to the blockchain
+  //set up an interval to check if the client is connected
+  console.log('Blockchain poller disabled so will auto-poll the blockchain every 15 seconds to check if connected.');
+
+  setTimeout(checkIfConnected, 1);
+}
 
 export const server =
   process.env.DISABLE_API === 'true'

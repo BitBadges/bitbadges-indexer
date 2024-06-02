@@ -1,7 +1,7 @@
 import { type BackendIntegrationPlugin } from './types';
 
 export const RequiresSignaturePluginDetails: BackendIntegrationPlugin<'initiatedBy'> = {
-  type: 'initiatedBy',
+  pluginId: 'initiatedBy',
   metadata: {
     name: 'Requires Proof of Address',
     description: 'A proof of address challenge',

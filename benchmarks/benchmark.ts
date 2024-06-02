@@ -1,33 +1,28 @@
 import axiosApi from 'axios';
-import { BitBadgesApiRoutes, GetAccountsPayload, GetCollectionsPayload, GetSearchPayload } from 'bitbadgesjs-sdk';
+import { BitBadgesApiRoutes, GetSearchPayload } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
-import https from 'https';
-
-const agent = new https.Agent({
-  rejectUnauthorized: false
-});
 
 const axios = axiosApi.create({
   withCredentials: true,
   headers: {
     'Content-type': 'application/json'
-  },
-  httpsAgent: agent
+  }
 });
 dotenv.config();
 
 // const wallet = ethers.Wallet.createRandom();
 // const address = wallet.address;
 
-const BACKEND_URL = 'https://api.bitbadges.io';
-// const BACKEND_URL = 'https://localhost:3001';
+// const BACKEND_URL = 'https://api.bitbadges.io';
+const BACKEND_URL = 'http://localhost:3001';
 // const session = JSON.stringify(createExampleReqForAddress(address).session);
 const config = {
   headers: {
     'Content-Type': 'application/json',
     'x-api-key': process.env.BITBADGES_API_KEY ?? ''
     // 'x-mock-session': session
-  }
+  },
+  withCredentials: true
 };
 
 interface ApiBenchmarkDetails {
@@ -48,20 +43,20 @@ const NUM_RUNS_PER_BENCHMARK = 2;
 const TRY_ALL_COLLECTIONS = false;
 
 const apiBenchmarks: ApiBenchmarkDetails[] = [
-  {
-    name: 'Get Address Lists - Reserved',
-    description: 'Get address lists',
-    route: BitBadgesApiRoutes.GetAddressListsRoute(),
-    body: {
-      listsToFetch: [
-        {
-          listId: 'All',
-          viewsToFetch: []
-        }
-      ]
-    },
-    maxResponseTime: 12
-  },
+  // {
+  //   name: 'Get Address Lists - Reserved',
+  //   description: 'Get address lists',
+  //   route: BitBadgesApiRoutes.GetAddressListsRoute(),
+  //   body: {
+  //     listsToFetch: [
+  //       {
+  //         listId: 'All',
+  //         viewsToFetch: []
+  //       }
+  //     ]
+  //   },
+  //   maxResponseTime: 12
+  // },
   // {
   //   name: 'Get Address Lists - Not Reserved',
   //   description: 'Get address lists',
@@ -81,196 +76,196 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
   //     ]
   //   }
   // },
-  {
-    name: 'Browse - Featured',
-    description: 'Get featured collections and profiles',
-    route: BitBadgesApiRoutes.GetBrowseCollectionsRoute(),
-    body: {}
-  },
-  {
-    name: 'Get user with ENS avatar',
-    description: 'Get user with ENS avatar',
-    route: BitBadgesApiRoutes.GetAccountsRoute(),
-    body: {
-      accountsToFetch: [
-        {
-          address: '0xE12BB245AE1398568d007E82bAC622f555f2B07F',
-          fetchBalance: true,
-          fetchSequence: true
-        }
-      ]
-    } as GetAccountsPayload
-  },
-  {
-    name: 'Get user without ENS avatar',
-    description: 'Get user with ENS avatar',
-    route: BitBadgesApiRoutes.GetAccountsRoute(),
-    body: {
-      accountsToFetch: [
-        {
-          address: '0xb246a3764d642BABbd6b075bca3e77E1cD563d78',
-          fetchBalance: true,
-          fetchSequence: true
-        }
-      ]
-    } as GetAccountsPayload
-  },
-  {
-    name: 'Get collection',
-    description: 'Get collection',
-    type: 'collection',
-    options: {
-      tryAllCollections: true
-    },
-    route: BitBadgesApiRoutes.GetCollectionsRoute(),
-    body: {
-      collectionsToFetch: [
-        {
-          collectionId: '1',
-          metadataToFetch: [
-            {
-              badgeIds: [{ start: 1n, end: 10n }]
-            }
-          ]
-        }
-      ]
-    } as GetCollectionsPayload
-  },
-  {
-    name: 'Get collection w/ activity',
-    description: 'Get collection w/ activity',
-    type: 'collection',
-    options: {
-      tryAllCollections: true
-    },
-    route: BitBadgesApiRoutes.GetCollectionsRoute(),
-    body: {
-      collectionsToFetch: [
-        {
-          collectionId: '8',
-          viewsToFetch: [
-            {
-              viewType: 'transferActivity',
-              viewId: 'transferActivity',
-              bookmark: ''
-            }
-          ]
-        }
-      ]
-    } as GetCollectionsPayload
-  },
-  {
-    name: 'Get collection w/ owners',
-    description: 'Get collection w/ owners',
-    type: 'collection',
-    options: {
-      tryAllCollections: true
-    },
-    route: BitBadgesApiRoutes.GetCollectionsRoute(),
-    body: {
-      collectionsToFetch: [
-        {
-          collectionId: '8',
-          viewsToFetch: [
-            {
-              viewType: 'owners',
-              viewId: 'owners',
-              bookmark: ''
-            }
-          ]
-        }
-      ]
-    } as GetCollectionsPayload
-  },
-  {
-    name: 'Get account w/ all views',
-    description: 'Get account w/ all views',
-    route: BitBadgesApiRoutes.GetAccountsRoute(),
-    body: {
-      accountsToFetch: [
-        {
-          address: '0xb246a3764d642BABbd6b075bca3e77E1cD563d78',
-          fetchBalance: true,
-          fetchSequence: true,
-          viewsToFetch: [
-            {
-              viewType: 'badgesCollected',
-              viewId: 'badgesCollected',
-              bookmark: ''
-            },
-            {
-              viewType: 'transferActivity',
-              viewId: 'transferActivity',
-              bookmark: ''
-            },
-            {
-              viewType: 'listsActivity',
-              viewId: 'listsActivity',
-              bookmark: ''
-            },
-            {
-              viewType: 'reviews',
-              viewId: 'reviews',
-              bookmark: ''
-            },
-            {
-              viewType: 'allLists',
-              viewId: 'allLists',
-              bookmark: ''
-            },
-            {
-              viewType: 'whitelists',
-              viewId: 'whitelists',
-              bookmark: ''
-            },
-            {
-              viewType: 'blacklists',
-              viewId: 'blacklists',
-              bookmark: ''
-            }
-            // {
-            //   viewType: 'claimAlerts',
-            //   viewId: 'claimAlerts',
-            //   bookmark: ''
-            // },
-            // {
-            //   viewType: 'siwbbRequests',
-            //   viewId: 'siwbbRequests',
-            //   bookmark: ''
-            // },
-            // {
-            //   viewType: 'createdSecrets',
-            //   viewId: 'createdSecrets',
-            //   bookmark: ''
-            // },
-            // {
-            //   viewType: 'receivedSecrets',
-            //   viewId: 'receivedSecrets',
-            //   bookmark: ''
-            // }
-          ]
-        }
-      ]
-    } as GetAccountsPayload
-  },
+  // {
+  //   name: 'Browse - Featured',
+  //   description: 'Get featured collections and profiles',
+  //   route: BitBadgesApiRoutes.GetBrowseCollectionsRoute(),
+  //   body: {}
+  // },
+  // {
+  //   name: 'Get user with ENS avatar',
+  //   description: 'Get user with ENS avatar',
+  //   route: BitBadgesApiRoutes.GetAccountsRoute(),
+  //   body: {
+  //     accountsToFetch: [
+  //       {
+  //         address: '0xE12BB245AE1398568d007E82bAC622f555f2B07F',
+  //         fetchBalance: true,
+  //         fetchSequence: true
+  //       }
+  //     ]
+  //   } as GetAccountsPayload
+  // },
+  // {
+  //   name: 'Get user without ENS avatar',
+  //   description: 'Get user with ENS avatar',
+  //   route: BitBadgesApiRoutes.GetAccountsRoute(),
+  //   body: {
+  //     accountsToFetch: [
+  //       {
+  //         address: '0xb246a3764d642BABbd6b075bca3e77E1cD563d78',
+  //         fetchBalance: true,
+  //         fetchSequence: true
+  //       }
+  //     ]
+  //   } as GetAccountsPayload
+  // },
+  // {
+  //   name: 'Get collection',
+  //   description: 'Get collection',
+  //   type: 'collection',
+  //   options: {
+  //     tryAllCollections: true
+  //   },
+  //   route: BitBadgesApiRoutes.GetCollectionsRoute(),
+  //   body: {
+  //     collectionsToFetch: [
+  //       {
+  //         collectionId: '1',
+  //         metadataToFetch: [
+  //           {
+  //             badgeIds: [{ start: 1n, end: 10n }]
+  //           }
+  //         ]
+  //       }
+  //     ]
+  //   } as GetCollectionsPayload
+  // },
+  // {
+  //   name: 'Get collection w/ activity',
+  //   description: 'Get collection w/ activity',
+  //   type: 'collection',
+  //   options: {
+  //     tryAllCollections: true
+  //   },
+  //   route: BitBadgesApiRoutes.GetCollectionsRoute(),
+  //   body: {
+  //     collectionsToFetch: [
+  //       {
+  //         collectionId: '8',
+  //         viewsToFetch: [
+  //           {
+  //             viewType: 'transferActivity',
+  //             viewId: 'transferActivity',
+  //             bookmark: ''
+  //           }
+  //         ]
+  //       }
+  //     ]
+  //   } as GetCollectionsPayload
+  // },
+  // {
+  //   name: 'Get collection w/ owners',
+  //   description: 'Get collection w/ owners',
+  //   type: 'collection',
+  //   options: {
+  //     tryAllCollections: true
+  //   },
+  //   route: BitBadgesApiRoutes.GetCollectionsRoute(),
+  //   body: {
+  //     collectionsToFetch: [
+  //       {
+  //         collectionId: '8',
+  //         viewsToFetch: [
+  //           {
+  //             viewType: 'owners',
+  //             viewId: 'owners',
+  //             bookmark: ''
+  //           }
+  //         ]
+  //       }
+  //     ]
+  //   } as GetCollectionsPayload
+  // },
+  // {
+  //   name: 'Get account w/ all views',
+  //   description: 'Get account w/ all views',
+  //   route: BitBadgesApiRoutes.GetAccountsRoute(),
+  //   body: {
+  //     accountsToFetch: [
+  //       {
+  //         address: '0xb246a3764d642BABbd6b075bca3e77E1cD563d78',
+  //         fetchBalance: true,
+  //         fetchSequence: true,
+  //         viewsToFetch: [
+  //           {
+  //             viewType: 'badgesCollected',
+  //             viewId: 'badgesCollected',
+  //             bookmark: ''
+  //           },
+  //           {
+  //             viewType: 'transferActivity',
+  //             viewId: 'transferActivity',
+  //             bookmark: ''
+  //           },
+  //           {
+  //             viewType: 'listsActivity',
+  //             viewId: 'listsActivity',
+  //             bookmark: ''
+  //           },
+  //           {
+  //             viewType: 'reviews',
+  //             viewId: 'reviews',
+  //             bookmark: ''
+  //           },
+  //           {
+  //             viewType: 'allLists',
+  //             viewId: 'allLists',
+  //             bookmark: ''
+  //           },
+  //           {
+  //             viewType: 'whitelists',
+  //             viewId: 'whitelists',
+  //             bookmark: ''
+  //           },
+  //           {
+  //             viewType: 'blacklists',
+  //             viewId: 'blacklists',
+  //             bookmark: ''
+  //           }
+  //           // {
+  //           //   viewType: 'claimAlerts',
+  //           //   viewId: 'claimAlerts',
+  //           //   bookmark: ''
+  //           // },
+  //           // {
+  //           //   viewType: 'siwbbRequests',
+  //           //   viewId: 'siwbbRequests',
+  //           //   bookmark: ''
+  //           // },
+  //           // {
+  //           //   viewType: 'createdSecrets',
+  //           //   viewId: 'createdSecrets',
+  //           //   bookmark: ''
+  //           // },
+  //           // {
+  //           //   viewType: 'receivedSecrets',
+  //           //   viewId: 'receivedSecrets',
+  //           //   bookmark: ''
+  //           // }
+  //         ]
+  //       }
+  //     ]
+  //   } as GetAccountsPayload
+  // },
   {
     name: 'Search names',
     description: 'Search names',
-    route: BitBadgesApiRoutes.GetSearchRoute('trev'),
+    route: BitBadgesApiRoutes.SearchRoute('trev'),
     body: {} as GetSearchPayload
   },
   {
     name: 'Search IDs',
     description: 'Search IDs',
-    route: BitBadgesApiRoutes.GetSearchRoute('1'),
-    body: {} as GetSearchPayload
-  },
-  {
-    name: 'Search non-ENS name',
-    description: 'Search non-ENS name',
-    route: BitBadgesApiRoutes.GetSearchRoute('dfadfasdfdfaasdfadsf'),
+    route: BitBadgesApiRoutes.SearchRoute('1'),
     body: {} as GetSearchPayload
   }
+  // {
+  //   name: 'Search non-ENS name',
+  //   description: 'Search non-ENS name',
+  //   route: BitBadgesApiRoutes.SearchRoute('dfadfasdfdfaasdfadsf'),
+  //   body: {} as GetSearchPayload
+  // }
 ];
 
 console.log('Starting benchmarks for', BACKEND_URL);

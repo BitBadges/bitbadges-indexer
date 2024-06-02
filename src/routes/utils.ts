@@ -16,7 +16,8 @@ import {
   iApprovalCriteria,
   iIncomingApprovalCriteria,
   iMerkleChallenge,
-  iOutgoingApprovalCriteria
+  iOutgoingApprovalCriteria,
+  iAddressListDoc
 } from 'bitbadgesjs-sdk';
 import { getFromDB, getManyFromDB } from '../db/db';
 import { AddressListModel, ComplianceModel, FetchModel } from '../db/schemas';
@@ -68,8 +69,11 @@ export async function getAddressListsFromDB(
       bookmark: string;
     }>;
   }>,
-  fetchMetadata: boolean
+  fetchMetadata: boolean,
+  fetchActivity?: boolean,
+  fetchedLists?: iAddressListDoc<bigint>[]
 ) {
+  fetchActivity = fetchActivity ?? fetchMetadata;
   const addressLists: Array<iBitBadgesAddressList<bigint>> = [];
   for (const listIdObj of listsToFetch) {
     try {
@@ -96,51 +100,68 @@ export async function getAddressListsFromDB(
   }
 
   if (listsToFetch.length > 0) {
-    const addressListDocs = await getManyFromDB(
-      AddressListModel,
-      listsToFetch.map((x) => x.listId)
-    );
+    const listsToFetchFromDB = listsToFetch.filter((x) => !fetchedLists?.find((y) => y.listId === x.listId));
 
-    for (const listToFetch of listsToFetch) {
-      const listActivity = fetchMetadata
-        ? await executeListsActivityQueryForList(
-            listToFetch.listId,
-            false,
-            listToFetch.viewsToFetch?.find((x) => x.viewType === 'listActivity')?.bookmark
+    const addressListDocsFromDB =
+      listsToFetchFromDB.length > 0
+        ? await getManyFromDB(
+            AddressListModel,
+            listsToFetchFromDB.map((x) => x.listId)
           )
-        : { docs: [], bookmark: '' };
+        : [];
 
-      const doc = addressListDocs.find((x) => x && x.listId === listToFetch.listId);
-      if (doc) {
-        addressLists.push(
-          new BitBadgesAddressList<bigint>({
-            ...doc,
-            claims: [],
-            listsActivity: listActivity.docs,
-            views: fetchMetadata
-              ? {
-                  listActivity: {
-                    ids: listActivity.docs.map((x) => x._docId),
-                    type: 'List Activity',
-                    pagination: {
-                      bookmark: listActivity.bookmark ?? '',
-                      hasMore: listActivity.docs.length >= 25
+    const addressListDocs = [...(fetchedLists ?? []), ...addressListDocsFromDB];
+
+    if (fetchActivity) {
+      const listActivityPromises = listsToFetch.map(async (listToFetch) => {
+        const listActivity = fetchMetadata
+          ? await executeListsActivityQueryForList(
+              listToFetch.listId,
+              false,
+              listToFetch.viewsToFetch?.find((x) => x.viewType === 'listActivity')?.bookmark
+            )
+          : { docs: [], bookmark: '' };
+
+        return { listToFetch, listActivity };
+      });
+
+      const listActivityResults = await Promise.all(listActivityPromises);
+
+      listActivityResults.forEach(({ listToFetch, listActivity }) => {
+        const doc = addressListDocs.find((x) => x && x.listId === listToFetch.listId);
+        if (doc) {
+          addressLists.push(
+            new BitBadgesAddressList<bigint>({
+              ...doc,
+              claims: [],
+              listsActivity: listActivity.docs,
+              views: fetchMetadata
+                ? {
+                    listActivity: {
+                      ids: listActivity.docs.map((x) => x._docId),
+                      type: 'List Activity',
+                      pagination: {
+                        bookmark: listActivity.bookmark ?? '',
+                        hasMore: listActivity.docs.length >= 25
+                      }
                     }
                   }
-                }
-              : {}
-          })
-        );
-      }
+                : {}
+            })
+          );
+        }
+      });
     }
   }
 
   if (fetchMetadata) {
-    const uris: string[] = [...new Set(addressLists.map((x) => x.uri))];
+    const uris: string[] = [...new Set(addressLists.map((x) => x.uri).filter((x) => x))];
+    const fetchesPromise = uris.length > 0 ? getManyFromDB(FetchModel, uris) : Promise.resolve([]);
+    const complianceDocPromise = getFromDB(ComplianceModel, 'compliance');
+
+    const [results, complianceDoc] = await Promise.all([fetchesPromise, complianceDocPromise]);
 
     if (uris.length > 0) {
-      const results = await getManyFromDB(FetchModel, uris);
-
       results.forEach((doc) => {
         if (doc?.content) {
           for (const list of addressLists) {
@@ -152,7 +173,6 @@ export async function getAddressListsFromDB(
       });
     }
 
-    const complianceDoc = await getFromDB(ComplianceModel, 'compliance');
     for (const list of addressLists) {
       list.nsfw = complianceDoc?.addressLists.nsfw.find((y) => y.listId === list.listId);
       list.reported = complianceDoc?.addressLists.reported.find((y) => y.listId === list.listId);

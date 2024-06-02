@@ -7,7 +7,7 @@ import {
   type iChallengeTrackerIdDetails,
   type iGetBadgeActivitySuccessResponse
 } from 'bitbadgesjs-sdk';
-import { getFromDB, mustGetFromDB } from '../db/db';
+import { getFromDB, mustGetFromDB, mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { ApprovalTrackerModel, BalanceModel, MerkleChallengeModel, ReviewModel, TransferActivityModel } from '../db/schemas';
 import { getQueryParamsFromBookmark, pageSize, getPaginationInfoToReturn, findWithPagination } from '../db/utils';
@@ -101,13 +101,10 @@ export async function executeCollectionReviewsQuery(collectionId: string, bookma
 }
 
 export async function fetchTotalAndUnmintedBalancesQuery(collectionId: string) {
-  const totalPromise = mustGetFromDB(BalanceModel, `${collectionId}:Total`);
-  const mintPromise = mustGetFromDB(BalanceModel, `${collectionId}:Mint`);
-
-  const [totalDoc, mintDoc] = await Promise.all([totalPromise, mintPromise]);
+  const docs = await mustGetManyFromDB(BalanceModel, [`${collectionId}:Total`, `${collectionId}:Mint`]);
 
   return {
-    docs: [totalDoc, mintDoc],
+    docs,
     pagination: {
       bookmark: '1',
       hasMore: false

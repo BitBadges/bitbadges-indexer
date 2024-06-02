@@ -1,7 +1,7 @@
 import { type BackendIntegrationPlugin } from './types';
 
 export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
-  type: 'numUses',
+  pluginId: 'numUses',
   defaultState: {
     claimedUsers: {},
     numUses: 0

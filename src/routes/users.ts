@@ -601,7 +601,7 @@ const getAdditionalUserInfo = async (
     }
   }
 
-  const addressListsToPopulate = await getAddressListsFromDB(addressListIdsToFetch, true);
+  const addressListsToPopulate = await getAddressListsFromDB(addressListIdsToFetch, true, false);
   const views: Record<string, { ids: string[]; type: string; pagination: PaginationInfo } | undefined> = {};
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqPayload.viewsToFetch[i].viewType;
