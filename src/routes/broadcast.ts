@@ -84,12 +84,12 @@ export const broadcastTx = async (req: Request, res: Response<iBroadcastTxSucces
       const message = await tidyErrorMessage(e.message);
 
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: 'Error broadcasting transaction: ' + message
       });
     } catch (e) {
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: 'Error broadcasting transaction: ' + e.message
       });
     }
@@ -115,12 +115,12 @@ export const simulateTx = async (req: Request, res: Response<iSimulateTxSuccessR
       const message = await tidyErrorMessage(e.message);
 
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: 'Error simulating transaction: ' + message
       });
     } catch (e) {
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: 'Error simulating transaction: ' + e.message
       });
     }

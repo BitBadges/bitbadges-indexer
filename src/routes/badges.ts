@@ -179,7 +179,7 @@ export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersFo
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error fetching owners for collection.'
     });
   }

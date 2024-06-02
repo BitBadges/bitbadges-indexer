@@ -30,7 +30,7 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: 'Error deleting review. ' + e.message
     });
   }
@@ -94,7 +94,7 @@ export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Resp
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: 'Error adding review. ' + e.message
     });
   }

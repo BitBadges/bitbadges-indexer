@@ -980,7 +980,7 @@ export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActi
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error fetching badge activity'
     });
   }
@@ -1004,7 +1004,7 @@ export const getCollections = async (req: Request, res: Response<iGetCollections
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error fetching collections.'
     });
   }

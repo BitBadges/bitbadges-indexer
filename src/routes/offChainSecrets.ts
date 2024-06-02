@@ -76,7 +76,7 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error creating secret.'
     });
   }
@@ -91,7 +91,7 @@ export const getSecret = async (req: Request, res: Response<iGetSecretSuccessRes
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting secret.'
     });
   }
@@ -112,7 +112,7 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error deleting secret.'
     });
   }
@@ -211,7 +211,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error updating secret.'
     });
   }

@@ -722,10 +722,9 @@ export const handleBalances = async (balanceMap: OffChainBalancesMap<bigint>, qu
 
     await flushCachedDocs(docs);
   } catch (e) {
-    console.log(serializeError(e));
     await ErrorModel.create({
       _docId: crypto.randomBytes(16).toString('hex'),
-      error: serializeError(e)
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined
     });
 
     console.log('Error in handleBalances');

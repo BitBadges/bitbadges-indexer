@@ -51,7 +51,7 @@ export const createDeveloperApp = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error creating app.'
     });
   }
@@ -82,7 +82,7 @@ export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, re
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting app.'
     });
   }
@@ -106,7 +106,7 @@ export const deleteDeveloperApp = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error deleting app.'
     });
   }
@@ -152,7 +152,7 @@ export const updateDeveloperApp = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error updating app.'
     });
   }

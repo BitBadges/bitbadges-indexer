@@ -309,7 +309,7 @@ export const getBadgeBalanceByAddress = async (req: Request, res: Response<iGetB
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting badge balances'
     });
   }

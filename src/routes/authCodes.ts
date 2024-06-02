@@ -182,7 +182,7 @@ export const createSIWBBRequest = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || e.message || 'Error creating QR Siwbb request.'
     });
   }
@@ -224,7 +224,7 @@ export const getSIWBBRequestsForDeveloperApp = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting Siwbb requests.'
     });
   }
@@ -302,7 +302,7 @@ export const getAndVerifySIWBBRequest = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting auth QR code.'
     });
   }
@@ -330,7 +330,7 @@ export const deleteSIWBBRequest = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error deleting QR Siwbb request.'
     });
   }

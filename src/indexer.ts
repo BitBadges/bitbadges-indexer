@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import Moralis from 'moralis';
+
 config();
 
 if (process.env.TEST_MODE === 'true') {
@@ -289,7 +290,7 @@ app.get('/auth/twitter', (_req, res) => {
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -353,7 +354,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -531,7 +532,7 @@ app.post(
     } catch (e) {
       console.error(e);
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: e.message
       });
     }
@@ -620,7 +621,7 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -634,7 +635,7 @@ app.post('/api/v0/oauth/token/revoke', async (req: AuthenticatedRequest<NumberTy
     return res.status(200).send({ message: 'Token revoked' });
   } catch (e) {
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -659,7 +660,7 @@ app.post(
       });
     } catch (e) {
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: e.message
       });
     }
@@ -697,7 +698,7 @@ app.post(
       return res.status(200).send({ key: newKey });
     } catch (e) {
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: e.message
       });
     }
@@ -725,7 +726,7 @@ app.delete(
       return res.status(200).send({ message: 'Successfully deleted key' });
     } catch (e) {
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: e.message
       });
     }
@@ -743,7 +744,7 @@ app.post(
       return res.status(200).json({ docs });
     } catch (e) {
       return res.status(500).send({
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         errorMessage: e.message
       });
     }

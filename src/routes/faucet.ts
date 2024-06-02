@@ -151,7 +151,7 @@ export const getTokensFromFaucet = async (
     }
   } catch (e) {
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: 'Error sending airdrop tokens.'
     });
   }

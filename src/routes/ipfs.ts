@@ -214,6 +214,22 @@ export const updateClaimDocs = async (
   const queryBuilder = constructQuery(claimType, oldClaimQuery);
   const authDetails = await mustGetAuthDetails(req, res);
 
+  // Basic sanitization of newClaims
+  for (const claim of newClaims) {
+    if (typeof claim !== 'object') {
+      throw new Error('Invalid claim');
+    }
+
+    if (typeof claim.claimId !== 'string') throw new Error('Invalid claim');
+    if (!Array.isArray(claim.plugins)) throw new Error('Invalid claim plugins');
+    for (const plugin of claim.plugins) {
+      if (typeof plugin !== 'object') throw new Error('Invalid plugin');
+      if (typeof plugin.pluginId !== 'string') throw new Error('Invalid plugin');
+      if (typeof plugin.instanceId !== 'string') throw new Error('Invalid plugin');
+      if (plugin.newState && typeof plugin.newState !== 'object') throw new Error('Invalid plugin new state');
+    }
+  }
+
   const claimDocsToSet: Array<iClaimBuilderDoc<NumberType>> = [];
   const historyDocsToSet: Array<any> = [];
   for (const claim of newClaims ?? []) {
@@ -234,6 +250,8 @@ export const updateClaimDocs = async (
       if (plugin.resetState) {
         state[plugin.instanceId] = pluginObj.defaultState;
       } else if (plugin.newState) {
+        //sanitize the new state
+
         if (plugin.onlyUpdateProvidedNewState) {
           state[plugin.instanceId] = deepMerge(state[plugin.instanceId], plugin.newState);
         } else {
@@ -550,7 +568,7 @@ export const addBalancesToOffChainStorageHandler = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error adding balances to storage.'
     });
   }
@@ -604,7 +622,7 @@ export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, re
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error adding metadata.'
     });
   }
@@ -666,7 +684,7 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
   } catch (e) {
     console.log(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error adding approval details: ' + e.message
     });
   }

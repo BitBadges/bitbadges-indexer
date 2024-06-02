@@ -74,7 +74,7 @@ export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>,
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error adding claim alert.'
     });
   }
@@ -110,7 +110,7 @@ export async function getClaimAlertsForCollection(
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting claim alerts.'
     });
   }

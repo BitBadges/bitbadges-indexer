@@ -150,7 +150,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error updating plugin.'
     });
   }
@@ -186,7 +186,7 @@ export const deletePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error deleting plugin.'
     });
   }
@@ -251,7 +251,7 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error creating plugin.'
     });
   }
@@ -320,7 +320,7 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting plugins.'
     });
   }

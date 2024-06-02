@@ -37,7 +37,7 @@ export const getRefreshStatus = async (req: Request, res: Response<iRefreshStatu
     });
   } catch (e) {
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: `Error getting refresh status: ${e.message}`
     });
   }
@@ -96,7 +96,7 @@ export const refreshMetadata = async (req: Request, res: Response<iRefreshMetada
     }
   } catch (e) {
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: `Error refreshing metadata: ${e.message}`
     });
   }

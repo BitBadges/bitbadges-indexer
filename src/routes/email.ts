@@ -53,7 +53,7 @@ export const unsubscribeHandler = async (req: Request, res: Response) => {
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -102,7 +102,7 @@ export const verifyEmailHandler = async (req: Request, res: Response) => {
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }

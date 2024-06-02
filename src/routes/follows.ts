@@ -97,7 +97,7 @@ export const getFollowDetails = async (req: Request, res: Response<iGetFollowDet
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting follow details'
     });
   }

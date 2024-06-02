@@ -243,7 +243,7 @@ async function main() {
         }
       } catch (e) {
         failures.push({
-          error: serializeError(e),
+          error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
           msg: msgs.map((x) => x.toJsonString())
         });
 

@@ -54,7 +54,7 @@ export const getMaps = async (req: Request, res: Response<iGetMapsSuccessRespons
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting maps'
     });
   }

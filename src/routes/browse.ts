@@ -265,7 +265,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
   } catch (e) {
     console.log(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting browse data.'
     });
   }

@@ -10,7 +10,7 @@ export const getStatusHandler = async (req: Request, res: Response<iGetStatusSuc
     return res.json({ status });
   } catch (e) {
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: 'Could not get DB status.'
     });
   }

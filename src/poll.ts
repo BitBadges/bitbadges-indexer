@@ -115,7 +115,7 @@ export const pollUris = async () => {
       await insertMany(ErrorModel, [
         {
           _docId: new mongoose.Types.ObjectId().toString(),
-          error: serializeError(e),
+          error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
           function: 'pollUris'
         }
       ]);
@@ -207,7 +207,7 @@ export const pollNotifications = async () => {
       await insertMany(ErrorModel, [
         {
           _docId: new mongoose.Types.ObjectId().toString(),
-          error: serializeError(e),
+          error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
           function: 'pollNotifications'
         }
       ]);
@@ -338,7 +338,7 @@ export const poll = async () => {
       await insertMany(ErrorModel, [
         {
           _docId: new mongoose.Types.ObjectId().toString(),
-          error: serializeError(e),
+          error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
           function: 'poll'
         }
       ]);
@@ -789,7 +789,7 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
     await insertMany(ErrorModel, [
       {
         _docId: new mongoose.Types.ObjectId().toString(),
-        error: serializeError(e),
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
         function: 'handleEvents' + ' - ' + indexed.hash
       }
     ]);

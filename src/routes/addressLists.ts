@@ -88,7 +88,7 @@ export const deleteAddressLists = async (
   } catch (e) {
     console.log(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error deleting address lists.'
     });
   }
@@ -269,7 +269,7 @@ const handleAddressListsUpdateAndCreate = async (
   } catch (e) {
     console.log(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error creating address lists.'
     });
   }
@@ -335,7 +335,7 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error fetching address lists.'
     });
   }

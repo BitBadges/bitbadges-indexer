@@ -370,7 +370,7 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsSucces
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: 'Error fetching accounts. ' + e.message
     });
   }
@@ -991,7 +991,7 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
   } catch (e) {
     console.log('Error updating account info', e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: 'Error updating account info. ' + e.message
     });
   }

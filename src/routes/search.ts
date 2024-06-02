@@ -130,7 +130,7 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
   } catch (e) {
     console.error(e);
     return res.status(500).json({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       message: `Error filtering badges in collection ${req.body.collectionId}.`
     });
   }
@@ -529,7 +529,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
   } catch (e) {
     console.error(e);
     return res.status(500).json({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: `Error searching for ${req.params.searchValue}. Please try a different search value or try again later. ` + e.message
     });
   }

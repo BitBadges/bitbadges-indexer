@@ -13,8 +13,8 @@ dotenv.config();
 // const wallet = ethers.Wallet.createRandom();
 // const address = wallet.address;
 
-// const BACKEND_URL = 'https://api.bitbadges.io';
-const BACKEND_URL = 'http://localhost:3001';
+const BACKEND_URL = 'https://api.bitbadges.io';
+// const BACKEND_URL = 'http://localhost:3001';
 // const session = JSON.stringify(createExampleReqForAddress(address).session);
 const config = {
   headers: {
@@ -76,12 +76,12 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
   //     ]
   //   }
   // },
-  // {
-  //   name: 'Browse - Featured',
-  //   description: 'Get featured collections and profiles',
-  //   route: BitBadgesApiRoutes.GetBrowseCollectionsRoute(),
-  //   body: {}
-  // },
+  {
+    name: 'Browse - Featured',
+    description: 'Get featured collections and profiles',
+    route: BitBadgesApiRoutes.GetBrowseCollectionsRoute(),
+    body: {}
+  },
   // {
   //   name: 'Get user with ENS avatar',
   //   description: 'Get user with ENS avatar',
@@ -259,13 +259,13 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
     description: 'Search IDs',
     route: BitBadgesApiRoutes.SearchRoute('1'),
     body: {} as GetSearchPayload
+  },
+  {
+    name: 'Search non-ENS name',
+    description: 'Search non-ENS name',
+    route: BitBadgesApiRoutes.SearchRoute('dfadfasdfdfaasdfadsf'),
+    body: {} as GetSearchPayload
   }
-  // {
-  //   name: 'Search non-ENS name',
-  //   description: 'Search non-ENS name',
-  //   route: BitBadgesApiRoutes.SearchRoute('dfadfasdfdfaasdfadsf'),
-  //   body: {} as GetSearchPayload
-  // }
 ];
 
 console.log('Starting benchmarks for', BACKEND_URL);

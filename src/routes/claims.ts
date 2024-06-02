@@ -237,7 +237,7 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -281,7 +281,7 @@ export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -324,7 +324,7 @@ export const deleteClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -375,7 +375,7 @@ export const getClaimsHandler = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: 'Error getting claims. ' + e.message
     });
   }
@@ -468,6 +468,10 @@ export const completeClaimHandler = async (
     // let email = '';
     const results = [];
     const specificPluginIdsOnly = req.body._specificPluginsOnly;
+    if (specificPluginIdsOnly && !Array.isArray(specificPluginIdsOnly)) {
+      throw new Error('Invalid specific plugin ids');
+    }
+
     let claimNumber = -1;
     for (const plugin of claimBuilderDoc.plugins) {
       if (simulate && specificPluginIdsOnly !== undefined) {
@@ -692,7 +696,7 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -721,7 +725,7 @@ export const getReservedClaimCodes = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -759,7 +763,7 @@ export const getClaimsStatusHandler = async (
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
@@ -829,7 +833,7 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
   } catch (e) {
     console.error(e);
     return res.status(500).send({
-      error: serializeError(e),
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message
     });
   }
