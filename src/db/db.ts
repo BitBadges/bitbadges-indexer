@@ -246,7 +246,7 @@ export async function mustGetFromDB<T extends BitBadgesDoc<JSPrimitiveNumberType
   }
 
   if (res.length === 0) {
-    throw new Error(`Error in mustGetFromDB(): Could not find doc w/ id ${id}`);
+    throw new Error(`Error in mustGetFromDB(): Could not find doc w/ id ${id} in ${model.modelName}`);
   }
 
   const docRes = res[0] as unknown as TypedInterfaceFromModel<T, JSPrimitiveNumberType>;

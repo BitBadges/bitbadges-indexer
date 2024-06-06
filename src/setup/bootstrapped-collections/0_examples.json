@@ -342,7 +342,32 @@
   "updateCustomDataTimeline": true,
   "customDataTimeline": [],
   "updateCollectionApprovals": true,
-  "collectionApprovals": [],
+  "collectionApprovals": [{
+    "fromListId": "!Mint",
+    "toListId": "All",
+    "initiatedByListId": "All",
+    "transferTimes": [
+      {
+        "start": "1",
+        "end": "18446744073709551615"
+      }
+    ],
+    "badgeIds": [
+      {
+        "start": "1",
+        "end": "18446744073709551615"
+      }
+    ],
+    "ownershipTimes": [
+      {
+        "start": "1",
+        "end": "18446744073709551615"
+      }
+    ],
+    "uri": "",
+    "customData": "",
+    "approvalId": "transferable-approval"
+  }],
   "updateStandardsTimeline": true,
   "standardsTimeline": [],
   "updateIsArchivedTimeline": true,

@@ -17,7 +17,8 @@ import {
   type iGetSignInChallengeSuccessResponse,
   type iSignOutSuccessResponse,
   type iVerifySignInSuccessResponse,
-  OAuthScopeDetails
+  OAuthScopeDetails,
+  mustConvertToCosmosAddress
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge, verifyChallenge, type ChallengeParams } from 'blockin';
 import { type NextFunction, type Request, type Response } from 'express';
@@ -364,11 +365,16 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
   }
 
   if (session.address == null && session.discord == null && session.twitter == null && session.github == null && session.google == null) {
-    session.destroy((err) => {
-      if (err) {
-        console.error(err);
-      }
-    });
+    try {
+      session.destroy((err) => {
+        if (err) {
+          console.log(err);
+        }
+      });
+    } catch (err) {
+      console.log(err);
+      return res.status(500).json({ success: false, errorMessage: 'Error signing out.' });
+    }
   } else {
     req.session.save();
   }
@@ -424,7 +430,6 @@ export async function verifyBlockinAndGrantSessionCookie(
         }
       }
 
-      console.log('approved', approved, profileDoc.approvedSignInMethods, req.session);
       if (!approved) {
         return res
           .status(401)
@@ -444,7 +449,7 @@ export async function verifyBlockinAndGrantSessionCookie(
         },
         beforeVerification: async (challengeParams) => {
           // setMockSessionIfTestMode(req);
-          console.log('beforeVerification');
+
           if (process.env.TEST_MODE === 'true') return;
 
           if (!req.session.nonce) {
@@ -616,12 +621,12 @@ export async function genericBlockinVerifyAssetsHandler(
   const body = req.body as unknown as GenericVerifyAssetsPayload;
 
   try {
-    const cosmosAddress = convertToCosmosAddress(body.cosmosAddress);
+    mustConvertToCosmosAddress(body.address);
 
     const dummyChallengeParams: ChallengeParams<NumberType> = {
       domain: 'https://bitbadges.io',
       statement,
-      address: cosmosAddress,
+      address: body.address,
       uri: 'https://bitbadges.io',
       nonce: '*',
       expirationDate: undefined,

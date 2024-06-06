@@ -41,7 +41,7 @@ export async function verifyBitBadgesAssets(
 
     throw new Error('Address did not meet the asset ownership requirements.');
   } else {
-    const supportedChains = ['BitBadges', 'Ethereum', 'Polygon'];
+    const supportedChains = ['BitBadges', 'Ethereum', 'Polygon', 'Solana'];
     const evmChains = ['Ethereum', 'Polygon'];
 
     // Validate basic checks
@@ -124,7 +124,31 @@ export async function verifyBitBadgesAssets(
     for (const asset of normalItem.assets) {
       let balances = new BalanceArray<bigint>();
 
-      if (evmChains.includes(asset.chain)) {
+      const Moralis = ((global as any).moralis as typeof _Moralis) ?? _Moralis; //For testing
+      if (asset.chain === 'Solana') {
+        const response = await Moralis.SolApi.account.getNFTs({
+          network: 'mainnet',
+          address: address
+        });
+
+        const assetsForAddress = response.result;
+
+        for (let i = 0; i < asset.assetIds.length; i++) {
+          const assetId = asset.assetIds[i];
+          const badgeId = BigInt(i + 1);
+          const requestedAsset = assetsForAddress?.find((elem) => elem.mint.toString() === assetId);
+          const amount = requestedAsset ? BigInt(1) : BigInt(0);
+
+          balances.addBalance({
+            amount,
+            badgeIds: [{ start: badgeId, end: badgeId }],
+            ownershipTimes: asset.ownershipTimes
+          });
+        }
+
+        // Little hacky but the addBalances do not include zero balances but the getBalancesForIds does
+        balances = getBalancesForIds([{ start: 1n, end: BigInt(asset.assetIds.length) }], asset.ownershipTimes, balances);
+      } else if (evmChains.includes(asset.chain)) {
         let moralisChainId = '0x1';
         if (asset.chain === 'Polygon') {
           moralisChainId = '0x89';
@@ -135,7 +159,6 @@ export async function verifyBitBadgesAssets(
           address: mustConvertToEthAddress(address)
         };
 
-        const Moralis = ((global as any).moralis as typeof _Moralis) ?? _Moralis; //For testing
         const assetsForAddress = (await Moralis.EvmApi.nft.getWalletNFTs(options)).result;
 
         // little hacky but makes it compatible with UintRange interface
@@ -164,12 +187,8 @@ export async function verifyBitBadgesAssets(
           false
         );
 
-        // console.log(res.addresses);
-        console.log(address);
-
         for (let i = 0; i < res.length; i++) {
           const list = res[i];
-          console.log('inside for loop');
 
           const badgeId = BigInt(i + 1);
           if (!list) {
@@ -177,7 +196,6 @@ export async function verifyBitBadgesAssets(
           }
 
           list.addresses = list.addresses.map((x) => convertToCosmosAddress(x));
-          console.log(new AddressList(list).checkAddress(convertToCosmosAddress(address)));
 
           balances.addBalances([
             {
@@ -258,7 +276,6 @@ export async function verifyBitBadgesAssets(
     }
 
     if (numSatisfied < numToSatisfy) {
-      console.log(`numSatisfied: ${numSatisfied}, numToSatisfy: ${numToSatisfy}`);
       throw new Error(`Address ${address} did not meet the ownership requirements.`);
     }
   }

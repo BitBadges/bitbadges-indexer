@@ -29,7 +29,7 @@ import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import crypto from 'crypto';
 
-import express, { type Express, type Request, type Response } from 'express';
+import express, { NextFunction, type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import expressSession from 'express-session';
 import fs from 'fs';
@@ -42,6 +42,7 @@ import passport from 'passport';
 import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
+import validator from 'validator';
 import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './auth/oauth';
 import {
   AuthenticatedRequest,
@@ -55,7 +56,7 @@ import {
   verifyBlockinAndGrantSessionCookie,
   type BlockinSession
 } from './blockin/blockin_handlers';
-import { deleteMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
+import { deleteMany, getFromDB, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
 import { findInDB } from './db/queries';
 import { AccessTokenModel, ApiKeyModel, AuthorizationCodeModel, DeveloperAppModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE, client } from './indexer-vars';
@@ -95,24 +96,9 @@ import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
-import validator from 'validator';
+import { ApiKeyDoc } from './db/docs';
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
-
-// Basic rate limiting middleware for Express. Limits requests to 30 per minute.
-// Initially put in place to protect against infinite loops.
-const limiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minutes
-  max: 100, // Limit each IP to 30 requests per `window` (here, per minute)
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  handler: (req, res) => {
-    const errorResponse: ErrorResponse = {
-      errorMessage: 'Exceeded rate limit. Too many requests,'
-    };
-    res.status(429).json(errorResponse);
-  }
-});
 
 export let SHUTDOWN = false;
 export const getAttributeValueByKey = (attributes: Attribute[], key: string): string | undefined => {
@@ -142,8 +128,6 @@ export const setNotificationPollerTimer = (newTimer: NodeJS.Timer | undefined) =
 const upload = multer({ dest: 'uploads/' });
 const app: Express = express();
 const port = process.env.port ? Number(process.env.port) : 3001;
-app.set('trust proxy', 1);
-
 app.use(
   cors({
     origin: true,
@@ -151,61 +135,146 @@ app.use(
   })
 );
 
-app.use(async (req, res, next) => {
-  // Check if trusted origin
-
-  const origin = req.headers.origin;
-  if (origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io') {
-    next();
-    return;
-  } else if (
-    req.path.startsWith('/auth/discord') ||
-    req.path.startsWith('/auth/twitter') ||
-    req.path.startsWith('/auth/github') ||
-    req.path.startsWith('/auth/google') ||
-    req.path.startsWith('/auth/reddit') ||
-    req.path.startsWith('/api/v0/unsubscribe')
-  ) {
-    next();
-    return;
-  } else {
-    // Validate API key
-    const apiKey = req.headers['x-api-key'];
-    try {
-      if (!apiKey) {
-        throw new Error('Unauthorized request. API key is required but none was provided.');
-      }
-
-      const doc = await mustGetFromDB(ApiKeyModel, apiKey as string);
-
-      if (doc.expiry < Date.now()) {
-        throw new Error('Unauthorized request. API key has expired.');
-      }
-
-      const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
-      if (lastRequestWasYesterday) {
-        doc.numRequests = 0;
-      }
-
-      if (doc.tier === 'standard') {
-        if (doc.numRequests > 10000) {
-          throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
-        }
-      }
-
-      next();
-      return;
-    } catch (error) {
-      console.log(error);
-    }
+const freeTierLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const errorResponse: ErrorResponse = {
+      errorMessage: 'Exceeded rate limit. Too many requests,'
+    };
+    res.status(429).json(errorResponse);
   }
-
-  const errorResponse: ErrorResponse = {
-    errorMessage: 'Unauthorized request. API key is required.'
-  };
-  return res.status(401).json(errorResponse);
 });
 
+const apiKeyTierLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 1000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const errorResponse: ErrorResponse = {
+      errorMessage: 'Exceeded rate limit. Too many requests,'
+    };
+    res.status(429).json(errorResponse);
+  },
+  keyGenerator: async (req) => {
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey) {
+      return apiKey.toString();
+    } else {
+      return Promise.reject(new Error('API key not found.'));
+    }
+  }
+});
+
+const apiKeyHandler = async (req: Request, res: Response, next: NextFunction) => {
+  // Validate API key
+  const apiKey = req.headers['x-api-key'];
+  try {
+    if (process.env.TEST_MODE === 'true') {
+      next();
+      return;
+    }
+
+    const identifier = apiKey ? apiKey.toString() : req.ip?.toString();
+    if (!identifier) {
+      throw new Error('Unauthorized request. Could not identify origin of request.');
+    }
+
+    let doc = await getFromDB(ApiKeyModel, identifier);
+    if (!doc) {
+      if (apiKey) {
+        throw new Error('Unauthorized request. API key not found.');
+      }
+
+      const newDoc: ApiKeyDoc = {
+        _docId: identifier,
+        numRequests: 0,
+        expiry: Number.MAX_SAFE_INTEGER,
+        tier: 'free',
+        lastRequest: Date.now(),
+        label: '',
+        cosmosAddress: '',
+        createdAt: Date.now(),
+        intendedUse: ''
+      };
+
+      await insertToDB(ApiKeyModel, newDoc);
+      doc = newDoc;
+      res.locals.apiKey = false;
+    }
+
+    if (doc.expiry < Date.now()) {
+      throw new Error('Unauthorized request. API key has expired.');
+    }
+
+    const lastRequestWasYesterday = new Date(doc.lastRequest).getDate() !== new Date().getDate();
+    if (lastRequestWasYesterday) {
+      doc.numRequests = 0;
+    }
+
+    if (doc.tier === 'standard') {
+      if (doc.numRequests > 250000) {
+        throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+      }
+    } else if (doc.tier === 'free') {
+      if (doc.numRequests > 50000) {
+        throw new Error('Unauthorized request. API key has exceeded its request daily limit.');
+      }
+    }
+
+    await ApiKeyModel.findOneAndUpdate({ _docId: doc._docId }, [
+      {
+        $set: {
+          numRequests: {
+            $add: [`$numRequests`, 1]
+          }
+        }
+      },
+      {
+        $set: {
+          lastRequest: Date.now()
+        }
+      }
+    ]);
+
+    if (!apiKey) {
+      // Free tier rate limit for basic requests
+      return freeTierLimiter(req, res, next);
+    } else {
+      // API key rate limit for more advanced requests
+      res.locals.apiKey = true;
+      return apiKeyTierLimiter(req, res, next);
+    }
+  } catch (error) {
+    console.log(error);
+
+    return res.status(401).json({
+      errorMessage: 'Unauthorized request. Error validating API key.'
+    });
+  }
+};
+
+// const requireApiKeyHandler = async (req: Request, res: Response, next: NextFunction) => {
+//   try {
+//     if (!res.locals.apiKey) {
+//       throw new Error('Unauthorized request. API key required.');
+//     }
+
+//     next();
+//     return;
+//   } catch (error) {
+//     console.log(error);
+
+//     return res.status(401).json({
+//       errorMessage: 'Unauthorized request. API key is required.'
+//     });
+//   }
+// };
+
+//IMPORTANT: Note this should not be depended on for security. It just makes it harder to access endpoints that are not meant to be accessed by the public.
 const websiteOnlyCorsOptions = {
   // localhost or deployed
 
@@ -214,10 +283,8 @@ const websiteOnlyCorsOptions = {
 };
 const websiteOnlyCors = cors(websiteOnlyCorsOptions);
 
-// Use limiter but provide a custom error response
-if (process.env.TEST_MODE !== 'true') {
-  app.use(limiter);
-}
+app.use(apiKeyHandler);
+
 // console.log the repsonse
 app.use(responseTime({ suffix: false }));
 
@@ -243,7 +310,6 @@ app.use(
 const isProduction = process.env.DEV_MODE !== 'true';
 app.use(
   expressSession({
-    proxy: true,
     name: 'bitbadges',
     secret: process.env.SESSION_SECRET ? process.env.SESSION_SECRET : '',
     resave: false,
@@ -276,17 +342,23 @@ app.get('/auth/discord', passport.authenticate('discord', { session: false }));
 app.get('/auth/discord/callback', discordCallbackHandler);
 
 // Twitter authentication route
-app.get('/auth/twitter', (_req, res) => {
+app.get('/auth/twitter', async (_req, res) => {
   try {
-    return twitterOauth.getOAuthRequestToken((error, oauthToken) => {
-      if (error) {
-        console.error('Error getting OAuth request token:', error);
-        return res.status(500).send('Error getting OAuth request token');
-      } else {
-        // Redirect the user to Twitter authentication page
-        return res.redirect(`https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`);
-      }
-    });
+    const getOAuthRequestToken = () => {
+      return new Promise((resolve, reject) => {
+        twitterOauth.getOAuthRequestToken((error, oauthToken) => {
+          if (error) {
+            return reject(error);
+          }
+          resolve(oauthToken);
+        });
+      });
+    };
+
+    const oauthToken = await getOAuthRequestToken();
+
+    // Redirect the user to Twitter authentication page
+    return res.redirect(`https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`);
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -319,38 +391,40 @@ app.get('/auth/twitter/callback', async (req, res) => {
 
     // Get user's Twitter profile
     const userProfileUrl = 'https://api.twitter.com/1.1/account/verify_credentials.json';
-    return twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, async (error, data) => {
-      if (error) {
-        console.error('Error getting Twitter profile:', error);
-        return res.status(500).send('Error getting Twitter profile');
-      } else {
-        const profile = JSON.parse(data as any);
-        const user = {
-          id: profile.id_str,
-          username: profile.screen_name,
-          access_token: accessToken,
-          access_token_secret: accessTokenSecret
-        };
-
-        (req.session as BlockinSession<bigint>).twitter = user;
-        req.session.save();
-
-        if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-          const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-          profileDoc.socialConnections = new SocialConnections({
-            ...profileDoc.socialConnections,
-            twitter: new SocialConnectionInfo({
-              username: user.username,
-              id: user.id,
-              lastUpdated: BigInt(Date.now())
-            })
-          });
-          await insertToDB(ProfileModel, profileDoc);
+    await new Promise((resolve, reject) => {
+      twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, (error, data) => {
+        if (error) {
+          return reject(error);
         }
-
-        return res.status(200).send('Logged in. Please proceed back to the app.');
-      }
+        resolve(data);
+      });
     });
+
+    const profile = JSON.parse(data as any);
+    const user = {
+      id: profile.id_str,
+      username: profile.screen_name,
+      access_token: accessToken,
+      access_token_secret: accessTokenSecret
+    };
+
+    (req.session as BlockinSession<bigint>).twitter = user;
+    req.session.save();
+
+    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
+      profileDoc.socialConnections = new SocialConnections({
+        ...profileDoc.socialConnections,
+        twitter: new SocialConnectionInfo({
+          username: user.username,
+          id: user.id,
+          lastUpdated: BigInt(Date.now())
+        })
+      });
+      await insertToDB(ProfileModel, profileDoc);
+    }
+
+    return res.status(200).send('Logged in. Please proceed back to the app.');
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -486,7 +560,7 @@ app.put('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest([{ scop
 app.post('/api/v0/developerApp/siwbbRequests', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getSIWBBRequestsForDeveloperApp);
 
 // Auth Apps
-app.post('/api/v0/plugins/fetch', websiteOnlyCors, getPlugins);
+app.post('/api/v0/plugins/fetch', getPlugins);
 app.post('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createPlugin);
 app.put('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), updatePlugin);
 app.delete('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), deletePlugin);
@@ -511,6 +585,10 @@ app.post(
       const developerAppDoc = await mustGetFromDB(DeveloperAppModel, client_id);
       if (developerAppDoc.redirectUris.indexOf(redirect_uri) === -1) {
         throw new Error('Invalid redirect URI');
+      }
+
+      if (scopes.find((scope) => scope.scopeName === 'Full Access')) {
+        throw new Error('Full Access scope is not allowed for API Authorization.');
       }
 
       if (response_type === 'code') {

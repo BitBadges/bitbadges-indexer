@@ -9,6 +9,7 @@ import { ProfileModel } from '../db/schemas';
 import passportDiscord from 'passport-discord';
 import passportGithub from 'passport-github';
 import passportGoogle from 'passport-google-oauth20';
+import { serializeError } from 'serialize-error';
 
 const OAuth = OAuthPkg.OAuth;
 
@@ -87,31 +88,39 @@ passport.deserializeUser(function (user, cb) {
 
 export const discordCallbackHandler = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('discord', async function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
+    try {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).send('Unauthorized. No user found.');
+      }
 
-    (req.session as BlockinSession<bigint>).discord = user;
-    req.session.save();
+      (req.session as BlockinSession<bigint>).discord = user;
+      req.session.save();
 
-    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-      profileDoc.socialConnections = new SocialConnections({
-        ...profileDoc.socialConnections,
-        discord: new SocialConnectionInfo({
-          discriminator: user.discriminator,
-          username: user.username,
-          id: user.id,
-          lastUpdated: BigInt(Date.now())
-        })
+      if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+        const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
+        profileDoc.socialConnections = new SocialConnections({
+          ...profileDoc.socialConnections,
+          discord: new SocialConnectionInfo({
+            discriminator: user.discriminator,
+            username: user.username,
+            id: user.id,
+            lastUpdated: BigInt(Date.now())
+          })
+        });
+        await insertToDB(ProfileModel, profileDoc);
+      }
+
+      return res.status(200).send('Logged in. Please proceed back to the app.');
+    } catch (e) {
+      console.error(e);
+      return res.status(500).send({
+        errorMessage: 'Internal server error',
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined
       });
-      await insertToDB(ProfileModel, profileDoc);
     }
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
   })(req, res, next);
 };
 
@@ -134,58 +143,74 @@ export const twitterOauth = new OAuth(
 
 export const githubCallbackHandler = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('github', async function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
+    try {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).send('Unauthorized. No user found.');
+      }
 
-    (req.session as BlockinSession<bigint>).github = user;
-    req.session.save();
+      (req.session as BlockinSession<bigint>).github = user;
+      req.session.save();
 
-    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-      profileDoc.socialConnections = new SocialConnections({
-        ...profileDoc.socialConnections,
-        github: new SocialConnectionInfo({
-          username: user.username,
-          id: user.id,
-          lastUpdated: BigInt(Date.now())
-        })
+      if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+        const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
+        profileDoc.socialConnections = new SocialConnections({
+          ...profileDoc.socialConnections,
+          github: new SocialConnectionInfo({
+            username: user.username,
+            id: user.id,
+            lastUpdated: BigInt(Date.now())
+          })
+        });
+        await insertToDB(ProfileModel, profileDoc);
+      }
+
+      return res.status(200).send('Logged in. Please proceed back to the app.');
+    } catch (e) {
+      console.error(e);
+      return res.status(500).send({
+        errorMessage: 'Internal server error',
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined
       });
-      await insertToDB(ProfileModel, profileDoc);
     }
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
   })(req, res, next);
 };
 
 export const googleCallbackHandler = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('google', async function (err: Error, user: any) {
-    if (err) {
-      return next(err);
-    }
-    if (!user) {
-      return res.status(401).send('Unauthorized. No user found.');
-    }
+    try {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).send('Unauthorized. No user found.');
+      }
 
-    (req.session as BlockinSession<bigint>).google = user;
-    req.session.save();
+      (req.session as BlockinSession<bigint>).google = user;
+      req.session.save();
 
-    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-      profileDoc.socialConnections = new SocialConnections({
-        ...profileDoc.socialConnections,
-        google: new SocialConnectionInfo({
-          username: user.username,
-          id: user.id,
-          lastUpdated: BigInt(Date.now())
-        })
+      if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+        const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
+        profileDoc.socialConnections = new SocialConnections({
+          ...profileDoc.socialConnections,
+          google: new SocialConnectionInfo({
+            username: user.username,
+            id: user.id,
+            lastUpdated: BigInt(Date.now())
+          })
+        });
+        await insertToDB(ProfileModel, profileDoc);
+      }
+
+      return res.status(200).send('Logged in. Please proceed back to the app.');
+    } catch (e) {
+      console.error(e);
+      return res.status(500).send({
+        errorMessage: 'Internal server error',
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined
       });
-      await insertToDB(ProfileModel, profileDoc);
     }
-
-    return res.status(200).send('Logged in. Please proceed back to the app.');
   })(req, res, next);
 };
