@@ -283,6 +283,7 @@ const websiteOnlyCorsOptions = {
 };
 const websiteOnlyCors = cors(websiteOnlyCorsOptions);
 
+app.set('trust proxy', 1); // trust first proxy
 app.use(apiKeyHandler);
 
 // console.log the repsonse
