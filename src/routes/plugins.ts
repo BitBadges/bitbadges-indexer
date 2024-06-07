@@ -122,6 +122,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     if (reqPayload.toPublish !== undefined) newDoc.toPublish = reqPayload.toPublish;
     if (reqPayload.toPublish === false) newDoc.reviewCompleted = false;
     if (reqPayload.approvedUsers !== undefined) newDoc.approvedUsers = reqPayload.approvedUsers.map((user) => convertToCosmosAddress(user));
+    if (reqPayload.rotatePluginSecret) newDoc.pluginSecret = crypto.randomBytes(32).toString('hex');
 
     const image = reqPayload.metadata?.image ? await getImage(reqPayload.metadata.image) : reqPayload.metadata?.image;
     if (reqPayload.metadata !== undefined)

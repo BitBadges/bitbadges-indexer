@@ -117,7 +117,7 @@ export const updateDeveloperApp = async (
   res: Response<iUpdateDeveloperAppSuccessResponse | ErrorResponse>
 ) => {
   try {
-    const { name, description, image, redirectUris, clientId } = req.body as UpdateDeveloperAppPayload;
+    const { name, description, image, redirectUris, clientId, rotateClientSecret } = req.body as UpdateDeveloperAppPayload;
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
@@ -146,9 +146,13 @@ export const updateDeveloperApp = async (
       doc.redirectUris = redirectUris;
     }
 
+    if (rotateClientSecret) {
+      doc.clientSecret = crypto.randomBytes(32).toString('hex');
+    }
+
     await insertToDB(DeveloperAppModel, doc);
 
-    return res.status(200).send({ success: true });
+    return res.status(200).send({ success: true, clientSecret: doc.clientSecret });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
