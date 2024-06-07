@@ -3,15 +3,18 @@ import { ethers } from 'ethers';
 export const provider = new ethers.providers.AlchemyProvider('homestead', process.env.ALCHEMY_API_KEY);
 
 export async function getNameForAddress(address: string) {
-  if (ethers.utils.isAddress(address)) {
-    const ensAddress = await provider.lookupAddress(address);
-    if (ensAddress) return ensAddress;
-  }
+  // if (ethers.utils.isAddress(address)) {
+  //   const ensAddress = await provider.lookupAddress(address);
+  //   if (ensAddress) return ensAddress;
+  // }
+  console.log('address', address);
   return '';
 }
 
 export async function getAddressForName(name: string) {
-  return (await provider.resolveName(name).catch(() => '')) ?? '';
+  // return (await provider.resolveName(name).catch(() => '')) ?? '';
+  console.log('name', name);
+  return '';
 }
 
 export async function getEnsResolver(name: string) {

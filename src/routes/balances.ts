@@ -25,7 +25,6 @@ import { findInDB } from '../db/queries';
 import { BalanceModel, ClaimBuilderModel, CollectionModel } from '../db/schemas';
 import { getPlugin } from '../integrations/types';
 import { fetchUriFromSource, fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
-import { cleanBalanceArray } from '../utils/dataCleaners';
 import { addChallengeDetailsToCriteria } from './badges';
 import { getClaimDetailsForFrontend } from './collections';
 import { getBalancesForEthFirstTx } from './ethFirstTx';
@@ -289,7 +288,7 @@ export const getBalanceForAddress = async (
   }
 
   // Check if valid array
-  const balances = cleanBalanceArray(balancesRes.balances);
+  const balances = balancesRes.balances;
   return new BalanceDocWithDetails<NumberType>({
     ...balancesRes,
     _docId: collectionId + ':' + cosmosAddress,

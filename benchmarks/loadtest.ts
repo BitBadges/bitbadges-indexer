@@ -29,14 +29,16 @@ async function runBenchmark() {
   console.log('Starting benchmarks...');
   console.time('Total time');
   const promises: Promise<void>[] = [];
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < 20; i++) {
     const getFunc = async () => {
       console.time(`Benchmark ${i}`);
       const res = await axios.post(
-        `${BACKEND_URL}${BitBadgesApiRoutes.GetCollectionsRoute()}`,
-        {
-          collectionsToFetch: [{ collectionId: '1', viewsToFetch: [{ viewId: 'asfdds', viewType: 'sdfsd', bookmark: 12 }] }]
-        },
+        // `${BACKEND_URL}${BitBadgesApiRoutes.GetCollectionsRoute()}`,
+        // {
+        //   collectionsToFetch: [{ collectionId: '1', viewsToFetch: [{ viewId: 'asfdds', viewType: 'sdfsd', bookmark: 12 }] }]
+        // },
+        `${BACKEND_URL}${BitBadgesApiRoutes.SearchRoute('trev')}`,
+        {},
         config
       );
       const responseTime = Number(res.headers['x-response-time']);

@@ -13,8 +13,8 @@ dotenv.config();
 // const wallet = ethers.Wallet.createRandom();
 // const address = wallet.address;
 
-const BACKEND_URL = 'https://api.bitbadges.io';
-// const BACKEND_URL = 'http://localhost:3001';
+// const BACKEND_URL = 'https://api.bitbadges.io';
+const BACKEND_URL = 'http://localhost:3001';
 // const session = JSON.stringify(createExampleReqForAddress(address).session);
 const config = {
   headers: {

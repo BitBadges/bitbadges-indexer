@@ -329,109 +329,142 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
 
     if (model.modelName === StatusModel.modelName) {
       convertedDoc = new StatusDoc(doc as iStatusDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<StatusDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iStatusDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === AccountModel.modelName) {
       convertedDoc = new AccountDoc(doc as iAccountDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<AccountDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iAccountDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === CollectionModel.modelName) {
       convertedDoc = new CollectionDoc(doc as iCollectionDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<CollectionDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iCollectionDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === BalanceModel.modelName) {
       convertedDoc = new BalanceDoc(doc as iBalanceDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<BalanceDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iBalanceDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) {
+        throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
+      }
     } else if (model.modelName === MerkleChallengeModel.modelName) {
       convertedDoc = new MerkleChallengeDoc(doc as iMerkleChallengeDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<MerkleChallengeDoc<NumberType>>(convertedDoc);
+      const validateRes =
+        process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iMerkleChallengeDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === FetchModel.modelName) {
       convertedDoc = new FetchDoc(doc as iFetchDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<FetchDoc<NumberType>>(convertedDoc);
+      // const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iFetchDoc<NumberType>>(convertedDoc);
+      // if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === QueueModel.modelName) {
       convertedDoc = new QueueDoc(doc as iQueueDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<QueueDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iQueueDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === RefreshModel.modelName) {
       convertedDoc = new RefreshDoc(doc as iRefreshDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<RefreshDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iRefreshDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ClaimBuilderModel.modelName) {
       convertedDoc = new ClaimBuilderDoc(doc as iClaimBuilderDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<ClaimBuilderDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iClaimBuilderDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ProfileModel.modelName) {
       convertedDoc = new ProfileDoc(doc as iProfileDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<ProfileDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iProfileDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === TransferActivityModel.modelName) {
       convertedDoc = new TransferActivityDoc(doc as iTransferActivityDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<TransferActivityDoc<NumberType>>(convertedDoc);
+      const validateRes =
+        process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iTransferActivityDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) {
+        throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
+      }
     } else if (model.modelName === ReviewModel.modelName) {
       convertedDoc = new ReviewDoc(doc as iReviewDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<ReviewDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iReviewDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ErrorModel.modelName) {
       convertedDoc = doc as ErrorDoc;
-      // if (process.env.TYPIA === 'true') typia.assert<ErrorDoc>(convertedDoc);
     } else if (model.modelName === IPFSTotalsModel.modelName) {
       convertedDoc = new IPFSTotalsDoc(doc as iIPFSTotalsDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<IPFSTotalsDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iIPFSTotalsDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === AirdropModel.modelName) {
       convertedDoc = new AirdropDoc(doc as iAirdropDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<AirdropDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iAirdropDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === AddressListModel.modelName) {
       convertedDoc = new AddressListDoc(doc as iAddressListDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<AddressListDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iAddressListDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ApprovalTrackerModel.modelName) {
       convertedDoc = new ApprovalTrackerDoc(doc as iApprovalTrackerDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<ApprovalTrackerDoc<NumberType>>(convertedDoc);
+      const validateRes =
+        process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iApprovalTrackerDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ApiKeyModel.modelName) {
       convertedDoc = doc as ApiKeyDoc;
-      if (process.env.TYPIA === 'true') typia.assert<ApiKeyDoc>(convertedDoc);
     } else if (model.modelName === ClaimAlertModel.modelName) {
       convertedDoc = new ClaimAlertDoc(doc as iClaimAlertDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<ClaimAlertDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iClaimAlertDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === EthTxCountModel.modelName) {
       convertedDoc = doc as EthTxCountDoc;
-      if (process.env.TYPIA === 'true') typia.assert<EthTxCountDoc>(convertedDoc);
     } else if (model.modelName === OffChainUrlModel.modelName) {
       convertedDoc = doc as OffChainUrlDoc;
-      if (process.env.TYPIA === 'true') typia.assert<OffChainUrlDoc>(convertedDoc);
     } else if (model.modelName === ReportModel.modelName) {
       convertedDoc = doc as ReportDoc;
-      if (process.env.TYPIA === 'true') typia.assert<ReportDoc>(convertedDoc);
     } else if (model.modelName === ComplianceModel.modelName) {
       convertedDoc = new ComplianceDoc(doc as iComplianceDoc<NumberType>).convert(convertFunction);
-      // if (process.env.TYPIA === 'true') typia.assert<ComplianceDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iComplianceDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === SIWBBRequestModel.modelName) {
       convertedDoc = new SIWBBRequestDoc(doc as iSIWBBRequestDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<SIWBBRequestDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iSIWBBRequestDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === FollowDetailsModel.modelName) {
       convertedDoc = new FollowDetailsDoc(doc as iFollowDetailsDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<FollowDetailsDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iFollowDetailsDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === BrowseModel.modelName) {
       convertedDoc = new BrowseDoc(doc as iBrowseDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<BrowseDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iBrowseDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ListActivityModel.modelName) {
       convertedDoc = new ListActivityDoc(doc as iListActivityDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<ListActivityDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iListActivityDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === PageVisitsModel.modelName) {
       convertedDoc = new PageVisitsDoc(doc as iPageVisitsDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<PageVisitsDoc<NumberType>>(convertedDoc);
+      // const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iPageVisitsDoc<NumberType>>(convertedDoc);
+      // if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === OffChainSecretsModel.modelName) {
       convertedDoc = new SecretDoc(doc as iSecretDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<SecretDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iSecretDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === MapModel.modelName) {
       convertedDoc = new MapDoc(doc as iMapDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<MapDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iMapDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === DigitalOceanBalancesModel.modelName) {
       convertedDoc = new DigitalOceanBalancesDoc(doc as iDigitalOceanBalancesDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<DigitalOceanBalancesDoc<NumberType>>(convertedDoc);
+      const validateRes =
+        process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iDigitalOceanBalancesDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === DeveloperAppModel.modelName) {
       convertedDoc = new DeveloperAppDoc(doc as iDeveloperAppDoc).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<DeveloperAppDoc>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iDeveloperAppDoc>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === PluginModel.modelName) {
       convertedDoc = new PluginDoc(doc as iPluginDoc<NumberType>).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<PluginDoc<NumberType>>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iPluginDoc<NumberType>>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === AuthorizationCodeModel.modelName) {
       convertedDoc = new AuthorizationCodeDoc(doc as iAuthorizationCodeDoc).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<AuthorizationCodeDoc>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iAuthorizationCodeDoc>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === AccessTokenModel.modelName) {
       convertedDoc = new AccessTokenDoc(doc as iAccessTokenDoc).convert(convertFunction);
-      if (process.env.TYPIA === 'true') typia.assert<AccessTokenDoc>(convertedDoc);
+      const validateRes = process.env.TYPIA !== 'true' ? { success: true, errors: [] } : typia.validate<iAccessTokenDoc>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     }
 
     if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);

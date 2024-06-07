@@ -35,7 +35,7 @@ import { LOAD_BALANCER_ID } from './indexer-vars';
 import { getFromIpfs } from './ipfs/ipfs';
 import { sendPushNotification } from './pollutils';
 import { getAddressListsFromDB } from './routes/utils';
-import { cleanApprovalInfo, cleanBalanceMap, cleanMetadata } from './utils/dataCleaners';
+import { cleanBalanceMap } from './utils/dataCleaners';
 import { getLoadBalancerId } from './utils/loadBalancer';
 import { completeClaimHandler } from './routes/claims';
 
@@ -219,7 +219,6 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
     if (res.image || res.video) {
       // res.image is required for all metadata and not included in any other type
       dbType = 'Metadata';
-      res = cleanMetadata(res);
     } else if (Object.values(res).some((x) => Array.isArray(x)) || Object.keys(res).length === 0) {
       dbType = 'Balances';
       res = cleanBalanceMap(res);
@@ -228,7 +227,6 @@ export const fetchUriFromSourceAndUpdateDb = async (uri: string, queueObj: Queue
       await handleBalances(res, queueObj, block);
     } else {
       dbType = 'ApprovalInfo';
-      res = cleanApprovalInfo(res);
     }
 
     await insertToDB(FetchModel, {
