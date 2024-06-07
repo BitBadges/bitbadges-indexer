@@ -72,6 +72,7 @@ describe('checkIfAuthenticated function', () => {
         addressOrUsername: 'exampleAddressOrUsername',
         reason: 'exampleReason'
       });
+    console.log(res.body);
     expect(res.statusCode).toBe(200);
   });
 
@@ -228,7 +229,7 @@ describe('checkIfAuthenticated function', () => {
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ address, chain: 'Ethereum' });
     const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
     const signature = await ethWallet.signMessage(messageToSign);
@@ -252,7 +253,7 @@ describe('checkIfAuthenticated function', () => {
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ address, chain: 'Ethereum' });
     const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     challenge.message = challenge.message.replace('bitbadges.io', 'manipulated.io');
     challenge.params.uri = challenge.params.uri.replace('bitbadges.io', 'manipulated.io');
@@ -274,7 +275,7 @@ describe('checkIfAuthenticated function', () => {
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ address, chain: 'Ethereum' });
     const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     challenge.params.statement = 'manipulated statement';
     challenge.message = createChallenge(challenge.params);
@@ -905,7 +906,6 @@ describe('checkIfAuthenticated function', () => {
       }
     });
 
-
     const challenge = createChallenge(params);
     const messageToSign = challenge;
     const signature = await ethWallet.signMessage(messageToSign);
@@ -914,7 +914,7 @@ describe('checkIfAuthenticated function', () => {
       .post(BitBadgesApiRoutes.GenericVerifyRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .send({ message: challenge, signature });
-  
+
     console.log(challengeRes.body);
     expect(challengeRes.statusCode).toBe(200);
   });
@@ -1110,7 +1110,7 @@ describe('checkIfAuthenticated function', () => {
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ address, chain: 'Ethereum' });
     const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
     const signature = await ethWallet.signMessage(messageToSign);
@@ -1124,14 +1124,14 @@ describe('checkIfAuthenticated function', () => {
     const signOutRes = await request(app)
       .post(BitBadgesApiRoutes.SignOutRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ signOutBlockin: true });
     expect(signOutRes.statusCode).toBe(200);
 
     const signInStatusRoute = BitBadgesApiRoutes.CheckIfSignedInRoute();
     const signInStatusRes = await request(app)
       .post(signInStatusRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ address, chain: 'Ethereum' });
     expect(signInStatusRes.statusCode).toBe(200);
     expect(signInStatusRes.body.signedIn).toBe(false);
   });
@@ -1142,7 +1142,7 @@ describe('checkIfAuthenticated function', () => {
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ address, chain: 'Ethereum' });
     const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
 
@@ -1175,7 +1175,7 @@ describe('checkIfAuthenticated function', () => {
           }
         })
       )
-      .send({ message: messageToSign });
+      .send({ message: messageToSign, signature: '' });
     console.log(verifyRes.body);
     expect(verifyRes.statusCode).toBe(200);
 
@@ -1184,7 +1184,7 @@ describe('checkIfAuthenticated function', () => {
     // const signInStatusRes = await request(app)
     //   .post(signInStatusRoute)
     //   .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-    //   .send({ address });
+    //   .send({ address, chain: 'Ethereum' });
 
     // expect(signInStatusRes.statusCode).toBe(200);
     // expect(signInStatusRes.body.signedIn).toBe(true);
@@ -1206,7 +1206,9 @@ describe('checkIfAuthenticated function', () => {
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GetSignInChallengeRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ address });
+      .send({ address, chain: 'Ethereum' });
+    console.log(challengeRes.body);
+    expect(challengeRes.statusCode).toBe(200);
     const challenge = new GetSignInChallengeSuccessResponse(challengeRes.body);
     const messageToSign = challenge.message;
 
@@ -1239,7 +1241,7 @@ describe('checkIfAuthenticated function', () => {
           }
         })
       )
-      .send({ message: messageToSign });
+      .send({ message: messageToSign, signature: '' });
     expect(verifyRes.statusCode).toBe(401);
   });
 

@@ -2,6 +2,7 @@ import { BalanceArray, UintRangeArray, mustConvertToEthAddress, type Balance } f
 import { type Request, type Response } from 'express';
 import Moralis from 'moralis';
 import { serializeError } from 'serialize-error';
+import typia from 'typia';
 
 export const getBalancesForEthFirstTx = async (cosmosAddress: string): Promise<Array<Balance<bigint>>> => {
   const ethAddress = mustConvertToEthAddress(cosmosAddress);
@@ -31,6 +32,7 @@ export const getBalancesForEthFirstTx = async (cosmosAddress: string): Promise<A
 
 export async function getBalancesForEthFirstTxRoute(req: Request, res: Response) {
   try {
+    typia.assert<string>(req.params.cosmosAddress);
     const cosmosAddress = req.params.cosmosAddress;
     const balances = await getBalancesForEthFirstTx(cosmosAddress);
     return res.status(200).send({ balances });

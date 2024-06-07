@@ -2,9 +2,15 @@ import {
   BalanceArray,
   BigIntify,
   ClaimBuilderDoc,
+  ClaimIntegrationPluginCustomBodyType,
+  CompleteClaimPayload,
   CosmosAddress,
   CreateClaimPayload,
   CreateClaimRequest,
+  DeleteClaimPayload,
+  GetClaimAttemptStatusPayload,
+  GetReservedClaimCodesPayload,
+  SimulateClaimPayload,
   UpdateClaimPayload,
   UpdateClaimRequest,
   convertToCosmosAddress,
@@ -58,6 +64,8 @@ import { getActivityDocsForListUpdate } from './addressLists';
 import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, ContextReturn, updateClaimDocs } from './ipfs';
 import { refreshCollection } from './refresh';
+import typia from 'typia';
+import { typiaError } from './search';
 
 enum ActionType {
   Code = 'Code',
@@ -187,6 +195,11 @@ export const updateOnChainClaimContextFunction = (
 export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateClaimSuccessResponse | ErrorResponse>) => {
   try {
     const body = req.body as CreateClaimPayload;
+    const validateRes: typia.IValidation<CreateClaimPayload> = typia.validate<CreateClaimPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const { claims } = body;
     const authDetails = await mustGetAuthDetails(req, res);
     for (const claim of claims) {
@@ -246,6 +259,11 @@ export const createClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateClaimSuccessResponse | ErrorResponse>) => {
   try {
     const body = req.body as UpdateClaimPayload;
+    const validateRes: typia.IValidation<UpdateClaimPayload> = typia.validate<UpdateClaimPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const { claims } = body;
     const authDetails = await mustGetAuthDetails(req, res);
     for (const claim of claims) {
@@ -289,6 +307,11 @@ export const updateClaimHandler = async (req: AuthenticatedRequest<NumberType>, 
 
 export const deleteClaimHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateClaimSuccessResponse | ErrorResponse>) => {
   try {
+    const validateRes: typia.IValidation<DeleteClaimPayload> = typia.validate<DeleteClaimPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const docsToDelete = [];
     for (const claimId of req.body.claimIds) {
       const doc = await mustGetFromDB(ClaimBuilderModel, claimId);
@@ -336,6 +359,11 @@ export const getClaimsHandler = async (
 ) => {
   try {
     const reqPayload = req.body as unknown as GetClaimsPayload;
+    const validateRes: typia.IValidation<GetClaimsPayload> = typia.validate<GetClaimsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const query = { docClaimed: true, _docId: { $in: reqPayload.claimIds }, deletedAt: { $exists: false } };
     const docs = await findInDB(ClaimBuilderModel, { query });
 
@@ -389,6 +417,15 @@ export const completeClaimHandler = async (
   simulate = false,
   prevCodesOnly = false
 ): Promise<iGetReservedClaimCodesSuccessResponse> => {
+  typia.assert<string>(claimId);
+  typia.assert<string>(cosmosAddress);
+  typia.assert<string>(claimAttemptId);
+  typia.assert<boolean>(simulate);
+  typia.assert<boolean>(prevCodesOnly);
+
+  typia.assert<NumberType | undefined>(req.body._fetchedAt);
+  typia.assert<string[] | undefined>(req.body._specificPluginsOnly);
+
   const query = { _docId: { $eq: claimId }, docClaimed: true, deletedAt: { $exists: false } };
   const fetchedAt = Number(req.body._fetchedAt || 0n);
 
@@ -490,31 +527,6 @@ export const completeClaimHandler = async (
       }
 
       let adminInfo: any = {};
-
-      // const requiresEmail = pluginDoc?.verificationCall?.passEmail;
-
-      // if (requiresEmail && !email && getAuthDetails(req, res).cosmosAddress) {
-      //   //TODO: Scopes
-      //   const profileDoc = await mustGetFromDB(ProfileModel, getAuthDetails(req, res).cosmosAddress, session);
-      //   if (!profileDoc) {
-      //     throw new Error('Email required but no profile found');
-      //   }
-
-      //   if (profileDoc.notifications?.email) {
-      //     if (profileDoc.notifications.emailVerification?.verified) {
-      //       email = profileDoc.notifications.email;
-      //     }
-      //   }
-
-      //   if (!email) {
-      //     throw new Error('Email required but none found in profile');
-      //   }
-      // } else {
-      //   if (requiresEmail) {
-      //     throw new Error('Email required but user is not logged in to BitBadges');
-      //   }
-      // }
-
       const authDetails = await getAuthDetails(req, {} as Response);
 
       if (pluginDoc) {
@@ -567,6 +579,56 @@ export const completeClaimHandler = async (
         isClaimNumberAssigner = true;
       } else if (claimBuilderDoc.assignMethod === plugin.instanceId) {
         isClaimNumberAssigner = true;
+      }
+
+      //validate custom body
+      switch (plugin.pluginId) {
+        case 'codes': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'codes'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'password': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'password'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'numUses': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'numUses'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'transferTimes': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'transferTimes'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'initiatedBy': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'initiatedBy'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'whitelist': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'whitelist'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'github': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'github'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'google': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'google'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        // case 'email': {
+        //   typia.assert<ClaimIntegrationPluginCustomBodyType<'email'>>(req.body[plugin.instanceId] ?? {});
+        //   break;
+        // }
+        case 'twitter': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'twitter'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'discord': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'discord'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        default:
+          break;
       }
 
       const result = await pluginInstance.validateFunction(
@@ -682,13 +744,19 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
   try {
     setMockSessionIfTestMode(req);
 
-    const claimId = req.params.claimId;
+    const validateRes: typia.IValidation<SimulateClaimPayload> = typia.validate<SimulateClaimPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
+    const claimId = req.params.claimId;
+    typia.assert<string>(claimId);
     if (!validator.isHexadecimal(claimId)) {
       throw new Error('Invalid claimId format');
     }
 
     const simulate = true;
+    typia.assert<string>(req.params.cosmosAddress);
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
 
     await completeClaimHandler(req, claimId, cosmosAddress, '', simulate);
@@ -709,17 +777,25 @@ export const getReservedClaimCodes = async (
   try {
     setMockSessionIfTestMode(req);
 
+    const validateRes: typia.IValidation<GetReservedClaimCodesPayload> = typia.validate<GetReservedClaimCodesPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Complete Claims' }]);
     if (!isAuthenticated) {
       throw new Error('Unauthorized');
     }
 
     const claimId = req.params.claimId;
+    typia.assert<string>(claimId);
     if (!validator.isHexadecimal(claimId)) {
       throw new Error('Invalid claimId format');
     }
 
+    typia.assert<string>(req.params.cosmosAddress);
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
+
     const response = await completeClaimHandler(req, claimId, cosmosAddress, '', true, true);
     return res.status(200).send(response);
   } catch (e) {
@@ -736,7 +812,13 @@ export const getClaimsStatusHandler = async (
   res: Response<iGetClaimAttemptStatusSuccessResponse | ErrorResponse>
 ) => {
   try {
+    const validateRes: typia.IValidation<GetClaimAttemptStatusPayload> = typia.validate<GetClaimAttemptStatusPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const claimAttemptId = req.params.claimAttemptId;
+    typia.assert<string>(claimAttemptId);
 
     // Validate claimAttemptId
     if (!validator.isHexadecimal(claimAttemptId)) {
@@ -772,15 +854,21 @@ export const getClaimsStatusHandler = async (
 export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: Response<iCompleteClaimSuccessResponse | ErrorResponse>) => {
   try {
     setMockSessionIfTestMode(req);
+    const validateRes: typia.IValidation<CompleteClaimPayload> = typia.validate<CompleteClaimPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     //Simulate and return an error immediately if not valid
     const claimId = req.params.claimId;
+    typia.assert<string>(claimId);
     if (!validator.isHexadecimal(claimId)) {
       if (process.env.TEST_MODE !== 'true') {
         throw new Error('Invalid claimId format');
       }
     }
 
+    typia.assert<string>(req.params.cosmosAddress);
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
     const randomId = crypto.randomBytes(32).toString('hex');
     const response = await completeClaimHandler(req, claimId, cosmosAddress, randomId, process.env.TEST_MODE !== 'true');

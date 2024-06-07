@@ -179,13 +179,13 @@ describe('get Siwbb requests', () => {
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send({ id: 'invalid' });
+      .send({ code: 'invalid' });
     expect(invalidGetRes.status).toBe(500);
 
     const unauthorizedDeleteRes = await request(app)
       .delete(BitBadgesApiRoutes.CRUDSIWBBRequestRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send({ id: siwbbRequestId });
+      .send({ code: siwbbRequestId });
     expect(unauthorizedDeleteRes.status).toBe(401);
 
     const deleteResRoute = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
@@ -309,7 +309,14 @@ describe('get Siwbb requests', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send({ ...body, dataIntegrityProof: 'invalid' });
+      .send({
+        ...body,
+        dataIntegrityProof: {
+          signature: '',
+          signer: '',
+          message: 'invalid'
+        }
+      });
     expect(invalidSigRes.status).toBe(500);
 
     console.log(res.body);
@@ -630,7 +637,14 @@ describe('get Siwbb requests', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send({ ...body, dataIntegrityProof: 'invalid' });
+      .send({
+        ...body,
+        dataIntegrityProof: {
+          signature: '',
+          signer: '',
+          message: 'invalid'
+        }
+      });
     expect(invalidSigRes.status).toBe(500);
 
     console.log(res.body);
@@ -759,7 +773,14 @@ describe('get Siwbb requests', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send({ ...body, dataIntegrityProof: 'invalid' });
+      .send({
+        ...body,
+        dataIntegrityProof: {
+          signature: '',
+          signer: '',
+          message: 'invalid'
+        }
+      });
     expect(invalidSigRes.status).toBe(500);
 
     console.log(res.body);
@@ -847,7 +868,14 @@ describe('get Siwbb requests', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send({ ...body, dataIntegrityProof: 'invalid' });
+      .send({
+        ...body,
+        dataIntegrityProof: {
+          signature: '',
+          signer: '',
+          message: 'invalid'
+        }
+      });
     expect(invalidSigRes.status).toBe(500);
 
     console.log(res.body);

@@ -4,10 +4,17 @@ import { serializeError } from 'serialize-error';
 import { fetchUriFromSource } from '../queue';
 import { getFromDB, mustGetManyFromDB } from '../db/db';
 import { FetchModel, MapModel } from '../db/schemas';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const getMaps = async (req: Request, res: Response<iGetMapsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetMapsPayload;
+    const validateRes: typia.IValidation<GetMapsPayload> = typia.validate<GetMapsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const mapIds = reqPayload.mapIds;
     if (mapIds.length > 100) {
       throw new Error('Cannot fetch more than 100 maps at a time.');

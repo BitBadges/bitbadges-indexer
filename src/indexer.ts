@@ -16,6 +16,7 @@ import axios from 'axios';
 import {
   NumberType,
   OauthAuthorizePayload,
+  OauthTokenPayload,
   SocialConnectionInfo,
   SocialConnections,
   iAccessTokenDoc,
@@ -93,12 +94,13 @@ import { createPlugin, deletePlugin, getPlugins, updatePlugin } from './routes/p
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
 import { addReview, deleteReview } from './routes/reviews';
-import { filterBadgesInCollectionHandler, searchHandler } from './routes/search';
+import { filterBadgesInCollectionHandler, searchHandler, typiaError } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
 import { ApiKeyDoc } from './db/docs';
+import typia from 'typia';
 
-axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 30000; // Set the default timeout value in milliseconds
+axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000; // Set the default timeout value in milliseconds
 
 export let SHUTDOWN = false;
 export const getAttributeValueByKey = (attributes: Attribute[], key: string): string | undefined => {
@@ -582,6 +584,10 @@ app.post(
         scopes
         // state
       } = req.body as OauthAuthorizePayload;
+      const validateRes: typia.IValidation<OauthAuthorizePayload> = typia.validate<OauthAuthorizePayload>(req.body);
+      if (!validateRes.success) {
+        return typiaError(res, validateRes);
+      }
 
       const developerAppDoc = await mustGetFromDB(DeveloperAppModel, client_id);
       if (developerAppDoc.redirectUris.indexOf(redirect_uri) === -1) {
@@ -621,6 +627,10 @@ app.post(
 app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
   try {
     const { grant_type, client_id, client_secret, code, redirect_uri, refresh_token } = req.body;
+    const validateRes: typia.IValidation<OauthTokenPayload> = typia.validate<OauthTokenPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     const client = await mustGetFromDB(DeveloperAppModel, client_id);
     if (!client) {
@@ -709,6 +719,8 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
 app.post('/api/v0/oauth/token/revoke', async (req: AuthenticatedRequest<NumberType>, res: Response) => {
   try {
     const { token } = req.body;
+    typia.assert<string>(token);
+
     const accessTokenDoc = await mustGetFromDB(AccessTokenModel, token);
     await deleteMany(AccessTokenModel, [accessTokenDoc._docId]);
     return res.status(200).send({ message: 'Token revoked' });
@@ -752,6 +764,9 @@ app.post(
   authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
+      typia.assert<string>(req.body.label);
+      typia.assert<string>(req.body.intendedUse);
+
       const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
       const currApiKeys = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 50 });
 
@@ -790,8 +805,11 @@ app.delete(
   authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
   async (req: AuthenticatedRequest<NumberType>, res: Response) => {
     try {
-      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
       const keyToDelete = req.body.key;
+      typia.assert<string>(keyToDelete);
+
+      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
+
       const doc = await mustGetFromDB(ApiKeyModel, keyToDelete);
       if (doc.cosmosAddress !== cosmosAddress) {
         return res.status(401).send({

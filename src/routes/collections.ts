@@ -82,6 +82,8 @@ import { addChallengeDetailsToCriteria } from './badges';
 import { applyAddressListsToUserPermissions } from './balances';
 import { getDecryptedActionSeedCode } from './claims';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
+import typia from 'typia';
+import { typiaError } from './search';
 
 const { batchUpdateBadgeMetadata } = BadgeMetadataDetails;
 
@@ -974,6 +976,16 @@ export async function executeCollectionsQuery(req: Request, res: Response, colle
 export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActivitySuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetBadgeActivityPayload;
+    const validateRes: typia.IValidation<GetBadgeActivityPayload> = typia.validate<GetBadgeActivityPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    typia.assert<NumberType>(req.params.collectionId);
+    typia.assert<NumberType>(req.params.badgeId);
+    BigIntify(req.params.collectionId);
+    BigIntify(req.params.badgeId);
+
     const activityRes = await executeBadgeActivityQuery(req.params.collectionId, req.params.badgeId, reqPayload.bookmark, reqPayload.cosmosAddress);
 
     return res.json(activityRes);
@@ -989,6 +1001,11 @@ export const getBadgeActivity = async (req: Request, res: Response<iGetBadgeActi
 export const getCollections = async (req: Request, res: Response<iGetCollectionsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetCollectionsPayload;
+
+    const validateRes: typia.IValidation<GetCollectionsPayload> = typia.validate<GetCollectionsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     if (reqPayload.collectionsToFetch.length > 100) {
       return res.status(400).send({

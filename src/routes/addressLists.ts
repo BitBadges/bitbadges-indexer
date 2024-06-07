@@ -32,6 +32,8 @@ import { createListClaimContextFunction } from './claims';
 import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, deleteOldClaims, updateClaimDocs } from './ipfs';
 import { mustGetAddressListsFromDB } from './utils';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const deleteAddressLists = async (
   req: AuthenticatedRequest<NumberType>,
@@ -39,6 +41,11 @@ export const deleteAddressLists = async (
 ) => {
   try {
     const reqPayload = req.body as DeleteAddressListsPayload;
+    const validateRes: typia.IValidation<DeleteAddressListsPayload> = typia.validate<DeleteAddressListsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const listIds = reqPayload.listIds;
 
     if (listIds.length > 100) {
@@ -167,6 +174,11 @@ const handleAddressListsUpdateAndCreate = async (
   const isUpdate = !isCreation;
   try {
     const reqPayload = req.body as UpdateAddressListsPayload;
+    const validateRes: typia.IValidation<UpdateAddressListsPayload> = typia.validate<UpdateAddressListsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const lists = reqPayload.addressLists;
     const authDetails = await mustGetAuthDetails(req, res);
     const cosmosAddress = authDetails.cosmosAddress;
@@ -294,6 +306,11 @@ const isReserved = (listId: string) => {
 export const getAddressLists = async (req: Request, res: Response<iGetAddressListsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetAddressListsPayload;
+    const validateRes: typia.IValidation<GetAddressListsPayload> = typia.validate<GetAddressListsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const listsToFetch = reqPayload.listsToFetch;
 
     if (listsToFetch.length > 100) {

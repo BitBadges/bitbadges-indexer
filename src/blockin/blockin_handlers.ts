@@ -29,6 +29,8 @@ import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { AccessTokenModel, CollectionModel, ProfileModel } from '../db/schemas';
 import { getChainDriver } from './blockin';
 import { SupportedScopes, hasScopes } from './scopes';
+import typia from 'typia';
+import { typiaError } from '../routes/search';
 
 export interface BlockinSessionDetails<T extends NumberType> {
   /**
@@ -274,6 +276,10 @@ export async function getChallenge(
 ) {
   try {
     const reqPayload = req.body as unknown as GetSignInChallengePayload;
+    const validateRes: typia.IValidation<GetSignInChallengePayload> = typia.validate<GetSignInChallengePayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     if (!isAddressValid(reqPayload.address)) {
       return res.status(400).json({ errorMessage: 'Invalid address' });
@@ -338,6 +344,10 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
 
 export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSignOutSuccessResponse>) {
   const body = req.body as SignOutPayload;
+  const validateRes: typia.IValidation<SignOutPayload> = typia.validate<SignOutPayload>(req.body);
+  if (!validateRes.success) {
+    return typiaError(res, validateRes);
+  }
 
   const session = req.session;
   if (body.signOutBlockin) {
@@ -387,6 +397,10 @@ export async function verifyBlockinAndGrantSessionCookie(
   res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
   const body = req.body as VerifySignInPayload;
+  const validateRes: typia.IValidation<VerifySignInPayload> = typia.validate<VerifySignInPayload>(req.body);
+  if (!validateRes.success) {
+    return typiaError(res, validateRes);
+  }
 
   try {
     setMockSessionIfTestMode(req);
@@ -599,6 +613,10 @@ export async function genericBlockinVerifyHandler(
   res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
   const body = req.body as unknown as VerifySignInPayload;
+  const validateRes: typia.IValidation<VerifySignInPayload> = typia.validate<VerifySignInPayload>(req.body);
+  if (!validateRes.success) {
+    return typiaError(res, validateRes);
+  }
 
   try {
     const verificationResponse = await genericBlockinVerify(body);
@@ -619,6 +637,10 @@ export async function genericBlockinVerifyAssetsHandler(
   res: Response<iVerifySignInSuccessResponse | ErrorResponse>
 ) {
   const body = req.body as unknown as GenericVerifyAssetsPayload;
+  const validateRes: typia.IValidation<GenericVerifyAssetsPayload> = typia.validate<GenericVerifyAssetsPayload>(req.body);
+  if (!validateRes.success) {
+    return typiaError(res, validateRes);
+  }
 
   try {
     mustConvertToCosmosAddress(body.address);

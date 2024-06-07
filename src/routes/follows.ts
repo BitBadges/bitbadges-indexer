@@ -17,11 +17,18 @@ import { BalanceModel, FollowDetailsModel } from '../db/schemas';
 import { executeCollectionBalancesQuery } from './activityHelpers';
 import { executeMultiUserActivityQuery } from './userQueries';
 import { findInDB } from '../db/queries';
+import typia from 'typia';
+import { typiaError } from './search';
 
 // TODO: Eventually, do we want to cache followers as well somehow?
 export const getFollowDetails = async (req: Request, res: Response<iGetFollowDetailsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetFollowDetailsPayload;
+    const validateRes: typia.IValidation<GetFollowDetailsPayload> = typia.validate<GetFollowDetailsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const followersBookmark = reqPayload.followersBookmark ?? '';
 
     let followDoc = await getFromDB(FollowDetailsModel, reqPayload.cosmosAddress);

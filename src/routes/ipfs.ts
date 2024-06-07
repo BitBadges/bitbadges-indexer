@@ -1,4 +1,7 @@
 import {
+  ClaimIntegrationPrivateParamsType,
+  ClaimIntegrationPrivateStateType,
+  ClaimIntegrationPublicParamsType,
   CollectionApprovalWithDetails,
   CreateClaimRequest,
   UpdateClaimRequest,
@@ -27,6 +30,7 @@ import crypto from 'crypto';
 import { Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
+import typia from 'typia';
 import { checkIfManager, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
@@ -45,6 +49,7 @@ import { cleanBalanceMap } from '../utils/dataCleaners';
 import { createOffChainClaimContextFunction, createOnChainClaimContextFunction } from './claims';
 import { executeCollectionsQuery, getDecryptedPluginsAndPublicState } from './collections';
 import { refreshCollection } from './refresh';
+import { typiaError } from './search';
 
 const IPFS_UPLOAD_BYTES_LIMIT = 1000000000; // 1GB
 
@@ -138,6 +143,53 @@ export const assertPluginsUpdateIsValid = async (
     //We should also fail if it doesn't match any
     if (!found) {
       throw new Error('Assign method must match a plugin instance ID, be blank / empty, or be firstComeFirstServe');
+    }
+  }
+
+  for (const plugin of newPlugins) {
+    switch (plugin.pluginId) {
+      case 'numUses':
+        typia.assert<ClaimIntegrationPublicParamsType<'numUses'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'numUses'>>(plugin.privateParams ?? {});
+        break;
+      case 'whitelist':
+        typia.assert<ClaimIntegrationPublicParamsType<'whitelist'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'whitelist'>>(plugin.privateParams ?? {});
+        break;
+      case 'password':
+        typia.assert<ClaimIntegrationPublicParamsType<'password'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'password'>>(plugin.privateParams ?? {});
+        break;
+      case 'codes':
+        typia.assert<ClaimIntegrationPublicParamsType<'codes'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'codes'>>(plugin.privateParams ?? {});
+        break;
+      case 'transferTimes':
+        typia.assert<ClaimIntegrationPublicParamsType<'transferTimes'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'transferTimes'>>(plugin.privateParams ?? {});
+        break;
+      case 'initiatedBy':
+        typia.assert<ClaimIntegrationPublicParamsType<'initiatedBy'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'initiatedBy'>>(plugin.privateParams ?? {});
+        break;
+      case 'github':
+        typia.assert<ClaimIntegrationPublicParamsType<'github'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'github'>>(plugin.privateParams ?? {});
+        break;
+      case 'google':
+        typia.assert<ClaimIntegrationPublicParamsType<'google'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'google'>>(plugin.privateParams ?? {});
+        break;
+      case 'twitter':
+        typia.assert<ClaimIntegrationPublicParamsType<'twitter'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'twitter'>>(plugin.privateParams ?? {});
+        break;
+      case 'discord':
+        typia.assert<ClaimIntegrationPublicParamsType<'discord'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'discord'>>(plugin.privateParams ?? {});
+        break;
+      default:
+      //Not a core plugin
     }
   }
 };
@@ -257,6 +309,42 @@ export const updateClaimDocs = async (
         } else {
           //Completely overwrite the state
           state[plugin.instanceId] = plugin.newState;
+        }
+
+        //validate it
+        switch (plugin.pluginId) {
+          case 'numUses':
+            typia.assert<ClaimIntegrationPrivateStateType<'numUses'>>(state[plugin.instanceId]);
+            break;
+          case 'whitelist':
+            typia.assert<ClaimIntegrationPrivateStateType<'whitelist'>>(state[plugin.instanceId]);
+            break;
+          case 'password':
+            typia.assert<ClaimIntegrationPrivateStateType<'password'>>(state[plugin.instanceId]);
+            break;
+          case 'codes':
+            typia.assert<ClaimIntegrationPrivateStateType<'codes'>>(state[plugin.instanceId]);
+            break;
+          case 'transferTimes':
+            typia.assert<ClaimIntegrationPrivateStateType<'transferTimes'>>(state[plugin.instanceId]);
+            break;
+          case 'initiatedBy':
+            typia.assert<ClaimIntegrationPrivateStateType<'initiatedBy'>>(state[plugin.instanceId]);
+            break;
+          case 'github':
+            typia.assert<ClaimIntegrationPrivateStateType<'github'>>(state[plugin.instanceId]);
+            break;
+          case 'google':
+            typia.assert<ClaimIntegrationPrivateStateType<'google'>>(state[plugin.instanceId]);
+            break;
+          case 'twitter':
+            typia.assert<ClaimIntegrationPrivateStateType<'twitter'>>(state[plugin.instanceId]);
+            break;
+          case 'discord':
+            typia.assert<ClaimIntegrationPrivateStateType<'discord'>>(state[plugin.instanceId]);
+            break;
+          default:
+          //Not a core plugin
         }
       }
 
@@ -466,6 +554,10 @@ export const addBalancesToOffChainStorageHandler = async (
   res: Response<iAddBalancesToOffChainStorageSuccessResponse | ErrorResponse>
 ) => {
   const reqPayload = req.body as AddBalancesToOffChainStoragePayload;
+  const validateRes: typia.IValidation<AddBalancesToOffChainStoragePayload> = typia.validate<AddBalancesToOffChainStoragePayload>(req.body);
+  if (!validateRes.success) {
+    return typiaError(res, validateRes);
+  }
 
   try {
     const origin = req.headers.origin;
@@ -576,6 +668,10 @@ export const addBalancesToOffChainStorageHandler = async (
 
 export const addToIpfsHandler = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddToIpfsSuccessResponse | ErrorResponse>) => {
   const reqPayload = req.body as AddToIpfsPayload;
+  const validateRes: typia.IValidation<AddToIpfsPayload> = typia.validate<AddToIpfsPayload>(req.body);
+  if (!validateRes.success) {
+    return typiaError(res, validateRes);
+  }
 
   try {
     const authDetails = await mustGetAuthDetails(req, res);
@@ -633,6 +729,12 @@ export const addApprovalDetailsToOffChainStorageHandler = async (
   res: Response<iAddApprovalDetailsToOffChainStorageSuccessResponse | ErrorResponse>
 ) => {
   const _reqPayload = req.body as AddApprovalDetailsToOffChainStoragePayload;
+  const validateRes: typia.IValidation<AddApprovalDetailsToOffChainStoragePayload> = typia.validate<AddApprovalDetailsToOffChainStoragePayload>(
+    req.body
+  );
+  if (!validateRes.success) {
+    return typiaError(res, validateRes);
+  }
 
   try {
     const authDetails = await mustGetAuthDetails(req, res);

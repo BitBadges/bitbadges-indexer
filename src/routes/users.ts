@@ -74,6 +74,8 @@ import {
   executeSentClaimAlertsQuery
 } from './userQueries';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
+import typia from 'typia';
+import { typiaError } from './search';
 
 type AccountFetchOptions = AccountFetchDetails;
 
@@ -286,6 +288,11 @@ export const getAccountByUsername = async (req: Request, res: Response, username
 export const getAccounts = async (req: Request, res: Response<iGetAccountsSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetAccountsPayload;
+    const validateRes: typia.IValidation<GetAccountsPayload> = typia.validate<GetAccountsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const allDoNotHaveExternalCalls = reqPayload.accountsToFetch.every((x) => x.noExternalCalls);
     if (!allDoNotHaveExternalCalls && reqPayload.accountsToFetch.length > 250) {
       return res.status(400).send({
@@ -806,6 +813,11 @@ const getAdditionalUserInfo = async (
 export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAccountInfoSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as UpdateAccountInfoPayload;
+    const validateRes: typia.IValidation<UpdateAccountInfoPayload> = typia.validate<UpdateAccountInfoPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     const cosmosAddress = authDetails.cosmosAddress;
     let profileInfo = await getFromDB(ProfileModel, cosmosAddress);

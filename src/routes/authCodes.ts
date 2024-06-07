@@ -31,6 +31,8 @@ import {
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { executeSIWBBRequestsForAppQuery } from './userQueries';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const createSIWBBRequest = async (
   req: MaybeAuthenticatedRequest<NumberType>,
@@ -38,6 +40,11 @@ export const createSIWBBRequest = async (
 ) => {
   try {
     const reqPayload = req.body as CreateSIWBBRequestPayload;
+    const validateRes: typia.IValidation<CreateSIWBBRequestPayload> = typia.validate<CreateSIWBBRequestPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const challengeParams = constructChallengeObjectFromString<number>(reqPayload.message, Numberify);
     if (!challengeParams.address) {
       throw new Error('Invalid address in message.');
@@ -194,6 +201,12 @@ export const getSIWBBRequestsForDeveloperApp = async (
 ) => {
   try {
     const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestsForDeveloperAppPayload;
+    const validateRes: typia.IValidation<GetAndVerifySIWBBRequestsForDeveloperAppPayload> =
+      typia.validate<GetAndVerifySIWBBRequestsForDeveloperAppPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const { clientId, bookmark } = reqPayload;
     const appDoc = await getFromDB(DeveloperAppModel, clientId);
     if (!appDoc) {
@@ -238,7 +251,10 @@ export const getAndVerifySIWBBRequest = async (
     setMockSessionIfTestMode(req);
 
     const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestPayload;
-
+    const validateRes: typia.IValidation<GetAndVerifySIWBBRequestPayload> = typia.validate<GetAndVerifySIWBBRequestPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
     // For now, we use the approach that if someone has the signature, they can see the message.
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
@@ -314,7 +330,10 @@ export const deleteSIWBBRequest = async (
 ) => {
   try {
     const reqPayload = req.body as DeleteSIWBBRequestPayload;
-
+    const validateRes: typia.IValidation<DeleteSIWBBRequestPayload> = typia.validate<DeleteSIWBBRequestPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     if (doc.cosmosAddress !== authDetails.cosmosAddress) {

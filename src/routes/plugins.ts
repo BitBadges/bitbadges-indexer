@@ -8,7 +8,8 @@ import {
   type NumberType,
   type iCreatePluginSuccessResponse,
   type iGetPluginSuccessResponse,
-  NumberifyIfPossible
+  NumberifyIfPossible,
+  DeletePluginPayload
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Response } from 'express';
@@ -25,6 +26,8 @@ import { findInDB } from '../db/queries';
 import { PluginDocHistoryModel, PluginModel } from '../db/schemas';
 import { getCorePlugin } from '../integrations/types';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
+import typia from 'typia';
+import { typiaError } from './search';
 
 const getImage = async (image: string) => {
   if (image.startsWith('data:')) {
@@ -92,6 +95,10 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     setMockSessionIfTestMode(req);
 
     const reqPayload = req.body as UpdatePluginPayload;
+    const validateRes: typia.IValidation<UpdatePluginPayload> = typia.validate<UpdatePluginPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     const existingDoc = await mustGetFromDB(PluginModel, reqPayload.pluginId);
     const authDetails = await mustGetAuthDetails(req, res);
@@ -161,7 +168,12 @@ export const deletePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
   try {
     setMockSessionIfTestMode(req);
 
-    const reqPayload = req.body as UpdatePluginPayload;
+    const reqPayload = req.body as DeletePluginPayload;
+    const validateRes: typia.IValidation<DeletePluginPayload> = typia.validate<DeletePluginPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     const existingDoc = await mustGetFromDB(PluginModel, reqPayload.pluginId);
     if (!existingDoc) {
@@ -198,6 +210,11 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     setMockSessionIfTestMode(req);
 
     const reqPayload = req.body as CreatePluginPayload;
+    const validateRes: typia.IValidation<CreatePluginPayload> = typia.validate<CreatePluginPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
     const validationErr = validatePlugin(reqPayload);
     if (validationErr) {
@@ -263,6 +280,11 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
     setMockSessionIfTestMode(req);
 
     const reqPayload = req.body as unknown as GetPluginPayload;
+    const validateRes: typia.IValidation<GetPluginPayload> = typia.validate<GetPluginPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const { createdPluginsOnly, pluginId } = reqPayload;
 
     if (pluginId) {

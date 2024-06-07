@@ -18,6 +18,8 @@ import { checkIfAuthenticated, mustGetAuthDetails, type AuthenticatedRequest } f
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { DeveloperAppModel } from '../db/schemas';
+import { typiaError } from './search';
+import typia from 'typia';
 
 export const createDeveloperApp = async (
   req: AuthenticatedRequest<NumberType>,
@@ -25,6 +27,10 @@ export const createDeveloperApp = async (
 ) => {
   try {
     const reqPayload = req.body as CreateDeveloperAppPayload;
+    const validateRes: typia.IValidation<CreateDeveloperAppPayload> = typia.validate<CreateDeveloperAppPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     const uniqueClientId = crypto.randomBytes(32).toString('hex');
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
@@ -60,6 +66,10 @@ export const createDeveloperApp = async (
 export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, res: Response<iGetDeveloperAppSuccessResponse | ErrorResponse>) => {
   try {
     const body = req.body as unknown as GetDeveloperAppPayload;
+    const validateRes: typia.IValidation<GetDeveloperAppPayload> = typia.validate<GetDeveloperAppPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     if (body.clientId) {
       const doc = await mustGetFromDB(DeveloperAppModel, body.clientId);
@@ -94,6 +104,11 @@ export const deleteDeveloperApp = async (
 ) => {
   try {
     const reqPayload = req.body as DeleteDeveloperAppPayload;
+    const validateRes: typia.IValidation<DeleteDeveloperAppPayload> = typia.validate<DeleteDeveloperAppPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, reqPayload.clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
@@ -118,6 +133,11 @@ export const updateDeveloperApp = async (
 ) => {
   try {
     const { name, description, image, redirectUris, clientId, rotateClientSecret } = req.body as UpdateDeveloperAppPayload;
+    const validateRes: typia.IValidation<UpdateDeveloperAppPayload> = typia.validate<UpdateDeveloperAppPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {

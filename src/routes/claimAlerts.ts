@@ -23,11 +23,18 @@ import { insertToDB } from '../db/db';
 import { ClaimAlertModel } from '../db/schemas';
 import { findInDB } from '../db/queries';
 import crypto from 'crypto';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const sendClaimAlert = async (req: MaybeAuthenticatedRequest<NumberType>, res: Response<iSendClaimAlertsSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as SendClaimAlertsPayload;
     setMockSessionIfTestMode(req);
+
+    const validateRes: typia.IValidation<SendClaimAlertsPayload> = typia.validate<SendClaimAlertsPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     for (const claimAlert of reqPayload.claimAlerts) {
       if (claimAlert.collectionId && Number(claimAlert.collectionId) !== 0) {
@@ -86,6 +93,10 @@ export async function getClaimAlertsForCollection(
 ) {
   try {
     const reqPayload = req.body as unknown as GetClaimAlertsForCollectionPayload;
+    const validateRes: typia.IValidation<GetClaimAlertsForCollectionPayload> = typia.validate<GetClaimAlertsForCollectionPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     const collectionId = Number(reqPayload.collectionId);
 

@@ -10,6 +10,7 @@ import {
   iApprovalInfoDetails,
   iBalanceDocWithDetails,
   iChallengeDetails,
+  mustConvertToCosmosAddress,
   type ErrorResponse,
   type NumberType,
   type iAddressList,
@@ -34,6 +35,8 @@ import {
   getAddressListsFromDB,
   mustFindAddressList
 } from './utils';
+import typia from 'typia';
+import { typiaError } from './search';
 
 // Precondition: we assume all address lists are present
 export const applyAddressListsToUserPermissions = <T extends NumberType>(
@@ -298,6 +301,17 @@ export const getBalanceForAddress = async (
 
 export const getBadgeBalanceByAddress = async (req: Request, res: Response<iGetBadgeBalanceByAddressSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
+    const validateRes: typia.IValidation<GetBadgeBalanceByAddressPayload> = typia.validate<GetBadgeBalanceByAddressPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    //validate collectionId and badgeId
+    typia.assert<NumberType>(req.params.collectionId);
+    typia.assert<string>(req.params.cosmosAddress);
+    mustConvertToCosmosAddress(req.params.cosmosAddress);
+    BigIntify(req.params.collectionId);
+
     const balanceToReturnConverted = await getBalanceForAddress(
       req,
       res,

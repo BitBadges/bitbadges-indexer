@@ -488,7 +488,8 @@ export const ApiKeySchema = new Schema({
   intendedUse: String,
   cosmosAddress: String,
   createdAt: Number,
-  expiry: Number
+  expiry: Number,
+  tier: String
 });
 
 export const ErrorSchema = new Schema({

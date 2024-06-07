@@ -1,4 +1,10 @@
-import { type ErrorResponse, type iRefreshMetadataSuccessResponse, type iRefreshStatusSuccessResponse, type NumberType } from 'bitbadgesjs-sdk';
+import {
+  BigIntify,
+  type ErrorResponse,
+  type iRefreshMetadataSuccessResponse,
+  type iRefreshStatusSuccessResponse,
+  type NumberType
+} from 'bitbadgesjs-sdk';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { mustGetFromDB } from '../db/db';
@@ -7,10 +13,14 @@ import { flushCachedDocs } from '../db/cache';
 import { type DocsCache } from '../db/types';
 import { pushBalancesFetchToQueue, pushCollectionFetchToQueue, updateRefreshDoc } from '../queue';
 import { findInDB } from '../db/queries';
+import typia from 'typia';
 
 export const getRefreshStatus = async (req: Request, res: Response<iRefreshStatusSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const collectionId = req.params.collectionId;
+    typia.assert<NumberType>(collectionId);
+    BigIntify(collectionId);
+
     const errorDocs = await findInDB(QueueModel, {
       query: {
         collectionId: Number(collectionId),
@@ -85,8 +95,10 @@ export const refreshMetadata = async (req: Request, res: Response<iRefreshMetada
    * Not forceful: If a refresh is already in progress or has been recently executed, this will return an error.
    */
   try {
-    const cooldownSeconds = await refreshCollection(req.params.collectionId);
+    typia.assert<NumberType>(req.params.collectionId);
+    BigIntify(req.params.collectionId);
 
+    const cooldownSeconds = await refreshCollection(req.params.collectionId);
     if (cooldownSeconds) {
       throw new Error(
         `Refresh already in progress or recently executed for collection ${req.params.collectionId}. Cooldown timer has ${cooldownSeconds / BigInt(1000)} seconds left.`

@@ -288,7 +288,6 @@ export async function initStatus(): Promise<void> {
       documentation: 'https://docs.bitbadges.io',
       sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
     },
-
     userInputsSchema: [],
     privateParamsSchema: [],
     publicParamsSchema: [{ key: 'repository', label: 'Repository', type: 'string', helper: 'Ex: bitbadges/bitbadges-frontend' }],

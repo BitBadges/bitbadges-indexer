@@ -1,9 +1,18 @@
 import axios from 'axios';
-import { BigIntify, BlockinAndGroup, BlockinAssetConditionGroup, BlockinOrGroup, NumberType, OwnershipRequirements } from 'bitbadgesjs-sdk';
+import {
+  BigIntify,
+  BlockinAndGroup,
+  BlockinAssetConditionGroup,
+  BlockinOrGroup,
+  NumberType,
+  OwnershipRequirements,
+  mustConvertToCosmosAddress
+} from 'bitbadgesjs-sdk';
 import { AndGroup, OrGroup } from 'blockin';
 import { verifyBitBadgesAssets } from '../../blockin/verifyBitBadgesAssets';
 import { getAccountByAddress } from '../../routes/users';
 import { type Response } from 'express';
+import typia from 'typia';
 
 axios.defaults.timeout = 10000;
 
@@ -27,6 +36,11 @@ export const mustOwnBadgesQuery = async (body: { cosmosAddress: string; ownershi
     throw new Error('No ownership requirements found');
   }
 
+  typia.assert<string>(body.cosmosAddress);
+  mustConvertToCosmosAddress(body.cosmosAddress);
+
+  //TODO: validate ownershipRequirements
+
   let ownershipRequirements: BlockinAssetConditionGroup<bigint> | undefined;
   if ((ownershipRequirementsBase as AndGroup<NumberType>).$and) {
     ownershipRequirements = new BlockinAndGroup(ownershipRequirementsBase as AndGroup<NumberType>).convert(BigIntify);
@@ -45,6 +59,9 @@ export const mustOwnBadgesQuery = async (body: { cosmosAddress: string; ownershi
 
 export const handleGithubContributionsQuery = async (body: { github: { username: string; id: string }; repository: string }) => {
   const { github, repository } = body;
+  typia.assert<string>(github.username);
+  typia.assert<string>(github.id);
+  typia.assert<string>(repository);
 
   const username = github.username;
   const repositoryOwner = repository.split('/')[0];
@@ -64,6 +81,9 @@ export const handleGithubContributionsQuery = async (body: { github: { username:
 };
 
 const handleMinBadgeQuery = async (body: { cosmosAddress: string; minBalance: number }) => {
+  typia.assert<string>(body.cosmosAddress);
+  mustConvertToCosmosAddress(body.cosmosAddress);
+
   const minBalance = BigInt(body.minBalance);
   const account = await getAccountByAddress(undefined, {} as Response, body.cosmosAddress, { fetchBalance: true });
   if (account.balance && BigInt(account.balance.amount) >= minBalance) {
@@ -77,6 +97,12 @@ const handleDiscordServerQuery = async (body: {
   discord: { id: string; username: string; discriminator: string; access_token: string };
 }) => {
   const { serverId, discord: discordInfo } = body;
+
+  typia.assert<string>(serverId);
+  typia.assert<string>(discordInfo.id);
+  typia.assert<string>(discordInfo.username);
+  typia.assert<string>(discordInfo.discriminator);
+  typia.assert<string>(discordInfo.access_token);
 
   const userId = discordInfo.id;
   const guildId = serverId;

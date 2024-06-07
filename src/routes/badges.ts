@@ -1,4 +1,5 @@
 import {
+  BigIntify,
   ClaimDetails,
   iApprovalInfoDetails,
   iChallengeDetails,
@@ -20,10 +21,22 @@ import { fetchUrisFromDbAndAddToQueueIfEmpty } from '../queue';
 import { applyAddressListsToUserPermissions } from './balances';
 import { getClaimDetailsForFrontend } from './collections';
 import { getAddressListsFromDB } from './utils';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const getOwnersForBadge = async (req: Request, res: Response<iGetOwnersForBadgeSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetOwnersForBadgePayload;
+    const validateRes: typia.IValidation<GetOwnersForBadgePayload> = typia.validate<GetOwnersForBadgePayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    //validate collectionId and badgeId
+    typia.assert<NumberType>(req.params.collectionId);
+    typia.assert<NumberType>(req.params.badgeId);
+    BigIntify(req.params.collectionId);
+    BigIntify(req.params.badgeId);
 
     const totalSupplys = await mustGetFromDB(BalanceModel, `${req.params.collectionId}:Total`);
     let maxBadgeId = 1n;

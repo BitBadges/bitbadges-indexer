@@ -1,17 +1,17 @@
 {
   "compilerOptions": {
     "esModuleInterop": true,
-
     "skipLibCheck": true,
     "baseUrl": ".",
     "outDir": "build/dist",
-    "module": "ESNext",
-    "lib": ["es6"],
+    "module": "esnext",
+    "lib": [
+      "es6"
+    ],
     "sourceMap": true,
     "allowJs": true,
     "jsx": "react",
     "target": "ESNext",
-    "module": "esnext",
     "moduleResolution": "node",
     "rootDir": "src",
     "forceConsistentCasingInFileNames": true,
@@ -20,10 +20,24 @@
     "noImplicitAny": true,
     "strictNullChecks": true,
     "noUnusedLocals": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "plugins": [
+      {
+        "transform": "typia/lib/transform"
+      }
+    ]
   },
-  "exclude": ["node_modules/**/*"],
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "src/**/*.js", "src/**/*.jsx", "src/reddit.d.ts"],
+  "exclude": [
+    "node_modules/**/*"
+  ],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts",
+    "src/**/*.js",
+    "src/**/*.jsx",
+    "src/reddit.d.ts"
+  ],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"

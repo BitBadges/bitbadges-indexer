@@ -144,7 +144,7 @@ export class BrowseDoc<T extends NumberType> extends BaseNumberTypeClass<BrowseD
 export interface ApiKeyDoc {
   _docId: string;
   _id?: string;
-  tier: string;
+  tier?: string;
   label: string;
   cosmosAddress: string;
   numRequests: number;

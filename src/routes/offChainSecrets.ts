@@ -20,10 +20,17 @@ import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { OffChainSecretsModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as CreateSecretPayload;
+    const validateRes: typia.IValidation<CreateSecretPayload> = typia.validate<CreateSecretPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     await verifySecretsPresentationSignatures({
       ...reqPayload,
@@ -85,7 +92,10 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
 export const getSecret = async (req: Request, res: Response<iGetSecretSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as GetSecretPayload;
-
+    const validateRes: typia.IValidation<GetSecretPayload> = typia.validate<GetSecretPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
     const doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
     return res.status(200).send(doc);
   } catch (e) {
@@ -100,6 +110,11 @@ export const getSecret = async (req: Request, res: Response<iGetSecretSuccessRes
 export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as DeleteSecretPayload;
+    const validateRes: typia.IValidation<DeleteSecretPayload> = typia.validate<DeleteSecretPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
@@ -121,6 +136,11 @@ export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: R
 export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateSecretSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as UpdateSecretPayload;
+    const validateRes: typia.IValidation<UpdateSecretPayload> = typia.validate<UpdateSecretPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     let doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
 

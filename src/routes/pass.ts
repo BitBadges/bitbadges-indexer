@@ -5,6 +5,8 @@ import path from 'path';
 import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { mustGetFromDB } from '../db/db';
 import { SIWBBRequestModel } from '../db/schemas';
+import typia from 'typia';
+import { typiaError } from './search';
 
 // For running tests (TS bugs out)
 // import { PKPass } from 'passkit-generator';
@@ -21,6 +23,10 @@ const signerKey = fs.readFileSync(path.join(certDirectory, 'signerKey.key'));
 export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Response<any>) => {
   try {
     const { code } = req.body as unknown as GenerateAppleWalletPassPayload;
+    const validateRes: typia.IValidation<GenerateAppleWalletPassPayload> = typia.validate<GenerateAppleWalletPassPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, code);
     const authDetails = await mustGetAuthDetails(req, res);

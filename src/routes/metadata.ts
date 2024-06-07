@@ -11,10 +11,17 @@ import { getFromDB, mustGetFromDB } from '../db/db';
 import { FetchModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { fetchUriFromSourceAndUpdateDb } from '../queue';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const fetchMetadataDirectly = async (req: Request, res: Response<iFetchMetadataDirectlySuccessResponse<NumberType> | ErrorResponse>) => {
   try {
     const reqPayload = req.body as unknown as FetchMetadataDirectlyPayload;
+    const validateRes: typia.IValidation<FetchMetadataDirectlyPayload> = typia.validate<FetchMetadataDirectlyPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const uris = reqPayload.uris;
 
     if (uris.length > 100) {

@@ -1,4 +1,5 @@
 import {
+  DeleteReviewPayload,
   ReviewDoc,
   isAddressValid,
   type AddReviewPayload,
@@ -14,10 +15,18 @@ import { mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blocki
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { ReviewModel } from '../db/schemas';
 import { getStatus } from '../db/status';
+import typia from 'typia';
+import { typiaError } from './search';
 
 export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteReviewSuccessResponse | ErrorResponse>) => {
   try {
     const reviewId = req.params.reviewId;
+    typia.assert<string>(reviewId);
+    const validateRes: typia.IValidation<DeleteReviewPayload> = typia.validate<DeleteReviewPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const reviewDoc = await mustGetFromDB(ReviewModel, reviewId);
     const authDetails = await mustGetAuthDetails(req, res);
     if (authDetails.cosmosAddress && reviewDoc.from !== authDetails.cosmosAddress) {
@@ -39,6 +48,11 @@ export const deleteReview = async (req: AuthenticatedRequest<NumberType>, res: R
 export const addReview = async (req: AuthenticatedRequest<NumberType>, res: Response<iAddReviewSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as AddReviewPayload;
+    const validateRes: typia.IValidation<AddReviewPayload> = typia.validate<AddReviewPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
     if (!reqPayload.review || reqPayload.review.length > 2048) {
       return res.status(400).send({ errorMessage: 'Review must be 1 to 2048 characters long.' });

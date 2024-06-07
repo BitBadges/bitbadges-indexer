@@ -4,9 +4,12 @@ import { serializeError } from 'serialize-error';
 import { insertToDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { ProfileModel } from '../db/schemas';
+import typia from 'typia';
 
 export const unsubscribeHandler = async (req: Request, res: Response) => {
   try {
+    typia.assert<string>(req.params.token);
+
     const docs = await findInDB(ProfileModel, {
       query: { 'notifications.emailVerification.token': { $eq: req.params.token } }
     });
@@ -61,6 +64,8 @@ export const unsubscribeHandler = async (req: Request, res: Response) => {
 
 export const verifyEmailHandler = async (req: Request, res: Response) => {
   try {
+    typia.assert<string>(req.params.token);
+
     const docs = await findInDB(ProfileModel, {
       query: { 'notifications.emailVerification.token': { $eq: req.params.token } }
     });

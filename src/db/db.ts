@@ -114,6 +114,7 @@ import {
   type TypedDocFromModel,
   type TypedInterfaceFromModel
 } from './schemas';
+import typia from 'typia';
 
 const { SHA256 } = crypto;
 
@@ -328,74 +329,109 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
 
     if (model.modelName === StatusModel.modelName) {
       convertedDoc = new StatusDoc(doc as iStatusDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<StatusDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === AccountModel.modelName) {
       convertedDoc = new AccountDoc(doc as iAccountDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<AccountDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === CollectionModel.modelName) {
       convertedDoc = new CollectionDoc(doc as iCollectionDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<CollectionDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === BalanceModel.modelName) {
       convertedDoc = new BalanceDoc(doc as iBalanceDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<BalanceDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === MerkleChallengeModel.modelName) {
       convertedDoc = new MerkleChallengeDoc(doc as iMerkleChallengeDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<MerkleChallengeDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === FetchModel.modelName) {
       convertedDoc = new FetchDoc(doc as iFetchDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<FetchDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === QueueModel.modelName) {
       convertedDoc = new QueueDoc(doc as iQueueDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<QueueDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === RefreshModel.modelName) {
       convertedDoc = new RefreshDoc(doc as iRefreshDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<RefreshDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === ClaimBuilderModel.modelName) {
       convertedDoc = new ClaimBuilderDoc(doc as iClaimBuilderDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<ClaimBuilderDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === ProfileModel.modelName) {
       convertedDoc = new ProfileDoc(doc as iProfileDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<ProfileDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === TransferActivityModel.modelName) {
       convertedDoc = new TransferActivityDoc(doc as iTransferActivityDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<TransferActivityDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === ReviewModel.modelName) {
       convertedDoc = new ReviewDoc(doc as iReviewDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<ReviewDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === ErrorModel.modelName) {
       convertedDoc = doc as ErrorDoc;
+      // if (process.env.TYPIA === 'true') typia.assert<ErrorDoc>(convertedDoc);
     } else if (model.modelName === IPFSTotalsModel.modelName) {
       convertedDoc = new IPFSTotalsDoc(doc as iIPFSTotalsDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<IPFSTotalsDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === AirdropModel.modelName) {
       convertedDoc = new AirdropDoc(doc as iAirdropDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<AirdropDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === AddressListModel.modelName) {
       convertedDoc = new AddressListDoc(doc as iAddressListDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<AddressListDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === ApprovalTrackerModel.modelName) {
       convertedDoc = new ApprovalTrackerDoc(doc as iApprovalTrackerDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<ApprovalTrackerDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === ApiKeyModel.modelName) {
       convertedDoc = doc as ApiKeyDoc;
+      if (process.env.TYPIA === 'true') typia.assert<ApiKeyDoc>(convertedDoc);
     } else if (model.modelName === ClaimAlertModel.modelName) {
       convertedDoc = new ClaimAlertDoc(doc as iClaimAlertDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<ClaimAlertDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === EthTxCountModel.modelName) {
       convertedDoc = doc as EthTxCountDoc;
+      if (process.env.TYPIA === 'true') typia.assert<EthTxCountDoc>(convertedDoc);
     } else if (model.modelName === OffChainUrlModel.modelName) {
       convertedDoc = doc as OffChainUrlDoc;
+      if (process.env.TYPIA === 'true') typia.assert<OffChainUrlDoc>(convertedDoc);
     } else if (model.modelName === ReportModel.modelName) {
       convertedDoc = doc as ReportDoc;
+      if (process.env.TYPIA === 'true') typia.assert<ReportDoc>(convertedDoc);
     } else if (model.modelName === ComplianceModel.modelName) {
       convertedDoc = new ComplianceDoc(doc as iComplianceDoc<NumberType>).convert(convertFunction);
+      // if (process.env.TYPIA === 'true') typia.assert<ComplianceDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === SIWBBRequestModel.modelName) {
       convertedDoc = new SIWBBRequestDoc(doc as iSIWBBRequestDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<SIWBBRequestDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === FollowDetailsModel.modelName) {
       convertedDoc = new FollowDetailsDoc(doc as iFollowDetailsDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<FollowDetailsDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === BrowseModel.modelName) {
       convertedDoc = new BrowseDoc(doc as iBrowseDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<BrowseDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === ListActivityModel.modelName) {
       convertedDoc = new ListActivityDoc(doc as iListActivityDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<ListActivityDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === PageVisitsModel.modelName) {
       convertedDoc = new PageVisitsDoc(doc as iPageVisitsDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<PageVisitsDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === OffChainSecretsModel.modelName) {
       convertedDoc = new SecretDoc(doc as iSecretDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<SecretDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === MapModel.modelName) {
       convertedDoc = new MapDoc(doc as iMapDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<MapDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === DigitalOceanBalancesModel.modelName) {
       convertedDoc = new DigitalOceanBalancesDoc(doc as iDigitalOceanBalancesDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<DigitalOceanBalancesDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === DeveloperAppModel.modelName) {
       convertedDoc = new DeveloperAppDoc(doc as iDeveloperAppDoc).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<DeveloperAppDoc>(convertedDoc);
     } else if (model.modelName === PluginModel.modelName) {
       convertedDoc = new PluginDoc(doc as iPluginDoc<NumberType>).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<PluginDoc<NumberType>>(convertedDoc);
     } else if (model.modelName === AuthorizationCodeModel.modelName) {
       convertedDoc = new AuthorizationCodeDoc(doc as iAuthorizationCodeDoc).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<AuthorizationCodeDoc>(convertedDoc);
     } else if (model.modelName === AccessTokenModel.modelName) {
       convertedDoc = new AccessTokenDoc(doc as iAccessTokenDoc).convert(convertFunction);
+      if (process.env.TYPIA === 'true') typia.assert<AccessTokenDoc>(convertedDoc);
     }
 
     if (!convertedDoc) throw new Error(`Error in convertDocs(): Could not convert doc w/ _docId ${doc._docId} to store in DB`);

@@ -23,9 +23,10 @@ import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { convertDocs, getManyFromDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { AccountModel, AddressListModel, CollectionModel, FetchModel, PageVisitsModel, ProfileModel } from '../db/schemas';
+import { AccountModel, AddressListModel, CollectionModel, ComplianceModel, FetchModel, PageVisitsModel, ProfileModel } from '../db/schemas';
 import { getQueryParamsFromBookmark } from '../db/utils';
-import { complianceDoc } from '../poll';
+
+import typia from 'typia';
 import { getAddressForName } from '../utils/ensResolvers';
 import { executeAdditionalCollectionQueries } from './collections';
 import { convertToBitBadgesUserInfo } from './userHelpers';
@@ -34,6 +35,13 @@ import { mustGetAddressListsFromDB } from './utils';
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
   try {
     const { categories, tags, badgeIds, mostViewed, bookmark, attributes } = req.body as unknown as FilterBadgesInCollectionPayload;
+    const validateRes: typia.IValidation<FilterBadgesInCollectionPayload> = typia.validate<FilterBadgesInCollectionPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    typia.assert<NumberType>(req.params.collectionId);
+
     const collectionId = BigIntify(req.params.collectionId);
     const collection = await mustGetFromDB(CollectionModel, `${collectionId}`);
 
@@ -135,11 +143,22 @@ export const filterBadgesInCollectionHandler = async (req: Request, res: Respons
     });
   }
 };
+export const typiaError = async (res: Response<ErrorResponse>, typiaResponse: typia.IValidation<GetSearchPayload>) => {
+  return res.status(400).json({
+    errorMessage: `Invalid request payload. ${JSON.stringify(typiaResponse.errors)}`
+  });
+};
 
 export const searchHandler = async (req: Request, res: Response<iGetSearchSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
+    typia.assert<string>(req.params.searchValue);
     const searchValue = req.params.searchValue.toString();
     const { noCollections, noAddressLists, noAccounts, specificCollectionId } = req.body as unknown as GetSearchPayload;
+
+    const validateRes: typia.IValidation<GetSearchPayload> = typia.validate<GetSearchPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
 
     if (!searchValue || searchValue.length === 0) {
       return res.json({
@@ -513,6 +532,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
       })
     };
 
+    const complianceDoc = await mustGetFromDB(ComplianceModel, 'compliance');
     // Make sure no NSFW or reported stuff gets populated
     result.collections = result.collections.filter(
       (x) => complianceDoc?.badges.reported?.some((y) => y.collectionId === BigInt(x.collectionId)) !== true
@@ -530,7 +550,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
     console.error(e);
     return res.status(500).json({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: `Error searching for ${req.params.searchValue}. Please try a different search value or try again later. ` + e.message
+      errorMessage: `Error searching. Please try a different search value or try again later. ` + e.message
     });
   }
 };
