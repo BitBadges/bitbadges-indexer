@@ -899,7 +899,8 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
               ? {
                   id: authDetails?.discord?.id,
                   username: authDetails?.discord?.username,
-                  discriminator: authDetails?.discord?.discriminator
+                  discriminator: authDetails?.discord?.discriminator,
+                  access_token: authDetails?.discord?.access_token
                 }
               : undefined,
             twitter: authDetails?.twitter ? { id: authDetails?.twitter?.id, username: authDetails?.twitter?.username } : undefined,

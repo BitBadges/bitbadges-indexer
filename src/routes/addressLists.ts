@@ -250,7 +250,11 @@ const handleAddressListsUpdateAndCreate = async (
             createdBlock: existingDoc?.createdBlock ?? status.block.height,
             createdBy: existingDoc?.createdBy ?? cosmosAddress,
             lastUpdated: status.block.timestamp,
-            addresses: list.updateAddresses ? list.addresses.map((x) => convertToCosmosAddress(x)) : existingDoc?.addresses ?? [],
+            addresses: existingDoc
+              ? list.updateAddresses
+                ? list.addresses.map((x) => convertToCosmosAddress(x))
+                : existingDoc?.addresses ?? []
+              : list.addresses.map((x) => convertToCosmosAddress(x)),
             updateHistory: [
               ...(existingDoc?.updateHistory ?? []),
               {
@@ -262,8 +266,9 @@ const handleAddressListsUpdateAndCreate = async (
             ]
           })
         );
-
-        getActivityDocsForListUpdate(list, existingDoc, status, activityDocs, cosmosAddress);
+        if (!existingDoc || list.updateAddresses) {
+          getActivityDocsForListUpdate(list, existingDoc, status, activityDocs, cosmosAddress);
+        }
       }
 
       await insertMany(AddressListModel, docs, session);

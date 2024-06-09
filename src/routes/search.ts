@@ -2,6 +2,7 @@ import {
   BadgeMetadata,
   BigIntify,
   BitBadgesUserInfo,
+  Metadata,
   SupportedChain,
   UintRangeArray,
   convertToBtcAddress,
@@ -27,10 +28,107 @@ import { AccountModel, AddressListModel, CollectionModel, ComplianceModel, Fetch
 import { getQueryParamsFromBookmark } from '../db/utils';
 
 import typia from 'typia';
-import { getAddressForName } from '../utils/ensResolvers';
 import { executeAdditionalCollectionQueries } from './collections';
 import { convertToBitBadgesUserInfo } from './userHelpers';
 import { mustGetAddressListsFromDB } from './utils';
+
+export const getFilterSuggestionsHandler = async (req: Request, res: Response) => {
+  try {
+    typia.assert<NumberType>(req.params.collectionId);
+    const collectionId = BigIntify(req.params.collectionId);
+    const collection = await mustGetFromDB(CollectionModel, `${collectionId}`);
+    const badgeMetadata = collection.getBadgeMetadataTimelineValue();
+    const firstMatchesTimeline = BadgeMetadata.getFirstMatches(badgeMetadata ?? []);
+    const currentMetadataUris = firstMatchesTimeline.map((x) => x.uri);
+
+    const metadataQuery: any = {
+      db: { $eq: 'Metadata' },
+      $or: [
+        {
+          _docId: {
+            $in: currentMetadataUris
+          }
+        },
+        {
+          _docId: {
+            // replace {id} with any number and see if it matches
+            $regex: `^${currentMetadataUris[0].replace('{id}', '[0-9]+')}$`
+          }
+        }
+      ]
+    };
+
+    const metadata = await findInDB(FetchModel, {
+      query: { ...metadataQuery },
+      limit: 1000,
+      sort: { _id: -1 }
+    });
+
+    const response: {
+      tags: { value: string; count: number }[];
+      attributes: { name: string; value: string | number | boolean; count: number; type?: 'date' | 'url' | undefined }[];
+    } = {
+      tags: [],
+      attributes: []
+    };
+
+    for (const doc of metadata) {
+      const badgeIdMatches = new UintRangeArray<bigint>();
+      for (const timeline of firstMatchesTimeline) {
+        const regexp = new RegExp(`^${timeline.uri.replace('{id}', '[0-9]+')}$`);
+        if (regexp.test(doc._docId)) {
+          badgeIdMatches.push(...timeline.badgeIds);
+        }
+      }
+
+      const content = doc.content;
+      if (!content || doc.db !== 'Metadata') continue;
+
+      const metadata = content as Metadata<bigint>;
+
+      if (metadata.tags) {
+        for (const tag of metadata.tags) {
+          const existing = response.tags.find((x) => x.value === tag);
+          if (existing) {
+            existing.count = existing.count + Number(badgeIdMatches.size());
+          } else {
+            response.tags.push({
+              value: tag,
+              count: Number(badgeIdMatches.size())
+            });
+          }
+        }
+      }
+
+      if (metadata.attributes) {
+        for (const attr of metadata.attributes) {
+          const existing = response.attributes.find((x) => x.name === attr.name && x.value === attr.value);
+          if (existing) {
+            existing.count = existing.count + Number(badgeIdMatches.size());
+          } else {
+            response.attributes.push({
+              name: attr.name,
+              value: attr.value,
+              count: Number(badgeIdMatches.size()),
+              type: attr.type
+            });
+          }
+        }
+      }
+    }
+
+    response.tags = response.tags.sort((a, b) => b.count - a.count);
+    response.attributes = response.attributes.sort((a, b) => b.count - a.count);
+
+    return res.status(200).send(response);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      message: `Error filtering badges in collection ${req.body.collectionId}.`
+    });
+  }
+};
 
 export const filterBadgesInCollectionHandler = async (req: Request, res: Response) => {
   try {
@@ -169,14 +267,6 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
       });
     }
 
-    const ensToAttempt = searchValue.includes('.eth') ? searchValue : `${searchValue}.eth`;
-    let resolvedEnsAddress = '';
-
-    // We try even if it is a valid address, because an ENS name could be a valid address (e.g. 0x123...789.eth)
-    try {
-      if (!noAccounts) resolvedEnsAddress = await getAddressForName(ensToAttempt);
-    } catch (e) {}
-
     // Search metadata of collections for matching names
     const metadataQuery = {
       'content.name': {
@@ -207,10 +297,6 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
       { cosmosAddress: { $regex: `(?i)${sanitizedSearchValue}` } },
       { btcAddress: { $regex: `(?i)${sanitizedSearchValue}` } }
     ];
-
-    if (resolvedEnsAddress) {
-      selectorCriteria.push({ ethAddress: resolvedEnsAddress });
-    }
 
     const accountQuery = {
       $or: selectorCriteria
@@ -284,29 +370,6 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
           pubKeyType: ''
         });
       }
-    }
-
-    if (
-      resolvedEnsAddress &&
-      !accountsResponseDocs.find(
-        (account) =>
-          account.ethAddress === resolvedEnsAddress ||
-          account.cosmosAddress === resolvedEnsAddress ||
-          account.solAddress === resolvedEnsAddress ||
-          account.btcAddress === resolvedEnsAddress
-      )
-    ) {
-      allAccounts.push({
-        _docId: convertToCosmosAddress(resolvedEnsAddress),
-        ethAddress: resolvedEnsAddress,
-        btcAddress: convertToBtcAddress(convertToCosmosAddress(resolvedEnsAddress)),
-        solAddress: '',
-        cosmosAddress: convertToCosmosAddress(resolvedEnsAddress),
-        chain: getChainForAddress(resolvedEnsAddress),
-        publicKey: '',
-        accountNumber: -1n,
-        pubKeyType: ''
-      });
     }
 
     allAccounts.sort((a, b) => a.ethAddress.localeCompare(b.ethAddress));
@@ -434,14 +497,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
             })
           );
 
-    const convertToBitBadgesUserInfoPromise = noAccounts
-      ? Promise.resolve([])
-      : convertToBitBadgesUserInfo(profileDocs, allAccounts, true, [
-          {
-            resolvedName: ensToAttempt,
-            ethAddress: resolvedEnsAddress
-          }
-        ]);
+    const convertToBitBadgesUserInfoPromise = noAccounts ? Promise.resolve([]) : convertToBitBadgesUserInfo(profileDocs, allAccounts, true, []);
 
     const addressListsToReturnPromise =
       noAddressLists || [...listsRes, ...addressListsResponseDocs].length === 0

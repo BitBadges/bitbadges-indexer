@@ -14,7 +14,7 @@ import { AddressListModel, AirdropModel, CollectionModel, ComplianceModel, EthTx
 import { getFromDB, getManyFromDB, insertToDB } from '../db/db';
 import { client } from '../indexer-vars';
 import { OFFLINE_MODE } from '../indexer-vars';
-import { getEnsDetails, getEnsResolver, getNameForAddress, provider } from '../utils/ensResolvers';
+import { provider } from '../utils/ensResolvers';
 import { findInDB } from '../db/queries';
 
 export const convertToBitBadgesUserInfo = async (
@@ -54,7 +54,7 @@ export const convertToBitBadgesUserInfo = async (
         ? { resolvedName: '' }
         : prevResolvedName
           ? { resolvedName: prevResolvedName }
-          : getNameAndAvatar(cosmosAccountInfo.ethAddress, true) // profileDoc.profilePicUrl)
+          : { resolvedName: '' }
     );
     promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
     promises.push(isMint ? undefined : airdropDocs.find((x) => x && x._docId === cosmosAccountInfo.cosmosAddress));
@@ -253,25 +253,3 @@ export const convertToBitBadgesUserInfo = async (
 
   return resultsToReturn;
 };
-
-export async function getNameAndAvatar(address: string, skipAvatarFetch?: boolean) {
-  try {
-    if (!isAddressValid(address, SupportedChain.ETH)) {
-      return { resolvedName: '', avatar: '' };
-    }
-
-    const ensName = await getNameForAddress(address);
-
-    let details: { avatar?: string } = {};
-    if (ensName && !skipAvatarFetch) {
-      const resolver = await getEnsResolver(ensName);
-      if (resolver) {
-        details = await getEnsDetails(resolver);
-      }
-    }
-    return { avatar: details.avatar, resolvedName: ensName };
-  } catch (e) {
-    console.log(e);
-    return { resolvedName: '', avatar: '' };
-  }
-}

@@ -3,8 +3,6 @@ import { type BroadcastTxPayload, type ErrorResponse, type iBroadcastTxSuccessRe
 import { generateEndpointBroadcast } from 'bitbadgesjs-sdk/dist/node-rest-api/broadcast';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
-import typia from 'typia';
-import { typiaError } from './search';
 
 // Cleans up the generated Cosmos SDK error messages into a more applicable format
 // Goal is for it to be human readable and understandable while also being informative
@@ -47,10 +45,11 @@ async function tidyErrorMessage(originalMessage: string) {
 export const broadcastTx = async (req: Request, res: Response<iBroadcastTxSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as BroadcastTxPayload;
-    const validateRes: typia.IValidation<BroadcastTxPayload> = typia.validate<BroadcastTxPayload>(req.body);
-    if (!validateRes.success) {
-      return typiaError(res, validateRes);
-    }
+    //TODO: 
+    // const validateRes: typia.IValidation<BroadcastTxPayload> = typia.validate<BroadcastTxPayload>(req.body);
+    // if (!validateRes.success) {
+    //   return typiaError(res, validateRes);
+    // }
 
     const initialRes = await axios.post(`${process.env.API_URL}${generateEndpointBroadcast()}`, reqPayload).catch(async (e) => {
       if (e?.response?.data) {
@@ -105,10 +104,10 @@ export const broadcastTx = async (req: Request, res: Response<iBroadcastTxSucces
 export const simulateTx = async (req: Request, res: Response<iSimulateTxSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as BroadcastTxPayload;
-    const validateRes: typia.IValidation<BroadcastTxPayload> = typia.validate<BroadcastTxPayload>(req.body);
-    if (!validateRes.success) {
-      return typiaError(res, validateRes);
-    }
+    // const validateRes: typia.IValidation<BroadcastTxPayload> = typia.validate<BroadcastTxPayload>(req.body);
+    // if (!validateRes.success) {
+    //   return typiaError(res, validateRes);
+    // }
 
     const simulatePost = await axios.post(`${process.env.API_URL}${'/cosmos/tx/v1beta1/simulate'}`, reqPayload).catch(async (e) => {
       if (e?.response?.data) {

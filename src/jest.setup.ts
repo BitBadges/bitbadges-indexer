@@ -25,8 +25,6 @@ process.env.TEST_MODE = 'true';
 // jest.setup.js
 module.exports = async () => {
   console.log('jest.setup.js');
-
-  console.log('Moralis starting...', process.env.MORALIS_API_KEY);
   await Moralis.start({ apiKey: process.env.MORALIS_API_KEY });
 
   // Ensure MongoDB is ready before proceeding

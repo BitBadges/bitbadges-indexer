@@ -98,11 +98,12 @@ const handleDiscordServerQuery = async (body: {
 }) => {
   const { serverId, discord: discordInfo } = body;
 
-  typia.assert<string>(serverId);
+  typia.assert<NumberType>(serverId);
   typia.assert<string>(discordInfo.id);
   typia.assert<string>(discordInfo.username);
   typia.assert<string>(discordInfo.discriminator);
   typia.assert<string>(discordInfo.access_token);
+
 
   const userId = discordInfo.id;
   const guildId = serverId;

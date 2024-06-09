@@ -94,7 +94,7 @@ import { createPlugin, deletePlugin, getPlugins, updatePlugin } from './routes/p
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
 import { addReview, deleteReview } from './routes/reviews';
-import { filterBadgesInCollectionHandler, searchHandler, typiaError } from './routes/search';
+import { filterBadgesInCollectionHandler, getFilterSuggestionsHandler, searchHandler, typiaError } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
 import { ApiKeyDoc } from './db/docs';
@@ -458,6 +458,7 @@ app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity)
 app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata);
 app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus);
 app.post('/api/v0/collection/:collectionId/filter', filterBadgesInCollectionHandler);
+app.post('/api/v0/collection/:collectionId/filterSuggestions', getFilterSuggestionsHandler);
 
 app.post('/api/v0/claims/simulate/:claimId/:cosmosAddress', simulateClaim);
 app.post('/api/v0/claims/complete/:claimId/:cosmosAddress', completeClaim);
