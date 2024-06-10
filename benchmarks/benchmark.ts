@@ -234,13 +234,13 @@ const apiBenchmarks: ApiBenchmarkDetails[] = [
   //           //   bookmark: ''
   //           // },
   //           // {
-  //           //   viewType: 'createdSecrets',
-  //           //   viewId: 'createdSecrets',
+  //           //   viewType: 'createdAttestations',
+  //           //   viewId: 'createdAttestations',
   //           //   bookmark: ''
   //           // },
   //           // {
-  //           //   viewType: 'receivedSecrets',
-  //           //   viewId: 'receivedSecrets',
+  //           //   viewType: 'receivedAttestations',
+  //           //   viewId: 'receivedAttestations',
   //           //   bookmark: ''
   //           // }
   //         ]

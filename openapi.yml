@@ -1021,7 +1021,7 @@ paths:
         such as the Blockin message, signature, etc for the user.
 
         ```tsx
-        import { BlockinChallenge, BigIntify, BitBadgesApi, SecretsProof } from "bitbadgesjs-sdk";
+        import { BlockinChallenge, BigIntify, BitBadgesApi, AttestationsProof } from "bitbadgesjs-sdk";
 
 
         const options: VerifyChallengeOptions = { ... }
@@ -1033,7 +1033,7 @@ paths:
             redirectUri: '...' //only needed if redirected
         });
         const blockinChallenge = res.blockin;
-        const { params, address, chain, verificationResponse, publicKey, otherSignIns, message, signature, secretsPresentations } = blockinChallenge;
+        const { params, address, chain, verificationResponse, publicKey, otherSignIns, message, signature, attestationsPresentations } = blockinChallenge;
         if (!verificationResponse.success) {
             console.log(verificationResponse.errorMessage);
             throw new Error("Not authenticated");
@@ -1453,29 +1453,29 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/GetMapsPayload'
-  /secret/fetch:
+  /attestation/fetch:
     post:
-      operationId: getSecret
-      summary: Get Secret
+      operationId: getAttestation
+      summary: Get Attestation
       tags:
-        - Verifiable Secrets
+        - Verifiable Attestations
       description: |-
-        Gets a verifiable secret.
+        Gets a verifiable attestation.
 
         ```tsx
-        const res = await BitBadgesApi.getSecret(...);
+        const res = await BitBadgesApi.getAttestation(...);
         ```
 
 
         Documentation References / Tutorials:
-        - **[Verifiable Secrets](https://docs.bitbadges.io/for-developers/core-concepts/verifiable-secrets)**
+        - **[Verifiable Attestations](https://docs.bitbadges.io/for-developers/core-concepts/verifiable-attestations)**
       responses:
         '200':
           description: Success response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/iGetSecretSuccessResponse'
+                $ref: '#/components/schemas/iGetAttestationSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequestResponse'
         '500':
@@ -1488,34 +1488,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetSecretPayload'
-  /secret:
+              $ref: '#/components/schemas/GetAttestationPayload'
+  /attestation:
     post:
-      operationId: createSecret
+      operationId: createAttestation
       tags:
-        - Verifiable Secrets
-      summary: Create Secret
+        - Verifiable Attestations
+      summary: Create Attestation
       description: |-
-        Creates a secret.
+        Creates a attestation.
         ```tsx
-        const res = await BitBadgesApi.createSecret(...);
+        const res = await BitBadgesApi.createAttestation(...);
         ```
 
         Documentation References / Tutorials:
-        - **[Verifiable Secrets](https://docs.bitbadges.io/for-developers/core-concepts/verifiable-secrets)**
+        - **[Verifiable Attestations](https://docs.bitbadges.io/for-developers/core-concepts/verifiable-attestations)**
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateSecretPayload'
+              $ref: '#/components/schemas/CreateAttestationPayload'
       responses:
         '200':
           description: Success response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/iCreateSecretSuccessResponse'
+                $ref: '#/components/schemas/iCreateAttestationSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequestResponse'
         '500':
@@ -1523,28 +1523,28 @@ paths:
       security:
         - apiKey: []
     put:
-      operationId: updateSecret
+      operationId: updateAttestation
       tags:
-        - Verifiable Secrets
-      summary: Update Secret
+        - Verifiable Attestations
+      summary: Update Attestation
       description: |-
-        Updates a secret.
+        Updates a attestation.
         ```tsx
-        const res = await BitBadgesApi.updateSecret(...);
+        const res = await BitBadgesApi.updateAttestation(...);
         ```
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateSecretPayload'
+              $ref: '#/components/schemas/UpdateAttestationPayload'
       responses:
         '200':
           description: Success response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/iUpdateSecretSuccessResponse'
+                $ref: '#/components/schemas/iUpdateAttestationSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequestResponse'
         '500':
@@ -1553,27 +1553,27 @@ paths:
         - apiKey: []
     delete:
       tags:
-        - Verifiable Secrets
-      operationId: deleteSecret
-      summary: Delete Secret
+        - Verifiable Attestations
+      operationId: deleteAttestation
+      summary: Delete Attestation
       description: |-
-        Deletes a secret.
+        Deletes a attestation.
         ```tsx
-        const res = await BitBadgesApi.deleteSecret(...);
+        const res = await BitBadgesApi.deleteAttestation(...);
         ```
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeleteSecretPayload'
+              $ref: '#/components/schemas/DeleteAttestationPayload'
       responses:
         '200':
           description: Success response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/iDeleteSecretSuccessResponse'
+                $ref: '#/components/schemas/iDeleteAttestationSuccessResponse'
         '400':
           $ref: '#/components/responses/BadRequestResponse'
         '500':

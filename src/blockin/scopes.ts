@@ -23,12 +23,12 @@ export const SupportedScopes = [
   'Delete Siwbb Requests: Delete authentication codes on behalf of the user.',
 
   'Send Claim Alerts: Send claim alerts on behalf of the user.',
-  'Read Claim Alerts: Read claim alerts on behalf of the user. Note that claim alerts may contain sensitive information like claim codes, secret IDs, etc.',
+  'Read Claim Alerts: Read claim alerts on behalf of the user. Note that claim alerts may contain sensitive information like claim codes, attestation IDs, etc.',
 
-  'Create Secrets: Create new secrets on behalf of the user.',
-  'Read Secrets: Read secrets on behalf of the user.',
-  'Delete Secrets: Delete secrets on behalf of the user.',
-  'Update Secrets: Update secrets on behalf of the user.',
+  'Create Attestations: Create new attestations on behalf of the user.',
+  'Read Attestations: Read attestations on behalf of the user.',
+  'Delete Attestations: Delete attestations on behalf of the user.',
+  'Update Attestations: Update attestations on behalf of the user.',
 
   'Read Private Claim Data: Read private claim data on behalf of the user (e.g. codes, passwords, private user lists, etc.).',
   'Complete Claims: Complete claims on behalf of the user.',

@@ -1,38 +1,38 @@
 import {
   UpdateHistory,
-  verifySecretsPresentationSignatures,
-  type CreateSecretPayload,
-  type DeleteSecretPayload,
+  verifyAttestationsPresentationSignatures,
+  type CreateAttestationPayload,
+  type DeleteAttestationPayload,
   type ErrorResponse,
-  type GetSecretPayload,
+  type GetAttestationPayload,
   type NumberType,
-  type UpdateSecretPayload,
-  type iCreateSecretSuccessResponse,
-  type iDeleteSecretSuccessResponse,
-  type iGetSecretSuccessResponse,
-  type iUpdateSecretSuccessResponse
+  type UpdateAttestationPayload,
+  type iCreateAttestationSuccessResponse,
+  type iDeleteAttestationSuccessResponse,
+  type iGetAttestationSuccessResponse,
+  type iUpdateAttestationSuccessResponse
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
-import { OffChainSecretsModel } from '../db/schemas';
+import { OffChainAttestationsModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 import typia from 'typia';
 import { typiaError } from './search';
 
-export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateSecretSuccessResponse | ErrorResponse>) => {
+export const createAttestation = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateAttestationSuccessResponse | ErrorResponse>) => {
   try {
-    const reqPayload = req.body as CreateSecretPayload;
-    const validateRes: typia.IValidation<CreateSecretPayload> = typia.validate<CreateSecretPayload>(req.body);
+    const reqPayload = req.body as CreateAttestationPayload;
+    const validateRes: typia.IValidation<CreateAttestationPayload> = typia.validate<CreateAttestationPayload>(req.body);
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
 
     const authDetails = await mustGetAuthDetails(req, res);
-    await verifySecretsPresentationSignatures({
+    await verifyAttestationsPresentationSignatures({
       ...reqPayload,
       createdBy: authDetails.cosmosAddress
     });
@@ -61,9 +61,9 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       image = metadata.image;
     }
 
-    await insertToDB(OffChainSecretsModel, {
+    await insertToDB(OffChainAttestationsModel, {
       createdBy: authDetails.cosmosAddress,
-      secretId: uniqueId,
+      attestationId: uniqueId,
       _docId: uniqueId,
       holders: [],
       anchors: [],
@@ -79,70 +79,70 @@ export const createSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       image
     });
 
-    return res.status(200).send({ secretId: uniqueId });
+    return res.status(200).send({ attestationId: uniqueId });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error creating secret.'
+      errorMessage: e.message || 'Error creating attestation.'
     });
   }
 };
 
-export const getSecret = async (req: Request, res: Response<iGetSecretSuccessResponse<NumberType> | ErrorResponse>) => {
+export const getAttestation = async (req: Request, res: Response<iGetAttestationSuccessResponse<NumberType> | ErrorResponse>) => {
   try {
-    const reqPayload = req.body as unknown as GetSecretPayload;
-    const validateRes: typia.IValidation<GetSecretPayload> = typia.validate<GetSecretPayload>(req.body);
+    const reqPayload = req.body as unknown as GetAttestationPayload;
+    const validateRes: typia.IValidation<GetAttestationPayload> = typia.validate<GetAttestationPayload>(req.body);
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
-    const doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
+    const doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
     return res.status(200).send(doc);
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error getting secret.'
+      errorMessage: e.message || 'Error getting attestation.'
     });
   }
 };
 
-export const deleteSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteSecretSuccessResponse | ErrorResponse>) => {
+export const deleteAttestation = async (req: AuthenticatedRequest<NumberType>, res: Response<iDeleteAttestationSuccessResponse | ErrorResponse>) => {
   try {
-    const reqPayload = req.body as DeleteSecretPayload;
-    const validateRes: typia.IValidation<DeleteSecretPayload> = typia.validate<DeleteSecretPayload>(req.body);
+    const reqPayload = req.body as DeleteAttestationPayload;
+    const validateRes: typia.IValidation<DeleteAttestationPayload> = typia.validate<DeleteAttestationPayload>(req.body);
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
 
     const authDetails = await mustGetAuthDetails(req, res);
-    const doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
+    const doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this Siwbb request.');
     }
 
-    await deleteMany(OffChainSecretsModel, [reqPayload.secretId]);
+    await deleteMany(OffChainAttestationsModel, [reqPayload.attestationId]);
 
     return res.status(200).send({ success: true });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error deleting secret.'
+      errorMessage: e.message || 'Error deleting attestation.'
     });
   }
 };
 
-export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateSecretSuccessResponse | ErrorResponse>) => {
+export const updateAttestation = async (req: AuthenticatedRequest<NumberType>, res: Response<iUpdateAttestationSuccessResponse | ErrorResponse>) => {
   try {
-    const reqPayload = req.body as UpdateSecretPayload;
-    const validateRes: typia.IValidation<UpdateSecretPayload> = typia.validate<UpdateSecretPayload>(req.body);
+    const reqPayload = req.body as UpdateAttestationPayload;
+    const validateRes: typia.IValidation<UpdateAttestationPayload> = typia.validate<UpdateAttestationPayload>(req.body);
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
 
     const authDetails = await mustGetAuthDetails(req, res);
-    let doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
+    let doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
 
     for (const viewerToAdd of reqPayload.holdersToSet ?? []) {
       const cosmosAddress = viewerToAdd.cosmosAddress;
@@ -172,10 +172,10 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     }
 
     for (const setter of setters) {
-      await OffChainSecretsModel.findOneAndUpdate({ _docId: reqPayload.secretId }, setter).lean().exec();
+      await OffChainAttestationsModel.findOneAndUpdate({ _docId: reqPayload.attestationId }, setter).lean().exec();
     }
 
-    doc = await mustGetFromDB(OffChainSecretsModel, reqPayload.secretId);
+    doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
 
     if (
       reqPayload.anchorsToAdd &&
@@ -192,7 +192,7 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       'proofOfIssuance',
       'scheme',
       'type',
-      'secretMessages',
+      'attestationMessages',
       'dataIntegrityProof',
       'name',
       'image',
@@ -207,13 +207,13 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
     doc.scheme = reqPayload.scheme ?? doc.scheme;
     doc.messageFormat = reqPayload.messageFormat ?? doc.messageFormat;
     doc.type = reqPayload.type ?? doc.type;
-    doc.secretMessages = reqPayload.secretMessages ?? doc.secretMessages;
+    doc.attestationMessages = reqPayload.attestationMessages ?? doc.attestationMessages;
     doc.dataIntegrityProof = reqPayload.dataIntegrityProof ?? doc.dataIntegrityProof;
     doc.name = reqPayload.name ?? doc.name;
     doc.image = reqPayload.image ?? doc.image;
     doc.description = reqPayload.description ?? doc.description;
 
-    await verifySecretsPresentationSignatures(doc);
+    await verifyAttestationsPresentationSignatures(doc);
 
     const status = await getStatus();
     doc.updateHistory.push(
@@ -225,14 +225,14 @@ export const updateSecret = async (req: AuthenticatedRequest<NumberType>, res: R
       })
     );
 
-    await insertToDB(OffChainSecretsModel, doc);
+    await insertToDB(OffChainAttestationsModel, doc);
 
     return res.status(200).send({ success: true });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error updating secret.'
+      errorMessage: e.message || 'Error updating attestation.'
     });
   }
 };

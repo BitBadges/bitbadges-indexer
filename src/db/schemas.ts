@@ -28,7 +28,7 @@ import {
   type QueueDoc,
   type RefreshDoc,
   type ReviewDoc,
-  type SecretDoc,
+  type AttestationDoc,
   type StatusDoc,
   type TransferActivityDoc,
   type iAccountDoc,
@@ -51,7 +51,7 @@ import {
   type iQueueDoc,
   type iRefreshDoc,
   type iReviewDoc,
-  type iSecretDoc,
+  type iAttestationDoc,
   type iStatusDoc,
   type iTransferActivityDoc,
   AuthorizationCodeDoc,
@@ -145,13 +145,13 @@ export const MapSchema = new Schema<MapDoc<JSPrimitiveNumberType>>({
   updateHistory: [Schema.Types.Mixed]
 });
 
-export const OffChainSecretsSchema = new Schema<SecretDoc<JSPrimitiveNumberType>>({
+export const OffChainAttestationsSchema = new Schema<AttestationDoc<JSPrimitiveNumberType>>({
   _docId: String,
   createdBy: String,
-  secretId: String,
+  attestationId: String,
   type: String,
   scheme: String,
-  secretMessages: [String],
+  attestationMessages: [String],
   dataIntegrityProof: Schema.Types.Mixed,
   holders: [String],
   name: String,
@@ -397,7 +397,7 @@ export const SIWBBRequestSchema = new Schema<SIWBBRequestDoc<JSPrimitiveNumberTy
   params: Schema.Types.Mixed, // Mixed type for params (ChallengeParams type)
   createdAt: Schema.Types.Mixed, // Mixed type for createdAt (number type)
   deletedAt: Schema.Types.Mixed, // Mixed type for deletedAt (number type)
-  secretsPresentations: [Schema.Types.Mixed], // Array of Mixed type for secretsPresentations,
+  attestationsPresentations: [Schema.Types.Mixed], // Array of Mixed type for attestationsPresentations,
   clientId: String, // String type for clientId
   otherSignIns: Schema.Types.Mixed, // Mixed type for otherSignIns
   allowReuseOfBitBadgesSignIn: Boolean, // Boolean type for allowReuseOfBitBadgesSignIn
@@ -569,7 +569,7 @@ export const PluginDocHistoryModel = mongoose.model('plugin-doc-history', Plugin
 export const PluginModel = mongoose.model<PluginDoc<JSPrimitiveNumberType>>('plugins', PluginSchema);
 export const DeveloperAppModel = mongoose.model<DeveloperAppDoc>('auth-apps', DeveloperAppSchema);
 export const MapModel = mongoose.model<MapDoc<JSPrimitiveNumberType>>('maps', MapSchema);
-export const OffChainSecretsModel = mongoose.model<SecretDoc<JSPrimitiveNumberType>>('secrets', OffChainSecretsSchema);
+export const OffChainAttestationsModel = mongoose.model<AttestationDoc<JSPrimitiveNumberType>>('attestations', OffChainAttestationsSchema);
 export const BrowseModel = mongoose.model<BrowseDoc<JSPrimitiveNumberType>>('browse', BrowseSchema);
 export const ApiKeyModel = mongoose.model<ApiKeyDoc>('api-keys', ApiKeySchema);
 export const FetchModel = mongoose.model<FetchDoc<JSPrimitiveNumberType>>('fetches', FetchSchema);
@@ -654,8 +654,8 @@ export type TypedInterfaceFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType
                                                     ? iListActivityDoc<U>
                                                     : T extends PageVisitsDoc<JSPrimitiveNumberType>
                                                       ? iPageVisitsDoc<U>
-                                                      : T extends SecretDoc<JSPrimitiveNumberType>
-                                                        ? iSecretDoc<U>
+                                                      : T extends AttestationDoc<JSPrimitiveNumberType>
+                                                        ? iAttestationDoc<U>
                                                         : T extends ProfileDoc<JSPrimitiveNumberType>
                                                           ? iProfileDoc<U>
                                                           : T extends ErrorDoc
@@ -726,8 +726,8 @@ export type TypedDocFromModel<T extends BitBadgesDoc<JSPrimitiveNumberType>, U e
                                                 ? FollowDetailsDoc<U>
                                                 : T extends BrowseDoc<JSPrimitiveNumberType>
                                                   ? BrowseDoc<U>
-                                                  : T extends SecretDoc<JSPrimitiveNumberType>
-                                                    ? SecretDoc<U>
+                                                  : T extends AttestationDoc<JSPrimitiveNumberType>
+                                                    ? AttestationDoc<U>
                                                     : T extends ListActivityDoc<JSPrimitiveNumberType>
                                                       ? ListActivityDoc<U>
                                                       : T extends PageVisitsDoc<JSPrimitiveNumberType>
@@ -784,7 +784,7 @@ export type BitBadgesDoc<T extends NumberType> =
   | PageVisitsDoc<T>
   | UsernameDoc
   | KeysDoc
-  | SecretDoc<T>
+  | AttestationDoc<T>
   | MapDoc<T>
   | DigitalOceanBalancesDoc<T>
   | DeveloperAppDoc
@@ -822,7 +822,7 @@ export type iBitBadgesDoc<T extends NumberType> =
   | iPageVisitsDoc<T>
   | UsernameDoc
   | KeysDoc
-  | iSecretDoc<T>
+  | iAttestationDoc<T>
   | iMapDoc<T>
   | iDigitalOceanBalancesDoc<T>
   | iDeveloperAppDoc

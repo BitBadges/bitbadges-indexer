@@ -34,7 +34,7 @@ export const getRefreshStatus = async (req: Request, res: Response<iRefreshStatu
 
     if (!inQueue) {
       const docs = await findInDB(QueueModel, {
-        query: { collectionId: Number(collectionId) },
+        query: { collectionId: Number(collectionId), notificationType: { $exists: false }, deletedAt: { $exists: false } },
         limit: 1
       });
       inQueue = docs.length > 0;

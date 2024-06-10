@@ -316,7 +316,7 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
       // noAccounts ? Promise.resolve([]) : findInDB(AccountModel, { query: { solAddress: { $regex: `(?i)${searchValue}` } } })
     ]);
 
-    const metadataResponseDocs = results[0];
+    const metadataResponseDocs = results[0].filter((doc) => doc._docId !== 'ipfs://Qmb1ysV3tyviTP2TytFgmnoQcuSvLRVbUEZJRCzekozjs2'); //filter placeholders
     const accountsResponseDocs = results[1];
     const addressListsResponseDocs = results[2];
 

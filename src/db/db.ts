@@ -25,7 +25,7 @@ import {
   QueueDoc,
   RefreshDoc,
   ReviewDoc,
-  SecretDoc,
+  AttestationDoc,
   StatusDoc,
   TransferActivityDoc,
   iAccessTokenDoc,
@@ -55,7 +55,7 @@ import {
   type iQueueDoc,
   type iRefreshDoc,
   type iReviewDoc,
-  type iSecretDoc,
+  type iAttestationDoc,
   type iStatusDoc,
   type iTransferActivityDoc
 } from 'bitbadgesjs-sdk';
@@ -99,7 +99,7 @@ import {
   ListActivityModel,
   MapModel,
   MerkleChallengeModel,
-  OffChainSecretsModel,
+  OffChainAttestationsModel,
   OffChainUrlModel,
   PageVisitsModel,
   PluginModel,
@@ -461,9 +461,9 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new PageVisitsDoc(doc as iPageVisitsDoc<NumberType>).convert(convertFunction);
       // const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iPageVisitsDoc<NumberType>>(convertedDoc);
       // if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
-    } else if (model.modelName === OffChainSecretsModel.modelName) {
-      convertedDoc = new SecretDoc(doc as iSecretDoc<NumberType>).convert(convertFunction);
-      const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iSecretDoc<NumberType>>(convertedDoc);
+    } else if (model.modelName === OffChainAttestationsModel.modelName) {
+      convertedDoc = new AttestationDoc(doc as iAttestationDoc<NumberType>).convert(convertFunction);
+      const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iAttestationDoc<NumberType>>(convertedDoc);
       if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === MapModel.modelName) {
       convertedDoc = new MapDoc(doc as iMapDoc<NumberType>).convert(convertFunction);

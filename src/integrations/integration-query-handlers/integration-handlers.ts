@@ -104,7 +104,6 @@ const handleDiscordServerQuery = async (body: {
   typia.assert<string>(discordInfo.discriminator);
   typia.assert<string>(discordInfo.access_token);
 
-
   const userId = discordInfo.id;
   const guildId = serverId;
   const access_token = discordInfo.access_token;

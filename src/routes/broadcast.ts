@@ -45,7 +45,7 @@ async function tidyErrorMessage(originalMessage: string) {
 export const broadcastTx = async (req: Request, res: Response<iBroadcastTxSuccessResponse | ErrorResponse>) => {
   try {
     const reqPayload = req.body as BroadcastTxPayload;
-    //TODO: 
+    //TODO:
     // const validateRes: typia.IValidation<BroadcastTxPayload> = typia.validate<BroadcastTxPayload>(req.body);
     // if (!validateRes.success) {
     //   return typiaError(res, validateRes);

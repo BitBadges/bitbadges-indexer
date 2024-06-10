@@ -1,11 +1,11 @@
 import { blsCreateProof, blsSign, generateBls12381G2KeyPair } from '@mattrglobal/bbs-signatures';
 import {
   BitBadgesApiRoutes,
-  CreateSecretPayload,
-  GetSecretPayload,
-  UpdateSecretPayload,
+  CreateAttestationPayload,
+  GetAttestationPayload,
+  UpdateAttestationPayload,
   convertToCosmosAddress,
-  verifySecretsPresentationSignatures,
+  verifyAttestationsPresentationSignatures,
   type CreateSIWBBRequestPayload,
   type DeleteSIWBBRequestPayload,
   type GetAndVerifySIWBBRequestPayload,
@@ -17,7 +17,7 @@ import { Express } from 'express';
 import request from 'supertest';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import { DeveloperAppModel, OffChainSecretsModel, SIWBBRequestModel } from '../db/schemas';
+import { DeveloperAppModel, OffChainAttestationsModel, SIWBBRequestModel } from '../db/schemas';
 import { createExampleReqForAddress } from '../testutil/utils';
 const app = (global as any).app as Express;
 
@@ -88,10 +88,10 @@ describe('get Siwbb requests', () => {
       name: 'test',
       image: '',
       description: '',
-      secretsPresentations: [
+      attestationsPresentations: [
         {
           createdBy: '',
-          secretMessages: ['test'],
+          attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: '',
             signer: ''
@@ -258,13 +258,13 @@ describe('get Siwbb requests', () => {
   });
 
   it('should create secret in storage', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretPayload = {
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'bbs',
       messageFormat: 'plaintext',
@@ -291,7 +291,7 @@ describe('get Siwbb requests', () => {
 
     const dataIntegrityProof = await blsSign({
       keyPair: keyPair!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
     body.dataIntegrityProof = {
       signature: Buffer.from(dataIntegrityProof).toString('hex'),
@@ -321,15 +321,15 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
-    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
+    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(getResPayload);
     expect(getRes.status).toBe(200);
-    expect(getRes.body.secretId).toBeDefined();
+    expect(getRes.body.attestationId).toBeDefined();
 
     const CRUDSIWBBRequestRoute = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
@@ -348,13 +348,13 @@ describe('get Siwbb requests', () => {
       publicKey: keyPair?.publicKey ?? new Uint8Array(),
       revealed: [0],
       signature: dataIntegrityProof,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8'))),
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8'))),
       nonce: Uint8Array.from(Buffer.from('nonce', 'utf8'))
     });
     const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair?.publicKey ?? '').toString('hex'));
     const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
 
-    createSIWBBRequestPayload.secretsPresentations = [
+    createSIWBBRequestPayload.attestationsPresentations = [
       {
         ...getRes.body,
         proofOfIssuance: {
@@ -370,7 +370,7 @@ describe('get Siwbb requests', () => {
       }
     ];
 
-    await verifySecretsPresentationSignatures(createSIWBBRequestPayload.secretsPresentations[0], true);
+    await verifyAttestationsPresentationSignatures(createSIWBBRequestPayload.attestationsPresentations[0], true);
 
     const siwbbRequestRes = await request(app)
       .post(CRUDSIWBBRequestRoute)
@@ -389,8 +389,8 @@ describe('get Siwbb requests', () => {
       .send(getAndVerifySIWBBRequestResPayload);
     expect(getAndVerifySIWBBRequestRes.status).toBe(200);
     expect(getAndVerifySIWBBRequestRes.body.blockin.message).toBeDefined();
-    expect(getAndVerifySIWBBRequestRes.body.blockin.secretsPresentations).toBeDefined();
-    expect(getAndVerifySIWBBRequestRes.body.blockin.secretsPresentations.length).toBe(1);
+    expect(getAndVerifySIWBBRequestRes.body.blockin.attestationsPresentations).toBeDefined();
+    expect(getAndVerifySIWBBRequestRes.body.blockin.attestationsPresentations.length).toBe(1);
   });
 
   it('should fail w/ invalid proofs', async () => {
@@ -412,9 +412,9 @@ describe('get Siwbb requests', () => {
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsPresentationSignatures({
+      verifyAttestationsPresentationSignatures({
         createdBy: convertToCosmosAddress(address),
-        secretMessages: ['test'],
+        attestationMessages: ['test'],
         dataIntegrityProof: {
           signature: 'invalid',
           signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
@@ -429,9 +429,9 @@ describe('get Siwbb requests', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsPresentationSignatures({
+      verifyAttestationsPresentationSignatures({
         createdBy: convertToCosmosAddress(address),
-        secretMessages: ['test'],
+        attestationMessages: ['test'],
         dataIntegrityProof: {
           signature: Buffer.from(derivedProof).toString('hex'), //using derived proof as orig proof
           signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
@@ -446,10 +446,10 @@ describe('get Siwbb requests', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsPresentationSignatures(
+      verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
-          secretMessages: ['test'],
+          attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
             signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
@@ -466,10 +466,10 @@ describe('get Siwbb requests', () => {
     ).resolves.toBeUndefined();
 
     await expect(
-      verifySecretsPresentationSignatures(
+      verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
-          secretMessages: ['test'],
+          attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
             signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
@@ -490,10 +490,10 @@ describe('get Siwbb requests', () => {
     ).rejects.toThrow();
 
     await expect(
-      verifySecretsPresentationSignatures(
+      verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
-          secretMessages: [],
+          attestationMessages: [],
           dataIntegrityProof: {
             signature: Buffer.from(proof.dataIntegrityProof).toString('hex'),
             signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
@@ -528,10 +528,10 @@ describe('get Siwbb requests', () => {
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsPresentationSignatures(
+      verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
-          secretMessages: ['test'],
+          attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from('a' + derivedProof).toString('hex'),
             signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
@@ -565,10 +565,10 @@ describe('get Siwbb requests', () => {
     proofOfIssuance.signer = ethWallet.address;
 
     await expect(
-      verifySecretsPresentationSignatures(
+      verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(ethWallet.address),
-          secretMessages: ['{"test": "test"}'],
+          attestationMessages: ['{"test": "test"}'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
             signer: Buffer.from(proof.keyPair?.publicKey ?? '').toString('hex')
@@ -586,13 +586,13 @@ describe('get Siwbb requests', () => {
   });
 
   it('should update anchors correctly', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretPayload = {
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'bbs',
       messageFormat: 'plaintext',
@@ -619,7 +619,7 @@ describe('get Siwbb requests', () => {
 
     const dataIntegrityProof = await blsSign({
       keyPair: keyPair!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
     body.dataIntegrityProof = {
       signature: Buffer.from(dataIntegrityProof).toString('hex'),
@@ -649,19 +649,19 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
-    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
+    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(getResPayload);
     expect(getRes.status).toBe(200);
-    expect(getRes.body.secretId).toBeDefined();
+    expect(getRes.body.attestationId).toBeDefined();
 
-    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
-    const updateSecretPayload: UpdateSecretPayload = {
-      secretId: getRes.body.secretId,
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
+    const updateAttestationPayload: UpdateAttestationPayload = {
+      attestationId: getRes.body.attestationId,
       anchorsToAdd: [
         {
           txHash: 'test'
@@ -673,15 +673,15 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretPayload);
+      .send(updateAttestationPayload);
     expect(updateRes.status).toBe(200);
 
-    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
+    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, getRes.body.attestationId);
     expect(secretsDoc.anchors.length).toBe(1);
     expect(secretsDoc.anchors[0].txHash).toBe('test');
 
-    const updateSecretPayload2: UpdateSecretPayload = {
-      secretId: getRes.body.secretId,
+    const updateAttestationPayload2: UpdateAttestationPayload = {
+      attestationId: getRes.body.attestationId,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(address),
@@ -694,14 +694,14 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretPayload2);
+      .send(updateAttestationPayload2);
     expect(updateRes2.status).toBe(200);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
+    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, getRes.body.attestationId);
     expect(secretsDoc2.holders.length).toBe(1);
 
-    const updateSecretPayload3: UpdateSecretPayload = {
-      secretId: getRes.body.secretId,
+    const updateAttestationPayload3: UpdateAttestationPayload = {
+      attestationId: getRes.body.attestationId,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(address),
@@ -714,21 +714,21 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretPayload3);
+      .send(updateAttestationPayload3);
     expect(updateRes3.status).toBe(200);
 
-    const secretsDoc3 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
+    const secretsDoc3 = await mustGetFromDB(OffChainAttestationsModel, getRes.body.attestationId);
     expect(secretsDoc3.holders.length).toBe(0);
   }, 100000);
 
   it('should delete secret', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretPayload = {
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'bbs',
       messageFormat: 'plaintext',
@@ -755,7 +755,7 @@ describe('get Siwbb requests', () => {
 
     const dataIntegrityProof = await blsSign({
       keyPair: keyPair!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
     body.dataIntegrityProof = {
       signature: Buffer.from(dataIntegrityProof).toString('hex'),
@@ -785,18 +785,18 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
-    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
+    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(getResPayload);
     expect(getRes.status).toBe(200);
-    expect(getRes.body.secretId).toBeDefined();
+    expect(getRes.body.attestationId).toBeDefined();
 
-    const deleteResRoute = BitBadgesApiRoutes.CRUDSecretRoute();
-    const deleteResPayload: GetSecretPayload = { secretId: getRes.body.secretId };
+    const deleteResRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
+    const deleteResPayload: GetAttestationPayload = { attestationId: getRes.body.attestationId };
 
     const invalidDeleteResAnotherUser = await request(app)
       .delete(deleteResRoute)
@@ -812,18 +812,18 @@ describe('get Siwbb requests', () => {
       .send(deleteResPayload);
     expect(deleteRes.status).toBe(200);
 
-    const secretsDoc = await getFromDB(OffChainSecretsModel, getRes.body.secretId);
+    const secretsDoc = await getFromDB(OffChainAttestationsModel, getRes.body.attestationId);
     expect(secretsDoc).toBeFalsy();
   });
 
   it('should update correctly', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretPayload = {
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'bbs',
       messageFormat: 'plaintext',
@@ -850,7 +850,7 @@ describe('get Siwbb requests', () => {
 
     const dataIntegrityProof = await blsSign({
       keyPair: keyPair!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
     body.dataIntegrityProof = {
       signature: Buffer.from(dataIntegrityProof).toString('hex'),
@@ -880,19 +880,19 @@ describe('get Siwbb requests', () => {
 
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetSecretsRoute();
-    const getResPayload: GetSecretPayload = { secretId: res.body.secretId };
+    const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
+    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(getResPayload);
     expect(getRes.status).toBe(200);
-    expect(getRes.body.secretId).toBeDefined();
+    expect(getRes.body.attestationId).toBeDefined();
 
-    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
-    const updateSecretPayload: UpdateSecretPayload = {
-      secretId: getRes.body.secretId,
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
+    const updateAttestationPayload: UpdateAttestationPayload = {
+      attestationId: getRes.body.attestationId,
       name: 'test2',
       description: 'test2',
       image: 'test2'
@@ -902,19 +902,19 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretPayload);
+      .send(updateAttestationPayload);
     expect(updateRes.status).toBe(200);
 
-    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
-    expect(secretsDoc.secretId).toBeDefined();
+    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, getRes.body.attestationId);
+    expect(secretsDoc.attestationId).toBeDefined();
     expect(secretsDoc.name).toBe('test2');
     expect(secretsDoc.description).toBe('test2');
     expect(secretsDoc.image).toBe('test2');
     expect(secretsDoc.updateHistory.length).toBe(2);
 
     //reject invalid proofs upon update
-    const updateSecretPayload2: UpdateSecretPayload = {
-      secretId: getRes.body.secretId,
+    const updateAttestationPayload2: UpdateAttestationPayload = {
+      attestationId: getRes.body.attestationId,
       name: 'test2',
       description: 'test2',
       image: 'test2',
@@ -928,7 +928,7 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretPayload2);
+      .send(updateAttestationPayload2);
 
     expect(updateRes2.status).toBe(500);
 
@@ -936,14 +936,14 @@ describe('get Siwbb requests', () => {
     const keyPair2 = await generateBls12381G2KeyPair();
     const dataIntegrityProof2 = await blsSign({
       keyPair: keyPair2!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
 
     const newProofOfIssuanceMessage = proofOfIssuancePlaceholder.replace('INSERT_HERE', Buffer.from(keyPair2?.publicKey ?? '').toString('hex'));
     const newProofOfIssuanceSignature = await ethWallet.signMessage(newProofOfIssuanceMessage);
 
-    const updateSecretPayload3: UpdateSecretPayload = {
-      secretId: getRes.body.secretId,
+    const updateAttestationPayload3: UpdateAttestationPayload = {
+      attestationId: getRes.body.attestationId,
       name: 'test2',
       description: 'test2',
       image: 'test2',
@@ -962,12 +962,12 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(updateSecretPayload3);
+      .send(updateAttestationPayload3);
     console.log(updateRes3.body);
     expect(updateRes3.status).toBe(200);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, getRes.body.secretId);
-    expect(secretsDoc2.secretId).toBeDefined();
+    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, getRes.body.attestationId);
+    expect(secretsDoc2.attestationId).toBeDefined();
     expect(secretsDoc2.name).toBe('test2');
     expect(secretsDoc2.description).toBe('test2');
     expect(secretsDoc2.image).toBe('test2');
@@ -976,13 +976,13 @@ describe('get Siwbb requests', () => {
   });
 
   it('should not allow non-owners to update important fields', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretPayload = {
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'bbs',
       messageFormat: 'plaintext',
@@ -1009,7 +1009,7 @@ describe('get Siwbb requests', () => {
 
     const dataIntegrityProof = await blsSign({
       keyPair: keyPair!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
     body.dataIntegrityProof = {
       signature: Buffer.from(dataIntegrityProof).toString('hex'),
@@ -1023,9 +1023,9 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
-    const updateSecretPayload: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
+    const updateAttestationPayload: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       name: 'test2',
       description: 'test2',
       image: 'test2'
@@ -1035,10 +1035,10 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(updateSecretPayload);
+      .send(updateAttestationPayload);
     expect(updateRes.status).toBeGreaterThan(400);
 
-    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc.name).toBe('test');
     expect(secretsDoc.description).toBe('test');
     expect(secretsDoc.image).toBe('test');
@@ -1047,23 +1047,23 @@ describe('get Siwbb requests', () => {
     const updateRes2 = await request(app)
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(updateSecretPayload);
+      .send(updateAttestationPayload);
     expect(updateRes2.status).toBeGreaterThan(400);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc2.name).toBe('test');
     expect(secretsDoc2.description).toBe('test');
     expect(secretsDoc2.image).toBe('test');
   });
 
   it('should update anchors (owner only)', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretPayload = {
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'bbs',
       messageFormat: 'plaintext',
@@ -1090,7 +1090,7 @@ describe('get Siwbb requests', () => {
 
     const dataIntegrityProof = await blsSign({
       keyPair: keyPair!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
     body.dataIntegrityProof = {
       signature: Buffer.from(dataIntegrityProof).toString('hex'),
@@ -1104,9 +1104,9 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
-    const updateSecretPayload: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
+    const updateAttestationPayload: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       anchorsToAdd: [
         {
           txHash: 'test'
@@ -1118,14 +1118,14 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
-      .send(updateSecretPayload);
+      .send(updateAttestationPayload);
     expect(updateRes.status).toBe(200);
 
-    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc.anchors.length).toBe(1);
 
-    const updateSecretPayload2: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateAttestationPayload2: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       anchorsToAdd: [
         {
           txHash: 'test2'
@@ -1137,14 +1137,14 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(updateSecretPayload2);
+      .send(updateAttestationPayload2);
     expect(updateRes2.status).toBeGreaterThan(400);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc2.anchors.length).toBe(1);
 
-    const updateSecretPayload3: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateAttestationPayload3: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       anchorsToAdd: [
         {
           txHash: 'test'
@@ -1155,18 +1155,18 @@ describe('get Siwbb requests', () => {
     const updateRes3 = await request(app)
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(updateSecretPayload3);
+      .send(updateAttestationPayload3);
     expect(updateRes3.status).toBeGreaterThan(400);
   });
 
   it('can add holders to secret (self add only)', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
     const keyPair = await generateBls12381G2KeyPair();
-    const body: CreateSecretPayload = {
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'bbs',
       messageFormat: 'plaintext',
@@ -1193,7 +1193,7 @@ describe('get Siwbb requests', () => {
 
     const dataIntegrityProof = await blsSign({
       keyPair: keyPair!,
-      messages: body.secretMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
+      messages: body.attestationMessages.map((message) => Uint8Array.from(Buffer.from(message, 'utf-8')))
     });
     body.dataIntegrityProof = {
       signature: Buffer.from(dataIntegrityProof).toString('hex'),
@@ -1207,9 +1207,9 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const updateSecretRoute = BitBadgesApiRoutes.CRUDSecretRoute();
-    const updateSecretPayload: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
+    const updateAttestationPayload: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethWallet.address),
@@ -1222,14 +1222,14 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
-      .send(updateSecretPayload);
+      .send(updateAttestationPayload);
     expect(updateRes.status).toBe(200);
 
-    const secretsDoc = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc.holders.length).toBe(1);
 
-    const updateSecretPayload2: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateAttestationPayload2: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethers.Wallet.createRandom().address),
@@ -1242,14 +1242,14 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethers.Wallet.createRandom().address).session))
-      .send(updateSecretPayload2);
+      .send(updateAttestationPayload2);
     expect(updateRes2.status).toBeGreaterThan(400);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc2.holders.length).toBe(1);
 
-    const updateSecretPayload3: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateAttestationPayload3: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethWallet.address),
@@ -1261,15 +1261,15 @@ describe('get Siwbb requests', () => {
     const updateRes3 = await request(app)
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
-      .send(updateSecretPayload3);
+      .send(updateAttestationPayload3);
     expect(updateRes3.status).toBeGreaterThan(400);
 
-    const secretsDoc3 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc3 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc3.holders.length).toBe(1);
 
     //Test deletes
-    const updateSecretPayload4: UpdateSecretPayload = {
-      secretId: res.body.secretId,
+    const updateAttestationPayload4: UpdateAttestationPayload = {
+      attestationId: res.body.attestationId,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethWallet.address),
@@ -1282,20 +1282,20 @@ describe('get Siwbb requests', () => {
       .put(updateSecretRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(ethWallet.address).session))
-      .send(updateSecretPayload4);
+      .send(updateAttestationPayload4);
     expect(updateRes4.status).toBe(200);
 
-    const secretsDoc4 = await mustGetFromDB(OffChainSecretsModel, res.body.secretId);
+    const secretsDoc4 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
     expect(secretsDoc4.holders.length).toBe(0);
   }, 20000);
 
   it('should verify standard sig proofs (non BBS)', async () => {
-    const route = BitBadgesApiRoutes.CRUDSecretRoute();
-    const body: CreateSecretPayload = {
+    const route = BitBadgesApiRoutes.CRUDAttestationRoute();
+    const body: CreateAttestationPayload = {
       name: 'test',
       description: 'test',
       image: 'test',
-      secretMessages: ['test'],
+      attestationMessages: ['test'],
       type: 'credential',
       scheme: 'standard',
       messageFormat: 'plaintext',
@@ -1321,7 +1321,7 @@ describe('get Siwbb requests', () => {
     };
 
     body.dataIntegrityProof = {
-      signature: await ethWallet.signMessage(body.secretMessages[0]),
+      signature: await ethWallet.signMessage(body.attestationMessages[0]),
       signer: ethWallet.address
     };
 

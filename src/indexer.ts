@@ -88,7 +88,7 @@ import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addToIpfsHandler } from './routes/ipfs';
 import { getMaps } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
-import { createSecret, deleteSecret, getSecret, updateSecret } from './routes/offChainSecrets';
+import { createAttestation, deleteAttestation, getAttestation, updateAttestation } from './routes/offChainSecrets';
 import { createPass } from './routes/pass';
 import { createPlugin, deletePlugin, getPlugins, updatePlugin } from './routes/plugins';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
@@ -458,7 +458,7 @@ app.post('/api/v0/collection/:collectionId/:badgeId/activity', getBadgeActivity)
 app.post('/api/v0/collection/:collectionId/refresh', refreshMetadata);
 app.post('/api/v0/collection/:collectionId/refreshStatus', getRefreshStatus);
 app.post('/api/v0/collection/:collectionId/filter', filterBadgesInCollectionHandler);
-app.post('/api/v0/collection/:collectionId/filterSuggestions', getFilterSuggestionsHandler);
+app.post('/api/v0/collection/:collectionId/filterSuggestions', websiteOnlyCors, getFilterSuggestionsHandler);
 
 app.post('/api/v0/claims/simulate/:claimId/:cosmosAddress', simulateClaim);
 app.post('/api/v0/claims/complete/:claimId/:cosmosAddress', completeClaim);
@@ -550,11 +550,11 @@ app.post('/api/v0/maps', getMaps);
 
 app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createPass);
 
-// Off-Chain Secret Sigs
-app.post('/api/v0/secret/fetch', getSecret);
-app.post('/api/v0/secret', authorizeBlockinRequest([{ scopeName: 'Create Secrets' }]), createSecret);
-app.delete('/api/v0/secret', authorizeBlockinRequest([{ scopeName: 'Delete Secrets' }]), deleteSecret);
-app.put('/api/v0/secret', authorizeBlockinRequest([{ scopeName: 'Update Secrets' }]), updateSecret);
+// Off-Chain Attestation Sigs
+app.post('/api/v0/attestation/fetch', getAttestation);
+app.post('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Create Attestations' }]), createAttestation);
+app.delete('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Delete Attestations' }]), deleteAttestation);
+app.put('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Update Attestations' }]), updateAttestation);
 
 // Auth Apps
 app.post('/api/v0/developerApp/fetch', websiteOnlyCors, getDeveloperApps);

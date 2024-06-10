@@ -2,7 +2,7 @@ import {
   BlockinChallenge,
   GetAndVerifySIWBBRequestsForDeveloperAppPayload,
   Numberify,
-  SecretsProof,
+  AttestationsProof,
   convertToCosmosAddress,
   getChainForAddress,
   iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse,
@@ -93,7 +93,7 @@ export const createSIWBBRequest = async (
 
     //Really all we want here is to verify signature is valid
     //Other stuff just needs to be valid at actual authentication time
-    //Verifies from a cryptographic standpoint that the signature and secrets are valid
+    //Verifies from a cryptographic standpoint that the signature and attestations are valid
     const response = await genericBlockinVerify({
       message: reqPayload.message,
       signature: reqPayload.signature,
@@ -103,7 +103,7 @@ export const createSIWBBRequest = async (
         skipAssetVerification: true,
         skipSignatureVerification: toSkipSignatureVerification
       },
-      secretsPresentations: reqPayload.secretsPresentations?.map((proof) => new SecretsProof(proof))
+      attestationsPresentations: reqPayload.attestationsPresentations?.map((proof) => new AttestationsProof(proof))
     });
 
     if (!response?.success) {
@@ -179,7 +179,7 @@ export const createSIWBBRequest = async (
       params: challengeParams,
       signature: reqPayload.signature,
       createdAt: Date.now(),
-      secretsPresentations: reqPayload.secretsPresentations || [],
+      attestationsPresentations: reqPayload.attestationsPresentations || [],
       clientId: reqPayload.clientId,
       otherSignIns: otherSignInsObj,
       redirectUri: reqPayload.redirectUri

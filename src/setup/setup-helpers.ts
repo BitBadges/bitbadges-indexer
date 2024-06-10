@@ -44,8 +44,8 @@ import {
   MapModel,
   MapSchema,
   MerkleChallengeModel,
-  OffChainSecretsModel,
-  OffChainSecretsSchema,
+  OffChainAttestationsModel,
+  OffChainAttestationsSchema,
   OffChainUrlModel,
   OffChainUrlSchema,
   PageVisitsModel,
@@ -111,7 +111,7 @@ export async function deleteDatabases(): Promise<void> {
   await MongoDB.dropCollection(FollowDetailsModel.collection.name);
   await MongoDB.dropCollection(ListActivityModel.collection.name);
   await MongoDB.dropCollection(PageVisitsModel.collection.name);
-  await MongoDB.dropCollection(OffChainSecretsModel.collection.name);
+  await MongoDB.dropCollection(OffChainAttestationsModel.collection.name);
 }
 
 // new ObjectId
@@ -399,10 +399,10 @@ export async function createIndexesAndViews(): Promise<void> {
   ListActivitySchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ timestamp: 1 });
   PageVisitsSchema.index({ _docId: 1 }, { unique: true });
-  OffChainSecretsSchema.index({ _docId: 1 }, { unique: true });
+  OffChainAttestationsSchema.index({ _docId: 1 }, { unique: true });
 
   await MapModel.createIndexes();
-  await OffChainSecretsModel.createIndexes();
+  await OffChainAttestationsModel.createIndexes();
   await PageVisitsModel.createIndexes();
   await ListActivityModel.createIndexes();
   await BrowseModel.createIndexes();

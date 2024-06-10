@@ -27,7 +27,7 @@ import {
   type PaginationInfo,
   type ReviewDoc,
   type SIWBBRequestDoc,
-  type SecretDoc,
+  type AttestationDoc,
   type TransferActivityDoc,
   type UpdateAccountInfoPayload,
   type iAccountDoc,
@@ -61,14 +61,14 @@ import {
   executeCollectedQuery,
   executeCreatedByQuery,
   executeCreatedListsQuery,
-  executeCreatedSecretsQuery,
+  executeCreatedAttestationsQuery,
   executeExplicitExcludedListsQuery,
   executeExplicitIncludedListsQuery,
   executeListsActivityQuery,
   executeListsQuery,
   executeManagingQuery,
   executePrivateListsQuery,
-  executeReceivedSecretsQuery,
+  executeReceivedAttestationsQuery,
   executeReviewsQuery,
   executeSIWBBRequestsQuery,
   executeSentClaimAlertsQuery
@@ -391,7 +391,7 @@ interface GetAdditionalUserInfoRes {
   addressLists: Array<BitBadgesAddressList<bigint>>;
   claimAlerts: Array<ClaimAlertDoc<bigint>>;
   siwbbRequests: Array<SIWBBRequestDoc<bigint>>;
-  secrets: Array<SecretDoc<bigint>>;
+  attestations: Array<AttestationDoc<bigint>>;
   views: Record<
     string,
     | {
@@ -416,7 +416,7 @@ const getAdditionalUserInfo = async (
       activity: [],
       listsActivity: [],
       reviews: [],
-      secrets: [],
+      attestations: [],
       addressLists: [],
       claimAlerts: [],
       siwbbRequests: [],
@@ -512,19 +512,23 @@ const getAdditionalUserInfo = async (
       if (bookmark !== undefined) {
         asyncOperations.push(async () => await executeCreatedListsQuery(cosmosAddress, filteredLists, bookmark, oldestFirst));
       }
-    } else if (view.viewType === 'createdSecrets') {
+    } else if (view.viewType === 'createdAttestations') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Secrets' }])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
-        if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
-        asyncOperations.push(async () => await executeCreatedSecretsQuery(cosmosAddress, bookmark));
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Attestations' }])) &&
+          authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch account attestations.');
+        asyncOperations.push(async () => await executeCreatedAttestationsQuery(cosmosAddress, bookmark));
       }
-    } else if (view.viewType === 'receivedSecrets') {
+    } else if (view.viewType === 'receivedAttestations') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Secrets' }])) && authDetails && authDetails.cosmosAddress === cosmosAddress;
-        if (!isAuthenticated) throw new Error('You must be authenticated to fetch account secrets.');
-        asyncOperations.push(async () => await executeReceivedSecretsQuery(cosmosAddress, bookmark));
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Attestations' }])) &&
+          authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch account attestations.');
+        asyncOperations.push(async () => await executeReceivedAttestationsQuery(cosmosAddress, bookmark));
       }
     }
   }
@@ -660,11 +664,11 @@ const getAdditionalUserInfo = async (
           hasMore: false // we fetch all Siwbb requests if requested
         }
       };
-    } else if (viewKey === 'createdSecrets' || viewKey === 'receivedSecrets') {
-      const result = results[i] as nano.MangoResponse<SecretDoc<bigint>>;
+    } else if (viewKey === 'createdAttestations' || viewKey === 'receivedAttestations') {
+      const result = results[i] as nano.MangoResponse<AttestationDoc<bigint>>;
       views[viewId] = {
         ids: result.docs.map((x) => x._docId),
-        type: 'Secrets',
+        type: 'Attestations',
         pagination: {
           bookmark: result.bookmark ? result.bookmark : '',
           hasMore: result.docs.length >= 25
@@ -734,7 +738,7 @@ const getAdditionalUserInfo = async (
     addressLists: [],
     claimAlerts: [],
     siwbbRequests: [],
-    secrets: [],
+    attestations: [],
     views: {}
   };
   for (let i = 0; i < results.length; i++) {
@@ -798,9 +802,9 @@ const getAdditionalUserInfo = async (
     } else if (viewKey === 'siwbbRequests') {
       const result = results[i] as nano.MangoResponse<SIWBBRequestDoc<bigint>>;
       responseObj.siwbbRequests = result.docs;
-    } else if (viewKey === 'createdSecrets' || viewKey === 'receivedSecrets') {
-      const result = results[i] as nano.MangoResponse<SecretDoc<bigint>>;
-      responseObj.secrets = [...responseObj.secrets, ...result.docs];
+    } else if (viewKey === 'createdAttestations' || viewKey === 'receivedAttestations') {
+      const result = results[i] as nano.MangoResponse<AttestationDoc<bigint>>;
+      responseObj.attestations = [...responseObj.attestations, ...result.docs];
     }
     // nothing to do with managing or createdBy
   }

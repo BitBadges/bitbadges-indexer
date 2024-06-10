@@ -17,7 +17,7 @@ import {
   ClaimAlertModel,
   CollectionModel,
   ListActivityModel,
-  OffChainSecretsModel,
+  OffChainAttestationsModel,
   ReviewModel,
   TransferActivityModel,
   type BitBadgesDoc,
@@ -656,19 +656,19 @@ export async function executeListsActivityQueryForList(listId: string, fetchHidd
   return collectedRes;
 }
 
-export async function executeCreatedSecretsQuery(cosmosAddress: string, bookmark?: string) {
-  const paginationParams = await getQueryParamsFromBookmark(OffChainSecretsModel, bookmark, false, 'secretId');
-  const res = await findWithPagination(OffChainSecretsModel, {
+export async function executeCreatedAttestationsQuery(cosmosAddress: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(OffChainAttestationsModel, bookmark, false, 'attestationId');
+  const res = await findWithPagination(OffChainAttestationsModel, {
     query: { createdBy: cosmosAddress, ...paginationParams },
-    sort: { secretId: 1 },
+    sort: { attestationId: 1 },
     limit: 25
   });
   return res;
 }
 
-export async function executeReceivedSecretsQuery(cosmosAddress: string, bookmark?: string) {
-  const paginationParams = await getQueryParamsFromBookmark(OffChainSecretsModel, bookmark, false, 'secretId');
-  const res = await findWithPagination(OffChainSecretsModel, {
+export async function executeReceivedAttestationsQuery(cosmosAddress: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(OffChainAttestationsModel, bookmark, false, 'attestationId');
+  const res = await findWithPagination(OffChainAttestationsModel, {
     query: {
       holders: {
         $elemMatch: {
@@ -677,7 +677,7 @@ export async function executeReceivedSecretsQuery(cosmosAddress: string, bookmar
       },
       ...paginationParams
     },
-    sort: { secretId: 1 },
+    sort: { attestationId: 1 },
     limit: 25
   });
   return res;

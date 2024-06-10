@@ -156,9 +156,9 @@ describe('users', () => {
     expect(profileDoc?.readme).toEqual('test');
   });
 
-  it('should throw on fetching secret values while unauthenticated', async () => {
+  it('should throw on fetching attestation values while unauthenticated', async () => {
     const getRoute = BitBadgesApiRoutes.GetAccountsRoute();
-    const problemViews: AccountViewKey[] = ['siwbbRequests', 'privateLists', 'receivedSecrets', 'createdSecrets'];
+    const problemViews: AccountViewKey[] = ['siwbbRequests', 'privateLists', 'receivedAttestations', 'createdAttestations'];
     for (const view of problemViews) {
       const getPayload: GetAccountsPayload = {
         accountsToFetch: [

@@ -6,7 +6,7 @@ import {
   convertToCosmosAddress,
   getChainForAddress,
   isAddressValid,
-  verifySecretsPresentationSignatures,
+  verifyAttestationsPresentationSignatures,
   type ErrorResponse,
   type GenericBlockinVerifyPayload,
   type GetSignInChallengePayload,
@@ -591,8 +591,8 @@ export async function genericBlockinVerify(body: GenericBlockinVerifyPayload) {
       body.publicKey
     );
     if (verificationResponse.success) {
-      for (const proof of body.secretsPresentations ?? []) {
-        await verifySecretsPresentationSignatures(proof, true);
+      for (const proof of body.attestationsPresentations ?? []) {
+        await verifyAttestationsPresentationSignatures(proof, true);
       }
 
       return verificationResponse;
