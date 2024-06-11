@@ -9,7 +9,6 @@ import {
   iUintRange
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
-import { AES } from 'crypto-js';
 import { getCorePlugin, getFirstMatchForPluginType } from '../integrations/types';
 
 export const getPluginStateByType = (doc: iClaimBuilderDoc<NumberType>, pluginId: ClaimIntegrationPluginType): any => {
@@ -42,7 +41,7 @@ export const codesPlugin = (numCodes: number, seedCode: string): IntegrationPlug
     },
     privateParams: {
       codes: [],
-      seedCode: AES.encrypt(seedCode, process.env.SYM_KEY ?? '').toString()
+      seedCode: seedCode
     },
     publicState: {
       usedCodeIndices: []
@@ -57,7 +56,7 @@ export const passwordPlugin = (password: string): IntegrationPluginDetails<'pass
     pluginId: 'password',
     publicParams: {},
     privateParams: {
-      password: AES.encrypt(password, process.env.SYM_KEY ?? '').toString()
+      password: password
     },
     publicState: {},
     resetState: true

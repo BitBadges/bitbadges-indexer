@@ -42,11 +42,13 @@ export const createDeveloperApp = async (
       reqPayload.image = JSON.parse(metadata.file).image;
     }
 
+    const clientSecretHash = crypto.createHash('sha256').update(uniqueClientSecret).digest('hex');
+
     await insertToDB(DeveloperAppModel, {
       createdBy: authDetails.cosmosAddress,
       _docId: uniqueClientId,
       clientId: uniqueClientId,
-      clientSecret: uniqueClientSecret,
+      clientSecret: clientSecretHash,
       name: reqPayload.name,
       redirectUris: reqPayload.redirectUris,
       description: reqPayload.description,
@@ -167,13 +169,15 @@ export const updateDeveloperApp = async (
       doc.redirectUris = redirectUris;
     }
 
+    let newClientSecret = '';
     if (rotateClientSecret) {
-      doc.clientSecret = crypto.randomBytes(32).toString('hex');
+      newClientSecret = crypto.randomBytes(32).toString('hex');
+      doc.clientSecret = crypto.createHash('sha256').update(newClientSecret).digest('hex');
     }
 
     await insertToDB(DeveloperAppModel, doc);
 
-    return res.status(200).send({ success: true, clientSecret: doc.clientSecret });
+    return res.status(200).send({ success: true, clientSecret: newClientSecret });
   } catch (e) {
     console.error(e);
     return res.status(500).send({

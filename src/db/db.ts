@@ -4,15 +4,15 @@ import {
   AddressListDoc,
   AirdropDoc,
   ApprovalTrackerDoc,
-  DeveloperAppDoc,
+  AttestationDoc,
   AuthorizationCodeDoc,
   BalanceDoc,
   BigIntify,
-  SIWBBRequestDoc,
   ClaimAlertDoc,
   ClaimBuilderDoc,
   CollectionDoc,
   ComplianceDoc,
+  DeveloperAppDoc,
   FetchDoc,
   FollowDetailsDoc,
   IPFSTotalsDoc,
@@ -25,12 +25,12 @@ import {
   QueueDoc,
   RefreshDoc,
   ReviewDoc,
-  AttestationDoc,
+  SIWBBRequestDoc,
   StatusDoc,
   TransferActivityDoc,
   iAccessTokenDoc,
-  iDeveloperAppDoc,
   iAuthorizationCodeDoc,
+  iDeveloperAppDoc,
   iPluginDoc,
   type ErrorDoc,
   type JSPrimitiveNumberType,
@@ -39,8 +39,8 @@ import {
   type iAddressListDoc,
   type iAirdropDoc,
   type iApprovalTrackerDoc,
+  type iAttestationDoc,
   type iBalanceDoc,
-  type iSIWBBRequestDoc,
   type iClaimAlertDoc,
   type iClaimBuilderDoc,
   type iCollectionDoc,
@@ -55,13 +55,15 @@ import {
   type iQueueDoc,
   type iRefreshDoc,
   type iReviewDoc,
-  type iAttestationDoc,
+  type iSIWBBRequestDoc,
   type iStatusDoc,
   type iTransferActivityDoc
 } from 'bitbadgesjs-sdk';
-import crypto from 'crypto-js';
+import CryptoJS from 'crypto-js';
 import { config } from 'dotenv';
+
 import mongoose from 'mongoose';
+import typia from 'typia';
 import {
   BrowseDoc,
   DigitalOceanBalancesDoc,
@@ -81,15 +83,16 @@ import {
   AirdropModel,
   ApiKeyModel,
   ApprovalTrackerModel,
-  DeveloperAppModel,
   AuthorizationCodeModel,
   BalanceModel,
-  SIWBBRequestModel,
   BrowseModel,
   ClaimAlertModel,
+  ClaimAttemptStatusModel,
   ClaimBuilderModel,
+  ClaimDocHistoryModel,
   CollectionModel,
   ComplianceModel,
+  DeveloperAppModel,
   DigitalOceanBalancesModel,
   ErrorModel,
   EthTxCountModel,
@@ -102,31 +105,369 @@ import {
   OffChainAttestationsModel,
   OffChainUrlModel,
   PageVisitsModel,
+  PluginDocHistoryModel,
   PluginModel,
   ProfileModel,
   QueueModel,
   RefreshModel,
   ReportModel,
   ReviewModel,
+  SIWBBRequestModel,
   StatusModel,
   TransferActivityModel,
   type BitBadgesDoc,
   type TypedDocFromModel,
   type TypedInterfaceFromModel
 } from './schemas';
-import typia from 'typia';
 
-const { SHA256 } = crypto;
+import { MongoClient, ClientEncryption } from 'mongodb';
+
+// For running
+// import mongodb from 'mongodb';
+// const { MongoClient, ClientEncryption } = mongodb;
+
+const { SHA256 } = CryptoJS;
 
 config();
 
 export let MONGO_CONNECTED = false;
-
-mongoose.connect(`${process.env.DB_URL}`).catch((e) => {
-  console.error('Error connecting to MongoDB:', e);
-});
-
 export const MongoDB = mongoose.connection;
+const symKey = process.env.SYM_KEY ?? '';
+if (!symKey) {
+  throw new Error('No sym key provided');
+}
+
+const key = Buffer.from(symKey, 'base64');
+
+export const keyVaultNamespace = 'encryption.__dataKeys';
+export const kmsProviders = { local: { key } };
+
+const uri = process.env.DB_URL ?? '';
+
+async function run() {
+  const client = new MongoClient(uri);
+  await client.connect();
+
+  const encryption = new ClientEncryption(client, {
+    keyVaultNamespace,
+    kmsProviders
+  });
+
+  let _key;
+  const existingKeys = await encryption.getKeys().toArray();
+
+  if (existingKeys?.[0]) {
+    await client.close();
+    _key = existingKeys?.[0]._id;
+  } else {
+    _key = await encryption.createDataKey('local');
+    await client.close();
+  }
+
+  const dbName = 'bitbadges';
+  const schemaMap = {
+    [`${dbName}.${ClaimBuilderModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        state: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        plugins: {
+          encrypt: {
+            bsonType: 'array',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        action: {
+          bsonType: 'object',
+          properties: {
+            codes: {
+              encrypt: {
+                bsonType: 'array',
+                algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+              }
+            },
+            seedCode: {
+              encrypt: {
+                bsonType: 'string',
+                algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+              }
+            }
+          }
+        }
+      }
+    },
+    [`${dbName}.${ApiKeyModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        numRequests: {
+          bsonType: 'int'
+        },
+        lastRequest: {
+          bsonType: 'int'
+        }
+      }
+    },
+    [`${dbName}.${SIWBBRequestModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        signature: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        params: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        attestationsPresentations: {
+          encrypt: {
+            bsonType: 'array',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        otherSignIns: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+
+    [`${dbName}.${OffChainAttestationsModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        holders: {
+          bsonType: 'array',
+          items: {
+            bsonType: 'string'
+          }
+        },
+        proofOfIssuance: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        attestationMessages: {
+          encrypt: {
+            bsonType: 'array',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        dataIntegrityProof: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+
+    [`${dbName}.${AddressListModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        addresses: {
+          bsonType: 'array',
+          items: {
+            bsonType: 'string'
+          }
+        }
+      }
+    },
+
+    [`${dbName}.${QueueModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        emailMessage: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        recipientAddress: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        claimInfo: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+    [`${dbName}.${ProfileModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        socialConnections: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        approvedSignInMethods: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        notifications: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        watchlists: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+    [`${dbName}.${ClaimAlertModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        message: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+    [`${dbName}.${PluginModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        pluginSecret: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+    [`${dbName}.${DeveloperAppModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        clientSecret: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+    [`${dbName}.${PluginDocHistoryModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        prevDoc: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+    [`${dbName}.${ClaimDocHistoryModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        prevDoc: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    },
+    [`${dbName}.${ClaimAttemptStatusModel.modelName}`]: {
+      bsonType: 'object',
+      encryptMetadata: {
+        keyId: [_key]
+      },
+      properties: {
+        error: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        claimInfo: {
+          encrypt: {
+            bsonType: 'object',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        },
+        code: {
+          encrypt: {
+            bsonType: 'string',
+            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+          }
+        }
+      }
+    }
+  };
+
+  await mongoose
+    .connect(`${process.env.DB_URL}`, {
+      autoEncryption: {
+        keyVaultNamespace,
+        kmsProviders,
+        schemaMap
+      }
+    })
+    .catch((e) => {
+      console.error('Error connecting to MongoDB:', e);
+    });
+}
+
+run().catch((err) => console.log(err));
 
 MongoDB.on('error', console.error.bind(console, 'MongoDB connection error:'));
 MongoDB.once('open', () => {
@@ -352,6 +693,8 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
     doc._id = doc._id ? doc._id.toString() : undefined;
     doc = removeNullAndUndefinedRecursive(doc);
 
+    //Convert according to model name
+
     if (model.modelName === StatusModel.modelName) {
       convertedDoc = new StatusDoc(doc as iStatusDoc<NumberType>).convert(convertFunction);
       const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iStatusDoc<NumberType>>(convertedDoc);
@@ -388,7 +731,11 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iRefreshDoc<NumberType>>(convertedDoc);
       if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ClaimBuilderModel.modelName) {
-      convertedDoc = new ClaimBuilderDoc(doc as iClaimBuilderDoc<NumberType>).convert(convertFunction);
+      const docToInsert = doc as iClaimBuilderDoc<NumberType>;
+      docToInsert.action.seedCode = docToInsert.action.seedCode ?? '';
+      docToInsert.action.codes = docToInsert.action.codes ?? [];
+
+      convertedDoc = new ClaimBuilderDoc(docToInsert as iClaimBuilderDoc<NumberType>).convert(convertFunction);
       const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iClaimBuilderDoc<NumberType>>(convertedDoc);
       if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === ProfileModel.modelName) {
@@ -442,7 +789,10 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iComplianceDoc<NumberType>>(convertedDoc);
       if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === SIWBBRequestModel.modelName) {
-      convertedDoc = new SIWBBRequestDoc(doc as iSIWBBRequestDoc<NumberType>).convert(convertFunction);
+      const docToInsert = doc as iSIWBBRequestDoc<NumberType>;
+      docToInsert.otherSignIns = docToInsert.otherSignIns ?? {};
+
+      convertedDoc = new SIWBBRequestDoc(docToInsert as iSIWBBRequestDoc<NumberType>).convert(convertFunction);
       const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iSIWBBRequestDoc<NumberType>>(convertedDoc);
       if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === FollowDetailsModel.modelName) {

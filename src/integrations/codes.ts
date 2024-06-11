@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import { type BackendIntegrationPlugin } from './types';
 
 dotenv.config();
-const { AES, SHA256 } = CryptoJS;
+const { SHA256 } = CryptoJS;
 
 export const generateCodesFromSeed = (seedCode: string, numCodes: number): string[] => {
   let currCode = seedCode;
@@ -14,11 +14,6 @@ export const generateCodesFromSeed = (seedCode: string, numCodes: number): strin
   }
   return codes;
 };
-
-const symKey = process.env.SYM_KEY ?? '';
-if (!symKey) {
-  throw new Error('No symmetric key found');
-}
 
 export interface Setter {
   $set: object;
@@ -39,16 +34,10 @@ export const CodesPluginDetails: BackendIntegrationPlugin<'codes'> = {
     usedCodeIndices: {}
   },
   encryptPrivateParams: (privateParams) => {
-    return {
-      codes: privateParams.codes.map((code) => AES.encrypt(code, symKey).toString()),
-      seedCode: AES.encrypt(privateParams.seedCode, symKey).toString()
-    };
+    return privateParams;
   },
   decryptPrivateParams: (privateParams) => {
-    return {
-      codes: (privateParams.codes ?? []).map((code) => AES.decrypt(code, symKey).toString(CryptoJS.enc.Utf8)),
-      seedCode: privateParams.seedCode ? AES.decrypt(privateParams.seedCode, symKey).toString(CryptoJS.enc.Utf8) : ''
-    };
+    return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState) => {
     const instanceId = context.instanceId;

@@ -311,10 +311,6 @@ export const getFirstMatchForPluginType = <T extends ClaimIntegrationPluginType>
 export const encryptPlugins = async (
   plugins: Array<IntegrationPluginParams<ClaimIntegrationPluginType>>
 ): Promise<IntegrationPluginParams<ClaimIntegrationPluginType>[]> => {
-  const SYM_KEY = process.env.SYM_KEY;
-  if (!SYM_KEY) {
-    throw new Error('No symmetric key found');
-  }
   const pluginsRes = [];
   for (const plugin of plugins) {
     if (!plugin) throw new Error('No plugin found');

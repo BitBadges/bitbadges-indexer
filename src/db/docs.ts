@@ -146,6 +146,7 @@ export interface ApiKeyDoc {
   _id?: string;
   tier?: string;
   label: string;
+  apiKey: string;
   cosmosAddress: string;
   numRequests: number;
   lastRequest: number;

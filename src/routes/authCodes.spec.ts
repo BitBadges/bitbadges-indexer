@@ -9,7 +9,8 @@ import {
   type CreateSIWBBRequestPayload,
   type DeleteSIWBBRequestPayload,
   type GetAndVerifySIWBBRequestPayload,
-  CreateDeveloperAppPayload
+  CreateDeveloperAppPayload,
+  AttestationDoc
 } from 'bitbadgesjs-sdk';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
@@ -17,6 +18,7 @@ import { Express } from 'express';
 import request from 'supertest';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
+import crypto from 'crypto';
 import { DeveloperAppModel, OffChainAttestationsModel, SIWBBRequestModel } from '../db/schemas';
 import { createExampleReqForAddress } from '../testutil/utils';
 const app = (global as any).app as Express;
@@ -322,7 +324,7 @@ describe('get Siwbb requests', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
-    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
+    const getResPayload: GetAttestationPayload = { addKey: res.body.addKey };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -650,7 +652,7 @@ describe('get Siwbb requests', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
-    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
+    const getResPayload: GetAttestationPayload = { addKey: res.body.addKey };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -786,7 +788,7 @@ describe('get Siwbb requests', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
-    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
+    const getResPayload: GetAttestationPayload = { addKey: res.body.addKey };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -881,7 +883,7 @@ describe('get Siwbb requests', () => {
     console.log(res.body);
 
     const getResRoute = BitBadgesApiRoutes.GetAttestationsRoute();
-    const getResPayload: GetAttestationPayload = { attestationId: res.body.attestationId };
+    const getResPayload: GetAttestationPayload = { addKey: res.body.addKey };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -1025,7 +1027,7 @@ describe('get Siwbb requests', () => {
 
     const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
     const updateAttestationPayload: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       name: 'test2',
       description: 'test2',
       image: 'test2'
@@ -1038,7 +1040,9 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload);
     expect(updateRes.status).toBeGreaterThan(400);
 
-    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    const secretsDoc = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc.name).toBe('test');
     expect(secretsDoc.description).toBe('test');
     expect(secretsDoc.image).toBe('test');
@@ -1050,7 +1054,9 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload);
     expect(updateRes2.status).toBeGreaterThan(400);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    const secretsDoc2 = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc2.name).toBe('test');
     expect(secretsDoc2.description).toBe('test');
     expect(secretsDoc2.image).toBe('test');
@@ -1106,7 +1112,7 @@ describe('get Siwbb requests', () => {
 
     const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
     const updateAttestationPayload: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       anchorsToAdd: [
         {
           txHash: 'test'
@@ -1121,11 +1127,13 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload);
     expect(updateRes.status).toBe(200);
 
-    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    const secretsDoc = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc.anchors.length).toBe(1);
 
     const updateAttestationPayload2: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       anchorsToAdd: [
         {
           txHash: 'test2'
@@ -1140,11 +1148,13 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload2);
     expect(updateRes2.status).toBeGreaterThan(400);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    const secretsDoc2 = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc2.anchors.length).toBe(1);
 
     const updateAttestationPayload3: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       anchorsToAdd: [
         {
           txHash: 'test'
@@ -1209,7 +1219,7 @@ describe('get Siwbb requests', () => {
 
     const updateSecretRoute = BitBadgesApiRoutes.CRUDAttestationRoute();
     const updateAttestationPayload: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethWallet.address),
@@ -1225,11 +1235,14 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload);
     expect(updateRes.status).toBe(200);
 
-    const secretsDoc = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    console.log(res.body.addKey);
+    const secretsDoc = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc.holders.length).toBe(1);
 
     const updateAttestationPayload2: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethers.Wallet.createRandom().address),
@@ -1245,11 +1258,13 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload2);
     expect(updateRes2.status).toBeGreaterThan(400);
 
-    const secretsDoc2 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    const secretsDoc2 = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc2.holders.length).toBe(1);
 
     const updateAttestationPayload3: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethWallet.address),
@@ -1264,12 +1279,14 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload3);
     expect(updateRes3.status).toBeGreaterThan(400);
 
-    const secretsDoc3 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    const secretsDoc3 = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc3.holders.length).toBe(1);
 
     //Test deletes
     const updateAttestationPayload4: UpdateAttestationPayload = {
-      attestationId: res.body.attestationId,
+      addKey: res.body.addKey,
       holdersToSet: [
         {
           cosmosAddress: convertToCosmosAddress(ethWallet.address),
@@ -1285,7 +1302,9 @@ describe('get Siwbb requests', () => {
       .send(updateAttestationPayload4);
     expect(updateRes4.status).toBe(200);
 
-    const secretsDoc4 = await mustGetFromDB(OffChainAttestationsModel, res.body.attestationId);
+    const secretsDoc4 = (
+      await findInDB(OffChainAttestationsModel, { query: { addKey: crypto.createHash('sha256').update(res.body.addKey).digest('hex') } })
+    )?.[0] as AttestationDoc<bigint>;
     expect(secretsDoc4.holders.length).toBe(0);
   }, 20000);
 
@@ -1337,7 +1356,9 @@ describe('get Siwbb requests', () => {
     const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const clientSecret = clientIdDocs[0].clientSecret;
+    const clientSecret = 'xyz';
+    const clientSecretHash = crypto.createHash('sha256').update(clientSecret).digest('hex');
+    await insertToDB(DeveloperAppModel, { ...clientIdDocs[0], clientSecret: clientSecretHash });
     const redirectUri = clientIdDocs[0].redirectUris[0];
     const body: CreateSIWBBRequestPayload = {
       allowReuseOfBitBadgesSignIn: false,
@@ -1407,7 +1428,9 @@ describe('get Siwbb requests', () => {
     const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const clientSecret = clientIdDocs[0].clientSecret;
+    const clientSecret = 'xyz';
+    const clientSecretHash = crypto.createHash('sha256').update(clientSecret).digest('hex');
+    await insertToDB(DeveloperAppModel, { ...clientIdDocs[0], clientSecret: clientSecretHash });
     const redirectUri = clientIdDocs[0].redirectUris[0];
     const body: CreateSIWBBRequestPayload = {
       allowReuseOfBitBadgesSignIn: false,
@@ -1453,7 +1476,10 @@ describe('get Siwbb requests', () => {
     const route = BitBadgesApiRoutes.CRUDSIWBBRequestRoute();
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true } } });
     const clientId = clientIdDocs[0]._docId;
-    const clientSecret = clientIdDocs[0].clientSecret;
+    const clientSecret = 'xyz';
+    const clientSecretHash = crypto.createHash('sha256').update(clientSecret).digest('hex');
+    await insertToDB(DeveloperAppModel, { ...clientIdDocs[0], clientSecret: clientSecretHash });
+
     const redirectUri = clientIdDocs[0].redirectUris[0];
     const body: CreateSIWBBRequestPayload = {
       allowReuseOfBitBadgesSignIn: true,

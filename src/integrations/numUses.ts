@@ -21,13 +21,15 @@ export const NumUsesDetails: BackendIntegrationPlugin<'numUses'> = {
       return { success: false, error: 'Overall max uses exceeded' };
     }
 
+    const newNumUses = priorState.numUses + 1;
+
     return {
       success: true,
       claimNumber: context.isClaimNumberAssigner ? priorState.numUses : undefined,
       toSet: [
         {
           $set: {
-            [`state.${instanceId}.numUses`]: { $add: [`$state.${instanceId}.numUses`, 1] }
+            [`state.${instanceId}.numUses`]: newNumUses
           }
         }
       ]

@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/comma-dangle */
 import {
+  AccessTokenDoc,
+  AuthorizationCodeDoc,
   DeveloperAppDoc,
   PluginDoc,
+  iAccessTokenDoc,
+  iAuthorizationCodeDoc,
   iDeveloperAppDoc,
   iPluginDoc,
   type AccountDoc,
@@ -9,8 +13,8 @@ import {
   type AddressListDoc,
   type AirdropDoc,
   type ApprovalTrackerDoc,
+  type AttestationDoc,
   type BalanceDoc,
-  type SIWBBRequestDoc,
   type ClaimAlertDoc,
   type ClaimBuilderDoc,
   type CollectionDoc,
@@ -28,15 +32,15 @@ import {
   type QueueDoc,
   type RefreshDoc,
   type ReviewDoc,
-  type AttestationDoc,
+  type SIWBBRequestDoc,
   type StatusDoc,
   type TransferActivityDoc,
   type iAccountDoc,
   type iAddressListDoc,
   type iAirdropDoc,
   type iApprovalTrackerDoc,
+  type iAttestationDoc,
   type iBalanceDoc,
-  type iSIWBBRequestDoc,
   type iClaimAlertDoc,
   type iClaimBuilderDoc,
   type iCollectionDoc,
@@ -51,13 +55,9 @@ import {
   type iQueueDoc,
   type iRefreshDoc,
   type iReviewDoc,
-  type iAttestationDoc,
+  type iSIWBBRequestDoc,
   type iStatusDoc,
-  type iTransferActivityDoc,
-  AuthorizationCodeDoc,
-  AccessTokenDoc,
-  iAuthorizationCodeDoc,
-  iAccessTokenDoc
+  type iTransferActivityDoc
 } from 'bitbadgesjs-sdk';
 import mongoose from 'mongoose';
 import {
@@ -87,7 +87,8 @@ export const AuthorizationCodeSchema = new Schema<AuthorizationCodeDoc>({
   redirectUri: String,
   scopes: Schema.Types.Mixed,
   address: String,
-  cosmosAddress: String
+  cosmosAddress: String,
+  expiresAt: Number
 });
 
 export const AccessTokenSchema = new Schema<AccessTokenDoc>({
@@ -148,6 +149,7 @@ export const MapSchema = new Schema<MapDoc<JSPrimitiveNumberType>>({
 export const OffChainAttestationsSchema = new Schema<AttestationDoc<JSPrimitiveNumberType>>({
   _docId: String,
   createdBy: String,
+  addKey: String,
   attestationId: String,
   type: String,
   scheme: String,
@@ -483,6 +485,7 @@ export const BrowseSchema = new Schema({
 export const ApiKeySchema = new Schema({
   _docId: String,
   numRequests: Number,
+  apiKey: String,
   lastRequest: Number,
   label: String,
   intendedUse: String,
@@ -561,11 +564,13 @@ export const DigitalOceanBalancesModel = mongoose.model<DigitalOceanBalancesDoc<
   DigitalOceanBalancesSchema
 );
 
+//IMPORTANT: The names are somehow pluralized in the model creation process, so we should always make sure they match and are the plural version
+
 export const AuthorizationCodeModel = mongoose.model<AuthorizationCodeDoc>('authorization-codes', AuthorizationCodeSchema);
 export const AccessTokenModel = mongoose.model<AccessTokenDoc>('access-tokens', AccessTokenSchema);
-export const ClaimAttemptStatusModel = mongoose.model('claim-attempt-status', ClaimAttemptStatusSchema);
-export const ClaimDocHistoryModel = mongoose.model('claim-doc-history', ClaimDocHistorySchema);
-export const PluginDocHistoryModel = mongoose.model('plugin-doc-history', PluginDocHistorySchema);
+export const ClaimAttemptStatusModel = mongoose.model('claim-attempt-statuses', ClaimAttemptStatusSchema);
+export const ClaimDocHistoryModel = mongoose.model('claim-doc-histories', ClaimDocHistorySchema);
+export const PluginDocHistoryModel = mongoose.model('plugin-doc-histories', PluginDocHistorySchema);
 export const PluginModel = mongoose.model<PluginDoc<JSPrimitiveNumberType>>('plugins', PluginSchema);
 export const DeveloperAppModel = mongoose.model<DeveloperAppDoc>('auth-apps', DeveloperAppSchema);
 export const MapModel = mongoose.model<MapDoc<JSPrimitiveNumberType>>('maps', MapSchema);
@@ -573,7 +578,7 @@ export const OffChainAttestationsModel = mongoose.model<AttestationDoc<JSPrimiti
 export const BrowseModel = mongoose.model<BrowseDoc<JSPrimitiveNumberType>>('browse', BrowseSchema);
 export const ApiKeyModel = mongoose.model<ApiKeyDoc>('api-keys', ApiKeySchema);
 export const FetchModel = mongoose.model<FetchDoc<JSPrimitiveNumberType>>('fetches', FetchSchema);
-export const QueueModel = mongoose.model<QueueDoc<JSPrimitiveNumberType>>('queue', QueueSchema);
+export const QueueModel = mongoose.model<QueueDoc<JSPrimitiveNumberType>>('queues', QueueSchema);
 export const RefreshModel = mongoose.model<RefreshDoc<JSPrimitiveNumberType>>('refreshes', RefreshSchema);
 export const StatusModel = mongoose.model<StatusDoc<JSPrimitiveNumberType>>('status', StatusSchema);
 export const AccountModel = mongoose.model<AccountDoc<JSPrimitiveNumberType>>('accounts', AccountSchema);
@@ -582,21 +587,21 @@ export const BalanceModel = mongoose.model<BalanceDoc<JSPrimitiveNumberType>>('b
 export const MerkleChallengeModel = mongoose.model<MerkleChallengeDoc<JSPrimitiveNumberType>>('merkle-challenges', ChallengeSchema);
 export const ClaimBuilderModel = mongoose.model<ClaimBuilderDoc<JSPrimitiveNumberType>>('claims', ClaimBuilderSchema);
 export const ProfileModel = mongoose.model<ProfileDoc<JSPrimitiveNumberType>>('profiles', ProfileSchema);
-export const TransferActivityModel = mongoose.model<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activity', TransferActivitySchema);
+export const TransferActivityModel = mongoose.model<TransferActivityDoc<JSPrimitiveNumberType>>('transfer-activities', TransferActivitySchema);
 export const ReviewModel = mongoose.model<ReviewDoc<JSPrimitiveNumberType>>('reviews', ReviewSchema);
 export const IPFSTotalsModel = mongoose.model<IPFSTotalsDoc<JSPrimitiveNumberType>>('ipfs-totals', IPFSTotalsSchema);
-export const AirdropModel = mongoose.model<AirdropDoc<JSPrimitiveNumberType>>('airdrop', AirdropSchema);
+export const AirdropModel = mongoose.model<AirdropDoc<JSPrimitiveNumberType>>('airdrops', AirdropSchema);
 export const AddressListModel = mongoose.model<AddressListDoc<JSPrimitiveNumberType>>('address-lists', AddressListSchema);
 export const ApprovalTrackerModel = mongoose.model<ApprovalTrackerDoc<JSPrimitiveNumberType>>('approvals-trackers', ApprovalTrackerSchema);
 export const ClaimAlertModel = mongoose.model<ClaimAlertDoc<JSPrimitiveNumberType>>('claim-alerts', ClaimAlertSchema);
-export const ComplianceModel = mongoose.model<ComplianceDoc<JSPrimitiveNumberType>>('compliance', ComplianceSchema);
+export const ComplianceModel = mongoose.model<ComplianceDoc<JSPrimitiveNumberType>>('compliances', ComplianceSchema);
 export const SIWBBRequestModel = mongoose.model<SIWBBRequestDoc<JSPrimitiveNumberType>>('auth-codes', SIWBBRequestSchema);
 export const FollowDetailsModel = mongoose.model<FollowDetailsDoc<JSPrimitiveNumberType>>('follows', FollowDetailsSchema);
-export const ListActivityModel = mongoose.model<ListActivityDoc<JSPrimitiveNumberType>>('list-activity', ListActivitySchema);
+export const ListActivityModel = mongoose.model<ListActivityDoc<JSPrimitiveNumberType>>('list-activities', ListActivitySchema);
 export const PageVisitsModel = mongoose.model<PageVisitsDoc<JSPrimitiveNumberType>>('page-visits', PageVisitsSchema);
 export const ErrorModel = mongoose.model<ErrorDoc>('errors', ErrorSchema);
 export const UsernameModel = mongoose.model<UsernameDoc>('usernames', UsernameSchema);
-export const EthTxCountModel = mongoose.model<EthTxCountDoc>('eth-tx-count', EthTxCountSchema);
+export const EthTxCountModel = mongoose.model<EthTxCountDoc>('eth-tx-counts', EthTxCountSchema);
 export const OffChainUrlModel = mongoose.model<OffChainUrlDoc>('off-chain-urls', OffChainUrlSchema);
 export const ReportModel = mongoose.model<ReportDoc>('reports', ReportSchema);
 

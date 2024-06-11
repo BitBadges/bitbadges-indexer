@@ -31,6 +31,7 @@ import { getChainDriver } from './blockin';
 import { SupportedScopes, hasScopes } from './scopes';
 import typia from 'typia';
 import { typiaError } from '../routes/search';
+import crypto from 'crypto';
 
 export interface BlockinSessionDetails<T extends NumberType> {
   /**
@@ -179,7 +180,9 @@ export async function getAuthDetails<T extends NumberType>(
     }
 
     const token = authHeaderParts[1];
-    const tokenDoc = await getFromDB(AccessTokenModel, token);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const tokenDoc = await getFromDB(AccessTokenModel, tokenHash);
     if (!tokenDoc || tokenDoc.accessTokenExpiresAt < Date.now()) {
       return null;
     }

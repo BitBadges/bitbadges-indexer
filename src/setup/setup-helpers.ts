@@ -23,8 +23,10 @@ import {
   ChallengeSchema,
   ClaimAlertModel,
   ClaimAlertSchema,
+  ClaimAttemptStatusModel,
   ClaimBuilderModel,
   ClaimBuilderSchema,
+  ClaimDocHistoryModel,
   CollectionModel,
   CollectionSchema,
   ComplianceModel,
@@ -53,6 +55,7 @@ import {
   OffChainUrlSchema,
   PageVisitsModel,
   PageVisitsSchema,
+  PluginDocHistoryModel,
   PluginModel,
   PluginSchema,
   ProfileModel,
@@ -78,6 +81,10 @@ import {
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(ClaimAttemptStatusModel.collection.name);
+  await MongoDB.dropCollection(PluginDocHistoryModel.collection.name);
+  await MongoDB.dropCollection(ClaimDocHistoryModel.collection.name);
+  await MongoDB.dropCollection(ApiKeyModel.collection.name);
   await MongoDB.dropCollection(DigitalOceanBalancesModel.collection.name);
   await MongoDB.dropCollection(AuthorizationCodeModel.collection.name);
   await MongoDB.dropCollection(AccessTokenModel.collection.name);
@@ -119,7 +126,8 @@ export async function deleteDatabases(): Promise<void> {
 export async function initStatus(): Promise<void> {
   if (process.env.BITBADGES_API_KEY === undefined) throw new Error('BITBADGES_API_KEY env var not set');
   await insertToDB(ApiKeyModel, {
-    _docId: process.env.BITBADGES_API_KEY,
+    _docId: 'default-setup',
+    apiKey: process.env.BITBADGES_API_KEY,
     cosmosAddress: '',
     numRequests: 0,
     lastRequest: 0,

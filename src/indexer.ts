@@ -43,6 +43,7 @@ import passport from 'passport';
 import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
+import typia from 'typia';
 import validator from 'validator';
 import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './auth/oauth';
 import {
@@ -57,7 +58,8 @@ import {
   verifyBlockinAndGrantSessionCookie,
   type BlockinSession
 } from './blockin/blockin_handlers';
-import { deleteMany, getFromDB, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
+import { deleteMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
+import { ApiKeyDoc } from './db/docs';
 import { findInDB } from './db/queries';
 import { AccessTokenModel, ApiKeyModel, AuthorizationCodeModel, DeveloperAppModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE, client } from './indexer-vars';
@@ -97,8 +99,6 @@ import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, getFilterSuggestionsHandler, searchHandler, typiaError } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
-import { ApiKeyDoc } from './db/docs';
-import typia from 'typia';
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000; // Set the default timeout value in milliseconds
 
@@ -185,14 +185,25 @@ const apiKeyHandler = async (req: Request, res: Response, next: NextFunction) =>
       throw new Error('Unauthorized request. Could not identify origin of request.');
     }
 
-    let doc = await getFromDB(ApiKeyModel, identifier);
+    const identifierHash = crypto.createHash('sha256').update(identifier).digest('hex');
+
+    const docs = await findInDB(ApiKeyModel, { query: { apiKey: { $eq: identifierHash } }, limit: 1 });
+    let doc = docs?.[0];
     if (!doc) {
       if (apiKey) {
         throw new Error('Unauthorized request. API key not found.');
       }
 
+      // Deterministic ID to avoid creating duplicate docs
+      // Yes, first load might overwrite the same doc a couple times if many simultaneous reqs but it's fine
+      const uniqueDocId = crypto
+        .createHash('sha256')
+        .update(identifier + 'bitbadges')
+        .digest('hex');
+
       const newDoc: ApiKeyDoc = {
-        _docId: identifier,
+        _docId: uniqueDocId,
+        apiKey: identifierHash,
         numRequests: 0,
         expiry: Number.MAX_SAFE_INTEGER,
         tier: 'free',
@@ -317,7 +328,12 @@ app.use(
     secret: process.env.SESSION_SECRET ? process.env.SESSION_SECRET : '',
     resave: false,
     rolling: true,
-    store: MongoStore.create({ mongoUrl: process.env.DB_URL }),
+    store: MongoStore.create({
+      mongoUrl: process.env.DB_URL,
+      crypto: {
+        secret: process.env.SESSION_SECRET ?? ''
+      }
+    }),
     saveUninitialized: false,
     cookie: {
       secure: isProduction,
@@ -599,10 +615,13 @@ app.post(
         throw new Error('Full Access scope is not allowed for API Authorization.');
       }
 
+      const code = crypto.randomBytes(32).toString('hex');
+      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
       if (response_type === 'code') {
         const authDetails = await mustGetAuthDetails(req, res);
-        const code: iAuthorizationCodeDoc = {
-          _docId: crypto.randomBytes(32).toString('hex'),
+        const codeDoc: iAuthorizationCodeDoc = {
+          _docId: codeHash,
           clientId: client_id,
           redirectUri: redirect_uri,
           scopes: scopes,
@@ -610,8 +629,8 @@ app.post(
           cosmosAddress: authDetails.cosmosAddress,
           expiresAt: Date.now() + 1000 * 60 * 2
         };
-        await insertToDB(AuthorizationCodeModel, code);
-        return res.json({ code: code._docId });
+        await insertToDB(AuthorizationCodeModel, codeDoc);
+        return res.json({ code: code });
       } else {
         throw new Error('Invalid response type. Only "code" is supported.');
       }
@@ -635,15 +654,16 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
 
     const client = await mustGetFromDB(DeveloperAppModel, client_id);
     if (!client) {
-      return res.status(400).json({ error: 'Invalid client credentials' });
+      return res.status(400).json({ error: 'Invalid client credentials. No app found.' });
     }
 
-    if (client.clientSecret !== client_secret || client.clientId !== client_id) {
+    if (crypto.createHash('sha256').update(client_secret).digest('hex') !== client.clientSecret || client.clientId !== client_id) {
       return res.status(400).json({ error: 'Invalid client credentials' });
     }
 
     if (grant_type === 'authorization_code') {
-      const authorizationCodeDoc = await mustGetFromDB(AuthorizationCodeModel, code);
+      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+      const authorizationCodeDoc = await mustGetFromDB(AuthorizationCodeModel, codeHash);
 
       if (redirect_uri !== authorizationCodeDoc.redirectUri) {
         return res.status(400).json({ error: 'Invalid redirect URI' });
@@ -654,12 +674,17 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
       }
 
       const accessToken = crypto.randomBytes(32).toString('hex');
+      const accessTokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
+
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
       const token: iAccessTokenDoc = {
-        _docId: accessToken,
-        accessToken: accessToken,
+        _docId: accessTokenHash,
+        accessToken: accessTokenHash,
         tokenType: 'bearer',
         accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
-        refreshToken: crypto.randomBytes(32).toString('hex'),
+        refreshToken: refreshTokenHash,
         refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30,
 
         cosmosAddress: mustConvertToCosmosAddress(authorizationCodeDoc.address),
@@ -669,15 +694,21 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
       };
 
       await insertToDB(AccessTokenModel, token);
-      await deleteMany(AuthorizationCodeModel, [code]);
+      await deleteMany(AuthorizationCodeModel, [codeHash]);
 
-      return res.json(token);
+      return res.json({
+        ...token,
+        accessToken: accessToken,
+        refreshToken: refreshToken
+      });
     } else if (grant_type === 'refresh_token') {
       if (!validator.isHexadecimal(refresh_token)) {
         return res.status(400).json({ error: 'Invalid refresh token' });
       }
 
-      const refreshTokenRes = await findInDB(AccessTokenModel, { query: { refreshToken: { $eq: refresh_token } } });
+      const refreshTokenHash = crypto.createHash('sha256').update(refresh_token).digest('hex');
+
+      const refreshTokenRes = await findInDB(AccessTokenModel, { query: { refreshToken: { $eq: refreshTokenHash } } });
       if (refreshTokenRes.length === 0) {
         return res.status(400).json({ error: 'Invalid refresh token' });
       }
@@ -689,13 +720,18 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
       }
 
       const newAccessToken = crypto.randomBytes(32).toString('hex');
+      const newAccessTokenHash = crypto.createHash('sha256').update(newAccessToken).digest('hex');
+
+      const newRefreshToken = crypto.randomBytes(32).toString('hex');
+      const newRefreshTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+
       const newToken: iAccessTokenDoc = {
-        _docId: newAccessToken,
-        accessToken: newAccessToken,
+        _docId: newAccessTokenHash,
+        accessToken: newAccessTokenHash,
         tokenType: 'bearer',
         accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
         refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
-        refreshToken: crypto.randomBytes(32).toString('hex'),
+        refreshToken: newRefreshTokenHash,
         cosmosAddress: refreshTokenDoc.cosmosAddress,
         address: refreshTokenDoc.address,
         scopes: refreshTokenDoc.scopes,
@@ -704,7 +740,11 @@ app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
       await insertToDB(AccessTokenModel, newToken);
       await deleteMany(AccessTokenModel, [refreshTokenDoc._docId]);
 
-      return res.json(newToken);
+      return res.json({
+        ...newToken,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+      });
     }
 
     return res.status(400).json({ error: 'Unsupported grant type' });
@@ -722,7 +762,9 @@ app.post('/api/v0/oauth/token/revoke', async (req: AuthenticatedRequest<NumberTy
     const { token } = req.body;
     typia.assert<string>(token);
 
-    const accessTokenDoc = await mustGetFromDB(AccessTokenModel, token);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const accessTokenDoc = await mustGetFromDB(AccessTokenModel, tokenHash);
     await deleteMany(AccessTokenModel, [accessTokenDoc._docId]);
     return res.status(200).send({ message: 'Token revoked' });
   } catch (e) {
@@ -778,18 +820,65 @@ app.post(
         });
       }
 
+      const newDocId = crypto.randomBytes(32).toString('hex');
       const newKey = crypto.randomBytes(64).toString('hex');
+      const newKeyHash = crypto.createHash('sha256').update(newKey).digest('hex');
       await insertToDB(ApiKeyModel, {
         cosmosAddress,
         label: req.body.label ?? '',
+        apiKey: newKeyHash,
         intendedUse: req.body.intendedUse ?? '',
-        _docId: newKey,
+        _docId: newDocId,
         numRequests: 0,
         lastRequest: 0,
         createdAt: Date.now(),
         expiry: Date.now() + 1000 * 60 * 60 * 24 * 365,
         tier: 'standard'
       });
+      return res.status(200).send({ key: newKey });
+    } catch (e) {
+      return res.status(500).send({
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+        errorMessage: e.message
+      });
+    }
+  }
+);
+
+app.post(
+  '/api/v0/apiKeys/rotate',
+  websiteOnlyCors,
+  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
+  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+    try {
+      const docId = req.body.docId;
+      typia.assert<string>(docId);
+
+      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
+
+      const docs = await findInDB(ApiKeyModel, { query: { _docId: docId }, limit: 1 });
+      if (docs.length === 0) {
+        return res.status(404).send({
+          error: 'Not found',
+          errorMessage: 'API key not found.'
+        });
+      }
+
+      const doc = docs[0];
+      if (doc.cosmosAddress !== cosmosAddress) {
+        return res.status(401).send({
+          error: 'Unauthorized',
+          errorMessage: 'You are not authorized to delete this key.'
+        });
+      }
+
+      const newKey = crypto.randomBytes(64).toString('hex');
+      const newKeyHash = crypto.createHash('sha256').update(newKey).digest('hex');
+      await insertToDB(ApiKeyModel, {
+        ...doc,
+        apiKey: newKeyHash
+      });
+
       return res.status(200).send({ key: newKey });
     } catch (e) {
       return res.status(500).send({
@@ -811,7 +900,15 @@ app.delete(
 
       const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
 
-      const doc = await mustGetFromDB(ApiKeyModel, keyToDelete);
+      const docs = await findInDB(ApiKeyModel, { query: { apiKey: keyToDelete }, limit: 1 });
+      if (docs.length === 0) {
+        return res.status(404).send({
+          error: 'Not found',
+          errorMessage: 'API key not found.'
+        });
+      }
+
+      const doc = docs[0];
       if (doc.cosmosAddress !== cosmosAddress) {
         return res.status(401).send({
           error: 'Unauthorized',
@@ -819,7 +916,7 @@ app.delete(
         });
       }
 
-      await deleteMany(ApiKeyModel, [keyToDelete]);
+      await deleteMany(ApiKeyModel, [doc._docId]);
 
       return res.status(200).send({ message: 'Successfully deleted key' });
     } catch (e) {

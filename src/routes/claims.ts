@@ -33,6 +33,7 @@ import crypto from 'crypto';
 import { type Response } from 'express';
 import { ClientSession } from 'mongoose';
 import { serializeError } from 'serialize-error';
+import typia from 'typia';
 import validator from 'validator';
 import {
   BlockinSession,
@@ -64,7 +65,6 @@ import { getActivityDocsForListUpdate } from './addressLists';
 import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, ContextReturn, updateClaimDocs } from './ipfs';
 import { refreshCollection } from './refresh';
-import typia from 'typia';
 import { typiaError } from './search';
 
 enum ActionType {
@@ -690,26 +690,30 @@ export const completeClaimHandler = async (
     const claimedUsers = claimBuilderDoc.state[`${numUsesPluginId}`].claimedUsers;
     setters.push({
       $set: {
-        [`state.${numUsesPluginId}.claimedUsers.${cosmosAddress}`]: {
-          $concatArrays: [claimedUsers[cosmosAddress] ?? [], [claimNumber]]
-        }
+        [`state.${numUsesPluginId}.claimedUsers.${cosmosAddress}`]: [...(claimedUsers[cosmosAddress] ?? []), claimNumber]
       }
     });
 
-    // Find the doc, increment currCode, and add the given code idx to claimedUsers
-    const newDoc = await ClaimBuilderModel.findOneAndUpdate(
-      {
-        ...query,
-        _docId: claimBuilderDoc._docId
-      },
-      setters,
-      { new: true, session }
-    )
-      .lean()
-      .exec();
-    if (!newDoc) {
-      throw new Error('No doc found');
+    //Handle setters for each plugin
+    const newDoc = claimBuilderDoc.clone();
+    for (const setter of setters) {
+      if (!setter) continue;
+      // all are in format $set: { key: value }
+      const setterObjct: any = setter;
+      const toSet = setterObjct.$set;
+      const entries = Object.entries(toSet);
+      //handle with nested properties split by '.'
+      for (const [key, value] of entries) {
+        const splitKey = key.split('.');
+        let currObj: any = newDoc;
+        for (let i = 0; i < splitKey.length - 1; i++) {
+          currObj = currObj[splitKey[i]];
+        }
+        currObj[splitKey[splitKey.length - 1]] = value;
+      }
     }
+
+    await insertToDB(ClaimBuilderModel, newDoc, session);
 
     //Past the point where it could be undefined (simulate or prevCodesOnly)
     const castedSession = session as ClientSession;

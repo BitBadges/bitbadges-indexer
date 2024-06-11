@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { Express } from 'express';
 import request from 'supertest';
+import crypto from 'crypto';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, ProfileModel } from '../db/schemas';
 const app = (global as any).app as Express;
@@ -42,6 +43,10 @@ describe('oauth', () => {
 
   it('should correctly authorize', async () => {
     const devApp = await mustGetFromDB(DeveloperAppModel, 'test');
+    const clientSecret = 'xyz';
+    const clientSecretHash = crypto.createHash('sha256').update(clientSecret).digest('hex');
+    await insertToDB(DeveloperAppModel, { ...devApp, clientSecret: clientSecretHash });
+
     const route = BitBadgesApiRoutes.OauthAuthorizeRoute();
     const body: OauthAuthorizePayload = {
       response_type: 'code',
@@ -66,7 +71,7 @@ describe('oauth', () => {
       grant_type: 'authorization_code',
       code: authCode,
       client_id: devApp.clientId,
-      client_secret: devApp.clientSecret,
+      client_secret: clientSecret,
       redirect_uri: devApp.redirectUris[0]
     };
 
@@ -157,7 +162,7 @@ describe('oauth', () => {
       grant_type: 'refresh_token',
       refresh_token: exchangeResponse.refreshToken,
       client_id: devApp.clientId,
-      client_secret: devApp.clientSecret,
+      client_secret: clientSecret,
       redirect_uri: devApp.redirectUris[0]
     };
 
@@ -170,6 +175,10 @@ describe('oauth', () => {
 
   it('should allow refresh tokens to be used', async () => {
     const devApp = await mustGetFromDB(DeveloperAppModel, 'test');
+    const clientSecret = 'xyz';
+    const clientSecretHash = crypto.createHash('sha256').update(clientSecret).digest('hex');
+    await insertToDB(DeveloperAppModel, { ...devApp, clientSecret: clientSecretHash });
+
     const route = BitBadgesApiRoutes.OauthAuthorizeRoute();
     const body: OauthAuthorizePayload = {
       response_type: 'code',
@@ -194,7 +203,7 @@ describe('oauth', () => {
       grant_type: 'authorization_code',
       code: authCode,
       client_id: devApp.clientId,
-      client_secret: devApp.clientSecret,
+      client_secret: clientSecret,
       redirect_uri: devApp.redirectUris[0]
     };
 
@@ -213,7 +222,7 @@ describe('oauth', () => {
       grant_type: 'refresh_token',
       refresh_token: exchangeResponse.refreshToken,
       client_id: devApp.clientId,
-      client_secret: devApp.clientSecret,
+      client_secret: clientSecret,
       redirect_uri: devApp.redirectUris[0]
     };
 

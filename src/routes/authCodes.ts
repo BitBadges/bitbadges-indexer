@@ -267,7 +267,7 @@ export const getAndVerifySIWBBRequest = async (
       }
 
       const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
-      if (appDoc.clientSecret !== clientSecret) {
+      if (!clientSecret || appDoc.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
         throw new Error('Invalid client secret.');
       }
 

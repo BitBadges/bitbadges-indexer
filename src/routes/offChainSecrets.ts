@@ -15,13 +15,14 @@ import {
 import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import { serializeError } from 'serialize-error';
+import typia from 'typia';
 import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { OffChainAttestationsModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
-import typia from 'typia';
 import { typiaError } from './search';
+import { findInDB } from '../db/queries';
 
 export const createAttestation = async (req: AuthenticatedRequest<NumberType>, res: Response<iCreateAttestationSuccessResponse | ErrorResponse>) => {
   try {
@@ -38,6 +39,7 @@ export const createAttestation = async (req: AuthenticatedRequest<NumberType>, r
     });
 
     const uniqueId = crypto.randomBytes(32).toString('hex');
+    const idHash = crypto.createHash('sha256').update(uniqueId).digest('hex');
 
     const status = await getStatus();
     let image = reqPayload.image;
@@ -61,10 +63,12 @@ export const createAttestation = async (req: AuthenticatedRequest<NumberType>, r
       image = metadata.image;
     }
 
+    const docId = crypto.randomBytes(32).toString('hex');
     await insertToDB(OffChainAttestationsModel, {
       createdBy: authDetails.cosmosAddress,
-      attestationId: uniqueId,
-      _docId: uniqueId,
+      addKey: idHash,
+      _docId: docId,
+      attestationId: docId,
       holders: [],
       anchors: [],
       updateHistory: [
@@ -79,7 +83,7 @@ export const createAttestation = async (req: AuthenticatedRequest<NumberType>, r
       image
     });
 
-    return res.status(200).send({ attestationId: uniqueId });
+    return res.status(200).send({ addKey: uniqueId });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -96,7 +100,30 @@ export const getAttestation = async (req: Request, res: Response<iGetAttestation
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
-    const doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
+
+    if (reqPayload.attestationId && reqPayload.addKey) {
+      throw new Error('Cannot specify both attestationId and addKey');
+    }
+
+    if (!reqPayload.attestationId && !reqPayload.addKey) {
+      throw new Error('Must specify either attestationId or addKey');
+    }
+
+    let doc;
+    if (reqPayload.attestationId) {
+      doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
+    } else if (reqPayload.addKey) {
+      const addKeyHash = crypto.createHash('sha256').update(reqPayload.addKey).digest('hex');
+      const docs = await findInDB(OffChainAttestationsModel, { query: { addKey: { $eq: addKeyHash } } });
+      if (!docs?.[0]) {
+        throw new Error('Attestation not found.');
+      }
+
+      doc = docs[0];
+    } else {
+      throw new Error('Invalid attestationId or addKey');
+    }
+
     return res.status(200).send(doc);
   } catch (e) {
     console.error(e);
@@ -141,13 +168,34 @@ export const updateAttestation = async (req: AuthenticatedRequest<NumberType>, r
       return typiaError(res, validateRes);
     }
 
+    if (reqPayload.attestationId && reqPayload.addKey) {
+      throw new Error('Cannot specify both attestationId and addKey');
+    }
+
+    if (!reqPayload.attestationId && !reqPayload.addKey) {
+      throw new Error('Must specify either attestationId or addKey');
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
-    let doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
+    let doc;
+    if (reqPayload.attestationId) {
+      doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
+    } else if (reqPayload.addKey) {
+      const addKeyHash = crypto.createHash('sha256').update(reqPayload.addKey).digest('hex');
+      const docs = await findInDB(OffChainAttestationsModel, { query: { addKey: { $eq: addKeyHash } } });
+      if (!docs?.[0]) {
+        throw new Error('Attestation not found.');
+      }
+
+      doc = docs[0];
+    } else {
+      throw new Error('Invalid attestationId or addKey');
+    }
 
     for (const viewerToAdd of reqPayload.holdersToSet ?? []) {
       const cosmosAddress = viewerToAdd.cosmosAddress;
       if (authDetails.cosmosAddress !== doc.createdBy && authDetails.cosmosAddress !== cosmosAddress) {
-        throw new Error('To update a viewer, you must be the owner or add yourself as a viewer.');
+        throw new Error('To update a holder, you must be the owner or add yourself as a holder.');
       }
     }
 
@@ -171,11 +219,12 @@ export const updateAttestation = async (req: AuthenticatedRequest<NumberType>, r
       });
     }
 
+    const docId = doc._docId;
     for (const setter of setters) {
-      await OffChainAttestationsModel.findOneAndUpdate({ _docId: reqPayload.attestationId }, setter).lean().exec();
+      await OffChainAttestationsModel.findOneAndUpdate({ _docId: docId }, setter).lean().exec();
     }
 
-    doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
+    doc = await mustGetFromDB(OffChainAttestationsModel, docId);
 
     if (
       reqPayload.anchorsToAdd &&
@@ -197,7 +246,8 @@ export const updateAttestation = async (req: AuthenticatedRequest<NumberType>, r
       'name',
       'image',
       'description',
-      'messageFormat'
+      'messageFormat',
+      'rotateAddKey'
     ];
     if (authDetails.cosmosAddress !== doc.createdBy && Object.keys(reqPayload).some((k) => keysToUpdate.includes(k))) {
       throw new Error('You are not the owner, so you cannot update its core details.');
@@ -213,6 +263,13 @@ export const updateAttestation = async (req: AuthenticatedRequest<NumberType>, r
     doc.image = reqPayload.image ?? doc.image;
     doc.description = reqPayload.description ?? doc.description;
 
+    let newAddKey = '';
+    if (reqPayload.rotateAddKey) {
+      newAddKey = crypto.randomBytes(32).toString('hex');
+      const idHash = crypto.createHash('sha256').update(newAddKey).digest('hex');
+      doc.addKey = idHash;
+    }
+
     await verifyAttestationsPresentationSignatures(doc);
 
     const status = await getStatus();
@@ -227,7 +284,7 @@ export const updateAttestation = async (req: AuthenticatedRequest<NumberType>, r
 
     await insertToDB(OffChainAttestationsModel, doc);
 
-    return res.status(200).send({ success: true });
+    return res.status(200).send({ addKey: newAddKey });
   } catch (e) {
     console.error(e);
     return res.status(500).send({

@@ -17,7 +17,6 @@ import {
   iClaimBuilderDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
-import { AES } from 'crypto-js';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import request from 'supertest';
@@ -322,7 +321,7 @@ describe('claims', () => {
           numCodes: 5
         },
         privateParams: {
-          codes: codes.map((code) => AES.encrypt(code, process.env.SYM_KEY ?? '').toString())
+          codes: codes
         },
         publicState: {
           usedCodeIndices: {}

@@ -74,7 +74,7 @@ export async function mustGetAddressListsFromDB(
   fetchedLists?: iAddressListDoc<bigint>[],
   allowPrivateLists?: boolean
 ) {
-  const lists = await getAddressListsFromDB(listsToFetch, fetchMetadata, fetchActivity, fetchedLists);
+  const lists = await getAddressListsFromDB(listsToFetch, fetchMetadata, fetchActivity, fetchedLists, allowPrivateLists);
   if (lists.length !== listsToFetch.length) {
     throw new Error('Not all lists found');
   }
