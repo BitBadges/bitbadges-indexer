@@ -145,326 +145,330 @@ export const kmsProviders = { local: { key } };
 const uri = process.env.DB_URL ?? '';
 
 async function run() {
-  const client = new MongoClient(uri);
-  await client.connect();
+  if (process.env.ENCRYPTION_ACTIVE === 'true') {
+    const client = new MongoClient(uri);
+    await client.connect();
 
-  const encryption = new ClientEncryption(client, {
-    keyVaultNamespace,
-    kmsProviders
-  });
+    const encryption = new ClientEncryption(client, {
+      keyVaultNamespace,
+      kmsProviders
+    });
 
-  let _key;
-  const existingKeys = await encryption.getKeys().toArray();
+    let _key;
+    const existingKeys = await encryption.getKeys().toArray();
 
-  if (existingKeys?.[0]) {
-    await client.close();
-    _key = existingKeys?.[0]._id;
-  } else {
-    _key = await encryption.createDataKey('local');
-    await client.close();
-  }
+    if (existingKeys?.[0]) {
+      await client.close();
+      _key = existingKeys?.[0]._id;
+    } else {
+      _key = await encryption.createDataKey('local');
+      await client.close();
+    }
 
-  const dbName = 'bitbadges';
-  const schemaMap = {
-    [`${dbName}.${ClaimBuilderModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        state: {
-          encrypt: {
+    const dbName = 'bitbadges';
+    const schemaMap = {
+      [`${dbName}.${ClaimBuilderModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          state: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          plugins: {
+            encrypt: {
+              bsonType: 'array',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          action: {
             bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        plugins: {
-          encrypt: {
-            bsonType: 'array',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        action: {
-          bsonType: 'object',
-          properties: {
-            codes: {
-              encrypt: {
-                bsonType: 'array',
-                algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-              }
-            },
-            seedCode: {
-              encrypt: {
-                bsonType: 'string',
-                algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            properties: {
+              codes: {
+                encrypt: {
+                  bsonType: 'array',
+                  algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+                }
+              },
+              seedCode: {
+                encrypt: {
+                  bsonType: 'string',
+                  algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+                }
               }
             }
           }
         }
-      }
-    },
-    [`${dbName}.${ApiKeyModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
       },
-      properties: {
-        numRequests: {
-          bsonType: 'int'
+      [`${dbName}.${ApiKeyModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
         },
-        lastRequest: {
-          bsonType: 'int'
+        properties: {
+          numRequests: {
+            bsonType: 'int'
+          },
+          lastRequest: {
+            bsonType: 'int'
+          }
         }
-      }
-    },
-    [`${dbName}.${SIWBBRequestModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
       },
-      properties: {
-        signature: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
+      [`${dbName}.${SIWBBRequestModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
         },
-        params: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+        properties: {
+          signature: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          params: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          attestationsPresentations: {
+            encrypt: {
+              bsonType: 'array',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          otherSignIns: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
           }
+        }
+      },
+
+      [`${dbName}.${OffChainAttestationsModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
         },
-        attestationsPresentations: {
-          encrypt: {
+        properties: {
+          holders: {
             bsonType: 'array',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        otherSignIns: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            items: {
+              bsonType: 'string'
+            }
+          },
+          proofOfIssuance: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          attestationMessages: {
+            encrypt: {
+              bsonType: 'array',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          dataIntegrityProof: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
           }
         }
-      }
-    },
-
-    [`${dbName}.${OffChainAttestationsModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
       },
-      properties: {
-        holders: {
-          bsonType: 'array',
-          items: {
-            bsonType: 'string'
-          }
+
+      [`${dbName}.${AddressListModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
         },
-        proofOfIssuance: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        attestationMessages: {
-          encrypt: {
+        properties: {
+          addresses: {
             bsonType: 'array',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        dataIntegrityProof: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            items: {
+              bsonType: 'string'
+            }
           }
         }
-      }
-    },
+      },
 
-    [`${dbName}.${AddressListModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
+      [`${dbName}.${QueueModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          emailMessage: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          recipientAddress: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          claimInfo: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
       },
-      properties: {
-        addresses: {
-          bsonType: 'array',
-          items: {
-            bsonType: 'string'
+      [`${dbName}.${ProfileModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          socialConnections: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          approvedSignInMethods: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          notifications: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          watchlists: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
+      },
+      [`${dbName}.${ClaimAlertModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          message: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
+      },
+      [`${dbName}.${PluginModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          pluginSecret: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
+      },
+      [`${dbName}.${DeveloperAppModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          clientSecret: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
+      },
+      [`${dbName}.${PluginDocHistoryModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          prevDoc: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
+      },
+      [`${dbName}.${ClaimDocHistoryModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          prevDoc: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
+      },
+      [`${dbName}.${ClaimAttemptStatusModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          error: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          claimInfo: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          code: {
+            encrypt: {
+              bsonType: 'string',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
           }
         }
       }
-    },
+    };
 
-    [`${dbName}.${QueueModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        emailMessage: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        recipientAddress: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        claimInfo: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
+    await mongoose
+      .connect(`${process.env.DB_URL}`, {
+        autoEncryption: {
+          keyVaultNamespace,
+          kmsProviders,
+          schemaMap
         }
-      }
-    },
-    [`${dbName}.${ProfileModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        socialConnections: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        approvedSignInMethods: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        notifications: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        watchlists: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        }
-      }
-    },
-    [`${dbName}.${ClaimAlertModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        message: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        }
-      }
-    },
-    [`${dbName}.${PluginModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        pluginSecret: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        }
-      }
-    },
-    [`${dbName}.${DeveloperAppModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        clientSecret: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        }
-      }
-    },
-    [`${dbName}.${PluginDocHistoryModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        prevDoc: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        }
-      }
-    },
-    [`${dbName}.${ClaimDocHistoryModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        prevDoc: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        }
-      }
-    },
-    [`${dbName}.${ClaimAttemptStatusModel.modelName}`]: {
-      bsonType: 'object',
-      encryptMetadata: {
-        keyId: [_key]
-      },
-      properties: {
-        error: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        claimInfo: {
-          encrypt: {
-            bsonType: 'object',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        },
-        code: {
-          encrypt: {
-            bsonType: 'string',
-            algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
-          }
-        }
-      }
-    }
-  };
-
-  await mongoose
-    .connect(`${process.env.DB_URL}`, {
-      autoEncryption: {
-        keyVaultNamespace,
-        kmsProviders,
-        schemaMap
-      }
-    })
-    .catch((e) => {
-      console.error('Error connecting to MongoDB:', e);
-    });
+      })
+      .catch((e) => {
+        console.error('Error connecting to MongoDB:', e);
+      });
+  } else {
+    await mongoose.connect(`${process.env.DB_URL}`);
+  }
 }
 
 run().catch((err) => console.log(err));
