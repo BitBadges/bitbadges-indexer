@@ -43,7 +43,6 @@ import {
   checkIfAuthenticated,
   getAuthDetails,
   mustGetAuthDetails,
-  setMockSessionIfTestMode,
   type AuthenticatedRequest,
   type MaybeAuthenticatedRequest
 } from '../blockin/blockin_handlers';
@@ -184,23 +183,6 @@ async function getBatchProfileInformation(
 
   if (solanaDocsToAdd.length) await insertMany(ProfileModel, solanaDocsToAdd);
 
-  // Filter out private info if not authenticated user
-  if (req) {
-    setMockSessionIfTestMode(req);
-    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Read Profile' }]);
-    const authAddress = (await getAuthDetails(req, res))?.cosmosAddress;
-
-    for (const profileInfo of profileInfos) {
-      if (isAuthenticated && profileInfo._docId === authAddress) {
-        continue;
-      }
-
-      profileInfo.notifications = undefined;
-      profileInfo.approvedSignInMethods = undefined;
-      profileInfo.socialConnections = undefined;
-    }
-  }
-
   return profileInfos;
 }
 
@@ -214,7 +196,7 @@ export const getAccountByAddress = async (req: Request | undefined, res: Respons
     fetchName = false;
   }
 
-  const userInfos = await convertToBitBadgesUserInfo([{ ...profileInfo }], [{ ...accountInfo }], fetchName); // Newly queried account isw added after bc there may be newer info (sequence, etc)
+  const userInfos = await convertToBitBadgesUserInfo(req, res, [{ ...profileInfo }], [{ ...accountInfo }], fetchName); // Newly queried account isw added after bc there may be newer info (sequence, etc)
   let account = userInfos[0];
   if (fetchOptions) {
     // account is currently a BitBadgesUserInfo with no portfolio info
@@ -268,7 +250,7 @@ export const getAccountByUsername = async (req: Request, res: Response, username
     fetchName = false;
   }
 
-  const userInfos = await convertToBitBadgesUserInfo([{ ...profileDoc }], [{ ...accountInfo }], fetchName); // Newly queried account isw added after bc there may be newer info (sequence, etc)
+  const userInfos = await convertToBitBadgesUserInfo(req, res, [{ ...profileDoc }], [{ ...accountInfo }], fetchName); // Newly queried account isw added after bc there may be newer info (sequence, etc)
   let account = userInfos[0];
 
   if (fetchOptions) {
@@ -329,7 +311,7 @@ export const getAccounts = async (req: Request, res: Response<iGetAccountsSucces
     const accountInfos = await getBatchAccountInformation(allQueries);
     const profileInfos = await getBatchProfileInformation(req, res, allQueries);
 
-    const userInfos = await convertToBitBadgesUserInfo(profileInfos, accountInfos, !allDoNotHaveExternalCalls);
+    const userInfos = await convertToBitBadgesUserInfo(req, res, profileInfos, accountInfos, !allDoNotHaveExternalCalls);
     const additionalInfoPromises = [];
     for (const query of allQueries) {
       if (query.fetchOptions) {
@@ -612,7 +594,7 @@ const getAdditionalUserInfo = async (
     }
   }
 
-  const addressListsToPopulate = await getAddressListsFromDB(addressListIdsToFetch, true, false);
+  const addressListsToPopulate = await getAddressListsFromDB(addressListIdsToFetch, true, false, undefined, true);
   const views: Record<string, { ids: string[]; type: string; pagination: PaginationInfo } | undefined> = {};
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqPayload.viewsToFetch[i].viewType;
@@ -1003,7 +985,7 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
 
     await insertToDB(ProfileModel, newProfileInfo);
 
-    return res.status(200).send({ errorMessage: 'Account info updated successfully' });
+    return res.status(200).send({});
   } catch (e) {
     console.log('Error updating account info', e);
     return res.status(500).send({

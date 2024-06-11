@@ -16,8 +16,12 @@ import { client } from '../indexer-vars';
 import { OFFLINE_MODE } from '../indexer-vars';
 import { provider } from '../utils/ensResolvers';
 import { findInDB } from '../db/queries';
+import { setMockSessionIfTestMode, checkIfAuthenticated, getAuthDetails } from '../blockin/blockin_handlers';
+import { Request, Response } from 'express';
 
 export const convertToBitBadgesUserInfo = async (
+  req: Request | undefined,
+  res: Response,
   profileInfos: Array<iProfileDoc<NumberType>>,
   accountInfos: Array<iAccountDoc<NumberType> & { chain: SupportedChain }>,
   fetchName = true,
@@ -248,7 +252,24 @@ export const convertToBitBadgesUserInfo = async (
       reservedMap
     });
 
-    resultsToReturn.push(result);
+    // Filter out private info if not authenticated user
+    let isAuthenticated = false;
+    if (req) {
+      setMockSessionIfTestMode(req);
+      isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Read Profile' }]);
+    }
+
+    const authAddress = !req ? '' : (await getAuthDetails(req, res))?.cosmosAddress;
+    if (isAuthenticated && profileInfo._docId === authAddress) {
+      resultsToReturn.push(result);
+    } else {
+      result.watchlists = undefined;
+      result.notifications = undefined;
+      result.approvedSignInMethods = undefined;
+      result.socialConnections = undefined;
+
+      resultsToReturn.push(result);
+    }
   }
 
   return resultsToReturn;

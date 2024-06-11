@@ -1,13 +1,13 @@
 import {
+  BigIntify,
   ClaimIntegrationPrivateStateType,
-  PluginDoc,
   PluginPresetType,
+  iPluginDoc,
   type ClaimIntegrationPluginType,
   type ClaimIntegrationPrivateParamsType,
   type ClaimIntegrationPublicParamsType,
   type ClaimIntegrationPublicStateType,
-  type IntegrationPluginParams,
-  BigIntify
+  type IntegrationPluginParams
 } from 'bitbadgesjs-sdk';
 import { mustGetFromDB, mustGetManyFromDB } from '../db/db';
 import { PluginModel } from '../db/schemas';
@@ -107,7 +107,7 @@ const CustomPluginFunctions: { [key: string]: CustomIntegrationPlugin<any> } = {
   //Here, developers can submit PRs with their own functions for custom plugins
 };
 
-export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc: PluginDoc<bigint>): BackendIntegrationPlugin<T> => {
+export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc: iPluginDoc<bigint>): BackendIntegrationPlugin<T> => {
   return {
     pluginId: doc.pluginId as T,
     metadata: {
@@ -284,7 +284,7 @@ export const getPlugins = async <T extends ClaimIntegrationPluginType>(types: T[
         throw new Error('Plugin not found');
       }
 
-      return castPluginDocToPlugin(doc);
+      return castPluginDocToPlugin({ ...doc, pluginSecret: '' });
     }
 
     return Plugins[type] as BackendIntegrationPlugin<T>;
@@ -294,7 +294,7 @@ export const getPlugins = async <T extends ClaimIntegrationPluginType>(types: T[
 export const getPlugin = async <T extends ClaimIntegrationPluginType>(type: T): Promise<BackendIntegrationPlugin<T>> => {
   if (!Plugins[type]) {
     const doc = await mustGetFromDB(PluginModel, type);
-    return castPluginDocToPlugin(doc);
+    return castPluginDocToPlugin({ ...doc, pluginSecret: '' });
   }
 
   return Plugins[type as ClaimIntegrationPluginType] as BackendIntegrationPlugin<T>;

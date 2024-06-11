@@ -2,6 +2,7 @@ import { PluginPresetType } from 'bitbadgesjs-sdk';
 import { config } from 'dotenv';
 import { MongoDB, insertToDB } from '../db/db';
 import {
+  AccessTokenModel,
   AccessTokenSchema,
   AccountModel,
   AccountSchema,
@@ -13,6 +14,7 @@ import {
   ApiKeySchema,
   ApprovalTrackerModel,
   ApprovalTrackerSchema,
+  AuthorizationCodeModel,
   AuthorizationCodeSchema,
   BalanceModel,
   BalanceSchema,
@@ -29,6 +31,7 @@ import {
   ComplianceSchema,
   DeveloperAppModel,
   DeveloperAppSchema,
+  DigitalOceanBalancesModel,
   ErrorModel,
   ErrorSchema,
   EthTxCountModel,
@@ -75,10 +78,9 @@ import {
 config();
 
 export async function deleteDatabases(): Promise<void> {
-  // await MongoDB.dropCollection(DeveloperAppModel.collection.name);
-  // await MongoDB.dropCollection(DigitalOceanBalancesModel.collection.name);
-  // await MongoDB.dropCollection(AuthorizationCodeModel.collection.name);
-  // await MongoDB.dropCollection(AccessTokenModel.collection.name);
+  await MongoDB.dropCollection(DigitalOceanBalancesModel.collection.name);
+  await MongoDB.dropCollection(AuthorizationCodeModel.collection.name);
+  await MongoDB.dropCollection(AccessTokenModel.collection.name);
   await MongoDB.dropCollection(PluginModel.collection.name);
   await MongoDB.dropCollection(DeveloperAppModel.collection.name);
   await MongoDB.dropCollection(BrowseModel.collection.name);
@@ -114,7 +116,6 @@ export async function deleteDatabases(): Promise<void> {
   await MongoDB.dropCollection(OffChainAttestationsModel.collection.name);
 }
 
-// new ObjectId
 export async function initStatus(): Promise<void> {
   if (process.env.BITBADGES_API_KEY === undefined) throw new Error('BITBADGES_API_KEY env var not set');
   await insertToDB(ApiKeyModel, {

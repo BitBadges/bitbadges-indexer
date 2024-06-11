@@ -169,8 +169,6 @@ export const mustOwnBadgesPlugin = (ownershipReqs: BlockinAssetConditionGroup<Nu
 };
 
 export const apiPlugin = (customPluginId: string, publicParams: any, privateParams: any): IntegrationPluginDetails<any> => {
-  // const doc = await mustGetFromDB(PluginModel, customPluginId);
-
   return {
     instanceId: crypto.randomBytes(32).toString('hex'),
     pluginId: customPluginId,

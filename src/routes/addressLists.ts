@@ -325,7 +325,10 @@ export const getAddressLists = async (req: Request, res: Response<iGetAddressLis
     const reservedStatuses = listsToFetch.map((x) => isReserved(x.listId));
     const docs = await mustGetAddressListsFromDB(
       listsToFetch,
-      reservedStatuses.some((x) => !x) // Reserved lists will not have metadata
+      reservedStatuses.some((x) => !x), // Reserved lists will not have metadata
+      undefined,
+      undefined,
+      true
     );
 
     // Private lists that are not viewable by ID can only be viewed by the creator

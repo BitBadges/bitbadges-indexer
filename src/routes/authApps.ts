@@ -87,6 +87,7 @@ export const getDeveloperApps = async (req: AuthenticatedRequest<NumberType>, re
           createdBy: authDetails.cosmosAddress
         }
       });
+
       return res.status(200).send({ developerApps: docs });
     }
   } catch (e) {

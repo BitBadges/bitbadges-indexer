@@ -497,7 +497,9 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
             })
           );
 
-    const convertToBitBadgesUserInfoPromise = noAccounts ? Promise.resolve([]) : convertToBitBadgesUserInfo(profileDocs, allAccounts, true, []);
+    const convertToBitBadgesUserInfoPromise = noAccounts
+      ? Promise.resolve([])
+      : convertToBitBadgesUserInfo(req, res, profileDocs, allAccounts, true, []);
 
     const addressListsToReturnPromise =
       noAddressLists || [...listsRes, ...addressListsResponseDocs].length === 0

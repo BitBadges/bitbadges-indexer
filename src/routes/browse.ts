@@ -58,7 +58,7 @@ export const getBrowseCollections = async (req: Request, res: Response<iGetBrows
         sort: { createdBlock: -1 },
         limit: 100
       }),
-      findInDB(AddressListModel, { query: { listId: { $in: listsToFetch } } }),
+      findInDB(AddressListModel, { query: { private: { $ne: true }, listId: { $in: listsToFetch } } }),
       findInDB(ProfileModel, { query: { _docId: { $in: profilesToFetch } } })
     ]);
 

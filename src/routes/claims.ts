@@ -838,7 +838,7 @@ export const getClaimsStatusHandler = async (
     // We only return the reserved codes if the user is authenticated as themselves.
     const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Full Access' }]);
     if (isAuthenticated) {
-      return res.status(200).json({ success: doc.success ?? false, error: doc?.error, code: doc?.code });
+      return res.status(200).json({ success: doc.success ?? false, error: doc?.error, code: doc?.code ?? '' });
     } else {
       return res.status(200).json({ success: doc.success ?? false, error: doc?.error });
     }

@@ -322,6 +322,7 @@ export const getPlugins = async (req: AuthenticatedRequest<NumberType>, res: Res
         },
         limit: 1000
       });
+
       docs.push(
         ...approvedDocs.map((doc) => {
           delete doc.pluginSecret;

@@ -71,7 +71,8 @@ export async function mustGetAddressListsFromDB(
   }>,
   fetchMetadata: boolean,
   fetchActivity?: boolean,
-  fetchedLists?: iAddressListDoc<bigint>[]
+  fetchedLists?: iAddressListDoc<bigint>[],
+  allowPrivateLists?: boolean
 ) {
   const lists = await getAddressListsFromDB(listsToFetch, fetchMetadata, fetchActivity, fetchedLists);
   if (lists.length !== listsToFetch.length) {
@@ -81,6 +82,10 @@ export async function mustGetAddressListsFromDB(
   for (let i = 0; i < lists.length; i++) {
     if (lists[i].listId !== listsToFetch[i].listId) {
       throw new Error('List IDs do not match');
+    }
+
+    if (!allowPrivateLists && lists[i].private) {
+      throw new Error('List is private which is not allowed here.');
     }
   }
 
@@ -98,7 +103,8 @@ export async function getAddressListsFromDB(
   }>,
   fetchMetadata: boolean,
   fetchActivity?: boolean,
-  fetchedLists?: iAddressListDoc<bigint>[]
+  fetchedLists?: iAddressListDoc<bigint>[],
+  allowPrivateLists?: boolean
 ) {
   fetchActivity = fetchActivity ?? fetchMetadata;
   const addressLists: Array<iBitBadgesAddressList<bigint>> = [];
@@ -204,6 +210,12 @@ export async function getAddressListsFromDB(
     for (const list of addressLists) {
       list.nsfw = complianceDoc?.addressLists.nsfw.find((y) => y.listId === list.listId);
       list.reported = complianceDoc?.addressLists.reported.find((y) => y.listId === list.listId);
+    }
+  }
+
+  for (const list of addressLists) {
+    if (!allowPrivateLists && list.private) {
+      throw new Error('List is private which is not allowed here.');
     }
   }
 

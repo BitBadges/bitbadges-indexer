@@ -817,7 +817,7 @@ const checkIfAuthenticatedForPrivateParams = async (
     }
 
     if (listId) {
-      const list = await getAddressListsFromDB([{ listId }], false);
+      const list = await getAddressListsFromDB([{ listId }], false, undefined, undefined, true);
       if (list.length === 0) {
         throw new Error('List not found');
       }
