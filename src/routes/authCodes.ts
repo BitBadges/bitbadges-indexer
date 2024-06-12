@@ -283,13 +283,13 @@ export const getAndVerifySIWBBRequest = async (
     const redirectUri = redirect_uri;
     const options = (_options || queryOptions) as GetAndVerifySIWBBRequestPayload['options'];
 
-    // if (doc.ownershipRequirements && !options.ownershipRequirements) {
-    //   throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
-    // }
+    if (doc.ownershipRequirements && !options?.ownershipRequirements) {
+      throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
+    }
 
-    // if (doc.otherSignIns && !options.otherSignIns) {
-    //   throw new Error('This request has other sign ins but expected other sign ins were not specified.');
-    // }
+    if (doc.otherSignIns && !options?.otherSignIns) {
+      throw new Error('This request has other sign ins but expected other sign ins were not specified.');
+    }
 
     const newChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
       domain: 'https://bitbadges.io',
@@ -305,10 +305,8 @@ export const getAndVerifySIWBBRequest = async (
 
     const optionsChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
       ...newChallengeParams,
-      assetOwnershipRequirements: options?.ownershipRequirements
+      assetOwnershipRequirements: options?.skipAssetVerification ? undefined : options?.ownershipRequirements
     });
-
-    console.log(doc.ownershipRequirements, options?.ownershipRequirements);
 
     if (options?.ownershipRequirements && !newChallengeParams.equals(optionsChallengeParams, true)) {
       throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
@@ -377,7 +375,8 @@ export const getAndVerifySIWBBRequest = async (
       message: createChallenge(dummyParams),
       signature: '',
       options: {
-        skipSignatureVerification: true
+        skipSignatureVerification: true,
+        skipAssetVerification: options?.skipAssetVerification
       }
     });
 
