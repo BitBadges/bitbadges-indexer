@@ -272,10 +272,20 @@ export const getAndVerifySIWBBRequest = async (
     //attempt to get client id / secret from headers
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
-    const { client_id, client_secret, redirect_uri, options } = reqPayload;
+    const { client_id, client_secret, redirect_uri, options: _options } = reqPayload;
     const clientId = client_id || headerClientId;
     const clientSecret = client_secret || headerClientSecret;
     const redirectUri = redirect_uri;
+    const queryOptions = {};
+    try {
+      if (req.query.options) {
+        Object.assign(queryOptions, JSON.parse(req.query.options as string));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    const options = _options || queryOptions;
+
     console.log(doc, clientId, clientSecret, redirectUri, options);
 
     // if (doc.ownershipRequirements && !options.ownershipRequirements) {
