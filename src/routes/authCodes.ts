@@ -1,6 +1,7 @@
 import {
   AttestationsProof,
   BlockinChallenge,
+  BlockinChallengeParams,
   GetAndVerifySIWBBRequestsForDeveloperAppPayload,
   convertToCosmosAddress,
   getChainForAddress,
@@ -250,32 +251,22 @@ export const getAndVerifySIWBBRequest = async (
     }
     // For now, we use the approach that if someone has the signature, they can see the message.
 
-    console.log(req.query);
-    console.log(req.body);
-    console.log(req.headers);
     const authHeader = req.headers.authorization;
     const authHeaderParts = authHeader?.split(' ');
     const authHeaderType = authHeaderParts?.[0];
     let headerClientId = '';
     let headerClientSecret = '';
+
+    //next auth (auth.js) compatibility
     if (authHeaderType === 'Basic') {
       const authHeaderToken = authHeaderParts?.[1];
       const authHeaderTokenPayloadDecoded = Buffer.from(authHeaderToken || '', 'base64').toString('utf-8');
-      console.log(authHeaderTokenPayloadDecoded);
 
       const authHeaderTokenPayloadDecodedObj = authHeaderTokenPayloadDecoded.split(':');
-      console.log(authHeaderTokenPayloadDecodedObj);
       headerClientId = authHeaderTokenPayloadDecodedObj[0];
       headerClientSecret = authHeaderTokenPayloadDecodedObj[1];
     }
 
-    //attempt to get client id / secret from headers
-
-    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
-    const { client_id, client_secret, redirect_uri, options: _options } = reqPayload;
-    const clientId = client_id || headerClientId;
-    const clientSecret = client_secret || headerClientSecret;
-    const redirectUri = redirect_uri;
     const queryOptions = {};
     try {
       if (req.query.options) {
@@ -284,9 +275,13 @@ export const getAndVerifySIWBBRequest = async (
     } catch (e) {
       console.error(e);
     }
-    const options = (_options || queryOptions) as GetAndVerifySIWBBRequestPayload['options'];
 
-    console.log(doc, clientId, clientSecret, redirectUri, options);
+    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+    const { client_id, client_secret, redirect_uri, options: _options } = reqPayload;
+    const clientId = client_id || headerClientId;
+    const clientSecret = client_secret || headerClientSecret;
+    const redirectUri = redirect_uri;
+    const options = (_options || queryOptions) as GetAndVerifySIWBBRequestPayload['options'];
 
     // if (doc.ownershipRequirements && !options.ownershipRequirements) {
     //   throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
@@ -296,7 +291,24 @@ export const getAndVerifySIWBBRequest = async (
     //   throw new Error('This request has other sign ins but expected other sign ins were not specified.');
     // }
 
-    if (options?.ownershipRequirements && JSON.stringify(doc.ownershipRequirements) !== JSON.stringify(options?.ownershipRequirements)) {
+    const newChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
+      domain: 'https://bitbadges.io',
+      statement: 'Something something something',
+      address: doc.address,
+      uri: 'https://bitbadges.io',
+      nonce: '*',
+      expirationDate: undefined,
+      notBefore: undefined,
+      resources: [],
+      assetOwnershipRequirements: doc.ownershipRequirements
+    });
+
+    const optionsChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
+      ...newChallengeParams,
+      assetOwnershipRequirements: options?.ownershipRequirements
+    });
+
+    if (options?.ownershipRequirements && !newChallengeParams.equals(optionsChallengeParams)) {
       throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
     }
 
