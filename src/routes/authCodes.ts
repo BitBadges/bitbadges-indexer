@@ -256,25 +256,25 @@ export const getAndVerifySIWBBRequest = async (
     const authHeader = req.headers.authorization;
     const authHeaderParts = authHeader?.split(' ');
     const authHeaderType = authHeaderParts?.[0];
-    if (authHeaderType) {
+    let headerClientId = '';
+    let headerClientSecret = '';
+    if (authHeaderType === 'Basic') {
       const authHeaderToken = authHeaderParts?.[1];
-      const authHeaderTokenParts = authHeaderToken?.split('.');
-      const authHeaderTokenPayload = authHeaderTokenParts?.[1];
-      const authHeaderTokenPayloadDecoded = Buffer.from(authHeaderTokenPayload || '', 'base64').toString('utf-8');
+      const authHeaderTokenPayloadDecoded = Buffer.from(authHeaderToken || '', 'base64').toString('utf-8');
       console.log(authHeaderTokenPayloadDecoded);
 
-      const authHeaderTokenPayloadDecodedObj = JSON.parse(authHeaderTokenPayloadDecoded);
+      const authHeaderTokenPayloadDecodedObj = authHeaderTokenPayloadDecoded.split(':');
       console.log(authHeaderTokenPayloadDecodedObj);
-      console.log(authHeaderTokenPayloadDecodedObj.client_id);
-      console.log(authHeaderTokenPayloadDecodedObj.client_secret);
+      headerClientId = authHeaderTokenPayloadDecodedObj[0];
+      headerClientSecret = authHeaderTokenPayloadDecodedObj[1];
     }
 
     //attempt to get client id / secret from headers
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options } = reqPayload;
-    const clientId = client_id;
-    const clientSecret = client_secret;
+    const clientId = client_id || headerClientId;
+    const clientSecret = client_secret || headerClientSecret;
     const redirectUri = redirect_uri;
     console.log(doc, clientId, clientSecret, redirectUri, options);
 
