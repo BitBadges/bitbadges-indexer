@@ -284,7 +284,7 @@ export const getAndVerifySIWBBRequest = async (
     } catch (e) {
       console.error(e);
     }
-    const options = _options || queryOptions;
+    const options = (_options || queryOptions) as GetAndVerifySIWBBRequestPayload['options'];
 
     console.log(doc, clientId, clientSecret, redirectUri, options);
 
