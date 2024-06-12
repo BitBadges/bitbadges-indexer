@@ -291,7 +291,7 @@ export const getAndVerifySIWBBRequest = async (
       }
     }
 
-    if (doc.otherSignIns && !options?.otherSignIns) {
+    if (Object.keys(doc.otherSignIns ?? {}).length && !options?.otherSignIns) {
       throw new Error('This request has other sign ins but expected other sign ins were not specified.');
     }
 
