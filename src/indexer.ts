@@ -303,6 +303,7 @@ app.use(apiKeyHandler);
 app.use(responseTime({ suffix: false }));
 
 app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 app.use(
   helmet({
