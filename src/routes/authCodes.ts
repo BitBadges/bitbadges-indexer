@@ -256,7 +256,10 @@ export const getAndVerifySIWBBRequest = async (
     // For now, we use the approach that if someone has the signature, they can see the message.
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
-    const { clientId, clientSecret, redirectUri, options } = reqPayload;
+    const { client_id, client_secret, redirect_uri, options } = reqPayload;
+    const clientId = client_id;
+    const clientSecret = client_secret;
+    const redirectUri = redirect_uri;
 
     if (doc.ownershipRequirements && !options.ownershipRequirements) {
       throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
