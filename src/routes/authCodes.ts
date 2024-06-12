@@ -243,8 +243,9 @@ export const getAndVerifySIWBBRequest = async (
 ) => {
   try {
     console.log('getAndVerifySIWBBRequest');
-
     setMockSessionIfTestMode(req);
+
+    console.log(req.body);
 
     const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestPayload;
     const validateRes: typia.IValidation<GetAndVerifySIWBBRequestPayload> = typia.validate<GetAndVerifySIWBBRequestPayload>(req.body);
