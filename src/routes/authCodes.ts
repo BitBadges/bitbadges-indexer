@@ -274,22 +274,22 @@ export const getAndVerifySIWBBRequest = async (
     //   throw new Error('This request has other sign ins but expected other sign ins were not specified.');
     // }
 
-    if (options.ownershipRequirements && JSON.stringify(doc.ownershipRequirements) !== JSON.stringify(options.ownershipRequirements)) {
+    if (options?.ownershipRequirements && JSON.stringify(doc.ownershipRequirements) !== JSON.stringify(options?.ownershipRequirements)) {
       throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
     }
 
-    if (options.otherSignIns) {
-      for (const social of options.otherSignIns) {
+    if (options?.otherSignIns) {
+      for (const social of options?.otherSignIns) {
         if (!doc.otherSignIns?.[social]) {
           throw new Error('Invalid other sign in. Does not match expected other sign in.');
         }
       }
     }
 
-    options.issuedAtTimeWindowMs = options.issuedAtTimeWindowMs || 60 * 1000 * 10; //10 minutes
+    const issuedAtTimeWindowMs = options?.issuedAtTimeWindowMs || 60 * 1000 * 10; //10 minutes
 
-    if (options.issuedAtTimeWindowMs) {
-      const earliestIssuedAt = Date.now() - options.issuedAtTimeWindowMs;
+    if (issuedAtTimeWindowMs) {
+      const earliestIssuedAt = Date.now() - issuedAtTimeWindowMs;
       if (doc.createdAt < earliestIssuedAt) {
         throw new Error('Not recent enough. Issued at time is too old: ' + new Date(Number(doc.createdAt)).toISOString());
       }
