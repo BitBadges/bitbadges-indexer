@@ -252,6 +252,9 @@ export const getAndVerifySIWBBRequest = async (
 
     console.log(req.query);
     console.log(req.body);
+    console.log(req.headers);
+
+    //attempt to get client id / secret from headers
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options } = reqPayload;
