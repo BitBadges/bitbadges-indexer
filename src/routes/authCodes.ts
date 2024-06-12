@@ -242,22 +242,13 @@ export const getAndVerifySIWBBRequest = async (
   res: Response<iGetAndVerifySIWBBRequestSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
-    console.log('getAndVerifySIWBBRequest');
     setMockSessionIfTestMode(req);
-
-    console.log(req.body);
-    console.log(req.query);
-
     const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestPayload;
     const validateRes: typia.IValidation<GetAndVerifySIWBBRequestPayload> = typia.validate<GetAndVerifySIWBBRequestPayload>(req.body);
     if (!validateRes.success) {
-      console.log('getAndVerifySIWBBRequest 1', validateRes.errors);
-
       return typiaError(res, validateRes);
     }
     // For now, we use the approach that if someone has the signature, they can see the message.
-
-    console.log(reqPayload.code);
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options } = reqPayload;
@@ -295,8 +286,6 @@ export const getAndVerifySIWBBRequest = async (
       }
     }
 
-    console.log('getAndVerifySIWBBRequest 2');
-
     const authDetails = await getAuthDetails(req, res);
     if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.address) !== authDetails.cosmosAddress) {
       if (!clientId) {
@@ -327,8 +316,6 @@ export const getAndVerifySIWBBRequest = async (
       }
     }
 
-    console.log('getAndVerifySIWBBRequest 3');
-
     const dummyParams = {
       domain: 'https://bitbadges.io',
       statement: 'Something',
@@ -349,17 +336,15 @@ export const getAndVerifySIWBBRequest = async (
       }
     });
 
-    console.log('getAndVerifySIWBBRequest 4', verificationResponse);
-
     const blockinRes = new BlockinChallenge({
       ...doc,
       verificationResponse
     });
 
     if (verificationResponse.success) {
-      return res.status(200).send({ blockin: blockinRes, access_token: doc.address });
+      return res.status(200).send({ blockin: blockinRes, access_token: doc.address, token_type: 'Bearer' });
     } else {
-      return res.status(401).send({ blockin: blockinRes, access_token: '', errorMessage: verificationResponse.message });
+      return res.status(401).send({ blockin: blockinRes, access_token: '', token_type: 'Bearer', errorMessage: verificationResponse.message });
     }
   } catch (e) {
     console.error(e);
