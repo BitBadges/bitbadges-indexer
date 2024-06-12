@@ -112,6 +112,12 @@ export const getAttestation = async (req: Request, res: Response<iGetAttestation
     let doc;
     if (reqPayload.attestationId) {
       doc = await mustGetFromDB(OffChainAttestationsModel, reqPayload.attestationId);
+
+      // you are only allowed to use attestationId if you are the owner or a holder
+      const authDetails = await mustGetAuthDetails(req, res);
+      if (doc.createdBy !== authDetails.cosmosAddress && !doc.holders.includes(authDetails.cosmosAddress)) {
+        throw new Error('You are not the owner or a holder. You must fetch and add using the addKey. This is obtained from the owner.');
+      }
     } else if (reqPayload.addKey) {
       const addKeyHash = crypto.createHash('sha256').update(reqPayload.addKey).digest('hex');
       const docs = await findInDB(OffChainAttestationsModel, { query: { addKey: { $eq: addKeyHash } } });
