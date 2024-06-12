@@ -1,8 +1,7 @@
 import {
+  AttestationsProof,
   BlockinChallenge,
   GetAndVerifySIWBBRequestsForDeveloperAppPayload,
-  Numberify,
-  AttestationsProof,
   convertToCosmosAddress,
   getChainForAddress,
   iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse,
@@ -15,10 +14,11 @@ import {
   type iDeleteSIWBBRequestSuccessResponse,
   type iGetAndVerifySIWBBRequestSuccessResponse
 } from 'bitbadgesjs-sdk';
-import { constructChallengeObjectFromString, createChallenge } from 'blockin';
+import { ChallengeParams, createChallenge } from 'blockin';
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
+import typia from 'typia';
 import {
   MaybeAuthenticatedRequest,
   checkIfAuthenticated,
@@ -30,9 +30,8 @@ import {
 } from '../blockin/blockin_handlers';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
-import { executeSIWBBRequestsForAppQuery } from './userQueries';
-import typia from 'typia';
 import { typiaError } from './search';
+import { executeSIWBBRequestsForAppQuery } from './userQueries';
 
 export const createSIWBBRequest = async (
   req: MaybeAuthenticatedRequest<NumberType>,
@@ -45,7 +44,27 @@ export const createSIWBBRequest = async (
       return typiaError(res, validateRes);
     }
 
-    const challengeParams = constructChallengeObjectFromString<number>(reqPayload.message, Numberify);
+    const origin = req.headers.origin;
+    const authDetails = await mustGetAuthDetails(req, res);
+    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Create Siwbb Requests' }]);
+    if (!isAuthenticated) {
+      throw new Error('You do not have permission to create Siwbb requests.');
+    }
+
+    //Dummy params for compatibility
+    const ownershipRequirements = reqPayload.ownershipRequirements;
+    const challengeParams: ChallengeParams<NumberType> = {
+      domain: 'https://bitbadges.io',
+      statement: 'Something something something',
+      address: authDetails.address,
+      uri: 'https://bitbadges.io',
+      nonce: '*',
+      expirationDate: undefined,
+      notBefore: undefined,
+      resources: [],
+      assetOwnershipRequirements: ownershipRequirements
+    };
+
     if (!challengeParams.address) {
       throw new Error('Invalid address in message.');
     }
@@ -55,33 +74,14 @@ export const createSIWBBRequest = async (
     //           We then use the fact that the Siwbb request signature is valid to confirm the user is who they say they are, rather than the req.session.
     //           This is checked in the middleware. However, if we are calling from the API, we do not override the scope.
 
-    const origin = req.headers.origin;
-    const authDetails = await getAuthDetails(req, res);
-    const isAuthenticated =
-      (await checkIfAuthenticated(req, res, [{ scopeName: 'Create Siwbb Requests' }])) &&
-      challengeParams.address &&
-      convertToCosmosAddress(challengeParams.address) === authDetails?.cosmosAddress;
-
     const isFromFrontend = origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io';
     if (!isFromFrontend) {
-      if (!isAuthenticated) {
-        throw new Error('You do not have permission to create Siwbb requests.');
-      }
-
       if (reqPayload.redirectUri) {
         throw new Error('Creating Siwbb requests with a redirect URI is not supported for requests that interact with the API directly.');
       }
     }
 
-    // If we allow reuse of BitBadges sign in, we need to make sure the user is signed in with BitBadges
-    // Or else, we must get a valid signature from the user
-    // In other words, we "reuse" the BitBadges sign in signature as proof of identity
-    const allowReuseOfBitBadgesSignIn = reqPayload.allowReuseOfBitBadgesSignIn ?? false;
-    let toSkipSignatureVerification = false;
-    if (allowReuseOfBitBadgesSignIn && isAuthenticated) {
-      toSkipSignatureVerification = true;
-    }
-
+    const toSkipSignatureVerification = true;
     const appDoc = await getFromDB(DeveloperAppModel, reqPayload.clientId);
     if (!appDoc) {
       throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
@@ -91,13 +91,12 @@ export const createSIWBBRequest = async (
       throw new Error('Invalid redirect URI.');
     }
 
-    //Really all we want here is to verify signature is valid
+    //Really all we want here is to verify well formed
     //Other stuff just needs to be valid at actual authentication time
-    //Verifies from a cryptographic standpoint that the signature and attestations are valid
+    //Verifies from a cryptographic standpoint that all is valid
     const response = await genericBlockinVerify({
-      message: reqPayload.message,
-      signature: reqPayload.signature,
-      publicKey: reqPayload.publicKey,
+      message: createChallenge(challengeParams),
+      signature: '',
       options: {
         skipTimestampVerification: true,
         skipAssetVerification: true,
@@ -105,7 +104,6 @@ export const createSIWBBRequest = async (
       },
       attestationsPresentations: reqPayload.attestationsPresentations?.map((proof) => new AttestationsProof(proof))
     });
-
     if (!response?.success) {
       throw new Error('Verification was invalid: ' + response?.message);
     }
@@ -173,11 +171,10 @@ export const createSIWBBRequest = async (
     await insertToDB(SIWBBRequestModel, {
       _docId: uniqueId,
       ...reqPayload,
-      allowReuseOfBitBadgesSignIn,
-      publicKey: reqPayload.publicKey ?? '',
+      address: authDetails.address,
+      chain: getChainForAddress(authDetails.address),
+      ownershipRequirements: reqPayload.ownershipRequirements,
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
-      params: challengeParams,
-      signature: reqPayload.signature,
       createdAt: Date.now(),
       attestationsPresentations: reqPayload.attestationsPresentations || [],
       clientId: reqPayload.clientId,
@@ -218,16 +215,13 @@ export const getSIWBBRequestsForDeveloperApp = async (
       throw new Error('You are not the owner of this app.');
     }
 
+    //TODO: Allow proof of client secret?
+
     const docsRes = await executeSIWBBRequestsForAppQuery(clientId, bookmark);
     return res.status(200).send({
       siwbbRequests: docsRes.docs.map((doc) => {
         const blockinRes = new BlockinChallenge({
-          ...doc,
-          address: doc.params.address,
-          cosmosAddress: convertToCosmosAddress(doc.params.address),
-          chain: getChainForAddress(doc.params.address),
-          otherSignIns: doc.otherSignIns,
-          message: createChallenge(doc.params)
+          ...doc
         });
 
         return blockinRes;
@@ -248,6 +242,8 @@ export const getAndVerifySIWBBRequest = async (
   res: Response<iGetAndVerifySIWBBRequestSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
+    console.log('getAndVerifySIWBBRequest');
+
     setMockSessionIfTestMode(req);
 
     const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestPayload;
@@ -258,10 +254,39 @@ export const getAndVerifySIWBBRequest = async (
     // For now, we use the approach that if someone has the signature, they can see the message.
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
-    const { clientId, clientSecret, redirectUri } = reqPayload;
+    const { clientId, clientSecret, redirectUri, options } = reqPayload;
+
+    if (doc.ownershipRequirements && !options.ownershipRequirements) {
+      throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
+    }
+
+    if (doc.otherSignIns && !options.otherSignIns) {
+      throw new Error('This request has other sign ins but expected other sign ins were not specified.');
+    }
+
+    if (options.ownershipRequirements && JSON.stringify(doc.ownershipRequirements) !== JSON.stringify(options.ownershipRequirements)) {
+      throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
+    }
+
+    if (options.otherSignIns) {
+      for (const social of options.otherSignIns) {
+        if (!doc.otherSignIns?.[social]) {
+          throw new Error('Invalid other sign in. Does not match expected other sign in.');
+        }
+      }
+    }
+
+    options.issuedAtTimeWindowMs = options.issuedAtTimeWindowMs || 60 * 1000 * 10; //10 minutes
+
+    if (options.issuedAtTimeWindowMs) {
+      const earliestIssuedAt = Date.now() - options.issuedAtTimeWindowMs;
+      if (doc.createdAt < earliestIssuedAt) {
+        throw new Error('Not recent enough. Issued at time is too old: ' + new Date(Number(doc.createdAt)).toISOString());
+      }
+    }
 
     const authDetails = await getAuthDetails(req, res);
-    if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.params.address) !== authDetails.cosmosAddress) {
+    if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.address) !== authDetails.cosmosAddress) {
       if (!clientId) {
         throw new Error('You are not the owner of this Siwbb request.');
       }
@@ -290,33 +315,39 @@ export const getAndVerifySIWBBRequest = async (
       }
     }
 
-    const params = doc.params;
+    const dummyParams = {
+      domain: 'https://bitbadges.io',
+      statement: 'Something',
+      address: doc.address,
+      uri: 'https://bitbadges.io',
+      nonce: '*',
+      expirationDate: undefined,
+      notBefore: undefined,
+      resources: [],
+      assetOwnershipRequirements: doc.ownershipRequirements
+    };
 
     const verificationResponse = await genericBlockinVerify({
-      message: createChallenge(params),
-      signature: doc.signature,
-      publicKey: doc.publicKey,
+      message: createChallenge(dummyParams),
+      signature: '',
       options: {
-        ...reqPayload.options,
-        skipSignatureVerification: doc.allowReuseOfBitBadgesSignIn ? true : reqPayload.options?.skipSignatureVerification
+        skipSignatureVerification: true
       }
     });
 
     const blockinRes = new BlockinChallenge({
       ...doc,
-      verificationResponse,
-      options: reqPayload.options,
-      address: params.address,
-      cosmosAddress: convertToCosmosAddress(params.address),
-      chain: getChainForAddress(params.address),
-      otherSignIns: doc.otherSignIns,
-      allowReuseOfBitBadgesSignIn: doc.allowReuseOfBitBadgesSignIn,
-      message: createChallenge(params)
+      verificationResponse
     });
 
-    return res.status(200).send({ blockin: blockinRes });
+    if (verificationResponse.success) {
+      return res.status(200).send({ blockin: blockinRes, access_token: doc.address });
+    } else {
+      return res.status(401).send({ blockin: blockinRes, access_token: '', errorMessage: verificationResponse.message });
+    }
   } catch (e) {
     console.error(e);
+    console.log(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error getting auth QR code.'

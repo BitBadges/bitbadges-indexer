@@ -2,10 +2,10 @@ import { GenerateAppleWalletPassPayload, NumberType, convertToCosmosAddress } fr
 import { type Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import typia from 'typia';
 import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { mustGetFromDB } from '../db/db';
 import { SIWBBRequestModel } from '../db/schemas';
-import typia from 'typia';
 import { typiaError } from './search';
 
 // For running tests (TS bugs out)
@@ -30,11 +30,12 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
 
     const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, code);
     const authDetails = await mustGetAuthDetails(req, res);
-    if (convertToCosmosAddress(siwbbRequestDoc.params.address) !== authDetails.cosmosAddress) {
+    if (convertToCosmosAddress(siwbbRequestDoc.address) !== authDetails.cosmosAddress) {
       return res.status(401).send({ errorMessage: 'Unauthorized' });
     }
 
-    const { params, name, description } = siwbbRequestDoc;
+    const { name, description } = siwbbRequestDoc;
+
     const passID = code;
 
     const pass = await PKPass.from(
@@ -70,17 +71,6 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
         label: 'Description',
         value: description
       });
-    }
-
-    const challengeParams = params;
-    if (challengeParams.expirationDate) {
-      pass.setExpirationDate(new Date(challengeParams.expirationDate));
-    }
-
-    if (challengeParams.notBefore) {
-      pass.setRelevantDate(new Date(challengeParams.notBefore));
-    } else {
-      pass.setRelevantDate(new Date());
     }
 
     res.setHeader('Content-Type', 'application/vnd.apple.pkpass');

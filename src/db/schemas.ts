@@ -391,18 +391,18 @@ export const DeveloperAppSchema = new Schema<DeveloperAppDoc>({
 
 export const SIWBBRequestSchema = new Schema<SIWBBRequestDoc<JSPrimitiveNumberType>>({
   _docId: String,
-  signature: String, // String type for signature
+  ownershipRequirements: Schema.Types.Mixed, // Mixed type for ownershipRequirements
+  chain: String, // String type for chain
+  address: String, // String type for address
   name: String, // String type for name
   description: String, // String type for description
   image: String, // String type for image
   cosmosAddress: String, // String type for cosmosAddress
-  params: Schema.Types.Mixed, // Mixed type for params (ChallengeParams type)
   createdAt: Schema.Types.Mixed, // Mixed type for createdAt (number type)
   deletedAt: Schema.Types.Mixed, // Mixed type for deletedAt (number type)
   attestationsPresentations: [Schema.Types.Mixed], // Array of Mixed type for attestationsPresentations,
   clientId: String, // String type for clientId
   otherSignIns: Schema.Types.Mixed, // Mixed type for otherSignIns
-  allowReuseOfBitBadgesSignIn: Boolean, // Boolean type for allowReuseOfBitBadgesSignIn
   redirectUri: String // String type for redirectUri
 });
 
