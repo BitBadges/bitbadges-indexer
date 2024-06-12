@@ -33,6 +33,7 @@ import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { typiaError } from './search';
 import { executeSIWBBRequestsForAppQuery } from './userQueries';
+import { AndGroup } from 'blockin/dist/types/verify.types';
 
 export const createSIWBBRequest = async (
   req: MaybeAuthenticatedRequest<NumberType>,
@@ -284,7 +285,10 @@ export const getAndVerifySIWBBRequest = async (
     const options = (_options || queryOptions) as GetAndVerifySIWBBRequestPayload['options'];
 
     if (doc.ownershipRequirements && !options?.ownershipRequirements) {
-      throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
+      if ((doc.ownershipRequirements as AndGroup<NumberType>).$and && (doc.ownershipRequirements as AndGroup<NumberType>).$and.length == 0) {
+      } else {
+        throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
+      }
     }
 
     if (doc.otherSignIns && !options?.otherSignIns) {
