@@ -253,6 +253,21 @@ export const getAndVerifySIWBBRequest = async (
     console.log(req.query);
     console.log(req.body);
     console.log(req.headers);
+    const authHeader = req.headers.authorization;
+    const authHeaderParts = authHeader?.split(' ');
+    const authHeaderType = authHeaderParts?.[0];
+    if (authHeaderType) {
+      const authHeaderToken = authHeaderParts?.[1];
+      const authHeaderTokenParts = authHeaderToken?.split('.');
+      const authHeaderTokenPayload = authHeaderTokenParts?.[1];
+      const authHeaderTokenPayloadDecoded = Buffer.from(authHeaderTokenPayload || '', 'base64').toString('utf-8');
+      console.log(authHeaderTokenPayloadDecoded);
+
+      const authHeaderTokenPayloadDecodedObj = JSON.parse(authHeaderTokenPayloadDecoded);
+      console.log(authHeaderTokenPayloadDecodedObj);
+      console.log(authHeaderTokenPayloadDecodedObj.client_id);
+      console.log(authHeaderTokenPayloadDecodedObj.client_secret);
+    }
 
     //attempt to get client id / secret from headers
 
