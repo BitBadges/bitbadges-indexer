@@ -251,9 +251,13 @@ export const getAndVerifySIWBBRequest = async (
     const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestPayload;
     const validateRes: typia.IValidation<GetAndVerifySIWBBRequestPayload> = typia.validate<GetAndVerifySIWBBRequestPayload>(req.body);
     if (!validateRes.success) {
+      console.log('getAndVerifySIWBBRequest 1', validateRes.errors);
+
       return typiaError(res, validateRes);
     }
     // For now, we use the approach that if someone has the signature, they can see the message.
+
+    console.log(reqPayload.code);
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options } = reqPayload;
