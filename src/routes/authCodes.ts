@@ -250,6 +250,9 @@ export const getAndVerifySIWBBRequest = async (
     }
     // For now, we use the approach that if someone has the signature, they can see the message.
 
+    console.log(req.query);
+    console.log(req.body);
+
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options } = reqPayload;
     const clientId = client_id;
