@@ -308,7 +308,9 @@ export const getAndVerifySIWBBRequest = async (
       assetOwnershipRequirements: options?.ownershipRequirements
     });
 
-    if (options?.ownershipRequirements && !newChallengeParams.equals(optionsChallengeParams)) {
+    console.log(doc.ownershipRequirements, options?.ownershipRequirements);
+
+    if (options?.ownershipRequirements && !newChallengeParams.equals(optionsChallengeParams, true)) {
       throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
     }
 
