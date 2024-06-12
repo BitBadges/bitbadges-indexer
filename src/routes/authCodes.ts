@@ -260,14 +260,15 @@ export const getAndVerifySIWBBRequest = async (
     const clientId = client_id;
     const clientSecret = client_secret;
     const redirectUri = redirect_uri;
+    console.log(doc, clientId, clientSecret, redirectUri, options);
 
-    if (doc.ownershipRequirements && !options.ownershipRequirements) {
-      throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
-    }
+    // if (doc.ownershipRequirements && !options.ownershipRequirements) {
+    //   throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
+    // }
 
-    if (doc.otherSignIns && !options.otherSignIns) {
-      throw new Error('This request has other sign ins but expected other sign ins were not specified.');
-    }
+    // if (doc.otherSignIns && !options.otherSignIns) {
+    //   throw new Error('This request has other sign ins but expected other sign ins were not specified.');
+    // }
 
     if (options.ownershipRequirements && JSON.stringify(doc.ownershipRequirements) !== JSON.stringify(options.ownershipRequirements)) {
       throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
@@ -289,6 +290,8 @@ export const getAndVerifySIWBBRequest = async (
         throw new Error('Not recent enough. Issued at time is too old: ' + new Date(Number(doc.createdAt)).toISOString());
       }
     }
+
+    console.log('getAndVerifySIWBBRequest 2');
 
     const authDetails = await getAuthDetails(req, res);
     if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.address) !== authDetails.cosmosAddress) {
@@ -320,6 +323,8 @@ export const getAndVerifySIWBBRequest = async (
       }
     }
 
+    console.log('getAndVerifySIWBBRequest 3');
+
     const dummyParams = {
       domain: 'https://bitbadges.io',
       statement: 'Something',
@@ -339,6 +344,8 @@ export const getAndVerifySIWBBRequest = async (
         skipSignatureVerification: true
       }
     });
+
+    console.log('getAndVerifySIWBBRequest 4', verificationResponse);
 
     const blockinRes = new BlockinChallenge({
       ...doc,
