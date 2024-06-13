@@ -507,7 +507,7 @@ app.delete('/api/v0/reviews/delete/:reviewId', authorizeBlockinRequest([{ scopeN
 
 // User
 app.post('/api/v0/users', getAccounts);
-app.post('/api/v0/user/updateAccount', authorizeBlockinRequest([{ scopeName: 'Profile' }]), upload.single('profilePicImageFile'), updateAccountInfo);
+app.post('/api/v0/user/updateAccount', upload.single('profilePicImageFile'), updateAccountInfo);
 
 // IPFS
 app.post(

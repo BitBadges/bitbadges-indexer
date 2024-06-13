@@ -808,6 +808,17 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
 
     const authDetails = await mustGetAuthDetails(req, res);
     const cosmosAddress = authDetails.cosmosAddress;
+
+    if (Object.keys(reqPayload).length === 1 && reqPayload.seenActivity !== undefined) {
+      if (!checkIfAuthenticated(req, res, [{ scopeName: 'Read Profile' }])) {
+        return;
+      }
+    } else {
+      if (!checkIfAuthenticated(req, res, [{ scopeName: 'Full Access' }])) {
+        return;
+      }
+    }
+
     let profileInfo = await getFromDB(ProfileModel, cosmosAddress);
     if (!profileInfo) {
       profileInfo = new ProfileDoc({
