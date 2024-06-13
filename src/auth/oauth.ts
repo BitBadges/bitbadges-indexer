@@ -113,7 +113,21 @@ export const discordCallbackHandler = (req: Request, res: Response, next: NextFu
         await insertToDB(ProfileModel, profileDoc);
       }
 
-      return res.status(200).send('Logged in. Please proceed back to the app.');
+      return res.status(200).send(`
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Logged In</title>
+    </head>
+    <body>
+      <script type="text/javascript">
+        alert('Logged in. The window will now close.');
+        window.close();
+      </script>
+      <p>Logged in. You can close this window.</p>
+    </body>
+  </html>
+`);
     } catch (e) {
       console.error(e);
       return res.status(500).send({
@@ -167,7 +181,21 @@ export const githubCallbackHandler = (req: Request, res: Response, next: NextFun
         await insertToDB(ProfileModel, profileDoc);
       }
 
-      return res.status(200).send('Logged in. Please proceed back to the app.');
+      return res.status(200).send(`
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Logged In</title>
+    </head>
+    <body>
+      <script type="text/javascript">
+        alert('Logged in. The window will now close.');
+        window.close();
+      </script>
+      <p>Logged in. You can close this window.</p>
+    </body>
+  </html>
+`);
     } catch (e) {
       console.error(e);
       return res.status(500).send({
@@ -204,7 +232,21 @@ export const googleCallbackHandler = (req: Request, res: Response, next: NextFun
         await insertToDB(ProfileModel, profileDoc);
       }
 
-      return res.status(200).send('Logged in. Please proceed back to the app.');
+      return res.status(200).send(`
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Logged In</title>
+    </head>
+    <body>
+      <script type="text/javascript">
+        alert('Logged in. The window will now close.');
+        window.close();
+      </script>
+      <p>Logged in. You can close this window.</p>
+    </body>
+  </html>
+`);
     } catch (e) {
       console.error(e);
       return res.status(500).send({
