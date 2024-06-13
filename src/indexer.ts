@@ -579,7 +579,7 @@ app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 // Maps
 app.post('/api/v0/maps', getMaps);
 
-app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createPass);
+app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest([{ scopeName: 'Read Authentication Codes' }]), createPass);
 
 // Off-Chain Attestation Sigs
 app.post('/api/v0/attestation/fetch', getAttestation);
