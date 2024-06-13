@@ -411,7 +411,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
 
     // Get user's Twitter profile
     const userProfileUrl = 'https://api.twitter.com/1.1/account/verify_credentials.json';
-    await new Promise((resolve, reject) => {
+    const profileData = await new Promise((resolve, reject) => {
       twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, (error, data) => {
         if (error) {
           return reject(error);
@@ -420,7 +420,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
       });
     });
 
-    const profile = JSON.parse(data as any);
+    const profile = JSON.parse(profileData as any);
     const user = {
       id: profile.id_str,
       username: profile.screen_name,
@@ -550,7 +550,7 @@ app.delete('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Delete
 // Blockin Siwbb Requests
 app.post('/api/v0/siwbbRequest/fetch', getAndVerifySIWBBRequest);
 app.post('/api/v0/siwbbRequest', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest([{ scopeName: 'Full Access']))
-app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest([{ scopeName: 'Delete Siwbb Requests' }]), deleteSIWBBRequest);
+app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest([{ scopeName: 'Delete Authentication Codes' }]), deleteSIWBBRequest);
 
 // Claim Alerts
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);

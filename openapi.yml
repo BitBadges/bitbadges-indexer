@@ -1013,7 +1013,7 @@ paths:
   /siwbbRequest/fetch:
     post:
       operationId: getAndVerifySIWBBRequest
-      summary: Get And Verify Siwbb Request
+      summary: Get And Verify SIWBB Request
       tags:
         - Sign In with BitBadges
       description: |-
@@ -1069,7 +1069,7 @@ paths:
   /siwbbRequest:
     delete:
       operationId: deleteSIWBBRequest
-      summary: Delete Siwbb Request
+      summary: Delete SIWBB Request
       tags:
         - Sign In with BitBadges
       description: |-
@@ -1109,7 +1109,7 @@ paths:
           userSignedIn: []
     post:
       operationId: createSIWBBRequest
-      summary: Create Siwbb Request
+      summary: Create SIWBB Request
       tags:
         - Sign In with BitBadges
       description: |-
@@ -1149,7 +1149,7 @@ paths:
   /developerApp/siwbbRequests:
     post:
       operationId: getSIWBBRequestsForDeveloperApp
-      summary: Get Siwbb Requests For Developer App
+      summary: Get SIWBB Requests For Developer App
       tags:
         - Sign In with BitBadges
       description: |-
@@ -5376,7 +5376,7 @@ components:
         siwbbRequests:
           items:
             $ref: '#/components/schemas/iSIWBBRequestDoc'
-          description: A list of Siwbb requests for the account. Paginated and fetched as needed. To be used in conjunction with views.
+          description: A list of SIWBB requests for the account. Paginated and fetched as needed. To be used in conjunction with views.
           type: array
         secrets:
           items:
@@ -7626,17 +7626,17 @@ components:
     CreateSIWBBRequestPayload:
       properties:
         name:
-          description: The name of the Blockin Siwbb request for display purposes.
+          description: The name of the Blockin SIWBB request for display purposes.
           type: string
           examples:
             - Name
         description:
-          description: The description of the Blockin Siwbb request for display purposes.
+          description: The description of the Blockin SIWBB request for display purposes.
           type: string
           examples:
             - Brief description.
         image:
-          description: The image of the Blockin Siwbb request for display purposes.
+          description: The image of the Blockin SIWBB request for display purposes.
           type: string
           examples:
             - 'https://example.com/image.png'
@@ -7663,7 +7663,7 @@ components:
             This proves sensitive information (e.g. GPAs, SAT scores, etc.) without revealing the information itself.
           type: array
         clientId:
-          description: Client ID for the Blockin Siwbb request.
+          description: Client ID for the Blockin SIWBB request.
           type: string
         otherSignIns:
           items:
@@ -7693,7 +7693,7 @@ components:
     iCreateSIWBBRequestSuccessResponse:
       properties:
         code:
-          description: Secret code which can be exchanged for the Siwbb request details.
+          description: Secret code which can be exchanged for the SIWBB request details.
           type: string
       required:
         - code
@@ -7727,19 +7727,19 @@ components:
     GetAndVerifySIWBBRequestPayload:
       properties:
         code:
-          description: The Blockin Siwbb request.
+          description: The Blockin SIWBB request.
           type: string
         options:
           description: We attempt to verify the current status with each request. You can provide additional options for verification here.
           $ref: '#/components/schemas/VerifyChallengeOptions'
         clientSecret:
-          description: Client secret for the Blockin Siwbb request.
+          description: Client secret for the Blockin SIWBB request.
           type: string
         clientId:
-          description: Client ID for the Blockin Siwbb request.
+          description: Client ID for the Blockin SIWBB request.
           type: string
         redirectUri:
-          description: The redirect URI for the Blockin Siwbb request. Only required if the code was created with a redirect URI.
+          description: The redirect URI for the Blockin SIWBB request. Only required if the code was created with a redirect URI.
           type: string
       required:
         - code
@@ -7748,7 +7748,7 @@ components:
     iGetAndVerifySIWBBRequestSuccessResponse:
       properties:
         blockin:
-          description: Blockin class that contains all details about the Blockin Siwbb request.
+          description: Blockin class that contains all details about the Blockin SIWBB request.
           $ref: '#/components/schemas/iBlockinChallenge'
       required:
         - blockin

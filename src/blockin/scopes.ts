@@ -18,9 +18,9 @@ export const SupportedScopes = [
   'Update Address Lists: Update address lists on behalf of the user.',
   'Delete Address Lists: Delete address lists on behalf of the user.',
 
-  'Create Siwbb Requests: Create new authentication codes on behalf of the user.', //Still need signature for this
-  'Read Siwbb Requests: Read authentication codes on behalf of the user.',
-  'Delete Siwbb Requests: Delete authentication codes on behalf of the user.',
+  'Approve Sign In with BitBadges Requests: Sign In with BitBadges on behalf of the user.',
+  'Read Authentication Codes: Read Authentication Codes on behalf of the user.',
+  'Delete Authentication Codes: Delete Authentication Codes on behalf of the user.',
 
   'Send Claim Alerts: Send claim alerts on behalf of the user.',
   'Read Claim Alerts: Read claim alerts on behalf of the user. Note that claim alerts may contain sensitive information like claim codes, attestation IDs, etc.',

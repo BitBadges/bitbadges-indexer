@@ -48,9 +48,9 @@ export const createSIWBBRequest = async (
 
     const origin = req.headers.origin;
     const authDetails = await mustGetAuthDetails(req, res);
-    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Create Siwbb Requests' }]);
+    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Approve Sign In with BitBadges Requests' }]);
     if (!isAuthenticated) {
-      throw new Error('You do not have permission to create Siwbb requests.');
+      throw new Error('You do not have permission to create requests.');
     }
 
     //Dummy params for compatibility
@@ -71,22 +71,17 @@ export const createSIWBBRequest = async (
       throw new Error('Invalid address in message.');
     }
 
-    //IMPORTANT: If we are calling from the frontend, we override the 'Create Siwbb Requests' scope in order to allow the user to not have to authenticate
-    //           to the API. This is because it would be two signatures (one for creating the Siwbb request and one for signing in with BitBadges).
-    //           We then use the fact that the Siwbb request signature is valid to confirm the user is who they say they are, rather than the req.session.
-    //           This is checked in the middleware. However, if we are calling from the API, we do not override the scope.
-
     const isFromFrontend = origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io';
     if (!isFromFrontend) {
       if (reqPayload.redirectUri) {
-        throw new Error('Creating Siwbb requests with a redirect URI is not supported for requests that interact with the API directly.');
+        throw new Error('Creating SIWBB requests with a redirect URI is not supported for requests that interact with the API directly.');
       }
     }
 
     const toSkipSignatureVerification = true;
     const appDoc = await getFromDB(DeveloperAppModel, reqPayload.clientId);
     if (!appDoc) {
-      throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
+      throw new Error('Invalid client ID. All SIWBB requests must be associated with a valid client ID for an app.');
     }
 
     if (reqPayload.redirectUri && !appDoc.redirectUris.includes(reqPayload.redirectUri)) {
@@ -189,7 +184,7 @@ export const createSIWBBRequest = async (
     console.error(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || e.message || 'Error creating QR Siwbb request.'
+      errorMessage: e.message || e.message || 'Error creating QR SIWBB request.'
     });
   }
 };
@@ -209,7 +204,7 @@ export const getSIWBBRequestsForDeveloperApp = async (
     const { clientId, bookmark } = reqPayload;
     const appDoc = await getFromDB(DeveloperAppModel, clientId);
     if (!appDoc) {
-      throw new Error('Invalid client ID. All Siwbb requests must be associated with a valid client ID for an app.');
+      throw new Error('Invalid client ID. All SIWBB requests must be associated with a valid client ID for an app.');
     }
 
     const authDetails = await mustGetAuthDetails(req, res);
@@ -234,7 +229,7 @@ export const getSIWBBRequestsForDeveloperApp = async (
     console.error(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error getting Siwbb requests.'
+      errorMessage: e.message || 'Error getting SIWBB requests.'
     });
   }
 };
@@ -336,7 +331,7 @@ export const getAndVerifySIWBBRequest = async (
     const authDetails = await getAuthDetails(req, res);
     if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.address) !== authDetails.cosmosAddress) {
       if (!clientId) {
-        throw new Error('You are not the owner of this Siwbb request.');
+        throw new Error('You are not the owner of this SIWBB request.');
       }
 
       const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
@@ -417,7 +412,7 @@ export const deleteSIWBBRequest = async (
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     if (doc.cosmosAddress !== authDetails.cosmosAddress) {
-      throw new Error('You are not the owner of this Siwbb request.');
+      throw new Error('You are not the owner of this SIWBB request.');
     }
 
     await insertToDB(SIWBBRequestModel, {
@@ -430,7 +425,7 @@ export const deleteSIWBBRequest = async (
     console.error(e);
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error deleting QR Siwbb request.'
+      errorMessage: e.message || 'Error deleting QR SIWBB request.'
     });
   }
 };

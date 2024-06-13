@@ -115,7 +115,7 @@ export const deleteDeveloperApp = async (
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, reqPayload.clientId);
     if (doc.createdBy !== authDetails.cosmosAddress) {
-      throw new Error('You are not the owner of this Siwbb request.');
+      throw new Error('You are not the owner of this request.');
     }
 
     await deleteMany(DeveloperAppModel, [reqPayload.clientId]);

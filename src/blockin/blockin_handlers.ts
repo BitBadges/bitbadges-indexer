@@ -299,8 +299,18 @@ export async function getChallenge(
       nonce: req.session.nonce ?? '',
       expirationDate: undefined,
       notBefore: undefined,
-      resources: [],
-      assets: []
+      resources: [`Full Access: Full access to all features.`],
+      assetOwnershipRequirements: {
+        assets: [
+          {
+            collectionId: 1,
+            chain: 'BitBadges',
+            assetIds: [{ start: 9, end: 9 }],
+            ownershipTimes: [],
+            mustOwnAmounts: { start: 0, end: 0 }
+          }
+        ]
+      }
     };
 
     const blockinMessage = createChallenge(challengeParams);

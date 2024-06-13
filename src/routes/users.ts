@@ -18,6 +18,7 @@ import {
   iChallengeDetails,
   type AccountFetchDetails,
   type AddressListDoc,
+  type AttestationDoc,
   type BalanceDoc,
   type ClaimAlertDoc,
   type ErrorResponse,
@@ -27,7 +28,6 @@ import {
   type PaginationInfo,
   type ReviewDoc,
   type SIWBBRequestDoc,
-  type AttestationDoc,
   type TransferActivityDoc,
   type UpdateAccountInfoPayload,
   type iAccountDoc,
@@ -39,6 +39,7 @@ import crypto from 'crypto';
 import { type Request, type Response } from 'express';
 import type nano from 'nano';
 import { serializeError } from 'serialize-error';
+import typia from 'typia';
 import {
   checkIfAuthenticated,
   getAuthDetails,
@@ -53,14 +54,15 @@ import { AccountModel, FetchModel, ProfileModel, UsernameModel } from '../db/sch
 import { client, s3 } from '../indexer-vars';
 import { addChallengeDetailsToCriteria } from './badges';
 import { applyAddressListsToUserPermissions } from './balances';
+import { typiaError } from './search';
 import { convertToBitBadgesUserInfo } from './userHelpers';
 import {
   executeActivityQuery,
   executeClaimAlertsQuery,
   executeCollectedQuery,
+  executeCreatedAttestationsQuery,
   executeCreatedByQuery,
   executeCreatedListsQuery,
-  executeCreatedAttestationsQuery,
   executeExplicitExcludedListsQuery,
   executeExplicitIncludedListsQuery,
   executeListsActivityQuery,
@@ -73,8 +75,6 @@ import {
   executeSentClaimAlertsQuery
 } from './userQueries';
 import { appendSelfInitiatedIncomingApprovalToApprovals, appendSelfInitiatedOutgoingApprovalToApprovals, getAddressListsFromDB } from './utils';
-import typia from 'typia';
-import { typiaError } from './search';
 
 type AccountFetchOptions = AccountFetchDetails;
 
@@ -444,10 +444,12 @@ const getAdditionalUserInfo = async (
       }
     } else if (view.viewType === 'claimAlerts') {
       if (bookmark !== undefined) {
+        console.log(authDetails, cosmosAddress);
         const isAuthenticated =
           !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Claim Alerts' }])) &&
           authDetails &&
           authDetails.cosmosAddress === cosmosAddress;
+
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch claim alerts.');
         asyncOperations.push(async () => await executeClaimAlertsQuery(cosmosAddress, bookmark, oldestFirst));
       }
@@ -463,10 +465,10 @@ const getAdditionalUserInfo = async (
     } else if (view.viewType === 'siwbbRequests') {
       if (bookmark !== undefined) {
         const isAuthenticated =
-          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Siwbb Requests' }])) &&
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Authentication Codes' }])) &&
           authDetails &&
           authDetails.cosmosAddress === cosmosAddress;
-        if (!isAuthenticated) throw new Error('You must be authenticated to fetch Siwbb requests.');
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch authentication codes.');
         asyncOperations.push(async () => await executeSIWBBRequestsQuery(cosmosAddress, bookmark, oldestFirst));
       }
     } else if (view.viewType === 'allLists') {
