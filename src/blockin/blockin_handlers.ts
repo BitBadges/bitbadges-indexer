@@ -163,7 +163,10 @@ export async function getAuthDetails<T extends NumberType>(
     if (req.session.blockin) {
       return {
         ...req.session,
-        scopes: [{ scopeName: 'Full Access' }]
+        scopes:
+          req.session.blockinParams?.resources?.map((x) => {
+            return { scopeName: x.split(':')[0] };
+          }) ?? []
       };
     }
 
