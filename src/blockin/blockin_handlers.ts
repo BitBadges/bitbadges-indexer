@@ -499,7 +499,7 @@ export async function verifyBlockinAndGrantSessionCookie(
     req.session.address = challenge.address;
     req.session.cosmosAddress = convertToCosmosAddress(challenge.address);
     req.session.blockinParams = challenge;
-    req.session.blockin = generatedEIP4361ChallengeStr;
+    req.session.blockin = createChallenge(challenge);
     req.session.save();
 
     // Set up a profile if first time or update details if necessary based on sign-in
