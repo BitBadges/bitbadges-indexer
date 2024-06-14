@@ -1037,7 +1037,7 @@ if (process.env.DISABLE_API === 'true') {
 }
 
 const wsHttpsServer =
-  process.env.DISABLE_API === 'true'
+  process.env.DISABLE_API === 'true' || !isProduction
     ? undefined
     : https
         .createServer({
@@ -1080,6 +1080,13 @@ wsServer?.on('connection', (ws: WebSocketWithPair) => {
       } else {
         ws.send('Client not found');
       }
+    } else if (parsedMessage.type === 'disconnect') {
+      const pairClient = ws.pair;
+      if (pairClient) {
+        pairClient.send('Your peer has disconnected');
+        pairClient.pair = null;
+      }
+      ws.pair = null;
     } else if (parsedMessage.type !== 'id') {
       const pairClient = ws.pair;
       if (pairClient && pairClient.readyState === WebSocket.OPEN) {
