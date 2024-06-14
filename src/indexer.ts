@@ -12,6 +12,8 @@ if (process.env.TEST_MODE === 'true') {
   }).catch(console.error);
 }
 
+import WebSocket from 'ws';
+import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import {
   NumberType,
@@ -1034,6 +1036,55 @@ if (process.env.DISABLE_API === 'true') {
   init().catch(console.error);
 }
 
+const wsServer = new WebSocket.Server({ port: 8080 });
+const clients = new Map();
+
+interface WebSocketWithPair extends WebSocket {
+  pair: WebSocketWithPair | null;
+}
+
+wsServer.on('connection', (ws: WebSocketWithPair) => {
+  const clientId = uuidv4();
+  clients.set(clientId, ws);
+  ws.send(JSON.stringify({ type: 'id', id: clientId }));
+  console.log(`Client connected with id: ${clientId}`);
+
+  ws.on('message', (message) => {
+    const parsedMessage = JSON.parse(Buffer.from(message as any).toString());
+
+    if (parsedMessage.type === 'pair') {
+      const pairClient = clients.get(parsedMessage.id);
+      if (pairClient) {
+        ws.pair = pairClient;
+        pairClient.pair = ws;
+        ws.send('Connected with a peer');
+        pairClient.send('Connected with a peer');
+      } else {
+        ws.send('Client not found');
+      }
+    } else if (parsedMessage.type !== 'id') {
+      const pairClient = ws.pair;
+      if (pairClient && pairClient.readyState === WebSocket.OPEN) {
+        pairClient.send(Buffer.from(message as any).toString());
+      } else if (!pairClient || pairClient?.readyState !== WebSocket.OPEN) {
+        ws.send('Your peer has disconnected');
+        ws.pair = null;
+      }
+    }
+  });
+
+  ws.on('close', () => {
+    const pairClient = ws.pair;
+    if (pairClient) {
+      pairClient.send('Your peer has disconnected');
+      pairClient.pair = null;
+    }
+    clients.delete(clientId);
+  });
+});
+
+console.log('WebSocket server is running on ws://localhost:8080');
+
 export const gracefullyShutdown = async () => {
   SHUTDOWN = true;
   server?.close(() => {
@@ -1054,6 +1105,10 @@ export const gracefullyShutdown = async () => {
 
   await mongoose.connection.close();
   console.log('mongoose connection closed');
+
+  wsServer.close(() => {
+    console.log('WebSocket server closed');
+  });
 };
 
 process.on('SIGINT', gracefullyShutdown);

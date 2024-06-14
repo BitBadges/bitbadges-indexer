@@ -196,6 +196,17 @@ export async function initStatus(): Promise<void> {
     }
   });
 
+  await insertToDB(DeveloperAppModel, {
+    _docId: 'proof-of-address',
+    name: '',
+    description: '',
+    redirectUris: [],
+    image: '',
+    createdBy: '',
+    clientId: 'proof-of-address',
+    clientSecret: 'not needed'
+  });
+
   await insertToDB(PluginModel, {
     _docId: 'min-badge',
     approvedUsers: [],
