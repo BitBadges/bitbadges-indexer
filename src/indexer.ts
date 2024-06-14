@@ -1036,7 +1036,15 @@ if (process.env.DISABLE_API === 'true') {
   init().catch(console.error);
 }
 
-const wsServer = new WebSocket.Server({ port: 8080 });
+const wsHttpsServer = https.createServer({
+  key: fs.readFileSync('server.key'),
+  cert: fs.readFileSync('server.cert')
+});
+
+const wsServer = new WebSocket.Server({
+  port: 8080,
+  server: process.env.DISABLE_API === 'true' ? undefined : isProduction ? wsHttpsServer : undefined
+});
 const clients = new Map();
 
 interface WebSocketWithPair extends WebSocket {
