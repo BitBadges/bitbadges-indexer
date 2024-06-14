@@ -340,28 +340,29 @@ export const getAndVerifySIWBBRequest = async (
         throw new Error('You are not the owner of this SIWBB request.');
       }
 
-      if (clientId !== 'proof-of-address') {
-        const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
-        if (!clientSecret || appDoc.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
+      const isProofOfAddress = clientId === 'proof-of-address';
+      const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
+      if (!clientSecret || appDoc.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
+        if (!isProofOfAddress) {
           throw new Error('Invalid client secret.');
         }
+      }
 
-        if (doc.clientId !== clientId) {
-          throw new Error('Invalid client ID or redirect URI.');
+      if (doc.clientId !== clientId) {
+        throw new Error('Invalid client ID or redirect URI.');
+      }
+
+      if (doc.redirectUri) {
+        if (!redirectUri) {
+          throw new Error('Invalid redirect URI.');
         }
 
-        if (doc.redirectUri) {
-          if (!redirectUri) {
-            throw new Error('Invalid redirect URI.');
-          }
+        if (doc.redirectUri !== redirectUri) {
+          throw new Error('Invalid redirect URI.');
+        }
 
-          if (doc.redirectUri !== redirectUri) {
-            throw new Error('Invalid redirect URI.');
-          }
-
-          if (!appDoc.redirectUris.includes(redirectUri)) {
-            throw new Error('Invalid redirect URI.');
-          }
+        if (!appDoc.redirectUris.includes(redirectUri)) {
+          throw new Error('Invalid redirect URI.');
         }
       }
     }
