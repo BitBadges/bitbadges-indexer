@@ -1036,22 +1036,32 @@ if (process.env.DISABLE_API === 'true') {
   init().catch(console.error);
 }
 
-const wsHttpsServer = https.createServer({
-  key: fs.readFileSync('server.key'),
-  cert: fs.readFileSync('server.cert')
-});
+const wsHttpsServer =
+  process.env.DISABLE_API === 'true'
+    ? undefined
+    : https
+        .createServer({
+          key: fs.readFileSync('server.key'),
+          cert: fs.readFileSync('server.cert')
+        })
+        .listen(8080, () => {
+          console.log('\nWebSocket server is running on wss://localhost:8080');
+        });
 
-const wsServer = new WebSocket.Server({
-  port: 8080,
-  server: process.env.DISABLE_API === 'true' ? undefined : isProduction ? wsHttpsServer : undefined
-});
+const wsServer =
+  process.env.DISABLE_API !== 'true'
+    ? new WebSocket.Server({
+        port: process.env.DISABLE_API === 'true' ? undefined : isProduction ? undefined : 8080,
+        server: process.env.DISABLE_API === 'true' ? undefined : isProduction ? wsHttpsServer : undefined
+      })
+    : undefined;
 const clients = new Map();
 
 interface WebSocketWithPair extends WebSocket {
   pair: WebSocketWithPair | null;
 }
 
-wsServer.on('connection', (ws: WebSocketWithPair) => {
+wsServer?.on('connection', (ws: WebSocketWithPair) => {
   const clientId = uuidv4();
   clients.set(clientId, ws);
   ws.send(JSON.stringify({ type: 'id', id: clientId }));
@@ -1114,7 +1124,7 @@ export const gracefullyShutdown = async () => {
   await mongoose.connection.close();
   console.log('mongoose connection closed');
 
-  wsServer.close(() => {
+  wsServer?.close(() => {
     console.log('WebSocket server closed');
   });
 };
