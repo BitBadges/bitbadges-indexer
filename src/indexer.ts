@@ -1065,7 +1065,6 @@ wsServer?.on('connection', (ws: WebSocketWithPair) => {
   const clientId = uuidv4();
   clients.set(clientId, ws);
   ws.send(JSON.stringify({ type: 'id', id: clientId }));
-  console.log(`Client connected with id: ${clientId}`);
 
   ws.on('message', (message) => {
     const parsedMessage = JSON.parse(Buffer.from(message as any).toString());

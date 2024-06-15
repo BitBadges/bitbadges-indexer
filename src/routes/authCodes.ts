@@ -6,6 +6,7 @@ import {
   convertToCosmosAddress,
   getChainForAddress,
   iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse,
+  mustConvertToCosmosAddress,
   type CreateSIWBBRequestPayload,
   type DeleteSIWBBRequestPayload,
   type ErrorResponse,
@@ -47,11 +48,12 @@ export const createSIWBBRequest = async (
     }
 
     const origin = req.headers.origin;
-    const authDetails = await mustGetAuthDetails(req, res);
+
     const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Approve Sign In with BitBadges Requests' }]);
     if (!isAuthenticated) {
       throw new Error('You do not have permission to create requests.');
     }
+    const authDetails = await mustGetAuthDetails(req, res);
 
     //Dummy params for compatibility
     const ownershipRequirements = reqPayload.ownershipRequirements;
@@ -280,6 +282,7 @@ export const getAndVerifySIWBBRequest = async (
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options: _options } = reqPayload;
+    console.log(client_id, headerClientId);
     const clientId = client_id || headerClientId;
     const clientSecret = client_secret || headerClientSecret;
     const redirectUri = redirect_uri;
@@ -335,7 +338,8 @@ export const getAndVerifySIWBBRequest = async (
     }
 
     const authDetails = await getAuthDetails(req, res);
-    if (!authDetails?.cosmosAddress || convertToCosmosAddress(doc.address) !== authDetails.cosmosAddress) {
+    console.log('authDetails', authDetails, doc);
+    if (mustConvertToCosmosAddress(doc.address) !== authDetails?.cosmosAddress) {
       if (!clientId) {
         throw new Error('You are not the owner of this SIWBB request.');
       }
@@ -347,6 +351,8 @@ export const getAndVerifySIWBBRequest = async (
           throw new Error('Invalid client secret.');
         }
       }
+
+      console.log(appDoc, doc, clientId);
 
       if (doc.clientId !== clientId) {
         throw new Error('Invalid client ID or redirect URI.');

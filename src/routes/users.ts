@@ -44,6 +44,7 @@ import {
   checkIfAuthenticated,
   getAuthDetails,
   mustGetAuthDetails,
+  setMockSessionIfTestMode,
   type AuthenticatedRequest,
   type MaybeAuthenticatedRequest
 } from '../blockin/blockin_handlers';
@@ -805,6 +806,8 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
+
+    setMockSessionIfTestMode(req);
 
     const authDetails = await mustGetAuthDetails(req, res);
     const cosmosAddress = authDetails.cosmosAddress;
