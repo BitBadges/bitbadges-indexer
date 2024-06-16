@@ -34,7 +34,6 @@ import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { typiaError } from './search';
 import { executeSIWBBRequestsForAppQuery } from './userQueries';
-import { AndGroup } from 'blockin/dist/types/verify.types';
 
 export const createSIWBBRequest = async (
   req: MaybeAuthenticatedRequest<NumberType>,
@@ -282,22 +281,10 @@ export const getAndVerifySIWBBRequest = async (
 
     const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options: _options } = reqPayload;
-    console.log(client_id, headerClientId);
     const clientId = client_id || headerClientId;
     const clientSecret = client_secret || headerClientSecret;
     const redirectUri = redirect_uri;
     const options = (_options || queryOptions) as GetAndVerifySIWBBRequestPayload['options'];
-
-    if (doc.ownershipRequirements && !options?.ownershipRequirements) {
-      if ((doc.ownershipRequirements as AndGroup<NumberType>).$and && (doc.ownershipRequirements as AndGroup<NumberType>).$and.length == 0) {
-      } else {
-        throw new Error('This request has ownership requirements but expected ownership requirements were not specified.');
-      }
-    }
-
-    if (Object.keys(doc.otherSignIns ?? {}).length && !options?.otherSignIns) {
-      throw new Error('This request has other sign ins but expected other sign ins were not specified.');
-    }
 
     const newChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
       domain: 'https://bitbadges.io',

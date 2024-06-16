@@ -577,7 +577,7 @@ app.put('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Update Att
 
 // Auth Apps
 app.post('/api/v0/developerApp/fetch', websiteOnlyCors, getDeveloperApps);
-app.post('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createDeveloperApp);
+app.post('/api/v0/developerApp', websiteOnlyCors, createDeveloperApp);
 app.delete('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), deleteDeveloperApp);
 app.put('/api/v0/developerApp', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), updateDeveloperApp);
 app.post('/api/v0/developerApp/siwbbRequests', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getSIWBBRequestsForDeveloperApp);

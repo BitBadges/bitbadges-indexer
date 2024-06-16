@@ -14,7 +14,7 @@ import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
-import { checkIfAuthenticated, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { checkIfAuthenticated, getAuthDetails, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { DeveloperAppModel } from '../db/schemas';
@@ -34,7 +34,7 @@ export const createDeveloperApp = async (
 
     const uniqueClientId = crypto.randomBytes(32).toString('hex');
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
-    const authDetails = await mustGetAuthDetails(req, res);
+    const authDetails = reqPayload.name === '__temp' ? undefined : await getAuthDetails(req, res);
 
     if (reqPayload.image.startsWith('data:')) {
       const res = await addMetadataToIpfs([{ name: '', description: '', image: reqPayload.image }]);
@@ -45,7 +45,7 @@ export const createDeveloperApp = async (
     const clientSecretHash = crypto.createHash('sha256').update(uniqueClientSecret).digest('hex');
 
     await insertToDB(DeveloperAppModel, {
-      createdBy: authDetails.cosmosAddress,
+      createdBy: authDetails?.cosmosAddress ?? '',
       _docId: uniqueClientId,
       clientId: uniqueClientId,
       clientSecret: clientSecretHash,
