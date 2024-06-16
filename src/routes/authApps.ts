@@ -112,9 +112,19 @@ export const deleteDeveloperApp = async (
       return typiaError(res, validateRes);
     }
 
-    const authDetails = await mustGetAuthDetails(req, res);
+    const authDetails = await getAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, reqPayload.clientId);
-    if (doc.createdBy !== authDetails.cosmosAddress) {
+
+    if (doc.createdBy !== authDetails?.cosmosAddress) {
+      if (doc.name === '__temp' && reqPayload.clientSecret) {
+        if (doc.clientSecret !== crypto.createHash('sha256').update(reqPayload.clientSecret).digest('hex')) {
+          throw new Error('For temporary apps, you must specify the client secret to delete the app.');
+        }
+
+        await deleteMany(DeveloperAppModel, [reqPayload.clientId]);
+        return res.status(200).send({ success: true });
+      }
+
       throw new Error('You are not the owner of this request.');
     }
 

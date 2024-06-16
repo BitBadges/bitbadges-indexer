@@ -165,12 +165,6 @@ export const createSIWBBRequest = async (
       }
     }
 
-    if (reqPayload.clientId === 'proof-of-address') {
-      if (reqPayload.otherSignIns) throw new Error('Invalid parameters for reserved proof of address client ID.');
-      if (reqPayload.attestationsPresentations) throw new Error('Invalid parameters for reserved proof of address client ID.');
-      if (reqPayload.redirectUri) throw new Error('Invalid parameters for reserved proof of address client ID.');
-    }
-
     const uniqueId = crypto.randomBytes(32).toString('hex');
     await insertToDB(SIWBBRequestModel, {
       _docId: uniqueId,
@@ -331,12 +325,9 @@ export const getAndVerifySIWBBRequest = async (
         throw new Error('You are not the owner of this SIWBB request.');
       }
 
-      const isProofOfAddress = clientId === 'proof-of-address';
       const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
       if (!clientSecret || appDoc.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
-        if (!isProofOfAddress) {
-          throw new Error('Invalid client secret.');
-        }
+        throw new Error('Invalid client secret.');
       }
 
       console.log(appDoc, doc, clientId);
@@ -387,9 +378,7 @@ export const getAndVerifySIWBBRequest = async (
     });
 
     if (verificationResponse.success) {
-      return res
-        .status(200)
-        .send({ blockin: blockinRes, access_token: doc.clientId === 'proof-of-address' ? doc.name ?? '' : doc.address, token_type: 'Bearer' });
+      return res.status(200).send({ blockin: blockinRes, access_token: doc.address, token_type: 'Bearer' });
     } else {
       return res.status(401).send({ blockin: blockinRes, access_token: '', token_type: 'Bearer', errorMessage: verificationResponse.message });
     }
