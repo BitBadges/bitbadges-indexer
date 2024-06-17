@@ -116,6 +116,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
           passTwitter: false,
           passGoogle: false,
           passGithub: false,
+          passTwitch: false,
           hardcodedInputs: []
         }),
         ...reqPayload.verificationCall
@@ -247,6 +248,7 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
             passAddress: false,
             passDiscord: false,
             passTwitter: false,
+            passTwitch: false,
             passGoogle: false,
             passGithub: false
           }

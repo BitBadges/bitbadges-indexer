@@ -229,6 +229,7 @@ export async function initStatus(): Promise<void> {
       passAddress: true,
       passGoogle: false,
       passGithub: false,
+      passTwitch: false,
       hardcodedInputs: []
     },
     reviewCompleted: true,
@@ -268,6 +269,7 @@ export async function initStatus(): Promise<void> {
       passTwitter: false,
       passAddress: true,
       passGoogle: false,
+      passTwitch: false,
       passGithub: false,
       hardcodedInputs: []
     },
@@ -307,6 +309,7 @@ export async function initStatus(): Promise<void> {
       // passEmail: false,
       passTwitter: false,
       passAddress: false,
+      passTwitch: false,
       passGoogle: false,
       passGithub: true,
       hardcodedInputs: []
@@ -357,6 +360,7 @@ export async function initStatus(): Promise<void> {
       passAddress: false,
       passGoogle: false,
       passGithub: false,
+      passTwitch: false,
       hardcodedInputs: []
     },
     reviewCompleted: true,

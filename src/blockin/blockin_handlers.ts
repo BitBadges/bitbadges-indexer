@@ -77,6 +77,10 @@ export interface BlockinSessionDetails<T extends NumberType> {
     id: string;
     username: string;
   };
+  twitch?: {
+    id: string;
+    username: string;
+  };
 }
 
 export interface BlockinSession<T extends NumberType> extends Session {
@@ -120,6 +124,10 @@ export interface BlockinSession<T extends NumberType> extends Session {
   };
   /** Connected OAuth Reddit account. */
   reddit?: {
+    id: string;
+    username: string;
+  };
+  twitch?: {
     id: string;
     username: string;
   };

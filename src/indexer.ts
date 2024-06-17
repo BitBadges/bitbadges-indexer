@@ -31,7 +31,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import crypto from 'crypto';
-
+import OAuth2Strategy from 'passport-oauth2';
 import express, { NextFunction, type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import expressSession from 'express-session';
@@ -39,7 +39,6 @@ import fs from 'fs';
 import helmet from 'helmet';
 import https from 'https';
 import mongoose from 'mongoose';
-
 import multer from 'multer';
 import passport from 'passport';
 import querystring from 'querystring';
@@ -357,6 +356,9 @@ app.use(cookieParser());
 app.use(passport.initialize());
 app.use(passport.session());
 
+const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
+
 app.get('/', (req: Request, res: Response) => {
   return res.send({
     message: 'Hello from the BitBadges indexer! See docs.bitbadges.io for documentation.'
@@ -365,6 +367,84 @@ app.get('/', (req: Request, res: Response) => {
 
 // Status
 app.post('/api/v0/status', getStatusHandler);
+
+passport.use(
+  'twitch',
+  new OAuth2Strategy(
+    {
+      authorizationURL: 'https://id.twitch.tv/oauth2/authorize',
+      tokenURL: 'https://id.twitch.tv/oauth2/token',
+      clientID: TWITCH_CLIENT_ID ?? '',
+      clientSecret: TWITCH_CLIENT_SECRET ?? '',
+      callbackURL: process.env.DEV_MODE === 'true' ? 'http://localhost:3001/auth/twitch/callback' : 'https://api.bitbadges.io/auth/twitch/callback',
+      state: true
+    },
+    function (accessToken: string, refreshToken: string, profile: any, done: any) {
+      profile.accessToken = accessToken;
+      profile.refreshToken = refreshToken;
+
+      done(null, profile);
+    }
+  )
+);
+
+// Set route to start OAuth link, this is where you define scopes to request
+app.get('/auth/twitch', passport.authenticate('twitch', { scope: 'user_read' }));
+app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunction) => {
+  passport.authenticate('twitch', async function (err: Error, callbackVal: { accessToken: string }) {
+    try {
+      if (err) {
+        return next(err);
+      }
+      if (!callbackVal) {
+        return res.status(401).send('Unauthorized. No user found.');
+      }
+
+      const { accessToken } = callbackVal;
+
+      const options = {
+        url: 'https://api.twitch.tv/helix/users',
+        method: 'GET',
+        headers: {
+          'Client-ID': TWITCH_CLIENT_ID,
+          Accept: 'application/vnd.twitchtv.v5+json',
+          Authorization: 'Bearer ' + accessToken
+        }
+      };
+
+      const resp = await axios.get(options.url, { headers: options.headers });
+      const data = resp.data;
+      const user = {
+        id: data.data[0].id,
+        username: data.data[0].login
+      };
+
+      (req.session as BlockinSession<bigint>).twitch = user;
+      req.session.save();
+
+      if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
+        const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
+        profileDoc.socialConnections = new SocialConnections({
+          ...profileDoc.socialConnections,
+          twitch: new SocialConnectionInfo({
+            username: user.username,
+            id: user.id,
+            lastUpdated: BigInt(Date.now())
+          })
+        });
+        await insertToDB(ProfileModel, profileDoc);
+      }
+
+      return res.status(200).redirect('https://bitbadges.io/connections?redirected=true');
+    } catch (e) {
+      console.error(e);
+      return res.status(500).send({
+        errorMessage: 'Internal server error',
+        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined
+      });
+    }
+  })(req, res, next);
+});
 
 app.get('/auth/discord', passport.authenticate('discord', { session: false }));
 app.get('/auth/discord/callback', discordCallbackHandler);
