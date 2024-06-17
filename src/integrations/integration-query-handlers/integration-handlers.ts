@@ -25,8 +25,43 @@ export const handleIntegrationQuery = async (body: any) => {
     await handleDiscordServerQuery(body);
   } else if (body.__type === 'must-own-badges') {
     await mustOwnBadgesQuery(body);
+  } else if (body.__type === 'twitch-follow') {
+    await checkTwitchFollow(body);
   } else {
     throw new Error('Invalid integration query type');
+  }
+};
+
+export const checkTwitchFollow = async (body: { channelName: string; twitch: { username: string; id: string; access_token: string } }) => {
+  const { twitch } = body;
+  typia.assert<string>(twitch.username);
+  typia.assert<string>(twitch.id);
+  typia.assert<string>(twitch.access_token);
+
+  const username = twitch.username;
+  const userId = twitch.id;
+  const access_token = twitch.access_token;
+  if (!username || !userId || !access_token) {
+    throw new Error('Invalid twitch user details');
+  }
+
+  // Fetch the user's followed channels using Twitch API
+  const response = await axios.get('https://api.twitch.tv/helix/users/follows', {
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID,
+      Authorization: `Bearer ${access_token}`
+    }
+  });
+
+  // Check if the user follows the specified channel
+  const followedChannels = response.data.data;
+  const channelName = body.channelName;
+  const userFollowsChannel = followedChannels.some((channel: any) => channel.to_name === channelName);
+
+  // Send the response based on whether the user follows the channel or not
+  if (userFollowsChannel) {
+  } else {
+    throw new Error('User does not follow the specified channel');
   }
 };
 

@@ -18,7 +18,8 @@ import {
   type iSignOutSuccessResponse,
   type iVerifySignInSuccessResponse,
   OAuthScopeDetails,
-  mustConvertToCosmosAddress
+  mustConvertToCosmosAddress,
+  CheckSignInStatusPayload
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge, verifyChallenge, type ChallengeParams } from 'blockin';
 import { type NextFunction, type Request, type Response } from 'express';
@@ -32,6 +33,7 @@ import { SupportedScopes, hasScopes } from './scopes';
 import typia from 'typia';
 import { typiaError } from '../routes/search';
 import crypto from 'crypto';
+import axios from 'axios';
 
 export interface BlockinSessionDetails<T extends NumberType> {
   /**
@@ -342,6 +344,62 @@ export async function getChallenge(
 export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusSuccessResponse>) {
   const authDetails = await getAuthDetails(req, res);
 
+  const body = req.body as CheckSignInStatusPayload;
+  if (body.validateAccessTokens) {
+    if (req.session.discord) {
+      const accessToken = req.session.discord.access_token;
+      try {
+        const res = await axios.get('https://discord.com/api/users/@me', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        });
+
+        if (res.status !== 200) {
+          throw new Error('Invalid Discord access token');
+        }
+      } catch (err) {
+        req.session.discord = undefined;
+      }
+    }
+
+    // if (req.session.twitter) {
+    //   const accessToken = req.session.twitter.access_token;
+    //   try {
+    //     const res = await axios.get('https://api.twitter.com/1.1/account/verify_credentials.json', {
+    //       headers: {
+    //         Authorization: `Bearer ${accessToken}`
+    //       }
+    //     });
+
+    //     if (res.status !== 200) {
+    //       throw new Error('Invalid Twitter access token');
+    //     }
+    //   } catch (err) {
+    //     req.session.twitter = undefined;
+    //   }
+    // }
+
+    // if (req.session.twitch) {
+    //   const accessToken = req.session.twitch.access_token;
+    //   try {
+    //     const res = await axios.get('https://api.twitch.tv/helix/users', {
+    //       headers: {
+    //         Authorization: `Bearer ${accessToken}`
+    //       }
+    //     });
+
+    //     if (res.status !== 200) {
+    //       throw new Error('Invalid Twitch access token');
+    //     }
+    //   } catch (err) {
+    //     req.session.twitch = undefined;
+    //   }
+    // }
+  }
+
+  req.session.save();
+
   return res.status(200).send({
     signedIn: !!authDetails?.blockin,
     scopes: authDetails?.scopes ?? [],
@@ -406,7 +464,14 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     session.twitch = undefined;
   }
 
-  if (session.address == null && session.discord == null && session.twitter == null && session.github == null && session.google == null && session.twitch == null) {
+  if (
+    session.address == null &&
+    session.discord == null &&
+    session.twitter == null &&
+    session.github == null &&
+    session.google == null &&
+    session.twitch == null
+  ) {
     try {
       session.destroy((err) => {
         if (err) {

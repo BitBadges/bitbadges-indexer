@@ -367,6 +367,47 @@ export async function initStatus(): Promise<void> {
     pluginSecret: ' ',
     stateFunctionPreset: PluginPresetType.Stateless
   });
+
+  await insertToDB(PluginModel, {
+    _docId: 'twitch-follow',
+    approvedUsers: [],
+    createdBy: '',
+    lastUpdated: Date.now(),
+    createdAt: Date.now(),
+    toPublish: false,
+    pluginId: 'twitch-follow',
+    requiresSessions: true,
+    requiresUserInputs: false,
+    duplicatesAllowed: true,
+    reuseForNonIndexed: false,
+    reuseForLists: true,
+    metadata: {
+      name: 'Twitch Follow',
+      description: 'Check if a user is following a Twitch channel.',
+      image: 'https://static.vecteezy.com/system/resources/previews/006/892/625/original/discord-logo-icon-editorial-free-vector.jpg',
+      createdBy: 'BitBadges',
+      documentation: 'https://docs.bitbadges.io',
+      sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
+    },
+    userInputsSchema: [],
+    privateParamsSchema: [],
+    publicParamsSchema: [{ key: 'channelName', label: 'Channel Name', type: 'string', helper: 'Name of the Twitch channel.' }],
+    verificationCall: {
+      method: 'POST',
+      uri: 'https://api.bitbadges.io/api/v0/integrations/query/twitch-follow',
+      passDiscord: false,
+      // passEmail: false,
+      passTwitter: false,
+      passAddress: false,
+      passGoogle: false,
+      passGithub: false,
+      passTwitch: true,
+      hardcodedInputs: []
+    },
+    reviewCompleted: true,
+    pluginSecret: ' ',
+    stateFunctionPreset: PluginPresetType.Stateless
+  });
 }
 
 export async function createIndexesAndViews(): Promise<void> {

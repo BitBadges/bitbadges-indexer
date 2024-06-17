@@ -389,7 +389,7 @@ passport.use(
 );
 
 // Set route to start OAuth link, this is where you define scopes to request
-app.get('/auth/twitch', passport.authenticate('twitch', { scope: 'user_read' }));
+app.get('/auth/twitch', passport.authenticate('twitch', { scope: 'user_read user:read:follows' }));
 app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate('twitch', async function (err: Error, callbackVal: { accessToken: string }) {
     try {
@@ -416,7 +416,8 @@ app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunctio
       const data = resp.data;
       const user = {
         id: data.data[0].id,
-        username: data.data[0].login
+        username: data.data[0].login,
+        access_token: accessToken
       };
       console.log(user);
 
