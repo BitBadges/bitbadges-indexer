@@ -2,10 +2,12 @@ import {
   BalanceArray,
   BigIntify,
   GenericVerifyAssetsPayload,
+  OAuthScopeDetails,
   SupportedChain,
   convertToCosmosAddress,
   getChainForAddress,
   isAddressValid,
+  mustConvertToCosmosAddress,
   verifyAttestationsPresentationSignatures,
   type ErrorResponse,
   type GenericBlockinVerifyPayload,
@@ -16,24 +18,20 @@ import {
   type iCheckSignInStatusSuccessResponse,
   type iGetSignInChallengeSuccessResponse,
   type iSignOutSuccessResponse,
-  type iVerifySignInSuccessResponse,
-  OAuthScopeDetails,
-  mustConvertToCosmosAddress,
-  CheckSignInStatusPayload
+  type iVerifySignInSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { constructChallengeObjectFromString, createChallenge, verifyChallenge, type ChallengeParams } from 'blockin';
+import crypto from 'crypto';
 import { type NextFunction, type Request, type Response } from 'express';
 import { type Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
+import typia from 'typia';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { AccessTokenModel, CollectionModel, ProfileModel } from '../db/schemas';
+import { typiaError } from '../routes/search';
 import { getChainDriver } from './blockin';
 import { SupportedScopes, hasScopes } from './scopes';
-import typia from 'typia';
-import { typiaError } from '../routes/search';
-import crypto from 'crypto';
-import axios from 'axios';
 
 export interface BlockinSessionDetails<T extends NumberType> {
   /**
