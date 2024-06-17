@@ -45,25 +45,38 @@ export const checkTwitchFollow = async (body: { channelName: string; twitch: { u
     throw new Error('Invalid twitch user details');
   }
 
-  console.log(access_token);
-
-  // Fetch the user's followed channels using Twitch API
-  const response = await axios.get('https://api.twitch.tv/helix/users/follows', {
+  console.log(access_token, twitch);
+  //Get broadcaster id
+  const broadcasterIdRes = await axios.get('https://api.twitch.tv/helix/users?login=' + body.channelName, {
     headers: {
       'Client-ID': process.env.TWITCH_CLIENT_ID,
       Authorization: `Bearer ${access_token}`
     }
   });
 
-  // Check if the user follows the specified channel
-  const followedChannels = response.data.data;
-  const channelName = body.channelName;
-  const userFollowsChannel = followedChannels.some((channel: any) => channel.to_name === channelName);
+  if (!broadcasterIdRes.data.data || broadcasterIdRes.data.data.length === 0) {
+    throw new Error('Invalid channel name');
+  }
 
-  // Send the response based on whether the user follows the channel or not
-  if (userFollowsChannel) {
+  const broadcasterId = broadcasterIdRes.data.data[0].id;
+
+  // Fetch the user's followed channels using Twitch API
+  const response = await axios.get('https://api.twitch.tv/helix/channels/followed?user_id=' + userId + '&broadcaster_id=' + broadcasterId, {
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID,
+      Authorization: `Bearer ${access_token}`
+    }
+  });
+
+  const data = response.data;
+  if (!data) {
+    throw new Error('Invalid response from Twitch API');
+  }
+
+  if (data.data && data.data.length > 0) {
+    // User is following the specified channel
   } else {
-    throw new Error('User does not follow the specified channel');
+    throw new Error('User is not following the specified channel');
   }
 };
 
