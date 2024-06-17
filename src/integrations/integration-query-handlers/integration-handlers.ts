@@ -45,6 +45,8 @@ export const checkTwitchFollow = async (body: { channelName: string; twitch: { u
     throw new Error('Invalid twitch user details');
   }
 
+  console.log(access_token);
+
   // Fetch the user's followed channels using Twitch API
   const response = await axios.get('https://api.twitch.tv/helix/users/follows', {
     headers: {
