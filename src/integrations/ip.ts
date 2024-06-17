@@ -7,7 +7,7 @@ export const IpRestrictionsDetails: BackendIntegrationPlugin<'ip'> = {
     ipsUsed: {}
   },
   metadata: {
-    name: '',
+    name: 'IP Restrictions',
     description: '',
     image: '',
     createdBy: 'BitBadges',

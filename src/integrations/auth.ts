@@ -219,3 +219,32 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
     return {};
   }
 };
+
+export const TwitchPluginDetails: BackendIntegrationPlugin<'twitch'> = {
+  pluginId: 'twitch',
+  metadata: {
+    name: 'Twitch',
+    description: '',
+    image: '',
+    createdBy: 'BitBadges',
+    stateless: false,
+    scoped: true,
+    duplicatesAllowed: false
+  },
+  defaultState: { ids: {}, usernames: {} },
+  encryptPrivateParams: (privateParams) => {
+    return privateParams;
+  },
+  decryptPrivateParams: (privateParams) => {
+    return privateParams;
+  },
+  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, githubInfo) => {
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, context.instanceId);
+  },
+  getPublicState: () => {
+    return {};
+  },
+  getBlankPublicState() {
+    return {};
+  }
+};

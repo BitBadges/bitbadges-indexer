@@ -12,7 +12,14 @@ import {
 import { mustGetFromDB, mustGetManyFromDB } from '../db/db';
 import { PluginModel } from '../db/schemas';
 import { GenericCustomPluginValidateFunction } from './api';
-import { DiscordPluginDetails, GenericOauthValidateFunction, GitHubPluginDetails, GooglePluginDetails, TwitterPluginDetails } from './auth';
+import {
+  DiscordPluginDetails,
+  GenericOauthValidateFunction,
+  GitHubPluginDetails,
+  GooglePluginDetails,
+  TwitchPluginDetails,
+  TwitterPluginDetails
+} from './auth';
 import { CodesPluginDetails, Setter } from './codes';
 import { NumUsesDetails } from './numUses';
 import { PasswordPluginDetails } from './passwords';
@@ -33,7 +40,8 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   // email: EmailPluginDetails,
   twitter: TwitterPluginDetails,
   discord: DiscordPluginDetails,
-  ip: IpRestrictionsDetails
+  ip: IpRestrictionsDetails,
+  twitch: TwitchPluginDetails
 };
 
 export interface ContextInfo {
