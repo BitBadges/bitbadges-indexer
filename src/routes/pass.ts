@@ -5,7 +5,7 @@ import path from 'path';
 import typia from 'typia';
 import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { mustGetFromDB } from '../db/db';
-import { SIWBBRequestModel } from '../db/schemas';
+import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { typiaError } from './search';
 
 // For running tests (TS bugs out)
@@ -34,7 +34,9 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
       return res.status(401).send({ errorMessage: 'Unauthorized' });
     }
 
-    const { name, description } = siwbbRequestDoc;
+    const clientDoc = await mustGetFromDB(DeveloperAppModel, siwbbRequestDoc.clientId);
+    const name = siwbbRequestDoc.name || clientDoc.name;
+    const description = siwbbRequestDoc.description || clientDoc.description;
 
     const passID = code;
 

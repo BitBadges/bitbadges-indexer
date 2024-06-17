@@ -3,9 +3,12 @@ import {
   BlockinChallenge,
   BlockinChallengeParams,
   GetAndVerifySIWBBRequestsForDeveloperAppPayload,
+  RotateSIWBBRequestPayload,
   convertToCosmosAddress,
   getChainForAddress,
   iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse,
+  iRotateSIWBBRequestSuccessResponse,
+  iSIWBBRequestDoc,
   mustConvertToCosmosAddress,
   type CreateSIWBBRequestPayload,
   type DeleteSIWBBRequestPayload,
@@ -30,10 +33,56 @@ import {
   setMockSessionIfTestMode,
   type AuthenticatedRequest
 } from '../blockin/blockin_handlers';
-import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
+import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
 import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { typiaError } from './search';
 import { executeSIWBBRequestsForAppQuery } from './userQueries';
+
+export const rotateSIWBBRequest = async (
+  req: MaybeAuthenticatedRequest<NumberType>,
+  res: Response<iRotateSIWBBRequestSuccessResponse | ErrorResponse>
+) => {
+  try {
+    const reqPayload = req.body as RotateSIWBBRequestPayload;
+    const validateRes: typia.IValidation<RotateSIWBBRequestPayload> = typia.validate<RotateSIWBBRequestPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Approve Sign In with BitBadges Requests' }]);
+    if (!isAuthenticated) {
+      throw new Error('You do not have permission to create requests.');
+    }
+    const authDetails = await mustGetAuthDetails(req, res);
+    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+    if (doc.cosmosAddress !== authDetails.cosmosAddress) {
+      throw new Error('You are not the owner of this SIWBB request.');
+    }
+
+    const newDoc: iSIWBBRequestDoc<bigint> = {
+      ...doc,
+      _id: undefined,
+      _docId: crypto.randomBytes(32).toString('hex')
+    };
+
+    //TODO: sessionize
+    await insertMany(SIWBBRequestModel, [
+      newDoc,
+      {
+        ...doc,
+        deletedAt: Date.now()
+      }
+    ]);
+
+    return res.status(200).send({ code: newDoc._docId });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      errorMessage: e.message || 'Error rotating QR SIWBB request.'
+    });
+  }
+};
 
 export const createSIWBBRequest = async (
   req: MaybeAuthenticatedRequest<NumberType>,
@@ -309,7 +358,7 @@ export const getAndVerifySIWBBRequest = async (
       }
     }
 
-    const issuedAtTimeWindowMs = options?.issuedAtTimeWindowMs || 60 * 1000 * 10; //10 minutes
+    const issuedAtTimeWindowMs = options?.issuedAtTimeWindowMs ?? 60 * 1000 * 10; //10 minutes
 
     if (issuedAtTimeWindowMs) {
       const earliestIssuedAt = Date.now() - issuedAtTimeWindowMs;

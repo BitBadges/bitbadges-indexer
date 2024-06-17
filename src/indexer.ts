@@ -68,7 +68,13 @@ import { OFFLINE_MODE, client } from './indexer-vars';
 import { connectToRpc, poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
 import { createDeveloperApp, deleteDeveloperApp, getDeveloperApps, updateDeveloperApp } from './routes/authApps';
-import { createSIWBBRequest, deleteSIWBBRequest, getAndVerifySIWBBRequest, getSIWBBRequestsForDeveloperApp } from './routes/authCodes';
+import {
+  createSIWBBRequest,
+  deleteSIWBBRequest,
+  getAndVerifySIWBBRequest,
+  getSIWBBRequestsForDeveloperApp,
+  rotateSIWBBRequest
+} from './routes/authCodes';
 import { getOwnersForBadge } from './routes/badges';
 import { getBadgeBalanceByAddress } from './routes/balances';
 import { broadcastTx, simulateTx } from './routes/broadcast';
@@ -553,6 +559,7 @@ app.delete('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Delete
 app.post('/api/v0/siwbbRequest/fetch', getAndVerifySIWBBRequest);
 app.post('/api/v0/siwbbRequest', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest([{ scopeName: 'Full Access']))
 app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest([{ scopeName: 'Delete Authentication Codes' }]), deleteSIWBBRequest);
+app.post('/api/v0/siwbbRequest/rotate', authorizeBlockinRequest([{ scopeName: 'Create Authentication Codes' }]), rotateSIWBBRequest);
 
 // Claim Alerts
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);
@@ -1072,6 +1079,12 @@ wsServer?.on('connection', (ws: WebSocketWithPair) => {
         pairClient.pair = null;
       }
       ws.pair = null;
+
+      // we also want to remove the client from the map and establish a new ID
+      clients.delete(clientId);
+      const newClientId = uuidv4();
+      clients.set(newClientId, ws);
+      ws.send(JSON.stringify({ type: 'id', id: newClientId }));
     } else if (parsedMessage.type !== 'id') {
       const pairClient = ws.pair;
       if (pairClient && pairClient.readyState === WebSocket.OPEN) {

@@ -505,7 +505,13 @@ export async function executeCreatedByQuery(
 export async function executeSIWBBRequestsForAppQuery(clientId: string, bookmark?: string, oldestFirst?: boolean) {
   const paginationParams = await getQueryParamsFromBookmark(SIWBBRequestModel, bookmark, oldestFirst, 'createdAt');
   const res = await findWithPagination(SIWBBRequestModel, {
-    query: { clientId: { $eq: clientId }, deletedAt: { $exists: false }, redirectUri: { $exists: false }, ...paginationParams },
+    query: {
+      clientId: { $eq: clientId },
+      deletedAt: { $exists: false },
+      redirectUri: { $exists: false },
+      name: { $ne: '__temp' },
+      ...paginationParams
+    },
     sort: { createdAt: oldestFirst ? 1 : -1 },
     limit: 25
   });
@@ -515,7 +521,7 @@ export async function executeSIWBBRequestsForAppQuery(clientId: string, bookmark
 export async function executeSIWBBRequestsQuery(cosmosAddress: string, bookmark?: string, oldestFirst?: boolean) {
   const paginationParams = await getQueryParamsFromBookmark(SIWBBRequestModel, bookmark, oldestFirst, 'createdAt');
   const res = await findWithPagination(SIWBBRequestModel, {
-    query: { cosmosAddress, deletedAt: { $exists: false }, redirectUri: { $exists: false }, ...paginationParams },
+    query: { cosmosAddress, deletedAt: { $exists: false }, redirectUri: { $exists: false }, name: { $ne: '__temp' }, ...paginationParams },
     sort: { createdAt: oldestFirst ? 1 : -1 },
     limit: 25
   });
