@@ -362,6 +362,10 @@ export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<Numb
     google: {
       id: req.session.google?.id ?? '',
       username: req.session.google?.username ?? ''
+    },
+    twitch: {
+      id: req.session.twitch?.id ?? '',
+      username: req.session.twitch?.username ?? ''
     }
   });
 }
