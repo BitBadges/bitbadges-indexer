@@ -344,59 +344,59 @@ export async function getChallenge(
 export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusSuccessResponse>) {
   const authDetails = await getAuthDetails(req, res);
 
-  const body = req.body as CheckSignInStatusPayload;
-  if (body.validateAccessTokens) {
-    if (req.session.discord) {
-      const accessToken = req.session.discord.access_token;
-      try {
-        const res = await axios.get('https://discord.com/api/users/@me', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
-        });
+  // const body = req.body as CheckSignInStatusPayload;
+  // if (body.validateAccessTokens) {
+  //   if (req.session.discord) {
+  //     const accessToken = req.session.discord.access_token;
+  //     try {
+  //       const res = await axios.get('https://discord.com/api/users/@me', {
+  //         headers: {
+  //           Authorization: `Bearer ${accessToken}`
+  //         }
+  //       });
 
-        if (res.status !== 200) {
-          throw new Error('Invalid Discord access token');
-        }
-      } catch (err) {
-        req.session.discord = undefined;
-      }
-    }
+  //       if (res.status !== 200) {
+  //         throw new Error('Invalid Discord access token');
+  //       }
+  //     } catch (err) {
+  //       req.session.discord = undefined;
+  //     }
+  //   }
 
-    // if (req.session.twitter) {
-    //   const accessToken = req.session.twitter.access_token;
-    //   try {
-    //     const res = await axios.get('https://api.twitter.com/1.1/account/verify_credentials.json', {
-    //       headers: {
-    //         Authorization: `Bearer ${accessToken}`
-    //       }
-    //     });
+  // if (req.session.twitter) {
+  //   const accessToken = req.session.twitter.access_token;
+  //   try {
+  //     const res = await axios.get('https://api.twitter.com/1.1/account/verify_credentials.json', {
+  //       headers: {
+  //         Authorization: `Bearer ${accessToken}`
+  //       }
+  //     });
 
-    //     if (res.status !== 200) {
-    //       throw new Error('Invalid Twitter access token');
-    //     }
-    //   } catch (err) {
-    //     req.session.twitter = undefined;
-    //   }
-    // }
+  //     if (res.status !== 200) {
+  //       throw new Error('Invalid Twitter access token');
+  //     }
+  //   } catch (err) {
+  //     req.session.twitter = undefined;
+  //   }
+  // }
 
-    // if (req.session.twitch) {
-    //   const accessToken = req.session.twitch.access_token;
-    //   try {
-    //     const res = await axios.get('https://api.twitch.tv/helix/users', {
-    //       headers: {
-    //         Authorization: `Bearer ${accessToken}`
-    //       }
-    //     });
+  // if (req.session.twitch) {
+  //   const accessToken = req.session.twitch.access_token;
+  //   try {
+  //     const res = await axios.get('https://api.twitch.tv/helix/users', {
+  //       headers: {
+  //         Authorization: `Bearer ${accessToken}`
+  //       }
+  //     });
 
-    //     if (res.status !== 200) {
-    //       throw new Error('Invalid Twitch access token');
-    //     }
-    //   } catch (err) {
-    //     req.session.twitch = undefined;
-    //   }
-    // }
-  }
+  //     if (res.status !== 200) {
+  //       throw new Error('Invalid Twitch access token');
+  //     }
+  //   } catch (err) {
+  //     req.session.twitch = undefined;
+  //   }
+  // }
+  // }
 
   req.session.save();
 
