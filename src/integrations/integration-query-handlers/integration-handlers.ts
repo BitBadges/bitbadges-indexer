@@ -27,8 +27,56 @@ export const handleIntegrationQuery = async (body: any) => {
     await mustOwnBadgesQuery(body);
   } else if (body.__type === 'twitch-follow') {
     await checkTwitchFollow(body);
+  } else if (body.__type === 'twitch-subscription') {
+    await checkTwitchSubscription(body);
   } else {
     throw new Error('Invalid integration query type');
+  }
+};
+
+export const checkTwitchSubscription = async (body: { channelName: string; twitch: { username: string; id: string; access_token: string } }) => {
+  const { twitch } = body;
+  typia.assert<string>(twitch.username);
+  typia.assert<string>(twitch.id);
+  typia.assert<string>(twitch.access_token);
+
+  const username = twitch.username;
+  const userId = twitch.id;
+  const access_token = twitch.access_token;
+  if (!username || !userId || !access_token) {
+    throw new Error('Invalid twitch user details');
+  }
+
+  //Get broadcaster id
+  const broadcasterIdRes = await axios.get('https://api.twitch.tv/helix/users?login=' + body.channelName, {
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID,
+      Authorization: `Bearer ${access_token}`
+    }
+  });
+
+  if (!broadcasterIdRes.data.data || broadcasterIdRes.data.data.length === 0) {
+    throw new Error('Invalid channel name');
+  }
+
+  const broadcasterId = broadcasterIdRes.data.data[0].id;
+
+  const response = await axios.get('https://api.twitch.tv/helix/subscriptions/user?user_id=' + userId + '&broadcaster_id=' + broadcasterId, {
+    headers: {
+      'Client-ID': process.env.TWITCH_CLIENT_ID,
+      Authorization: `Bearer ${access_token}`
+    }
+  });
+
+  const data = response.data;
+  if (!data) {
+    throw new Error('Invalid response from Twitch API');
+  }
+
+  if (data.data && data.data.length > 0) {
+    // User is following the specified channel
+  } else {
+    throw new Error('User is not following the specified channel');
   }
 };
 
@@ -45,7 +93,6 @@ export const checkTwitchFollow = async (body: { channelName: string; twitch: { u
     throw new Error('Invalid twitch user details');
   }
 
-  console.log(access_token, twitch);
   //Get broadcaster id
   const broadcasterIdRes = await axios.get('https://api.twitch.tv/helix/users?login=' + body.channelName, {
     headers: {

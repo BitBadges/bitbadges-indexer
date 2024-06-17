@@ -384,17 +384,62 @@ export async function initStatus(): Promise<void> {
     metadata: {
       name: 'Twitch Follow',
       description: 'Check if a user is following a Twitch channel.',
-      image: 'https://static.vecteezy.com/system/resources/previews/006/892/625/original/discord-logo-icon-editorial-free-vector.jpg',
+      image: 'https://pngimg.com/d/twitch_PNG28.png',
       createdBy: 'BitBadges',
       documentation: 'https://docs.bitbadges.io',
       sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
     },
     userInputsSchema: [],
     privateParamsSchema: [],
-    publicParamsSchema: [{ key: 'channelName', label: 'Channel Name', type: 'string', helper: 'Name of the Twitch channel.' }],
+    publicParamsSchema: [
+      { key: 'channelName', label: 'Channel Name', type: 'string', helper: 'Channel login name. For example, twitch.tv/CHANNEL_NAME_HERE' }
+    ],
     verificationCall: {
       method: 'POST',
       uri: 'https://api.bitbadges.io/api/v0/integrations/query/twitch-follow',
+      passDiscord: false,
+      // passEmail: false,
+      passTwitter: false,
+      passAddress: false,
+      passGoogle: false,
+      passGithub: false,
+      passTwitch: true,
+      hardcodedInputs: []
+    },
+    reviewCompleted: true,
+    pluginSecret: ' ',
+    stateFunctionPreset: PluginPresetType.Stateless
+  });
+
+  await insertToDB(PluginModel, {
+    _docId: 'twitch-subscription',
+    approvedUsers: [],
+    createdBy: '',
+    lastUpdated: Date.now(),
+    createdAt: Date.now(),
+    toPublish: false,
+    pluginId: 'twitch-subscription',
+    requiresSessions: true,
+    requiresUserInputs: false,
+    duplicatesAllowed: true,
+    reuseForNonIndexed: false,
+    reuseForLists: true,
+    metadata: {
+      name: 'Twitch Subscriptions',
+      description: 'Check if a user is subscribed to a Twitch channel.',
+      image: 'https://pngimg.com/d/twitch_PNG28.png',
+      createdBy: 'BitBadges',
+      documentation: 'https://docs.bitbadges.io',
+      sourceCode: 'https://github.com/bitbadges/bitbadges-indexer'
+    },
+    userInputsSchema: [],
+    privateParamsSchema: [],
+    publicParamsSchema: [
+      { key: 'channelName', label: 'Channel Name', type: 'string', helper: 'Channel login name. For example, twitch.tv/CHANNEL_NAME_HERE' }
+    ],
+    verificationCall: {
+      method: 'POST',
+      uri: 'https://api.bitbadges.io/api/v0/integrations/query/twitch-subscription',
       passDiscord: false,
       // passEmail: false,
       passTwitter: false,
