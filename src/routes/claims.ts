@@ -410,7 +410,7 @@ export const getClaimsHandler = async (
 };
 
 export const completeClaimHandler = async (
-  req: { session: BlockinSession<NumberType>; body: any },
+  req: { session: BlockinSession<NumberType>; body: any; ip: string | undefined },
   claimId: string,
   cosmosAddress: CosmosAddress,
   claimAttemptId: string,
@@ -570,6 +570,11 @@ export const completeClaimHandler = async (
         //     id: email
         //   };
         //   break;
+        case 'ip':
+          adminInfo = {
+            ip: req.ip
+          };
+          break;
         default:
           break;
       }
@@ -915,7 +920,8 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
             address: authDetails?.address
           })
         ),
-        body: JSON.parse(JSON.stringify(req.body))
+        body: JSON.parse(JSON.stringify(req.body)),
+        ip: req.ip
       },
       nextFetchTime: BigInt(Date.now())
     };

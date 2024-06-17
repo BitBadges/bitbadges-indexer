@@ -19,6 +19,7 @@ import { PasswordPluginDetails } from './passwords';
 import { RequiresSignaturePluginDetails } from './signature';
 import { TransferTimesPluginDetails } from './transferTimes';
 import { WhitelistPluginDetails } from './whitelist';
+import { IpRestrictionsDetails } from './ip';
 
 export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<key> } = {
   codes: CodesPluginDetails,
@@ -31,7 +32,8 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   google: GooglePluginDetails,
   // email: EmailPluginDetails,
   twitter: TwitterPluginDetails,
-  discord: DiscordPluginDetails
+  discord: DiscordPluginDetails,
+  ip: IpRestrictionsDetails
 };
 
 export interface ContextInfo {

@@ -821,7 +821,7 @@ export const handleQueueItems = async (block: bigint) => {
         }
 
         const response = await completeClaimHandler(
-          { session: queueObj.claimInfo.session, body: queueObj.claimInfo.body },
+          { session: queueObj.claimInfo.session, body: queueObj.claimInfo.body, ip: queueObj.claimInfo.ip },
           queueObj.claimInfo.claimId,
           queueObj.claimInfo.cosmosAddress,
           queueObj._docId,
