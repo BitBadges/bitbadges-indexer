@@ -44,6 +44,7 @@ export const GenericCustomPluginValidateFunction = async (
     twitter: apiCall?.passTwitter ? adminInfo.twitter : null,
     github: apiCall?.passGithub ? adminInfo.github : null,
     google: apiCall?.passGoogle ? adminInfo.google : null,
+    twitch: apiCall?.passTwitch ? adminInfo.twitch : null,
     // email: apiCall?.passEmail ? adminInfo.email : null,
 
     // Context info
@@ -90,6 +91,9 @@ export const GenericCustomPluginValidateFunction = async (
       }
       if (body.google) {
         body.google = { id: body.google.id, username: body.google.username };
+      }
+      if (body.twitch) {
+        body.twitch = { id: body.twitch.id, username: body.twitch.username };
       }
       if (body.email) {
         body.email = body.email;

@@ -43,6 +43,10 @@ export const createExampleReqForAddress = (address: string) => {
       google: {
         username: 'testuser',
         id: '123456789'
+      },
+      twitch: {
+        username: 'testuser',
+        id: '123456789'
       }
     } as BlockinSession<bigint>
   } as MaybeAuthenticatedRequest<bigint>;

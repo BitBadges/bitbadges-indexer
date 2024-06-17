@@ -30,7 +30,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
   }
 };
 
-type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email';
+type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email' | 'twitch';
 
 export const GenericOauthValidateFunction = <P extends OauthType>(
   publicParams: ClaimIntegrationPublicParamsType<P>,

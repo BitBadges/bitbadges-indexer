@@ -402,7 +402,11 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     session.google = undefined;
   }
 
-  if (session.address == null && session.discord == null && session.twitter == null && session.github == null && session.google == null) {
+  if (body.signOutTwitch ?? false) {
+    session.twitch = undefined;
+  }
+
+  if (session.address == null && session.discord == null && session.twitter == null && session.github == null && session.google == null && session.twitch == null) {
     try {
       session.destroy((err) => {
         if (err) {
@@ -445,7 +449,7 @@ export async function verifyBlockinAndGrantSessionCookie(
       let approved = false;
       const entries = Object.entries(profileDoc.approvedSignInMethods ?? {});
       for (const [key, value] of entries) {
-        const sessionDetails = req.session[key as 'discord' | 'twitter' | 'github' | 'google' | 'reddit'];
+        const sessionDetails = req.session[key as 'discord' | 'twitter' | 'github' | 'google' | 'reddit' | 'twitch'];
         if (sessionDetails) {
           let discriminator: string | undefined = undefined;
           const { id, username } = sessionDetails;
@@ -558,6 +562,7 @@ export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberTy
   req.session.twitter = mockSession.twitter;
   req.session.github = mockSession.github;
   req.session.google = mockSession.google;
+  req.session.twitch = mockSession.twitch;
   req.session.reddit = mockSession.reddit;
   req.session.save();
 }

@@ -188,6 +188,14 @@ export const assertPluginsUpdateIsValid = async (
         typia.assert<ClaimIntegrationPublicParamsType<'discord'>>(plugin.publicParams ?? {});
         typia.assert<ClaimIntegrationPrivateParamsType<'discord'>>(plugin.privateParams ?? {});
         break;
+      case 'twitch':
+        typia.assert<ClaimIntegrationPublicParamsType<'twitch'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'twitch'>>(plugin.privateParams ?? {});
+        break;
+      case 'ip':
+        typia.assert<ClaimIntegrationPublicParamsType<'ip'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'ip'>>(plugin.privateParams ?? {});
+        break;
       default:
       //Not a core plugin
     }
@@ -342,6 +350,12 @@ export const updateClaimDocs = async (
             break;
           case 'discord':
             typia.assert<ClaimIntegrationPrivateStateType<'discord'>>(state[plugin.instanceId]);
+            break;
+          case 'twitch':
+            typia.assert<ClaimIntegrationPrivateStateType<'twitch'>>(state[plugin.instanceId]);
+            break;
+          case 'ip':
+            typia.assert<ClaimIntegrationPrivateStateType<'ip'>>(state[plugin.instanceId]);
             break;
           default:
           //Not a core plugin

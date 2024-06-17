@@ -536,6 +536,7 @@ export const completeClaimHandler = async (
           github: authDetails?.github,
           google: authDetails?.google,
           // email
+          twitch: authDetails?.twitch,
 
           numUsesState: claimBuilderDoc.state[`${numUsesPluginId}`]
         };
@@ -563,6 +564,9 @@ export const completeClaimHandler = async (
           break;
         case 'google':
           adminInfo = authDetails?.google;
+          break;
+        case 'twitch':
+          adminInfo = authDetails?.twitch;
           break;
         // case 'email':
         //   adminInfo = {
@@ -618,6 +622,10 @@ export const completeClaimHandler = async (
         }
         case 'google': {
           typia.assert<ClaimIntegrationPluginCustomBodyType<'google'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
+        case 'twitch': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'twitch'>>(req.body[plugin.instanceId] ?? {});
           break;
         }
         // case 'email': {
@@ -915,6 +923,7 @@ export const completeClaim = async (req: AuthenticatedRequest<NumberType>, res: 
             twitter: authDetails?.twitter ? { id: authDetails?.twitter?.id, username: authDetails?.twitter?.username } : undefined,
             github: authDetails?.github ? { id: authDetails?.github?.id, username: authDetails?.github?.username } : undefined,
             google: authDetails?.google ? { id: authDetails?.google?.id, username: authDetails?.google?.username } : undefined,
+            twitch: authDetails?.twitch ? { id: authDetails?.twitch?.id, username: authDetails?.twitch?.username } : undefined,
             blockin: authDetails?.blockin,
             blockinParams: authDetails?.blockinParams,
             address: authDetails?.address
