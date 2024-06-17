@@ -18,7 +18,6 @@ export const IpRestrictionsDetails: BackendIntegrationPlugin<'ip'> = {
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
     const maxUsesPerIp = publicParams.maxUsesPerIp;
     const currIp = adminInfo.ip;
-    console.log(currIp);
     if (!currIp) {
       return { success: false, error: 'No IP address found.' };
     }

@@ -418,6 +418,7 @@ app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunctio
         id: data.data[0].id,
         username: data.data[0].login
       };
+      console.log(user);
 
       (req.session as BlockinSession<bigint>).twitch = user;
       req.session.save();
