@@ -81,13 +81,13 @@ export const GeolocationRestrictionsDetails: BackendIntegrationPlugin<'geolocati
       }
     }
 
-    if (allowedCountryCodes) {
+    if (allowedCountryCodes && allowedCountryCodes.length > 0) {
       if (!allowedCountryCodes.includes(resp.data.country_code)) {
         return { success: false, error: 'User is not in an allowed country.' };
       }
     }
 
-    if (disallowedCountryCodes) {
+    if (disallowedCountryCodes && disallowedCountryCodes.length > 0) {
       if (disallowedCountryCodes.includes(resp.data.country_code)) {
         return { success: false, error: 'User is in a disallowed country.' };
       }

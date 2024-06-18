@@ -28,6 +28,7 @@ import { RequiresSignaturePluginDetails } from './signature';
 import { TransferTimesPluginDetails } from './transferTimes';
 import { WhitelistPluginDetails } from './whitelist';
 import { GeolocationRestrictionsDetails, IpRestrictionsDetails } from './ip';
+import { HaltedPluginDetails } from './halt';
 
 export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<key> } = {
   codes: CodesPluginDetails,
@@ -43,7 +44,8 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   discord: DiscordPluginDetails,
   ip: IpRestrictionsDetails,
   twitch: TwitchPluginDetails,
-  geolocation: GeolocationRestrictionsDetails
+  geolocation: GeolocationRestrictionsDetails,
+  halt: HaltedPluginDetails
 };
 
 export interface ContextInfo {
