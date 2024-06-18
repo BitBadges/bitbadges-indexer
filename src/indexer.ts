@@ -90,7 +90,7 @@ import {
   updateClaimHandler
 } from './routes/claims';
 import { getBadgeActivity, getCollections } from './routes/collections';
-import { unsubscribeHandler, verifyEmailHandler } from './routes/email';
+import { oneTimeSendEmailHandler, oneTimeVerifyEmailHandler, unsubscribeHandler, verifyEmailHandler } from './routes/email';
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
 import { getTokensFromFaucet } from './routes/faucet';
 import { getFollowDetails } from './routes/follows';
@@ -303,7 +303,7 @@ const websiteOnlyCorsOptions = {
 };
 const websiteOnlyCors = cors(websiteOnlyCorsOptions);
 
-app.set('trust proxy', 1); // trust first proxy
+app.set('trust proxy', process.env.DEV_MODE === 'true' ? 0 : 1); // trust first proxy
 app.use(apiKeyHandler);
 
 // console.log the repsonse
@@ -547,6 +547,7 @@ app.get('/auth/twitter/callback', async (req, res) => {
 app.get('/auth/github', passport.authenticate('github', { session: false }));
 app.get('/auth/github/callback', githubCallbackHandler);
 
+//also request youtube
 app.get('/auth/google', passport.authenticate('google', { session: false, scope: ['profile', 'email'] }));
 app.get('/auth/google/callback', googleCallbackHandler);
 
@@ -679,6 +680,8 @@ app.delete('/api/v0/plugins', websiteOnlyCors, authorizeBlockinRequest([{ scopeN
 
 app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
+app.post('/api/v0/oneTimeVerify/send', websiteOnlyCors, oneTimeSendEmailHandler);
+app.post('/api/v0/oneTimeVerify/verify', websiteOnlyCors, oneTimeVerifyEmailHandler);
 
 app.post(
   '/api/v0/oauth/authorize',

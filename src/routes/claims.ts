@@ -55,6 +55,7 @@ import {
   DigitalOceanBalancesModel,
   ListActivityModel,
   PluginModel,
+  ProfileModel,
   QueueModel
 } from '../db/schemas';
 import { getStatus } from '../db/status';
@@ -66,6 +67,7 @@ import { getClaimDetailsForFrontend } from './collections';
 import { ClaimType, ContextReturn, updateClaimDocs } from './ipfs';
 import { refreshCollection } from './refresh';
 import { typiaError } from './search';
+import { verifyOneTimeEmail } from './email';
 
 enum ActionType {
   Code = 'Code',
@@ -502,7 +504,22 @@ export const completeClaimHandler = async (
 
     // Pass in email only if previously set up and verified
     // Must be logged in
-    // let email = '';
+    let email = '';
+    const emailInstanceId = getFirstMatchForPluginType('email', claimBuilderDoc.plugins)?.instanceId;
+    if (req.body[`${emailInstanceId}`] && req.body[`${emailInstanceId}`].token) {
+      email = await verifyOneTimeEmail(req.body[`${emailInstanceId}`].token);
+    } else {
+      const profileDoc = await mustGetFromDB(ProfileModel, cosmosAddress);
+      if (!profileDoc) {
+        throw new Error('No profile found');
+      }
+      if (profileDoc.notifications?.email) {
+        if (profileDoc.notifications.emailVerification?.verified) {
+          email = profileDoc.notifications.email;
+        }
+      }
+    }
+
     const results = [];
     const specificPluginIdsOnly = req.body._specificPluginsOnly;
     if (specificPluginIdsOnly && !Array.isArray(specificPluginIdsOnly)) {
@@ -535,7 +552,10 @@ export const completeClaimHandler = async (
           twitter: authDetails?.twitter,
           github: authDetails?.github,
           google: authDetails?.google,
-          // email
+          email: {
+            username: email,
+            id: email
+          },
           twitch: authDetails?.twitch,
 
           numUsesState: claimBuilderDoc.state[`${numUsesPluginId}`]
@@ -568,13 +588,14 @@ export const completeClaimHandler = async (
         case 'twitch':
           adminInfo = authDetails?.twitch;
           break;
-        // case 'email':
-        //   adminInfo = {
-        //     username: email,
-        //     id: email
-        //   };
-        //   break;
+        case 'email':
+          adminInfo = {
+            username: email,
+            id: email
+          };
+          break;
         case 'ip':
+        case 'geolocation':
           adminInfo = {
             ip: req.ip
           };
@@ -628,10 +649,10 @@ export const completeClaimHandler = async (
           typia.assert<ClaimIntegrationPluginCustomBodyType<'twitch'>>(req.body[plugin.instanceId] ?? {});
           break;
         }
-        // case 'email': {
-        //   typia.assert<ClaimIntegrationPluginCustomBodyType<'email'>>(req.body[plugin.instanceId] ?? {});
-        //   break;
-        // }
+        case 'email': {
+          typia.assert<ClaimIntegrationPluginCustomBodyType<'email'>>(req.body[plugin.instanceId] ?? {});
+          break;
+        }
         case 'twitter': {
           typia.assert<ClaimIntegrationPluginCustomBodyType<'twitter'>>(req.body[plugin.instanceId] ?? {});
           break;

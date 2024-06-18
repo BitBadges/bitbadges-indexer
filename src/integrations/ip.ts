@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { type BackendIntegrationPlugin } from './types';
 import crypto from 'crypto';
 
@@ -33,6 +34,67 @@ export const IpRestrictionsDetails: BackendIntegrationPlugin<'ip'> = {
     return {
       success: true,
       toSet: [{ $set: { [`state.${instanceId}.ipsUsed.${hashedIp}`]: currNumUses + 1 } }]
+    };
+  },
+  getPublicState: () => {
+    return {};
+  },
+  getBlankPublicState: () => {
+    return {};
+  },
+  encryptPrivateParams: (privateParams) => {
+    return privateParams;
+  },
+  decryptPrivateParams: (privateParams) => {
+    return privateParams;
+  }
+};
+
+export const GeolocationRestrictionsDetails: BackendIntegrationPlugin<'geolocation'> = {
+  pluginId: 'geolocation',
+  defaultState: {},
+  metadata: {
+    name: 'Geolocation Restrictions',
+    description: '',
+    image: '',
+    createdBy: 'BitBadges',
+    stateless: true,
+    scoped: true,
+    duplicatesAllowed: false
+  },
+  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, adminInfo) => {
+    // Using IPstack
+    const ip = adminInfo.ip;
+    const resp = await axios.get('http://api.ipstack.com/' + ip + '?access_key=' + process.env.IPSTACK_API_KEY);
+    if (!resp.data?.latitude || !resp.data?.longitude) {
+      return { success: false, error: 'Could not retrieve geolocation data.' };
+    }
+
+    const { pindrop, allowedCountryCodes, disallowedCountryCodes } = publicParams;
+    if (pindrop) {
+      const { latitude, longitude, radius } = pindrop;
+      if (resp.data.latitude && resp.data.longitude) {
+        const distance = Math.sqrt((latitude - resp.data.latitude) ** 2 + (longitude - resp.data.longitude) ** 2);
+        if (distance > radius) {
+          return { success: false, error: 'User is not within the allowed radius.' };
+        }
+      }
+    }
+
+    if (allowedCountryCodes) {
+      if (!allowedCountryCodes.includes(resp.data.country_code)) {
+        return { success: false, error: 'User is not in an allowed country.' };
+      }
+    }
+
+    if (disallowedCountryCodes) {
+      if (disallowedCountryCodes.includes(resp.data.country_code)) {
+        return { success: false, error: 'User is in a disallowed country.' };
+      }
+    }
+
+    return {
+      success: true
     };
   },
   getPublicState: () => {

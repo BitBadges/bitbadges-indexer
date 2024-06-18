@@ -31,6 +31,7 @@ import {
   getAuthDetails,
   mustGetAuthDetails,
   setMockSessionIfTestMode,
+  validateAccessTokens,
   type AuthenticatedRequest
 } from '../blockin/blockin_handlers';
 import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
@@ -156,6 +157,10 @@ export const createSIWBBRequest = async (
     }
 
     const otherSignInsObj: Record<string, any> = {};
+    if (reqPayload.otherSignIns?.length) {
+      await validateAccessTokens(req);
+    }
+
     for (const otherSignIn of reqPayload.otherSignIns || []) {
       const authDetails = await mustGetAuthDetails(req, res);
       if (otherSignIn === 'discord') {

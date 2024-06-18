@@ -1011,7 +1011,7 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
   }
 };
 
-export const VerificationEmailHTML = (emailToken: string, antiPhishingCode: string) => {
+export const VerificationEmailHTML = (emailToken: string, antiPhishingCode: string, isOneTimeOnly?: boolean) => {
   return `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html data-editor-version="2" class="sg-campaigns" xmlns="http://www.w3.org/1999/xhtml">
@@ -1167,18 +1167,24 @@ export const VerificationEmailHTML = (emailToken: string, antiPhishingCode: stri
     <tbody>
       <tr>
         <td style="padding:12px 0px 18px 0px; line-height:22px; text-align:inherit;" height="100%" valign="top" bgcolor="" role="module-content"><div><div style="font-family: inherit; text-align: inherit">Please verify your BitBadges email by:</div>
-<ol>
+${
+  !isOneTimeOnly
+    ? `<ol>
   <li style="text-align: inherit">Going to https://bitbadges.io/email-verify</li>
   <li style="text-align: inherit">Enter your verification code: <strong>${emailToken}</strong></li>
-</ol>
+</ol>`
+    : `<ol>
+<li style="text-align: inherit">Entering your verification code: <strong>${emailToken}</strong></li>
+</ol>`
+}
 <div style="font-family: inherit; text-align: inherit"><br></div>
-<div style="font-family: inherit; text-align: inherit">Your anti-phishing code is: <strong>${antiPhishingCode}</strong></div>
+<div style="font-family: inherit; text-align: inherit">Your anti-phishing code is: <strong>${antiPhishingCode ?? 'N/A (Please set one up in your account settings)'}</strong></div>
 <div style="font-family: inherit; text-align: inherit"><span style="font-size: 12px">Please make sure this matches the one you set in your BitBadges account.All emails from BitBadges will include this code.</span></div>
 <div style="font-family: inherit; text-align: inherit"><br>
 <span style="font-family: Söhne, ui-sans-serif, system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, Ubuntu, Cantarell, &quot;Noto Sans&quot;, sans-serif, &quot;Helvetica Neue&quot;, Arial, &quot;Apple Color Emoji&quot;, &quot;Segoe UI Emoji&quot;, &quot;Segoe UI Symbol&quot;, &quot;Noto Color Emoji&quot;; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space-collapse: preserve; text-wrap: wrap; text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline; font-size: 12px">Attention: Beware of phishing attempts in the crypto space. Scammers often impersonate legitimate platforms or individuals to trick users into revealing sensitive information or transferring funds. Always verify the authenticity of any communication before taking action, and never share your private keys or passwords. Stay vigilant and prioritize security to protect your assets from potential threats.</span></div>
 <div style="font-family: inherit; text-align: inherit"><br></div>
 <div style="font-family: inherit; text-align: inherit"><span style="font-family: Söhne, ui-sans-serif, system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, Ubuntu, Cantarell, &quot;Noto Sans&quot;, sans-serif, &quot;Helvetica Neue&quot;, Arial, &quot;Apple Color Emoji&quot;, &quot;Segoe UI Emoji&quot;, &quot;Segoe UI Symbol&quot;, &quot;Noto Color Emoji&quot;; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space-collapse: preserve; text-wrap: wrap; text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline; font-size: 12px">BitBadges will never ask for your private key or any private information over email. Always verify that BitBadges emails come from @mail.bitbadges.io. We will also not make you click any links from any emails.</span></div><div></div></div></td>
-      </tr>
+      </tr> 
     </tbody>
   </table>
       </center>

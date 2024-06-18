@@ -559,13 +559,19 @@ const DigitalOceanBalancesSchema = new Schema({
   balances: Schema.Types.Mixed
 });
 
+const OneTimeEmailModelSchema = new Schema({
+  _docId: String,
+  email: String,
+  timestamp: Number
+});
+
 export const DigitalOceanBalancesModel = mongoose.model<DigitalOceanBalancesDoc<JSPrimitiveNumberType>>(
   'digital-ocean-balances',
   DigitalOceanBalancesSchema
 );
 
 //IMPORTANT: The names are somehow pluralized in the model creation process, so we should always make sure they match and are the plural version
-
+export const OneTimeEmailModel = mongoose.model('one-time-emails', OneTimeEmailModelSchema);
 export const AuthorizationCodeModel = mongoose.model<AuthorizationCodeDoc>('authorization-codes', AuthorizationCodeSchema);
 export const AccessTokenModel = mongoose.model<AccessTokenDoc>('access-tokens', AccessTokenSchema);
 export const ClaimAttemptStatusModel = mongoose.model('claim-attempt-statuses', ClaimAttemptStatusSchema);

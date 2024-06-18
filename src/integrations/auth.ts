@@ -48,7 +48,7 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
     return { success: false, error: 'Invalid details. Could not get user.' };
   }
 
-  if (!oauthInfo.username) {
+  if (!oauthInfo.username || !oauthInfo.id) {
     return { success: false, error: 'Invalid details. Could not get user.' };
   }
 
@@ -123,34 +123,34 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
   }
 };
 
-// export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
-//   pluginId: 'email',
-//   metadata: {
-//     name: 'Email',
-//     description: 'Gate claims by email.',
-//     image: 'https://bitbadges.s3.amazonaws.com/email.png',
-//     createdBy: 'BitBadges',
-//     stateless: false,
-//     scoped: true,
-//     duplicatesAllowed: false
-//   },
-//   defaultState: { ids: {}, usernames: {} },
-//   encryptPrivateParams: (privateParams) => {
-//     return privateParams;
-//   },
-//   decryptPrivateParams: (privateParams) => {
-//     return privateParams;
-//   },
-//   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
-//     return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, context.instanceId);
-//   },
-//   getPublicState: () => {
-//     return {};
-//   },
-//   getBlankPublicState() {
-//     return {};
-//   }
-// };
+export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
+  pluginId: 'email',
+  metadata: {
+    name: 'Email',
+    description: 'Gate claims by email.',
+    image: 'https://bitbadges.s3.amazonaws.com/email.png',
+    createdBy: 'BitBadges',
+    stateless: false,
+    scoped: true,
+    duplicatesAllowed: false
+  },
+  defaultState: { ids: {}, usernames: {} },
+  encryptPrivateParams: (privateParams) => {
+    return privateParams;
+  },
+  decryptPrivateParams: (privateParams) => {
+    return privateParams;
+  },
+  validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
+    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, context.instanceId);
+  },
+  getPublicState: () => {
+    return {};
+  },
+  getBlankPublicState() {
+    return {};
+  }
+};
 
 export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
   pluginId: 'github',

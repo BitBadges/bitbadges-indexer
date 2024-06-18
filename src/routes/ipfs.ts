@@ -196,6 +196,14 @@ export const assertPluginsUpdateIsValid = async (
         typia.assert<ClaimIntegrationPublicParamsType<'ip'>>(plugin.publicParams ?? {});
         typia.assert<ClaimIntegrationPrivateParamsType<'ip'>>(plugin.privateParams ?? {});
         break;
+      case 'email':
+        typia.assert<ClaimIntegrationPublicParamsType<'email'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'email'>>(plugin.privateParams ?? {});
+        break;
+      case 'geolocation':
+        typia.assert<ClaimIntegrationPublicParamsType<'geolocation'>>(plugin.publicParams ?? {});
+        typia.assert<ClaimIntegrationPrivateParamsType<'geolocation'>>(plugin.privateParams ?? {});
+        break;
       default:
       //Not a core plugin
     }
@@ -356,6 +364,12 @@ export const updateClaimDocs = async (
             break;
           case 'ip':
             typia.assert<ClaimIntegrationPrivateStateType<'ip'>>(state[plugin.instanceId]);
+            break;
+          case 'email':
+            typia.assert<ClaimIntegrationPrivateStateType<'email'>>(state[plugin.instanceId]);
+            break;
+          case 'geolocation':
+            typia.assert<ClaimIntegrationPrivateStateType<'geolocation'>>(state[plugin.instanceId]);
             break;
           default:
           //Not a core plugin

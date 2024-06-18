@@ -1,6 +1,7 @@
 import {
   BalanceArray,
   BigIntify,
+  CheckSignInStatusPayload,
   GenericVerifyAssetsPayload,
   OAuthScopeDetails,
   SupportedChain,
@@ -32,6 +33,7 @@ import { AccessTokenModel, CollectionModel, ProfileModel } from '../db/schemas';
 import { typiaError } from '../routes/search';
 import { getChainDriver } from './blockin';
 import { SupportedScopes, hasScopes } from './scopes';
+import axios from 'axios';
 
 export interface BlockinSessionDetails<T extends NumberType> {
   /**
@@ -66,20 +68,18 @@ export interface BlockinSessionDetails<T extends NumberType> {
   github?: {
     id: string;
     username: string;
+    access_token: string;
   };
   /** Connected OAuth Google account. */
   google?: {
     id: string;
     username: string;
-  };
-  /** Connected OAuth Reddit account. */
-  reddit?: {
-    id: string;
-    username: string;
+    access_token: string;
   };
   twitch?: {
     id: string;
     username: string;
+    access_token: string;
   };
 }
 
@@ -116,20 +116,18 @@ export interface BlockinSession<T extends NumberType> extends Session {
   github?: {
     id: string;
     username: string;
+    access_token: string;
   };
   /** Connected OAuth Google account. */
   google?: {
     id: string;
     username: string;
-  };
-  /** Connected OAuth Reddit account. */
-  reddit?: {
-    id: string;
-    username: string;
+    access_token: string;
   };
   twitch?: {
     id: string;
     username: string;
+    access_token: string;
   };
 }
 
@@ -339,64 +337,102 @@ export async function getChallenge(
   }
 }
 
+export async function validateAccessTokens(req: MaybeAuthenticatedRequest<NumberType>) {
+  if (req.session.discord) {
+    const accessToken = req.session.discord.access_token;
+    try {
+      const res = await axios.get('https://discord.com/api/users/@me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      if (res.status !== 200) {
+        throw new Error('Invalid Discord access token');
+      }
+    } catch (err) {
+      req.session.discord = undefined;
+    }
+  }
+
+  if (req.session.twitter) {
+    const accessToken = req.session.twitter.access_token;
+    try {
+      const res = await axios.get('https://api.twitter.com/1.1/account/verify_credentials.json', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      if (res.status !== 200) {
+        throw new Error('Invalid Twitter access token');
+      }
+    } catch (err) {
+      req.session.twitter = undefined;
+    }
+  }
+
+  if (req.session.twitch) {
+    const accessToken = req.session.twitch.access_token;
+    try {
+      const res = await axios.get('https://api.twitch.tv/helix/users', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      if (res.status !== 200) {
+        throw new Error('Invalid Twitch access token');
+      }
+    } catch (err) {
+      req.session.twitch = undefined;
+    }
+  }
+
+  if (req.session.github) {
+    const accessToken = req.session.github.access_token;
+    try {
+      const res = await axios.get('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      if (res.status !== 200) {
+        throw new Error('Invalid Github access token');
+      }
+    } catch (err) {
+      req.session.github = undefined;
+    }
+  }
+
+  if (req.session.google) {
+    const accessToken = req.session.google.access_token;
+    try {
+      const res = await axios.get('https://www.googleapis.com/oauth2/v1/userinfo', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+
+      if (res.status !== 200) {
+        throw new Error('Invalid Google access token');
+      }
+    } catch (err) {
+      req.session.google = undefined;
+    }
+  }
+
+  req.session.save();
+}
+
 export async function checkifSignedInHandler(req: MaybeAuthenticatedRequest<NumberType>, res: Response<iCheckSignInStatusSuccessResponse>) {
   const authDetails = await getAuthDetails(req, res);
 
-  // const body = req.body as CheckSignInStatusPayload;
-  // if (body.validateAccessTokens) {
-  //   if (req.session.discord) {
-  //     const accessToken = req.session.discord.access_token;
-  //     try {
-  //       const res = await axios.get('https://discord.com/api/users/@me', {
-  //         headers: {
-  //           Authorization: `Bearer ${accessToken}`
-  //         }
-  //       });
-
-  //       if (res.status !== 200) {
-  //         throw new Error('Invalid Discord access token');
-  //       }
-  //     } catch (err) {
-  //       req.session.discord = undefined;
-  //     }
-  //   }
-
-  // if (req.session.twitter) {
-  //   const accessToken = req.session.twitter.access_token;
-  //   try {
-  //     const res = await axios.get('https://api.twitter.com/1.1/account/verify_credentials.json', {
-  //       headers: {
-  //         Authorization: `Bearer ${accessToken}`
-  //       }
-  //     });
-
-  //     if (res.status !== 200) {
-  //       throw new Error('Invalid Twitter access token');
-  //     }
-  //   } catch (err) {
-  //     req.session.twitter = undefined;
-  //   }
-  // }
-
-  // if (req.session.twitch) {
-  //   const accessToken = req.session.twitch.access_token;
-  //   try {
-  //     const res = await axios.get('https://api.twitch.tv/helix/users', {
-  //       headers: {
-  //         Authorization: `Bearer ${accessToken}`
-  //       }
-  //     });
-
-  //     if (res.status !== 200) {
-  //       throw new Error('Invalid Twitch access token');
-  //     }
-  //   } catch (err) {
-  //     req.session.twitch = undefined;
-  //   }
-  // }
-  // }
-
-  req.session.save();
+  const body = req.body as CheckSignInStatusPayload;
+  if (body.validateAccessTokens) {
+    await validateAccessTokens(req);
+  }
 
   return res.status(200).send({
     signedIn: !!authDetails?.blockin,
@@ -508,11 +544,12 @@ export async function verifyBlockinAndGrantSessionCookie(
     const useWeb2SignIn = !body.signature;
     if (useWeb2SignIn) {
       const profileDoc = await mustGetFromDB(ProfileModel, convertToCosmosAddress(challenge.address));
+      await validateAccessTokens(req);
 
       let approved = false;
       const entries = Object.entries(profileDoc.approvedSignInMethods ?? {});
       for (const [key, value] of entries) {
-        const sessionDetails = req.session[key as 'discord' | 'twitter' | 'github' | 'google' | 'reddit' | 'twitch'];
+        const sessionDetails = req.session[key as 'discord' | 'twitter' | 'github' | 'google' | 'twitch'];
         if (sessionDetails) {
           let discriminator: string | undefined = undefined;
           const { id, username } = sessionDetails;
@@ -626,7 +663,6 @@ export function setMockSessionIfTestMode(req: MaybeAuthenticatedRequest<NumberTy
   req.session.github = mockSession.github;
   req.session.google = mockSession.google;
   req.session.twitch = mockSession.twitch;
-  req.session.reddit = mockSession.reddit;
   req.session.save();
 }
 

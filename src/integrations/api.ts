@@ -45,14 +45,14 @@ export const GenericCustomPluginValidateFunction = async (
     github: apiCall?.passGithub ? adminInfo.github : null,
     google: apiCall?.passGoogle ? adminInfo.google : null,
     twitch: apiCall?.passTwitch ? adminInfo.twitch : null,
-    // email: apiCall?.passEmail ? adminInfo.email : null,
+    email: apiCall?.passEmail ? adminInfo.email : null,
 
     // Context info
     pluginSecret: pluginDoc.pluginSecret,
     claimId: context.claimId,
     maxUses: context.maxUses,
     currUses: context.currUses,
-    cosmosAddress: context.cosmosAddress,
+    cosmosAddress: apiCall?.passAddress ? context.cosmosAddress : null,
     claimAttemptId: context.claimAttemptId,
     _isSimulation: context._isSimulation,
     lastUpdated: context.lastUpdated,

@@ -29,7 +29,8 @@ passport.use(
     function (accessToken, refreshToken, profile, cb) {
       const user = {
         id: profile.id,
-        username: profile.emails ? profile.emails[0].value : ''
+        username: profile.emails ? profile.emails[0].value : '',
+        access_token: accessToken
       };
       return cb(null, user);
     }

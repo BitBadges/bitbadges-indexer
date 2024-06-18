@@ -14,6 +14,7 @@ import { PluginModel } from '../db/schemas';
 import { GenericCustomPluginValidateFunction } from './api';
 import {
   DiscordPluginDetails,
+  EmailPluginDetails,
   GenericOauthValidateFunction,
   GitHubPluginDetails,
   GooglePluginDetails,
@@ -26,7 +27,7 @@ import { PasswordPluginDetails } from './passwords';
 import { RequiresSignaturePluginDetails } from './signature';
 import { TransferTimesPluginDetails } from './transferTimes';
 import { WhitelistPluginDetails } from './whitelist';
-import { IpRestrictionsDetails } from './ip';
+import { GeolocationRestrictionsDetails, IpRestrictionsDetails } from './ip';
 
 export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationPlugin<key> } = {
   codes: CodesPluginDetails,
@@ -37,11 +38,12 @@ export const Plugins: { [key in ClaimIntegrationPluginType]: BackendIntegrationP
   whitelist: WhitelistPluginDetails,
   github: GitHubPluginDetails,
   google: GooglePluginDetails,
-  // email: EmailPluginDetails,
+  email: EmailPluginDetails,
   twitter: TwitterPluginDetails,
   discord: DiscordPluginDetails,
   ip: IpRestrictionsDetails,
-  twitch: TwitchPluginDetails
+  twitch: TwitchPluginDetails,
+  geolocation: GeolocationRestrictionsDetails
 };
 
 export interface ContextInfo {
