@@ -59,6 +59,7 @@ describe('auth apps', () => {
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(body2);
+    console.log(res2.body);
     expect(res2.status).toBe(200);
 
     const route3 = BitBadgesApiRoutes.CRUDDeveloperAppRoute();

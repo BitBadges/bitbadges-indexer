@@ -14,7 +14,13 @@ import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
-import { checkIfAuthenticated, getAuthDetails, mustGetAuthDetails, type AuthenticatedRequest } from '../blockin/blockin_handlers';
+import {
+  checkIfAuthenticated,
+  getAuthDetails,
+  mustGetAuthDetails,
+  setMockSessionIfTestMode,
+  type AuthenticatedRequest
+} from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { DeveloperAppModel } from '../db/schemas';
@@ -26,6 +32,8 @@ export const createDeveloperApp = async (
   res: Response<iCreateDeveloperAppSuccessResponse | ErrorResponse>
 ) => {
   try {
+    setMockSessionIfTestMode(req);
+
     const reqPayload = req.body as CreateDeveloperAppPayload;
     const validateRes: typia.IValidation<CreateDeveloperAppPayload> = typia.validate<CreateDeveloperAppPayload>(req.body);
     if (!validateRes.success) {
@@ -153,6 +161,7 @@ export const updateDeveloperApp = async (
 
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, clientId);
+    console.log(doc, authDetails);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You must be the owner of the app.');
     }

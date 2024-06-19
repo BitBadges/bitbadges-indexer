@@ -509,13 +509,12 @@ export const completeClaimHandler = async (
     if (req.body[`${emailInstanceId}`] && req.body[`${emailInstanceId}`].token) {
       email = await verifyOneTimeEmail(req.body[`${emailInstanceId}`].token);
     } else {
-      const profileDoc = await mustGetFromDB(ProfileModel, cosmosAddress);
-      if (!profileDoc) {
-        throw new Error('No profile found');
-      }
-      if (profileDoc.notifications?.email) {
-        if (profileDoc.notifications.emailVerification?.verified) {
-          email = profileDoc.notifications.email;
+      const profileDoc = await getFromDB(ProfileModel, cosmosAddress);
+      if (profileDoc) {
+        if (profileDoc.notifications?.email) {
+          if (profileDoc.notifications.emailVerification?.verified) {
+            email = profileDoc.notifications.email;
+          }
         }
       }
     }
