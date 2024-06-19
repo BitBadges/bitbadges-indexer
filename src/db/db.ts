@@ -5,6 +5,7 @@ import {
   AirdropDoc,
   ApprovalTrackerDoc,
   AttestationDoc,
+  AttestationProofDoc,
   AuthorizationCodeDoc,
   BalanceDoc,
   BigIntify,
@@ -29,6 +30,7 @@ import {
   StatusDoc,
   TransferActivityDoc,
   iAccessTokenDoc,
+  iAttestationProofDoc,
   iAuthorizationCodeDoc,
   iDeveloperAppDoc,
   iPluginDoc,
@@ -83,6 +85,7 @@ import {
   AirdropModel,
   ApiKeyModel,
   ApprovalTrackerModel,
+  AttestationProofSchemaModel,
   AuthorizationCodeModel,
   BalanceModel,
   BrowseModel,
@@ -252,6 +255,39 @@ async function run() {
       },
 
       [`${dbName}.${OffChainAttestationsModel.modelName}`]: {
+        bsonType: 'object',
+        encryptMetadata: {
+          keyId: [_key]
+        },
+        properties: {
+          holders: {
+            bsonType: 'array',
+            items: {
+              bsonType: 'string'
+            }
+          },
+          proofOfIssuance: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          attestationMessages: {
+            encrypt: {
+              bsonType: 'array',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          },
+          dataIntegrityProof: {
+            encrypt: {
+              bsonType: 'object',
+              algorithm: 'AEAD_AES_256_CBC_HMAC_SHA_512-Random'
+            }
+          }
+        }
+      },
+
+      [`${dbName}.${AttestationProofSchemaModel.modelName}`]: {
         bsonType: 'object',
         encryptMetadata: {
           keyId: [_key]
@@ -843,6 +879,11 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
     } else if (model.modelName === AccessTokenModel.modelName) {
       convertedDoc = new AccessTokenDoc(doc as iAccessTokenDoc).convert(convertFunction);
       const validateRes = process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iAccessTokenDoc>(convertedDoc);
+      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
+    } else if (model.modelName === AttestationProofSchemaModel.modelName) {
+      convertedDoc = new AttestationProofDoc(doc as iAttestationProofDoc<NumberType>).convert(convertFunction);
+      const validateRes =
+        process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validate<iAttestationProofDoc<NumberType>>(convertedDoc);
       if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     }
 

@@ -1,5 +1,11 @@
 import {
+  CreateAttestationProofPayload,
+  DeleteAttestationProofPayload,
+  GetAttestationProofPayload,
   UpdateHistory,
+  iCreateAttestationProofSuccessResponse,
+  iDeleteAttestationProofSuccessResponse,
+  iGetAttestationProofSuccessResponse,
   verifyAttestationsPresentationSignatures,
   type CreateAttestationPayload,
   type DeleteAttestationPayload,
@@ -18,7 +24,7 @@ import { serializeError } from 'serialize-error';
 import typia from 'typia';
 import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { deleteMany, insertToDB, mustGetFromDB } from '../db/db';
-import { OffChainAttestationsModel } from '../db/schemas';
+import { AttestationProofSchemaModel, OffChainAttestationsModel } from '../db/schemas';
 import { getStatus } from '../db/status';
 import { addMetadataToIpfs, getFromIpfs } from '../ipfs/ipfs';
 import { typiaError } from './search';
@@ -35,6 +41,7 @@ export const createAttestation = async (req: AuthenticatedRequest<NumberType>, r
     const authDetails = await mustGetAuthDetails(req, res);
     await verifyAttestationsPresentationSignatures({
       ...reqPayload,
+      createdAt: Date.now(),
       createdBy: authDetails.cosmosAddress
     });
 
@@ -66,6 +73,7 @@ export const createAttestation = async (req: AuthenticatedRequest<NumberType>, r
     const docId = crypto.randomBytes(32).toString('hex');
     await insertToDB(OffChainAttestationsModel, {
       createdBy: authDetails.cosmosAddress,
+      createdAt: Date.now(),
       addKey: idHash,
       _docId: docId,
       attestationId: docId,
@@ -296,6 +304,124 @@ export const updateAttestation = async (req: AuthenticatedRequest<NumberType>, r
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
       errorMessage: e.message || 'Error updating attestation.'
+    });
+  }
+};
+
+export const createAttestationProof = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iCreateAttestationProofSuccessResponse | ErrorResponse>
+) => {
+  try {
+    const reqPayload = req.body as CreateAttestationProofPayload;
+    const validateRes: typia.IValidation<CreateAttestationProofPayload> = typia.validate<CreateAttestationProofPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    const authDetails = await mustGetAuthDetails(req, res);
+    await verifyAttestationsPresentationSignatures(
+      {
+        ...reqPayload,
+        createdAt: Date.now(),
+        createdBy: authDetails.cosmosAddress
+      },
+      true
+    );
+
+    let image = reqPayload.image;
+
+    if (reqPayload.image.startsWith('data:')) {
+      const results = await addMetadataToIpfs([
+        {
+          name: reqPayload.name,
+          description: reqPayload.description,
+          image: reqPayload.image
+        }
+      ]);
+      if (!results?.[0]) {
+        throw new Error('Error adding metadata to IPFS');
+      }
+
+      const result = results[0];
+      const res = await getFromIpfs(result.cid);
+      const metadata = JSON.parse(res.file.toString());
+
+      image = metadata.image;
+    }
+
+    const docId = crypto.randomBytes(32).toString('hex');
+    await insertToDB(AttestationProofSchemaModel, {
+      _docId: docId,
+      ...reqPayload,
+      image
+    });
+
+    return res.status(200).send({ id: docId });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      errorMessage: e.message || 'Error creating attestation.'
+    });
+  }
+};
+
+export const getAttestationProof = async (req: Request, res: Response<iGetAttestationProofSuccessResponse<NumberType> | ErrorResponse>) => {
+  try {
+    const reqPayload = req.body as unknown as GetAttestationProofPayload;
+    const validateRes: typia.IValidation<GetAttestationProofPayload> = typia.validate<GetAttestationProofPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    if (reqPayload.id) {
+      const doc = await mustGetFromDB(AttestationProofSchemaModel, reqPayload.id);
+      if (!doc.displayOnProfile) {
+        const authDetails = await mustGetAuthDetails(req, res);
+        if (doc.createdBy !== authDetails.cosmosAddress) {
+          throw new Error('This proof is private, and you are not the owner.');
+        }
+      }
+
+      return res.status(200).send(doc);
+    }
+
+    return res.status(400).send({ errorMessage: 'Must specify id' });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      errorMessage: e.message || 'Error getting attestation.'
+    });
+  }
+};
+
+export const deleteAttestationProof = async (
+  req: AuthenticatedRequest<NumberType>,
+  res: Response<iDeleteAttestationProofSuccessResponse | ErrorResponse>
+) => {
+  try {
+    const reqPayload = req.body as DeleteAttestationProofPayload;
+    const validateRes: typia.IValidation<DeleteAttestationProofPayload> = typia.validate<DeleteAttestationProofPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    const authDetails = await mustGetAuthDetails(req, res);
+    const doc = await mustGetFromDB(AttestationProofSchemaModel, reqPayload.id);
+    if (doc.createdBy !== authDetails.cosmosAddress) {
+      throw new Error('You are not the owner of this Siwbb request.');
+    }
+
+    await deleteMany(AttestationProofSchemaModel, [reqPayload.id]);
+
+    return res.status(200).send({ success: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      errorMessage: e.message || 'Error deleting attestation.'
     });
   }
 };

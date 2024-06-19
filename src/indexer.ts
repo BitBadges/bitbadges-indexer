@@ -97,7 +97,7 @@ import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addToIpfsHandler } from './routes/ipfs';
 import { getMaps } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
-import { createAttestation, deleteAttestation, getAttestation, updateAttestation } from './routes/offChainSecrets';
+import { createAttestation, createAttestationProof, deleteAttestation, deleteAttestationProof, getAttestation, getAttestationProof, updateAttestation } from './routes/offChainSecrets';
 import { createPass } from './routes/pass';
 import { createPlugin, deletePlugin, getPlugins, updatePlugin } from './routes/plugins';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
@@ -668,6 +668,10 @@ app.post('/api/v0/attestation/fetch', getAttestation);
 app.post('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Create Attestations' }]), createAttestation);
 app.delete('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Delete Attestations' }]), deleteAttestation);
 app.put('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Update Attestations' }]), updateAttestation);
+app.post('/api/v0/attestationProof/fetch', getAttestationProof);
+app.post('/api/v0/attestationProof', authorizeBlockinRequest([{ scopeName: 'Create Attestations' }]), createAttestationProof);
+app.delete('/api/v0/attestationProof', authorizeBlockinRequest([{ scopeName: 'Delete Attestations' }]), deleteAttestationProof);
+// app.put('/api/v0/attestationProof', authorizeBlockinRequest([{ scopeName: 'Update Attestations' }]), updateAttestation);
 
 // Auth Apps
 app.post('/api/v0/developerApp/fetch', websiteOnlyCors, getDeveloperApps);

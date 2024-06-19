@@ -14,6 +14,8 @@ import {
   ApiKeySchema,
   ApprovalTrackerModel,
   ApprovalTrackerSchema,
+  AttestationProofSchema,
+  AttestationProofSchemaModel,
   AuthorizationCodeModel,
   AuthorizationCodeSchema,
   BalanceModel,
@@ -81,6 +83,7 @@ import {
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(AttestationProofSchemaModel.collection.name);
   await MongoDB.dropCollection(ClaimAttemptStatusModel.collection.name);
   await MongoDB.dropCollection(PluginDocHistoryModel.collection.name);
   await MongoDB.dropCollection(ClaimDocHistoryModel.collection.name);
@@ -461,6 +464,7 @@ export async function createIndexesAndViews(): Promise<void> {
   AccessTokenSchema.index({ _docId: 1 }, { unique: true });
   AuthorizationCodeSchema.index({ _docId: 1 }, { unique: true });
 
+  AttestationProofSchema.index({ _docId: 1 }, { unique: true });
   MapSchema.index({ _docId: 1 }, { unique: true });
   BrowseSchema.index({ _docId: 1 }, { unique: true });
   UsernameSchema.index({ _docId: 1 }, { unique: true });

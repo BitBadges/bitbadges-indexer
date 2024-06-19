@@ -243,6 +243,7 @@ export const convertToBitBadgesUserInfo = async (
       reviews: [],
       merkleChallenges: [],
       claimAlerts: [],
+      attestationProofs: [],
       attestations: [],
       approvalTrackers: [],
       siwbbRequests: [],

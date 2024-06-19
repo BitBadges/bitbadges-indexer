@@ -95,6 +95,7 @@ describe('get Siwbb requests', () => {
       attestationsPresentations: [
         {
           createdBy: '',
+          createdAt: 0,
           attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: '',
@@ -387,6 +388,7 @@ describe('get Siwbb requests', () => {
     await expect(
       verifyAttestationsPresentationSignatures({
         createdBy: convertToCosmosAddress(address),
+        createdAt: Date.now(),
         attestationMessages: ['test'],
         dataIntegrityProof: {
           signature: 'invalid',
@@ -404,6 +406,7 @@ describe('get Siwbb requests', () => {
     await expect(
       verifyAttestationsPresentationSignatures({
         createdBy: convertToCosmosAddress(address),
+        createdAt: Date.now(),
         attestationMessages: ['test'],
         dataIntegrityProof: {
           signature: Buffer.from(derivedProof).toString('hex'), //using derived proof as orig proof
@@ -422,6 +425,7 @@ describe('get Siwbb requests', () => {
       verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
+          createdAt: Date.now(),
           attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
@@ -442,6 +446,7 @@ describe('get Siwbb requests', () => {
       verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
+          createdAt: Date.now(),
           attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),
@@ -466,6 +471,7 @@ describe('get Siwbb requests', () => {
       verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
+          createdAt: Date.now(),
           attestationMessages: [],
           dataIntegrityProof: {
             signature: Buffer.from(proof.dataIntegrityProof).toString('hex'),
@@ -504,6 +510,7 @@ describe('get Siwbb requests', () => {
       verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(address),
+          createdAt: Date.now(),
           attestationMessages: ['test'],
           dataIntegrityProof: {
             signature: Buffer.from('a' + derivedProof).toString('hex'),
@@ -541,6 +548,7 @@ describe('get Siwbb requests', () => {
       verifyAttestationsPresentationSignatures(
         {
           createdBy: convertToCosmosAddress(ethWallet.address),
+          createdAt: Date.now(),
           attestationMessages: ['{"test": "test"}'],
           dataIntegrityProof: {
             signature: Buffer.from(derivedProof).toString('hex'),

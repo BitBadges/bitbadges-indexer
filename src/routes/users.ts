@@ -2,6 +2,7 @@ import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import sgMail from '@sendgrid/mail';
 import {
   AccountDoc,
+  AttestationProofDoc,
   BalanceDocWithDetails,
   BigIntify,
   BitBadgesAddressList,
@@ -59,6 +60,7 @@ import { typiaError } from './search';
 import { convertToBitBadgesUserInfo } from './userHelpers';
 import {
   executeActivityQuery,
+  executeAttestationProofsQuery,
   executeClaimAlertsQuery,
   executeCollectedQuery,
   executeCreatedAttestationsQuery,
@@ -70,6 +72,7 @@ import {
   executeListsQuery,
   executeManagingQuery,
   executePrivateListsQuery,
+  executePublicAttestationProofsQuery,
   executeReceivedAttestationsQuery,
   executeReviewsQuery,
   executeSIWBBRequestsQuery,
@@ -375,6 +378,7 @@ interface GetAdditionalUserInfoRes {
   claimAlerts: Array<ClaimAlertDoc<bigint>>;
   siwbbRequests: Array<SIWBBRequestDoc<bigint>>;
   attestations: Array<AttestationDoc<bigint>>;
+  attestationProofs: Array<AttestationProofDoc<bigint>>;
   views: Record<
     string,
     | {
@@ -403,6 +407,7 @@ const getAdditionalUserInfo = async (
       addressLists: [],
       claimAlerts: [],
       siwbbRequests: [],
+      attestationProofs: [],
       views: {}
     };
   }
@@ -514,6 +519,19 @@ const getAdditionalUserInfo = async (
           authDetails.cosmosAddress === cosmosAddress;
         if (!isAuthenticated) throw new Error('You must be authenticated to fetch account attestations.');
         asyncOperations.push(async () => await executeReceivedAttestationsQuery(cosmosAddress, bookmark));
+      }
+    } else if (view.viewType === 'attestationProofs') {
+      if (bookmark !== undefined) {
+        const isAuthenticated =
+          !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Attestations' }])) &&
+          authDetails &&
+          authDetails.cosmosAddress === cosmosAddress;
+        if (!isAuthenticated) throw new Error('You must be authenticated to fetch account attestations.');
+        asyncOperations.push(async () => await executeAttestationProofsQuery(cosmosAddress, bookmark));
+      }
+    } else if (view.viewType === 'publicAttestationProofs') {
+      if (bookmark !== undefined) {
+        asyncOperations.push(async () => await executePublicAttestationProofsQuery(cosmosAddress, bookmark));
       }
     }
   }
@@ -659,6 +677,16 @@ const getAdditionalUserInfo = async (
           hasMore: result.docs.length >= 25
         }
       };
+    } else if (viewKey === 'attestationProofs' || viewKey === 'publicAttestationProofs') {
+      const result = results[i] as nano.MangoResponse<AttestationProofDoc<bigint>>;
+      views[viewId] = {
+        ids: result.docs.map((x) => x._docId),
+        type: 'Attestation Proofs',
+        pagination: {
+          bookmark: result.bookmark ? result.bookmark : '',
+          hasMore: result.docs.length >= 25
+        }
+      };
     } else if (viewKey === 'claimAlerts' || viewKey === 'sentClaimAlerts') {
       const result = results[i] as nano.MangoResponse<ClaimAlertDoc<bigint>>;
       views[viewId] = {
@@ -724,8 +752,10 @@ const getAdditionalUserInfo = async (
     claimAlerts: [],
     siwbbRequests: [],
     attestations: [],
+    attestationProofs: [],
     views: {}
   };
+
   for (let i = 0; i < results.length; i++) {
     const viewKey = reqPayload.viewsToFetch[i].viewType;
     if (viewKey === 'listsActivity') {
@@ -790,6 +820,9 @@ const getAdditionalUserInfo = async (
     } else if (viewKey === 'createdAttestations' || viewKey === 'receivedAttestations') {
       const result = results[i] as nano.MangoResponse<AttestationDoc<bigint>>;
       responseObj.attestations = [...responseObj.attestations, ...result.docs];
+    } else if (viewKey === 'attestationProofs' || viewKey === 'publicAttestationProofs') {
+      const result = results[i] as nano.MangoResponse<AttestationProofDoc<bigint>>;
+      responseObj.attestationProofs = [...responseObj.attestationProofs, ...result.docs];
     }
     // nothing to do with managing or createdBy
   }

@@ -21,7 +21,8 @@ import {
   ReviewModel,
   TransferActivityModel,
   type BitBadgesDoc,
-  ComplianceModel
+  ComplianceModel,
+  AttestationProofSchemaModel
 } from '../db/schemas';
 import { findWithPagination, getQueryParamsFromBookmark } from '../db/utils';
 
@@ -523,7 +524,7 @@ export async function executeSIWBBRequestsQuery(cosmosAddress: string, bookmark?
   const res = await findWithPagination(SIWBBRequestModel, {
     query: { cosmosAddress, deletedAt: { $exists: false }, redirectUri: { $exists: false }, name: { $ne: '__temp' }, ...paginationParams },
     sort: { createdAt: oldestFirst ? 1 : -1 },
-    limit: 25
+    limit: 0
   });
   return res;
 }
@@ -667,7 +668,7 @@ export async function executeCreatedAttestationsQuery(cosmosAddress: string, boo
   const res = await findWithPagination(OffChainAttestationsModel, {
     query: { createdBy: cosmosAddress, ...paginationParams },
     sort: { attestationId: 1 },
-    limit: 25
+    limit: 0
   });
   return res;
 }
@@ -684,7 +685,34 @@ export async function executeReceivedAttestationsQuery(cosmosAddress: string, bo
       ...paginationParams
     },
     sort: { attestationId: 1 },
-    limit: 25
+    limit: 0
+  });
+  return res;
+}
+
+export async function executeAttestationProofsQuery(cosmosAddress: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(AttestationProofSchemaModel, bookmark, false, '_docId');
+  const res = await findWithPagination(AttestationProofSchemaModel, {
+    query: {
+      createdBy: cosmosAddress,
+      ...paginationParams
+    },
+    sort: { _docId: 1 },
+    limit: 0
+  });
+  return res;
+}
+
+export async function executePublicAttestationProofsQuery(cosmosAddress: string, bookmark?: string) {
+  const paginationParams = await getQueryParamsFromBookmark(AttestationProofSchemaModel, bookmark, false, '_docId');
+  const res = await findWithPagination(AttestationProofSchemaModel, {
+    query: {
+      createdBy: cosmosAddress,
+      displayOnProfile: true,
+      ...paginationParams
+    },
+    sort: { _docId: 1 },
+    limit: 0
   });
   return res;
 }
