@@ -394,8 +394,9 @@ export async function validateAccessTokens(req: MaybeAuthenticatedRequest<Number
     }
   }
 
-  // if (req.session.github && Date.now() > req.session.github.expires_at - 1000 * 60 * 5) {
-  if (req.session.github) {
+  //TODO: This is never going to run because Github doesnt return refresh tokens
+  if (req.session.github && Date.now() > req.session.github.expires_at - 1000 * 60 * 5) {
+    // if (req.session.github) {
     // const accessToken = req.session.github.access_token;
     const refreshToken = req.session.github.refresh_token;
     try {
@@ -406,7 +407,6 @@ export async function validateAccessTokens(req: MaybeAuthenticatedRequest<Number
         grant_type: 'refresh_token',
         refresh_token: refreshToken
       });
-      console.log(res.data);
 
       if (!res.data.access_token || !res.data.refresh_token) {
         req.session.github = undefined;
@@ -416,7 +416,6 @@ export async function validateAccessTokens(req: MaybeAuthenticatedRequest<Number
         req.session.github.expires_at = Date.now() + res.data.expires_in * 1000;
       }
     } catch (err) {
-      console.log('github error', err);
       req.session.github = undefined;
     }
   }
@@ -463,7 +462,6 @@ export async function validateAccessTokens(req: MaybeAuthenticatedRequest<Number
       } else {
         req.session.google.access_token = res.data.access_token;
         req.session.google.expires_at = Date.now() + res.data.expires_in * 1000;
-        console.log(res.data);
       }
     } catch (err) {
       console.error(err);
@@ -582,7 +580,6 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
         }
       });
     } catch (err) {
-      console.log(err);
       console.log(err);
       return res.status(500).json({ success: false, errorMessage: 'Error signing out.' });
     }

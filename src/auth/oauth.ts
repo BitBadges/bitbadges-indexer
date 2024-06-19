@@ -73,9 +73,8 @@ passport.use(
         id: profile.id,
         username: profile.username,
         access_token: accessToken,
-        refresh_token: refreshToken,
-        //8 hours?
-        expires_at: Date.now() + 1000 * 60 * 60 * 8
+        refresh_token: refreshToken, //Doesn't return refresh token
+        expires_at: Number.MAX_SAFE_INTEGER
       };
 
       return cb(null, user);
@@ -196,8 +195,7 @@ export const googleCallbackHandler = (req: Request, res: Response, next: NextFun
       if (!user) {
         return res.status(401).send('Unauthorized. No user found.');
       }
-
-      console.log('user', user);
+      
       (req.session as BlockinSession<bigint>).google = user;
       req.session.save();
 
