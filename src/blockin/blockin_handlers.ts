@@ -406,22 +406,23 @@ export async function validateAccessTokens(req: MaybeAuthenticatedRequest<Number
         grant_type: 'refresh_token',
         refresh_token: refreshToken
       });
+      console.log(res.data);
 
       if (!res.data.access_token || !res.data.refresh_token) {
         req.session.github = undefined;
       } else {
         req.session.github.access_token = res.data.access_token;
         req.session.github.refresh_token = res.data.refresh_token;
+        req.session.github.expires_at = Date.now() + res.data.expires_in * 1000;
       }
     } catch (err) {
-      console.log(err);
+      console.log('github error', err);
       req.session.github = undefined;
     }
   }
 
-  // if (req.session.twitch && Date.now() > req.session.twitch.expires_at - 1000 * 60 * 5) {
-  if (req.session.twitch) {
-    // const accessToken = req.session.twitch.access_token;
+  if (req.session.twitch && Date.now() > req.session.twitch.expires_at - 1000 * 60 * 5) {
+    // if (req.session.twitch) {    // const accessToken = req.session.twitch.access_token;
     const refreshToken = req.session.twitch.refresh_token;
     try {
       //Refresh
@@ -437,6 +438,7 @@ export async function validateAccessTokens(req: MaybeAuthenticatedRequest<Number
       } else {
         req.session.twitch.access_token = res.data.access_token;
         req.session.twitch.refresh_token = res.data.refresh_token;
+        req.session.twitch.expires_at = Date.now() + res.data.expires_in * 1000;
       }
     } catch (err) {
       console.log(err);
