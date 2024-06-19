@@ -30,7 +30,9 @@ passport.use(
       const user = {
         id: profile.id,
         username: profile.emails ? profile.emails[0].value : '',
-        access_token: accessToken
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: Date.now() + 3600000
       };
       return cb(null, user);
     }
@@ -50,7 +52,9 @@ passport.use(
         id: profile.id,
         username: profile.username,
         discriminator: profile.discriminator,
-        access_token: accessToken
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: Date.now() + 604800
       };
       return cb(null, user);
     }
@@ -67,7 +71,11 @@ passport.use(
     function (accessToken, refreshToken, profile, cb) {
       const user = {
         id: profile.id,
-        username: profile.username
+        username: profile.username,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        //8 hours?
+        expires_at: Date.now() + 1000 * 60 * 60 * 8
       };
 
       return cb(null, user);
@@ -189,6 +197,7 @@ export const googleCallbackHandler = (req: Request, res: Response, next: NextFun
         return res.status(401).send('Unauthorized. No user found.');
       }
 
+      console.log('user', user);
       (req.session as BlockinSession<bigint>).google = user;
       req.session.save();
 

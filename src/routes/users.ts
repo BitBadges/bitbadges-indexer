@@ -945,6 +945,7 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
             newProfileInfo.notifications.emailVerification = new EmailVerificationStatus({
               ...newProfileInfo.notifications.emailVerification,
               verified: false,
+              verifiedAt: undefined,
               token: uniqueToken,
               expiry: Number(Date.now() + 1000 * 60 * 60 * 1) // 1 hour
             });

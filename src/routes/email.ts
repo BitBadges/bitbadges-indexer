@@ -180,6 +180,7 @@ export const verifyEmailHandler = async (req: Request, res: Response) => {
         emailVerification: {
           ...doc.notifications.emailVerification,
           verified: true,
+          verifiedAt: Date.now(),
           expiry: undefined
         }
       }

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import {
   BalanceArray,
   BigIntify,
@@ -28,12 +29,12 @@ import { type Session } from 'express-session';
 import { serializeError } from 'serialize-error';
 import { generateNonce } from 'siwe';
 import typia from 'typia';
+import { twitterOauth } from '../auth/oauth';
 import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { AccessTokenModel, CollectionModel, ProfileModel } from '../db/schemas';
 import { typiaError } from '../routes/search';
 import { getChainDriver } from './blockin';
 import { SupportedScopes, hasScopes } from './scopes';
-import axios from 'axios';
 
 export interface BlockinSessionDetails<T extends NumberType> {
   /**
@@ -56,12 +57,16 @@ export interface BlockinSessionDetails<T extends NumberType> {
     username: string;
     discriminator: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
   /** Connected OAuth Twitter account. */
   twitter?: {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
     access_token_secret: string;
   };
   /** Connected OAuth Github account. */
@@ -69,17 +74,23 @@ export interface BlockinSessionDetails<T extends NumberType> {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
   /** Connected OAuth Google account. */
   google?: {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
   twitch?: {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
 }
 
@@ -104,12 +115,16 @@ export interface BlockinSession<T extends NumberType> extends Session {
     username: string;
     discriminator: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
   /** Connected OAuth Twitter account. */
   twitter?: {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
     access_token_secret: string;
   };
   /** Connected OAuth Github account. */
@@ -117,17 +132,23 @@ export interface BlockinSession<T extends NumberType> extends Session {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
   /** Connected OAuth Google account. */
   google?: {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
   twitch?: {
     id: string;
     username: string;
     access_token: string;
+    refresh_token: string;
+    expires_at: number;
   };
 }
 
@@ -338,88 +359,134 @@ export async function getChallenge(
 }
 
 export async function validateAccessTokens(req: MaybeAuthenticatedRequest<NumberType>) {
-  if (req.session.discord) {
-    const accessToken = req.session.discord.access_token;
+  if (req.session.discord && Date.now() > req.session.discord.expires_at - 1000 * 60 * 5) {
+    // 5 minutes before expiry
+    // const accessToken = req.session.discord.access_token;
+    const refreshToken = req.session.discord.refresh_token;
     try {
-      const res = await axios.get('https://discord.com/api/users/@me', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
+      const res = await axios.post(
+        'https://discord.com/api/oauth2/token',
+        new URLSearchParams({
+          client_id: process.env.CLIENT_ID ?? '',
+          client_secret: process.env.CLIENT_SECRET ?? '',
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          redirect_uri:
+            process.env.DEV_MODE === 'true' ? 'http://localhost:3001/auth/discord/callback' : 'https://api.bitbadges.io/auth/discord/callback'
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
         }
-      });
+      );
 
-      if (res.status !== 200) {
-        throw new Error('Invalid Discord access token');
+      if (!res.data.access_token || !res.data.refresh_token) {
+        req.session.discord = undefined;
+      } else {
+        req.session.discord.access_token = res.data.access_token;
+        req.session.discord.refresh_token = res.data.refresh_token;
+        req.session.discord.expires_at = Date.now() + res.data.expires_in * 1000;
       }
     } catch (err) {
+      console.error(err);
       req.session.discord = undefined;
     }
   }
 
-  if (req.session.twitter) {
-    const accessToken = req.session.twitter.access_token;
-    try {
-      const res = await axios.get('https://api.twitter.com/1.1/account/verify_credentials.json', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-
-      if (res.status !== 200) {
-        throw new Error('Invalid Twitter access token');
-      }
-    } catch (err) {
-      req.session.twitter = undefined;
-    }
-  }
-
-  if (req.session.twitch) {
-    const accessToken = req.session.twitch.access_token;
-    try {
-      const res = await axios.get('https://api.twitch.tv/helix/users', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      });
-
-      if (res.status !== 200) {
-        throw new Error('Invalid Twitch access token');
-      }
-    } catch (err) {
-      req.session.twitch = undefined;
-    }
-  }
-
+  // if (req.session.github && Date.now() > req.session.github.expires_at - 1000 * 60 * 5) {
   if (req.session.github) {
-    const accessToken = req.session.github.access_token;
+    // const accessToken = req.session.github.access_token;
+    const refreshToken = req.session.github.refresh_token;
     try {
-      const res = await axios.get('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
+      //Refresh
+      const res = await axios.post('https://github.com/login/oauth/access_token', {
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken
       });
 
-      if (res.status !== 200) {
-        throw new Error('Invalid Github access token');
+      if (!res.data.access_token || !res.data.refresh_token) {
+        req.session.github = undefined;
+      } else {
+        req.session.github.access_token = res.data.access_token;
+        req.session.github.refresh_token = res.data.refresh_token;
       }
     } catch (err) {
+      console.log(err);
       req.session.github = undefined;
     }
   }
 
-  if (req.session.google) {
-    const accessToken = req.session.google.access_token;
+  // if (req.session.twitch && Date.now() > req.session.twitch.expires_at - 1000 * 60 * 5) {
+  if (req.session.twitch) {
+    // const accessToken = req.session.twitch.access_token;
+    const refreshToken = req.session.twitch.refresh_token;
     try {
-      const res = await axios.get('https://www.googleapis.com/oauth2/v1/userinfo', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
+      //Refresh
+      const res = await axios.post('https://id.twitch.tv/oauth2/token', {
+        client_id: process.env.TWITCH_CLIENT_ID,
+        client_secret: process.env.TWITCH_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken
       });
 
-      if (res.status !== 200) {
-        throw new Error('Invalid Google access token');
+      if (!res.data.access_token || !res.data.refresh_token) {
+        req.session.twitch = undefined;
+      } else {
+        req.session.twitch.access_token = res.data.access_token;
+        req.session.twitch.refresh_token = res.data.refresh_token;
       }
     } catch (err) {
+      console.log(err);
+      req.session.twitch = undefined;
+    }
+  }
+
+  if (req.session.google && Date.now() > req.session.google.expires_at - 1000 * 60 * 5) {
+    // const accessToken = req.session.google.access_token;
+    const refreshToken = req.session.google.refresh_token;
+    try {
+      //Refresh
+      const res = await axios.post('https://oauth2.googleapis.com/token?access_type=offline&prompt=consent', {
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken
+      });
+
+      if (!res.data.access_token) {
+        req.session.google = undefined;
+      } else {
+        req.session.google.access_token = res.data.access_token;
+        req.session.google.expires_at = Date.now() + res.data.expires_in * 1000;
+        console.log(res.data);
+      }
+    } catch (err) {
+      console.error(err);
       req.session.google = undefined;
+    }
+  }
+
+  //Dont think this wil ever run because Twitter doesnt explicitly give refresh tokens or expire access tokens
+  if (req.session.twitter && Date.now() > req.session.twitter.expires_at - 1000 * 60 * 5) {
+    //Test if access token is currently valid
+    const accessToken = req.session.twitter.access_token;
+    const accessTokenSecret = req.session.twitter.access_token_secret;
+    try {
+      const userProfileUrl = 'https://api.twitter.com/1.1/account/verify_credentials.json';
+      await new Promise((resolve, reject) => {
+        twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, (error, data) => {
+          if (error) {
+            return reject(error);
+          }
+          resolve(data);
+        });
+      });
+    } catch (err) {
+      console.log(err);
+      req.session.twitter = undefined;
     }
   }
 
@@ -513,6 +580,7 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
         }
       });
     } catch (err) {
+      console.log(err);
       console.log(err);
       return res.status(500).json({ success: false, errorMessage: 'Error signing out.' });
     }

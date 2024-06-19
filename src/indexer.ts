@@ -391,7 +391,7 @@ passport.use(
 // Set route to start OAuth link, this is where you define scopes to request
 app.get('/auth/twitch', passport.authenticate('twitch', { scope: 'user_read user:read:follows user:read:subscriptions' }));
 app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunction) => {
-  passport.authenticate('twitch', async function (err: Error, callbackVal: { accessToken: string }) {
+  passport.authenticate('twitch', async function (err: Error, callbackVal: { accessToken: string; refreshToken: string }) {
     try {
       if (err) {
         return next(err);
@@ -417,7 +417,9 @@ app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunctio
       const user = {
         id: data.data[0].id,
         username: data.data[0].login,
-        access_token: accessToken
+        access_token: accessToken,
+        refresh_token: callbackVal.refreshToken,
+        expires_at: Date.now() + 1000 * 60 * 60 * 24 * 30
       };
       console.log(user);
 
@@ -515,7 +517,9 @@ app.get('/auth/twitter/callback', async (req, res) => {
       id: profile.id_str,
       username: profile.screen_name,
       access_token: accessToken,
-      access_token_secret: accessTokenSecret
+      access_token_secret: accessTokenSecret,
+      refresh_token: '',
+      expires_at: Number.MAX_SAFE_INTEGER
     };
 
     (req.session as BlockinSession<bigint>).twitter = user;
@@ -548,7 +552,7 @@ app.get('/auth/github', passport.authenticate('github', { session: false }));
 app.get('/auth/github/callback', githubCallbackHandler);
 
 //also request youtube
-app.get('/auth/google', passport.authenticate('google', { session: false, scope: ['profile', 'email'] }));
+app.get('/auth/google', passport.authenticate('google', { session: false, scope: ['profile', 'email'], accessType: 'offline', prompt: 'consent' }));
 app.get('/auth/google/callback', googleCallbackHandler);
 
 // Reports
