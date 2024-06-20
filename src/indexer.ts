@@ -13,7 +13,7 @@ if (process.env.TEST_MODE === 'true') {
 }
 
 import axios from 'axios';
-import { NumberType, SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
+import { SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
 import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -32,35 +32,35 @@ import OAuth2Strategy from 'passport-oauth2';
 import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
-import typia from 'typia';
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
 import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './auth/oauth';
 import {
-  AuthenticatedRequest,
   authorizeBlockinRequest,
   checkifSignedInHandler,
   genericBlockinVerifyAssetsHandler,
   genericBlockinVerifyHandler,
   getChallenge,
-  mustGetAuthDetails,
   removeBlockinSessionCookie,
   verifyBlockinAndGrantSessionCookie,
   type BlockinSession
 } from './blockin/blockin_handlers';
-import { deleteMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
+import { insertToDB, mustGetFromDB } from './db/db';
 import { ApiKeyDoc } from './db/docs';
 import { findInDB } from './db/queries';
-import { AccessTokenModel, ApiKeyModel, DeveloperAppModel, ProfileModel } from './db/schemas';
+import { ApiKeyModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE, client } from './indexer-vars';
 import { connectToRpc, poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
+import { createApiKey, deleteApiKey, getApiKeys, rotateApiKey } from './routes/apiKeys';
 import { createDeveloperApp, deleteDeveloperApp, getDeveloperApps, updateDeveloperApp } from './routes/authApps';
 import {
   createSIWBBRequest,
   deleteSIWBBRequest,
   exchangeSIWBBAuthorizationCode,
   getSIWBBRequestsForDeveloperApp,
+  getSiwbbAuthorizations,
+  revokeSiwbbHandler,
   rotateSIWBBRequest
 } from './routes/authCodes';
 import { getOwnersForBadge } from './routes/badges';
@@ -682,200 +682,19 @@ app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
 app.post('/api/v0/oneTimeVerify/send', websiteOnlyCors, oneTimeSendEmailHandler);
 app.post('/api/v0/oneTimeVerify/verify', websiteOnlyCors, oneTimeVerifyEmailHandler);
 
-// Blockin Siwbb Requests
+// Siwbb / Oauth
 app.post('/api/v0/siwbb/token', exchangeSIWBBAuthorizationCode);
+app.post('/api/v0/siwbb/token/revoke', revokeSiwbbHandler);
 app.post('/api/v0/siwbbRequest', createSIWBBRequest);
 app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest([{ scopeName: 'Delete Authentication Codes' }]), deleteSIWBBRequest);
 app.post('/api/v0/siwbbRequest/rotate', authorizeBlockinRequest([{ scopeName: 'Create Authentication Codes' }]), rotateSIWBBRequest);
+app.post('/api/v0/oauth/authorizations', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getSiwbbAuthorizations);
 
-app.post('/api/v0/siwbb/token/revoke', async (req: AuthenticatedRequest<NumberType>, res: Response) => {
-  try {
-    const { token } = req.body;
-    typia.assert<string>(token);
-
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-    const accessTokenDoc = await mustGetFromDB(AccessTokenModel, tokenHash);
-    await deleteMany(AccessTokenModel, [accessTokenDoc._docId]);
-    return res.status(200).send({ message: 'Token revoked' });
-  } catch (e) {
-    return res.status(500).send({
-      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message
-    });
-  }
-});
-
-app.post(
-  '/api/v0/oauth/authorizations',
-  websiteOnlyCors,
-  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
-  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
-    try {
-      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
-      const docs = await findInDB(AccessTokenModel, { query: { cosmosAddress } });
-      const clientIds = docs.map((doc) => doc.clientId);
-      const developerApps = await mustGetManyFromDB(DeveloperAppModel, clientIds);
-
-      return res.status(200).json({
-        authorizations: docs,
-        developerApps: developerApps.map((x) => {
-          return { ...x, clientSecret: undefined };
-        })
-      });
-    } catch (e) {
-      return res.status(500).send({
-        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-        errorMessage: e.message
-      });
-    }
-  }
-);
-
-app.post(
-  '/api/v0/apiKeys',
-  websiteOnlyCors,
-  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
-  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
-    try {
-      typia.assert<string>(req.body.label);
-      typia.assert<string>(req.body.intendedUse);
-
-      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
-      const currApiKeys = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 50 });
-
-      if (currApiKeys.filter((key) => key.expiry > Date.now()).length > 5) {
-        return res.status(400).send({
-          error: 'Too many active API keys',
-          errorMessage: 'You have too many active API keys. Current limit is 5 per user.'
-        });
-      }
-
-      const newDocId = crypto.randomBytes(32).toString('hex');
-      const newKey = crypto.randomBytes(64).toString('hex');
-      const newKeyHash = crypto.createHash('sha256').update(newKey).digest('hex');
-      await insertToDB(ApiKeyModel, {
-        cosmosAddress,
-        label: req.body.label ?? '',
-        apiKey: newKeyHash,
-        intendedUse: req.body.intendedUse ?? '',
-        _docId: newDocId,
-        numRequests: 0,
-        lastRequest: 0,
-        createdAt: Date.now(),
-        expiry: Date.now() + 1000 * 60 * 60 * 24 * 365,
-        tier: 'standard'
-      });
-      return res.status(200).send({ key: newKey });
-    } catch (e) {
-      return res.status(500).send({
-        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-        errorMessage: e.message
-      });
-    }
-  }
-);
-
-app.post(
-  '/api/v0/apiKeys/rotate',
-  websiteOnlyCors,
-  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
-  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
-    try {
-      const docId = req.body.docId;
-      typia.assert<string>(docId);
-
-      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
-
-      const docs = await findInDB(ApiKeyModel, { query: { _docId: docId }, limit: 1 });
-      if (docs.length === 0) {
-        return res.status(404).send({
-          error: 'Not found',
-          errorMessage: 'API key not found.'
-        });
-      }
-
-      const doc = docs[0];
-      if (doc.cosmosAddress !== cosmosAddress) {
-        return res.status(401).send({
-          error: 'Unauthorized',
-          errorMessage: 'You are not authorized to delete this key.'
-        });
-      }
-
-      const newKey = crypto.randomBytes(64).toString('hex');
-      const newKeyHash = crypto.createHash('sha256').update(newKey).digest('hex');
-      await insertToDB(ApiKeyModel, {
-        ...doc,
-        apiKey: newKeyHash
-      });
-
-      return res.status(200).send({ key: newKey });
-    } catch (e) {
-      return res.status(500).send({
-        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-        errorMessage: e.message
-      });
-    }
-  }
-);
-
-app.delete(
-  '/api/v0/apiKeys',
-  websiteOnlyCors,
-  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
-  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
-    try {
-      const keyToDelete = req.body.key;
-      typia.assert<string>(keyToDelete);
-
-      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
-
-      const docs = await findInDB(ApiKeyModel, { query: { apiKey: keyToDelete }, limit: 1 });
-      if (docs.length === 0) {
-        return res.status(404).send({
-          error: 'Not found',
-          errorMessage: 'API key not found.'
-        });
-      }
-
-      const doc = docs[0];
-      if (doc.cosmosAddress !== cosmosAddress) {
-        return res.status(401).send({
-          error: 'Unauthorized',
-          errorMessage: 'You are not authorized to delete this key.'
-        });
-      }
-
-      await deleteMany(ApiKeyModel, [doc._docId]);
-
-      return res.status(200).send({ message: 'Successfully deleted key' });
-    } catch (e) {
-      return res.status(500).send({
-        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-        errorMessage: e.message
-      });
-    }
-  }
-);
-
-app.post(
-  '/api/v0/apiKeys/fetch',
-  websiteOnlyCors,
-  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
-  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
-    try {
-      const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
-      const docs = await findInDB(ApiKeyModel, { query: { cosmosAddress }, limit: 100 });
-      return res.status(200).json({ docs });
-    } catch (e) {
-      return res.status(500).send({
-        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-        errorMessage: e.message
-      });
-    }
-  }
-);
+//Api Keys
+app.post('/api/v0/apiKeys', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createApiKey);
+app.post('/api/v0/apiKeys/rotate', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), rotateApiKey);
+app.delete('/api/v0/apiKeys', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), deleteApiKey);
+app.post('/api/v0/apiKeys/fetch', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getApiKeys);
 
 // Initialize the poller which polls the blockchain every X seconds and updates the database
 const init = async () => {

@@ -36,7 +36,7 @@ import {
   validateAccessTokens,
   type AuthenticatedRequest
 } from '../blockin/blockin_handlers';
-import { deleteMany, getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
+import { deleteMany, getFromDB, insertMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { AccessTokenModel, AuthorizationCodeModel, DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { typiaError } from './search';
@@ -631,3 +631,42 @@ export const deleteSIWBBRequest = async (
     });
   }
 };
+
+export async function revokeSiwbbHandler(req: AuthenticatedRequest<NumberType>, res: Response) {
+  try {
+    const { token } = req.body;
+    typia.assert<string>(token);
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const accessTokenDoc = await mustGetFromDB(AccessTokenModel, tokenHash);
+    await deleteMany(AccessTokenModel, [accessTokenDoc._docId]);
+    return res.status(200).send({ message: 'Token revoked' });
+  } catch (e) {
+    return res.status(500).send({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      errorMessage: e.message
+    });
+  }
+}
+
+export async function getSiwbbAuthorizations(req: AuthenticatedRequest<NumberType>, res: Response) {
+  try {
+    const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
+    const docs = await findInDB(AccessTokenModel, { query: { cosmosAddress } });
+    const clientIds = docs.map((doc) => doc.clientId);
+    const developerApps = await mustGetManyFromDB(DeveloperAppModel, clientIds);
+
+    return res.status(200).json({
+      authorizations: docs,
+      developerApps: developerApps.map((x) => {
+        return { ...x, clientSecret: undefined };
+      })
+    });
+  } catch (e) {
+    return res.status(500).send({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      errorMessage: e.message
+    });
+  }
+}
