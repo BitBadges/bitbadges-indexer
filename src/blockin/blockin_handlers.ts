@@ -536,45 +536,44 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
     return typiaError(res, validateRes);
   }
 
-  const session = req.session;
   if (body.signOutBlockin) {
-    session.address = undefined;
-    session.cosmosAddress = undefined;
-    session.blockin = undefined;
-    session.blockinParams = undefined;
-    session.nonce = undefined;
+    req.session.address = undefined;
+    req.session.cosmosAddress = undefined;
+    req.session.blockin = undefined;
+    req.session.blockinParams = undefined;
+    req.session.nonce = undefined;
   }
 
   if (body.signOutDiscord ?? false) {
-    session.discord = undefined;
+    req.session.discord = undefined;
   }
 
   if (body.signOutTwitter ?? false) {
-    session.twitter = undefined;
+    req.session.twitter = undefined;
   }
 
   if (body.signOutGithub ?? false) {
-    session.github = undefined;
+    req.session.github = undefined;
   }
 
   if (body.signOutGoogle ?? false) {
-    session.google = undefined;
+    req.session.google = undefined;
   }
 
   if (body.signOutTwitch ?? false) {
-    session.twitch = undefined;
+    req.session.twitch = undefined;
   }
 
   if (
-    session.address == null &&
-    session.discord == null &&
-    session.twitter == null &&
-    session.github == null &&
-    session.google == null &&
-    session.twitch == null
+    req.session.address == null &&
+    req.session.discord == null &&
+    req.session.twitter == null &&
+    req.session.github == null &&
+    req.session.google == null &&
+    req.session.twitch == null
   ) {
     try {
-      session.destroy((err) => {
+      req.session.destroy((err) => {
         if (err) {
           console.log(err);
         }
@@ -586,7 +585,6 @@ export async function removeBlockinSessionCookie(req: MaybeAuthenticatedRequest<
   } else {
     req.session.save();
   }
-
   return res.status(200).send();
 }
 

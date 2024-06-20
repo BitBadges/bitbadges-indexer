@@ -5,7 +5,7 @@ import {
   CreateDeveloperAppPayload,
   CreateSIWBBRequestPayload,
   DeleteSIWBBRequestPayload,
-  GetAndVerifySIWBBRequestPayload,
+  ExchangeSIWBBAuthorizationCodePayload,
   GetAttestationPayload,
   UpdateAttestationPayload,
   convertToCosmosAddress,
@@ -87,7 +87,9 @@ describe('get Siwbb requests', () => {
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true }, clientId: { $ne: 'proof-of-address' } } });
     const clientId = clientIdDocs[0]._docId;
     const body: CreateSIWBBRequestPayload = {
-      clientId,
+      scopes: [],
+      response_type: 'code',
+      client_id: clientId,
       name: 'test',
       image: '',
       description: '',
@@ -136,7 +138,9 @@ describe('get Siwbb requests', () => {
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true }, clientId: { $ne: 'proof-of-address' } } });
     const clientId = clientIdDocs[0]._docId;
     const body: CreateSIWBBRequestPayload = {
-      clientId,
+      scopes: [],
+      response_type: 'code',
+      client_id: clientId,
       name: 'test',
       image: '',
       description: ''
@@ -166,8 +170,8 @@ describe('get Siwbb requests', () => {
     //   .send({ ...body, signature: 'invalid' });
     // expect(invalidSigRes.status).toBe(500);
 
-    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
-    const getResPayload: GetAndVerifySIWBBRequestPayload = { code: siwbbRequestId };
+    const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
+    const getResPayload: ExchangeSIWBBAuthorizationCodePayload = { code: siwbbRequestId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -205,7 +209,9 @@ describe('get Siwbb requests', () => {
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true }, clientId: { $ne: 'proof-of-address' } } });
     const clientId = clientIdDocs[0]._docId;
     const body: CreateSIWBBRequestPayload = {
-      clientId,
+      scopes: [],
+      response_type: 'code',
+      client_id: clientId,
       name: 'test',
       image: '',
       description: ''
@@ -313,7 +319,9 @@ describe('get Siwbb requests', () => {
     const clientIdDocs = await findInDB(DeveloperAppModel, { query: { _docId: { $exists: true }, clientId: { $ne: 'proof-of-address' } } });
     const clientId = clientIdDocs[0]._docId;
     const createSIWBBRequestPayload: CreateSIWBBRequestPayload = {
-      clientId,
+      scopes: [],
+      response_type: 'code',
+      client_id: clientId,
       name: 'test',
       image: '',
       description: ''
@@ -355,16 +363,16 @@ describe('get Siwbb requests', () => {
     console.log(siwbbRequestRes.body);
     expect(siwbbRequestRes.status).toBe(200);
 
-    const getAndVerifySIWBBRequestResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
-    const getAndVerifySIWBBRequestResPayload: GetAndVerifySIWBBRequestPayload = { code: siwbbRequestRes.body.code };
-    const getAndVerifySIWBBRequestRes = await request(app)
-      .post(getAndVerifySIWBBRequestResRoute)
+    const exchangeSIWBBAuthorizationCodeResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
+    const exchangeSIWBBAuthorizationCodeResPayload: ExchangeSIWBBAuthorizationCodePayload = { code: siwbbRequestRes.body.code };
+    const exchangeSIWBBAuthorizationCodeRes = await request(app)
+      .post(exchangeSIWBBAuthorizationCodeResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send(getAndVerifySIWBBRequestResPayload);
-    expect(getAndVerifySIWBBRequestRes.status).toBe(200);
-    expect(getAndVerifySIWBBRequestRes.body.blockin.attestationsPresentations).toBeDefined();
-    expect(getAndVerifySIWBBRequestRes.body.blockin.attestationsPresentations.length).toBe(1);
+      .send(exchangeSIWBBAuthorizationCodeResPayload);
+    expect(exchangeSIWBBAuthorizationCodeRes.status).toBe(200);
+    expect(exchangeSIWBBAuthorizationCodeRes.body.blockin.attestationsPresentations).toBeDefined();
+    expect(exchangeSIWBBAuthorizationCodeRes.body.blockin.attestationsPresentations.length).toBe(1);
   });
 
   it('should fail w/ invalid proofs', async () => {
@@ -1340,11 +1348,13 @@ describe('get Siwbb requests', () => {
     await insertToDB(DeveloperAppModel, { ...clientIdDocs[0], clientSecret: clientSecretHash });
     const redirectUri = clientIdDocs[0].redirectUris[0];
     const body: CreateSIWBBRequestPayload = {
-      clientId,
+      scopes: [],
+      response_type: 'code',
+      client_id: clientId,
       name: 'test',
       image: '',
       description: '',
-      redirectUri: ''
+      redirect_uri: ''
     };
 
     const invalidRedirectUriRes = await request(app)
@@ -1367,8 +1377,8 @@ describe('get Siwbb requests', () => {
     const siwbbRequestId = res.body.code;
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
-    const getResPayload: GetAndVerifySIWBBRequestPayload = {
+    const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
+    const getResPayload: ExchangeSIWBBAuthorizationCodePayload = {
       code: siwbbRequestId,
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -1415,11 +1425,13 @@ describe('get Siwbb requests', () => {
     await insertToDB(DeveloperAppModel, { ...clientIdDocs[0], clientSecret: clientSecretHash });
     const redirectUri = clientIdDocs[0].redirectUris[0];
     const body: CreateSIWBBRequestPayload = {
-      clientId,
+      scopes: [],
+      response_type: 'code',
+      client_id: clientId,
       name: 'test',
       image: '',
       description: '',
-      redirectUri: '',
+      redirect_uri: '',
       otherSignIns: ['discord', 'github']
     };
 
@@ -1436,8 +1448,8 @@ describe('get Siwbb requests', () => {
     const siwbbRequestId = res.body.code;
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
-    const getResPayload: GetAndVerifySIWBBRequestPayload = {
+    const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
+    const getResPayload: ExchangeSIWBBAuthorizationCodePayload = {
       code: siwbbRequestId,
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -1468,11 +1480,13 @@ describe('get Siwbb requests', () => {
 
     const redirectUri = clientIdDocs[0].redirectUris[0];
     const body: CreateSIWBBRequestPayload = {
-      clientId,
+      scopes: [],
+      response_type: 'code',
+      client_id: clientId,
       name: 'test',
       image: '',
       description: '',
-      redirectUri: ''
+      redirect_uri: ''
     };
 
     const invalidResWithoutAuth = await request(app)
@@ -1494,8 +1508,8 @@ describe('get Siwbb requests', () => {
     const siwbbRequestId = res.body.code;
     console.log(res.body);
 
-    const getResRoute = BitBadgesApiRoutes.GetAndVerifySIWBBRequestsRoute();
-    const getResPayload: GetAndVerifySIWBBRequestPayload = {
+    const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
+    const getResPayload: ExchangeSIWBBAuthorizationCodePayload = {
       code: siwbbRequestId,
       client_id: clientId,
       redirect_uri: redirectUri,

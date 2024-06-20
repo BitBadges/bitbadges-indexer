@@ -309,7 +309,18 @@ export const updateClaimDocs = async (
     const existingDocRes = await findInDB(ClaimBuilderModel, { query, limit: 1, session });
     const existingDoc = existingDocRes.length > 0 ? existingDocRes[0] : undefined;
     const pluginsWithOptions = deepCopyPrimitives(claim.plugins ?? []);
-    const encryptedPlugins = await encryptPlugins(claim.plugins ?? []);
+    const encryptedPlugins = await encryptPlugins(
+      (claim.plugins ?? []).map((x) => {
+        return {
+          ...x,
+          newState: undefined,
+          resetState: undefined,
+          onlyUpdateProvidedNewState: undefined,
+          publicState: undefined,
+          privateState: undefined
+        };
+      })
+    );
 
     const state: Record<string, any> = {};
     for (const plugin of pluginsWithOptions ?? []) {

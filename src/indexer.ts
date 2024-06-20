@@ -12,26 +12,13 @@ if (process.env.TEST_MODE === 'true') {
   }).catch(console.error);
 }
 
-import WebSocket from 'ws';
-import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
-import {
-  NumberType,
-  OauthAuthorizePayload,
-  OauthTokenPayload,
-  SocialConnectionInfo,
-  SocialConnections,
-  iAccessTokenDoc,
-  iAuthorizationCodeDoc,
-  mustConvertToCosmosAddress,
-  type ErrorResponse
-} from 'bitbadgesjs-sdk';
+import { NumberType, SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
 import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { type Attribute } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import crypto from 'crypto';
-import OAuth2Strategy from 'passport-oauth2';
 import express, { NextFunction, type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import expressSession from 'express-session';
@@ -41,11 +28,13 @@ import https from 'https';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import passport from 'passport';
+import OAuth2Strategy from 'passport-oauth2';
 import querystring from 'querystring';
 import responseTime from 'response-time';
 import { serializeError } from 'serialize-error';
 import typia from 'typia';
-import validator from 'validator';
+import { v4 as uuidv4 } from 'uuid';
+import WebSocket from 'ws';
 import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './auth/oauth';
 import {
   AuthenticatedRequest,
@@ -62,7 +51,7 @@ import {
 import { deleteMany, insertToDB, mustGetFromDB, mustGetManyFromDB } from './db/db';
 import { ApiKeyDoc } from './db/docs';
 import { findInDB } from './db/queries';
-import { AccessTokenModel, ApiKeyModel, AuthorizationCodeModel, DeveloperAppModel, ProfileModel } from './db/schemas';
+import { AccessTokenModel, ApiKeyModel, DeveloperAppModel, ProfileModel } from './db/schemas';
 import { OFFLINE_MODE, client } from './indexer-vars';
 import { connectToRpc, poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
@@ -70,7 +59,7 @@ import { createDeveloperApp, deleteDeveloperApp, getDeveloperApps, updateDevelop
 import {
   createSIWBBRequest,
   deleteSIWBBRequest,
-  getAndVerifySIWBBRequest,
+  exchangeSIWBBAuthorizationCode,
   getSIWBBRequestsForDeveloperApp,
   rotateSIWBBRequest
 } from './routes/authCodes';
@@ -97,13 +86,21 @@ import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addToIpfsHandler } from './routes/ipfs';
 import { getMaps } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
-import { createAttestation, createAttestationProof, deleteAttestation, deleteAttestationProof, getAttestation, getAttestationProof, updateAttestation } from './routes/offChainSecrets';
+import {
+  createAttestation,
+  createAttestationProof,
+  deleteAttestation,
+  deleteAttestationProof,
+  getAttestation,
+  getAttestationProof,
+  updateAttestation
+} from './routes/offChainSecrets';
 import { createPass } from './routes/pass';
 import { createPlugin, deletePlugin, getPlugins, updatePlugin } from './routes/plugins';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
 import { addReview, deleteReview } from './routes/reviews';
-import { filterBadgesInCollectionHandler, getFilterSuggestionsHandler, searchHandler, typiaError } from './routes/search';
+import { filterBadgesInCollectionHandler, getFilterSuggestionsHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
 
@@ -642,12 +639,6 @@ app.post('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Create A
 app.put('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Update Address Lists' }]), updateAddressLists);
 app.delete('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Delete Address Lists' }]), deleteAddressLists);
 
-// Blockin Siwbb Requests
-app.post('/api/v0/siwbbRequest/fetch', getAndVerifySIWBBRequest);
-app.post('/api/v0/siwbbRequest', createSIWBBRequest); // we now verify signature with submitted (message, signature) pair (thus replacing the authorizeBlockinRequest([{ scopeName: 'Full Access']))
-app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest([{ scopeName: 'Delete Authentication Codes' }]), deleteSIWBBRequest);
-app.post('/api/v0/siwbbRequest/rotate', authorizeBlockinRequest([{ scopeName: 'Create Authentication Codes' }]), rotateSIWBBRequest);
-
 // Claim Alerts
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);
 app.post('/api/v0/claimAlerts', authorizeBlockinRequest([{ scopeName: 'Read Claim Alerts' }]), getClaimAlertsForCollection);
@@ -691,176 +682,13 @@ app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
 app.post('/api/v0/oneTimeVerify/send', websiteOnlyCors, oneTimeSendEmailHandler);
 app.post('/api/v0/oneTimeVerify/verify', websiteOnlyCors, oneTimeVerifyEmailHandler);
 
-app.post(
-  '/api/v0/oauth/authorize',
-  websiteOnlyCors,
-  authorizeBlockinRequest([{ scopeName: 'Full Access' }]),
-  async (req: AuthenticatedRequest<NumberType>, res: Response) => {
-    try {
-      const {
-        response_type,
-        client_id,
-        redirect_uri,
-        scopes
-        // state
-      } = req.body as OauthAuthorizePayload;
-      const validateRes: typia.IValidation<OauthAuthorizePayload> = typia.validate<OauthAuthorizePayload>(req.body);
-      if (!validateRes.success) {
-        return typiaError(res, validateRes);
-      }
+// Blockin Siwbb Requests
+app.post('/api/v0/siwbb/token', exchangeSIWBBAuthorizationCode);
+app.post('/api/v0/siwbbRequest', createSIWBBRequest);
+app.delete('/api/v0/siwbbRequest', authorizeBlockinRequest([{ scopeName: 'Delete Authentication Codes' }]), deleteSIWBBRequest);
+app.post('/api/v0/siwbbRequest/rotate', authorizeBlockinRequest([{ scopeName: 'Create Authentication Codes' }]), rotateSIWBBRequest);
 
-      const developerAppDoc = await mustGetFromDB(DeveloperAppModel, client_id);
-      if (developerAppDoc.redirectUris.indexOf(redirect_uri) === -1) {
-        throw new Error('Invalid redirect URI');
-      }
-
-      if (scopes.find((scope) => scope.scopeName === 'Full Access')) {
-        throw new Error('Full Access scope is not allowed for API Authorization.');
-      }
-
-      const code = crypto.randomBytes(32).toString('hex');
-      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-
-      if (response_type === 'code') {
-        const authDetails = await mustGetAuthDetails(req, res);
-        const codeDoc: iAuthorizationCodeDoc = {
-          _docId: codeHash,
-          clientId: client_id,
-          redirectUri: redirect_uri,
-          scopes: scopes,
-          address: authDetails.address,
-          cosmosAddress: authDetails.cosmosAddress,
-          expiresAt: Date.now() + 1000 * 60 * 2
-        };
-        await insertToDB(AuthorizationCodeModel, codeDoc);
-        return res.json({ code: code });
-      } else {
-        throw new Error('Invalid response type. Only "code" is supported.');
-      }
-    } catch (e) {
-      console.error(e);
-      return res.status(500).send({
-        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-        errorMessage: e.message
-      });
-    }
-  }
-);
-
-app.post('/api/v0/oauth/token', async (req: Request, res: Response) => {
-  try {
-    const { grant_type, client_id, client_secret, code, redirect_uri, refresh_token } = req.body;
-    const validateRes: typia.IValidation<OauthTokenPayload> = typia.validate<OauthTokenPayload>(req.body);
-    if (!validateRes.success) {
-      return typiaError(res, validateRes);
-    }
-
-    const client = await mustGetFromDB(DeveloperAppModel, client_id);
-    if (!client) {
-      return res.status(400).json({ error: 'Invalid client credentials. No app found.' });
-    }
-
-    if (crypto.createHash('sha256').update(client_secret).digest('hex') !== client.clientSecret || client.clientId !== client_id) {
-      return res.status(400).json({ error: 'Invalid client credentials' });
-    }
-
-    if (grant_type === 'authorization_code') {
-      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-      const authorizationCodeDoc = await mustGetFromDB(AuthorizationCodeModel, codeHash);
-
-      if (redirect_uri !== authorizationCodeDoc.redirectUri) {
-        return res.status(400).json({ error: 'Invalid redirect URI' });
-      }
-
-      if (authorizationCodeDoc.expiresAt < Date.now()) {
-        return res.status(400).json({ error: 'Authorization code has expired' });
-      }
-
-      const accessToken = crypto.randomBytes(32).toString('hex');
-      const accessTokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
-
-      const refreshToken = crypto.randomBytes(32).toString('hex');
-      const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
-      const token: iAccessTokenDoc = {
-        _docId: accessTokenHash,
-        accessToken: accessTokenHash,
-        tokenType: 'bearer',
-        accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
-        refreshToken: refreshTokenHash,
-        refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30,
-
-        cosmosAddress: mustConvertToCosmosAddress(authorizationCodeDoc.address),
-        address: authorizationCodeDoc.address,
-        clientId: authorizationCodeDoc.clientId,
-        scopes: authorizationCodeDoc.scopes
-      };
-
-      await insertToDB(AccessTokenModel, token);
-      await deleteMany(AuthorizationCodeModel, [codeHash]);
-
-      return res.json({
-        ...token,
-        accessToken: accessToken,
-        refreshToken: refreshToken
-      });
-    } else if (grant_type === 'refresh_token') {
-      if (!validator.isHexadecimal(refresh_token)) {
-        return res.status(400).json({ error: 'Invalid refresh token' });
-      }
-
-      const refreshTokenHash = crypto.createHash('sha256').update(refresh_token).digest('hex');
-
-      const refreshTokenRes = await findInDB(AccessTokenModel, { query: { refreshToken: { $eq: refreshTokenHash } } });
-      if (refreshTokenRes.length === 0) {
-        return res.status(400).json({ error: 'Invalid refresh token' });
-      }
-
-      const refreshTokenDoc = refreshTokenRes[0];
-
-      if (refreshTokenDoc.refreshTokenExpiresAt < Date.now()) {
-        return res.status(400).json({ error: 'Token has expired' });
-      }
-
-      const newAccessToken = crypto.randomBytes(32).toString('hex');
-      const newAccessTokenHash = crypto.createHash('sha256').update(newAccessToken).digest('hex');
-
-      const newRefreshToken = crypto.randomBytes(32).toString('hex');
-      const newRefreshTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
-
-      const newToken: iAccessTokenDoc = {
-        _docId: newAccessTokenHash,
-        accessToken: newAccessTokenHash,
-        tokenType: 'bearer',
-        accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
-        refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
-        refreshToken: newRefreshTokenHash,
-        cosmosAddress: refreshTokenDoc.cosmosAddress,
-        address: refreshTokenDoc.address,
-        scopes: refreshTokenDoc.scopes,
-        clientId: refreshTokenDoc.clientId
-      };
-      await insertToDB(AccessTokenModel, newToken);
-      await deleteMany(AccessTokenModel, [refreshTokenDoc._docId]);
-
-      return res.json({
-        ...newToken,
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken
-      });
-    }
-
-    return res.status(400).json({ error: 'Unsupported grant type' });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message
-    });
-  }
-});
-
-app.post('/api/v0/oauth/token/revoke', async (req: AuthenticatedRequest<NumberType>, res: Response) => {
+app.post('/api/v0/siwbb/token/revoke', async (req: AuthenticatedRequest<NumberType>, res: Response) => {
   try {
     const { token } = req.body;
     typia.assert<string>(token);

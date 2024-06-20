@@ -2,28 +2,30 @@ import {
   AttestationsProof,
   BlockinChallenge,
   BlockinChallengeParams,
-  GetAndVerifySIWBBRequestsForDeveloperAppPayload,
+  GetSIWBBRequestsForDeveloperAppPayload,
   RotateSIWBBRequestPayload,
   convertToCosmosAddress,
   getChainForAddress,
-  iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse,
+  iAccessTokenDoc,
+  iGetSIWBBRequestsForDeveloperAppSuccessResponse,
   iRotateSIWBBRequestSuccessResponse,
   iSIWBBRequestDoc,
   mustConvertToCosmosAddress,
   type CreateSIWBBRequestPayload,
   type DeleteSIWBBRequestPayload,
   type ErrorResponse,
-  type GetAndVerifySIWBBRequestPayload,
+  type ExchangeSIWBBAuthorizationCodePayload,
   type NumberType,
   type iCreateSIWBBRequestSuccessResponse,
   type iDeleteSIWBBRequestSuccessResponse,
-  type iGetAndVerifySIWBBRequestSuccessResponse
+  type iExchangeSIWBBAuthorizationCodeSuccessResponse
 } from 'bitbadgesjs-sdk';
 import { ChallengeParams, createChallenge } from 'blockin';
 import crypto from 'crypto';
 import { type Response } from 'express';
 import { serializeError } from 'serialize-error';
 import typia from 'typia';
+import validator from 'validator';
 import {
   MaybeAuthenticatedRequest,
   checkIfAuthenticated,
@@ -34,8 +36,9 @@ import {
   validateAccessTokens,
   type AuthenticatedRequest
 } from '../blockin/blockin_handlers';
-import { getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
-import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
+import { deleteMany, getFromDB, insertMany, insertToDB, mustGetFromDB } from '../db/db';
+import { findInDB } from '../db/queries';
+import { AccessTokenModel, AuthorizationCodeModel, DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { typiaError } from './search';
 import { executeSIWBBRequestsForAppQuery } from './userQueries';
 
@@ -96,6 +99,20 @@ export const createSIWBBRequest = async (
       return typiaError(res, validateRes);
     }
 
+    const { response_type, redirect_uri, scopes } = req.body as CreateSIWBBRequestPayload;
+
+    if (response_type !== 'code') {
+      throw new Error('Invalid response type. Only "code" is supported.');
+    }
+
+    if (scopes.find((scope) => scope.scopeName === 'Full Access')) {
+      throw new Error('Full Access scope is not allowed for API Authorization.');
+    }
+
+    if (scopes.length > 0 && !redirect_uri) {
+      throw new Error('Redirect URI is required for API authorization with scopes.');
+    }
+
     const origin = req.headers.origin;
 
     const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Approve Sign In with BitBadges Requests' }]);
@@ -124,18 +141,18 @@ export const createSIWBBRequest = async (
 
     const isFromFrontend = origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io';
     if (!isFromFrontend) {
-      if (reqPayload.redirectUri) {
+      if (reqPayload.redirect_uri) {
         throw new Error('Creating SIWBB requests with a redirect URI is not supported for requests that interact with the API directly.');
       }
     }
 
     const toSkipSignatureVerification = true;
-    const appDoc = await getFromDB(DeveloperAppModel, reqPayload.clientId);
+    const appDoc = await getFromDB(DeveloperAppModel, reqPayload.client_id);
     if (!appDoc) {
       throw new Error('Invalid client ID. All SIWBB requests must be associated with a valid client ID for an app.');
     }
 
-    if (reqPayload.redirectUri && !appDoc.redirectUris.includes(reqPayload.redirectUri)) {
+    if (reqPayload.redirect_uri && !appDoc.redirectUris.includes(reqPayload.redirect_uri)) {
       throw new Error('Invalid redirect URI.');
     }
 
@@ -229,9 +246,11 @@ export const createSIWBBRequest = async (
       cosmosAddress: convertToCosmosAddress(challengeParams.address),
       createdAt: Date.now(),
       attestationsPresentations: reqPayload.attestationsPresentations || [],
-      clientId: reqPayload.clientId,
+      clientId: reqPayload.client_id,
       otherSignIns: otherSignInsObj,
-      redirectUri: reqPayload.redirectUri
+      redirectUri: reqPayload.redirect_uri,
+      scopes: scopes,
+      expiresAt: scopes.length > 0 || redirect_uri ? Date.now() + 1000 * 60 * 10 : 0 //10 minutes
     });
 
     return res.status(200).send({ code: uniqueId });
@@ -246,12 +265,11 @@ export const createSIWBBRequest = async (
 
 export const getSIWBBRequestsForDeveloperApp = async (
   req: AuthenticatedRequest<NumberType>,
-  res: Response<iGetAndVerifySIWBBRequestsForDeveloperAppSuccessResponse<NumberType> | ErrorResponse>
+  res: Response<iGetSIWBBRequestsForDeveloperAppSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
-    const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestsForDeveloperAppPayload;
-    const validateRes: typia.IValidation<GetAndVerifySIWBBRequestsForDeveloperAppPayload> =
-      typia.validate<GetAndVerifySIWBBRequestsForDeveloperAppPayload>(req.body);
+    const reqPayload = req.body as unknown as GetSIWBBRequestsForDeveloperAppPayload;
+    const validateRes: typia.IValidation<GetSIWBBRequestsForDeveloperAppPayload> = typia.validate<GetSIWBBRequestsForDeveloperAppPayload>(req.body);
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
@@ -289,14 +307,14 @@ export const getSIWBBRequestsForDeveloperApp = async (
   }
 };
 
-export const getAndVerifySIWBBRequest = async (
+export const exchangeSIWBBAuthorizationCode = async (
   req: MaybeAuthenticatedRequest<NumberType>,
-  res: Response<iGetAndVerifySIWBBRequestSuccessResponse<NumberType> | ErrorResponse>
+  res: Response<iExchangeSIWBBAuthorizationCodeSuccessResponse<NumberType> | ErrorResponse>
 ) => {
   try {
     setMockSessionIfTestMode(req);
-    const reqPayload = req.body as unknown as GetAndVerifySIWBBRequestPayload;
-    const validateRes: typia.IValidation<GetAndVerifySIWBBRequestPayload> = typia.validate<GetAndVerifySIWBBRequestPayload>(req.body);
+    const reqPayload = req.body as unknown as ExchangeSIWBBAuthorizationCodePayload;
+    const validateRes: typia.IValidation<ExchangeSIWBBAuthorizationCodePayload> = typia.validate<ExchangeSIWBBAuthorizationCodePayload>(req.body);
     if (!validateRes.success) {
       return typiaError(res, validateRes);
     }
@@ -327,114 +345,251 @@ export const getAndVerifySIWBBRequest = async (
       console.error(e);
     }
 
-    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
     const { client_id, client_secret, redirect_uri, options: _options } = reqPayload;
     const clientId = client_id || headerClientId;
     const clientSecret = client_secret || headerClientSecret;
     const redirectUri = redirect_uri;
-    const options = (_options || queryOptions) as GetAndVerifySIWBBRequestPayload['options'];
-
-    const newChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
-      domain: 'https://bitbadges.io',
-      statement: 'Something something something',
-      address: doc.address,
-      uri: 'https://bitbadges.io',
-      nonce: '*',
-      expirationDate: undefined,
-      notBefore: undefined,
-      resources: [],
-      assetOwnershipRequirements: doc.ownershipRequirements
-    });
-
-    const optionsChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
-      ...newChallengeParams,
-      assetOwnershipRequirements: options?.skipAssetVerification ? undefined : options?.ownershipRequirements
-    });
-
-    if (options?.ownershipRequirements && !newChallengeParams.equals(optionsChallengeParams, true)) {
-      throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
-    }
-
-    if (options?.otherSignIns) {
-      for (const social of options?.otherSignIns) {
-        if (!doc.otherSignIns?.[social]) {
-          throw new Error('Invalid other sign in. Does not match expected other sign in.');
-        }
-      }
-    }
-
-    const issuedAtTimeWindowMs = options?.issuedAtTimeWindowMs ?? 60 * 1000 * 10; //10 minutes
-
-    if (issuedAtTimeWindowMs) {
-      const earliestIssuedAt = Date.now() - issuedAtTimeWindowMs;
-      if (doc.createdAt < earliestIssuedAt) {
-        throw new Error('Not recent enough. Issued at time is too old: ' + new Date(Number(doc.createdAt)).toISOString());
-      }
-    }
+    const options = (_options || queryOptions) as ExchangeSIWBBAuthorizationCodePayload['options'];
 
     const authDetails = await getAuthDetails(req, res);
-    console.log('authDetails', authDetails, doc);
-    if (mustConvertToCosmosAddress(doc.address) !== authDetails?.cosmosAddress) {
-      if (!clientId) {
-        throw new Error('You are not the owner of this SIWBB request.');
+    const verifyDevAppDetails = async (
+      expected: { clientId: string; clientSecret: string; redirectUris: string[]; address: string },
+      actual: { clientId: string; clientSecret: string; redirectUri?: string }
+    ) => {
+      if (mustConvertToCosmosAddress(expected.address) !== authDetails?.cosmosAddress) {
+        if (!clientId) {
+          throw new Error('You are not the owner of this SIWBB request.');
+        }
+
+        if (!clientSecret || expected.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
+          throw new Error('Invalid client secret.');
+        }
+
+        if (actual.clientId !== clientId) {
+          throw new Error('Invalid client ID or redirect URI.');
+        }
+
+        if (actual.redirectUri) {
+          if (!redirectUri) {
+            throw new Error('Invalid redirect URI.');
+          }
+
+          if (actual.redirectUri !== redirectUri) {
+            throw new Error('Invalid redirect URI.');
+          }
+
+          if (!expected.redirectUris.includes(redirectUri)) {
+            throw new Error('Invalid redirect URI.');
+          }
+        }
+      }
+    };
+
+    const { grant_type, refresh_token } = req.body as unknown as ExchangeSIWBBAuthorizationCodePayload;
+
+    let accessTokenToReturn = '';
+    let refreshTokenToReturn = undefined;
+    if (grant_type === 'authorization_code') {
+      if (!reqPayload.code) {
+        throw new Error('Invalid code.');
       }
 
       const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
-      if (!clientSecret || appDoc.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
-        throw new Error('Invalid client secret.');
-      }
-
-      console.log(appDoc, doc, clientId);
-
-      if (doc.clientId !== clientId) {
-        throw new Error('Invalid client ID or redirect URI.');
-      }
-
-      if (doc.redirectUri) {
-        if (!redirectUri) {
-          throw new Error('Invalid redirect URI.');
+      await verifyDevAppDetails(
+        {
+          clientId: clientId,
+          clientSecret: appDoc.clientSecret,
+          redirectUris: appDoc.redirectUris,
+          address: appDoc.createdBy
+        },
+        {
+          clientId: clientId,
+          clientSecret: clientSecret,
+          redirectUri: redirectUri
         }
+      );
 
-        if (doc.redirectUri !== redirectUri) {
-          throw new Error('Invalid redirect URI.');
-        }
+      const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+      const newChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
+        domain: 'https://bitbadges.io',
+        statement: 'Something something something',
+        address: doc.address,
+        uri: 'https://bitbadges.io',
+        nonce: '*',
+        expirationDate: undefined,
+        notBefore: undefined,
+        resources: [],
+        assetOwnershipRequirements: doc.ownershipRequirements
+      });
 
-        if (!appDoc.redirectUris.includes(redirectUri)) {
-          throw new Error('Invalid redirect URI.');
+      const optionsChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
+        ...newChallengeParams,
+        assetOwnershipRequirements: options?.skipAssetVerification ? undefined : options?.ownershipRequirements
+      });
+
+      if (options?.ownershipRequirements && !newChallengeParams.equals(optionsChallengeParams, true)) {
+        throw new Error('Invalid ownership requirements. Does not match expected ownership requirements.');
+      }
+
+      if (options?.otherSignIns) {
+        for (const social of options?.otherSignIns) {
+          if (!doc.otherSignIns?.[social]) {
+            throw new Error('Invalid other sign in. Does not match expected other sign in.');
+          }
         }
       }
-    }
 
-    const dummyParams = {
-      domain: 'https://bitbadges.io',
-      statement: 'Something',
-      address: doc.address,
-      uri: 'https://bitbadges.io',
-      nonce: '*',
-      expirationDate: undefined,
-      notBefore: undefined,
-      resources: [],
-      assetOwnershipRequirements: doc.ownershipRequirements
-    };
+      const issuedAtTimeWindowMs = options?.issuedAtTimeWindowMs ?? 60 * 1000 * 10; //10 minutes
 
-    const verificationResponse = await genericBlockinVerify({
-      message: createChallenge(dummyParams),
-      signature: '',
-      options: {
-        skipSignatureVerification: true,
-        skipAssetVerification: options?.skipAssetVerification
+      if (issuedAtTimeWindowMs) {
+        const earliestIssuedAt = Date.now() - issuedAtTimeWindowMs;
+        if (doc.createdAt < earliestIssuedAt) {
+          throw new Error('Not recent enough. Issued at time is too old: ' + new Date(Number(doc.createdAt)).toISOString());
+        }
       }
-    });
 
-    const blockinRes = new BlockinChallenge({
-      ...doc,
-      verificationResponse
-    });
+      if (doc.expiresAt && doc.expiresAt < Date.now()) {
+        throw new Error('Expired.');
+      }
 
-    if (verificationResponse.success) {
-      return res.status(200).send({ blockin: blockinRes, access_token: doc.address, token_type: 'Bearer' });
+      const dummyParams = {
+        domain: 'https://bitbadges.io',
+        statement: 'Something',
+        address: doc.address,
+        uri: 'https://bitbadges.io',
+        nonce: '*',
+        expirationDate: undefined,
+        notBefore: undefined,
+        resources: [],
+        assetOwnershipRequirements: doc.ownershipRequirements
+      };
+
+      const verificationResponse = await genericBlockinVerify({
+        message: createChallenge(dummyParams),
+        signature: '',
+        options: {
+          skipSignatureVerification: true,
+          skipAssetVerification: options?.skipAssetVerification
+        }
+      });
+
+      const blockinRes = new BlockinChallenge({
+        ...doc,
+        verificationResponse
+      });
+
+      if (doc.scopes.length > 0) {
+        const accessToken = crypto.randomBytes(32).toString('hex');
+        const accessTokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
+
+        const refreshToken = crypto.randomBytes(32).toString('hex');
+        const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+        const token: iAccessTokenDoc = {
+          _docId: accessTokenHash,
+          accessToken: accessTokenHash,
+          tokenType: 'bearer',
+          accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
+          refreshToken: refreshTokenHash,
+          refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30,
+
+          cosmosAddress: mustConvertToCosmosAddress(doc.address),
+          address: doc.address,
+          clientId: doc.clientId,
+          scopes: doc.scopes
+        };
+
+        await insertToDB(AccessTokenModel, token);
+        await deleteMany(AuthorizationCodeModel, [reqPayload.code]);
+
+        accessTokenToReturn = accessToken;
+        refreshTokenToReturn = refreshToken;
+      } else {
+        //For non-scope based SIWBB, we simply return the address
+        accessTokenToReturn = doc.address;
+      }
+
+      if (verificationResponse.success) {
+        return res.status(200).send({
+          ...blockinRes,
+          access_token: accessTokenToReturn,
+          refresh_token_expires_at: refreshTokenToReturn ? Date.now() + 1000 * 60 * 60 * 24 * 30 : undefined,
+          access_token_expires_at: accessTokenToReturn ? Date.now() + 1000 * 60 * 60 * 24 : undefined,
+          refresh_token: refreshTokenToReturn,
+          token_type: 'Bearer'
+        });
+      } else {
+        return res.status(401).send({ ...blockinRes, access_token: '', token_type: 'Bearer', errorMessage: verificationResponse.message });
+      }
+    } else if (grant_type === 'refresh_token') {
+      if (!refresh_token) {
+        throw new Error('Invalid refresh token');
+      }
+
+      if (!validator.isHexadecimal(refresh_token)) {
+        throw new Error('Invalid refresh token.');
+      }
+
+      const refreshTokenHash = crypto.createHash('sha256').update(refresh_token).digest('hex');
+      const refreshTokenRes = await findInDB(AccessTokenModel, { query: { refreshToken: { $eq: refreshTokenHash } } });
+      if (refreshTokenRes.length === 0) {
+        throw new Error('Invalid refresh token.');
+      }
+      const accessTokenDoc = refreshTokenRes[0];
+      const refreshTokenDoc = refreshTokenRes[0];
+
+      if (refreshTokenDoc.refreshTokenExpiresAt < Date.now()) {
+        throw new Error('Refresh token expired.');
+      }
+
+      const doc = await mustGetFromDB(DeveloperAppModel, accessTokenDoc.clientId);
+      await verifyDevAppDetails(
+        {
+          clientId: accessTokenDoc.clientId,
+          clientSecret: doc.clientSecret,
+          redirectUris: doc.redirectUris,
+          address: doc.createdBy
+        },
+        {
+          clientId: clientId,
+          clientSecret: clientSecret,
+          redirectUri: redirectUri
+        }
+      );
+
+      const newAccessToken = crypto.randomBytes(32).toString('hex');
+      const newAccessTokenHash = crypto.createHash('sha256').update(newAccessToken).digest('hex');
+
+      const newRefreshToken = crypto.randomBytes(32).toString('hex');
+      const newRefreshTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+
+      const newToken: iAccessTokenDoc = {
+        _docId: newAccessTokenHash,
+        accessToken: newAccessTokenHash,
+        tokenType: 'bearer',
+        accessTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24,
+        refreshTokenExpiresAt: Date.now() + 1000 * 60 * 60 * 24 * 60,
+        refreshToken: newRefreshTokenHash,
+        cosmosAddress: refreshTokenDoc.cosmosAddress,
+        address: refreshTokenDoc.address,
+        scopes: refreshTokenDoc.scopes,
+        clientId: refreshTokenDoc.clientId
+      };
+      await insertToDB(AccessTokenModel, newToken);
+      await deleteMany(AccessTokenModel, [refreshTokenDoc._docId]);
+
+      return res.status(200).send({
+        address: accessTokenDoc.address,
+        cosmosAddress: mustConvertToCosmosAddress(accessTokenDoc.address),
+        chain: getChainForAddress(accessTokenDoc.address),
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+        token_type: 'Bearer',
+        access_token_expires_at: Date.now() + 1000 * 60 * 60 * 24,
+        refresh_token_expires_at: Date.now() + 1000 * 60 * 60 * 24 * 60
+      });
     } else {
-      return res.status(401).send({ blockin: blockinRes, access_token: '', token_type: 'Bearer', errorMessage: verificationResponse.message });
+      throw new Error('Invalid grant type.');
     }
   } catch (e) {
     console.error(e);

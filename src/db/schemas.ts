@@ -413,6 +413,8 @@ export const DeveloperAppSchema = new Schema<DeveloperAppDoc>({
 export const SIWBBRequestSchema = new Schema<SIWBBRequestDoc<JSPrimitiveNumberType>>({
   _docId: String,
   ownershipRequirements: Schema.Types.Mixed, // Mixed type for ownershipRequirements
+  scopes: Schema.Types.Mixed, // Mixed type for scopes
+  expiresAt: Schema.Types.Mixed, // Mixed type for expiresAt (number type)
   chain: String, // String type for chain
   address: String, // String type for address
   name: String, // String type for name
