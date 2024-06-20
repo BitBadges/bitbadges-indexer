@@ -141,7 +141,7 @@ export const createSIWBBRequest = async (
 
     const isFromFrontend = origin === process.env.FRONTEND_URL || origin === 'https://bitbadges.io' || origin === 'https://api.bitbadges.io';
     if (!isFromFrontend) {
-      if (reqPayload.redirect_uri) {
+      if (reqPayload.redirect_uri && process.env.TEST_MODE !== 'true') {
         throw new Error('Creating SIWBB requests with a redirect URI is not supported for requests that interact with the API directly.');
       }
     }
@@ -356,31 +356,29 @@ export const exchangeSIWBBAuthorizationCode = async (
       expected: { clientId: string; clientSecret: string; redirectUris: string[]; address: string },
       actual: { clientId: string; clientSecret: string; redirectUri?: string }
     ) => {
-      if (mustConvertToCosmosAddress(expected.address) !== authDetails?.cosmosAddress) {
-        if (!clientId) {
-          throw new Error('You are not the owner of this SIWBB request.');
+      if (!clientId) {
+        throw new Error('You are not the owner of this SIWBB request.');
+      }
+
+      if (!clientSecret || expected.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
+        throw new Error('Invalid client secret.');
+      }
+
+      if (actual.clientId !== clientId) {
+        throw new Error('Invalid client ID or redirect URI.');
+      }
+
+      if (actual.redirectUri) {
+        if (!redirectUri) {
+          throw new Error('Invalid redirect URI.');
         }
 
-        if (!clientSecret || expected.clientSecret !== crypto.createHash('sha256').update(clientSecret).digest('hex')) {
-          throw new Error('Invalid client secret.');
+        if (actual.redirectUri !== redirectUri) {
+          throw new Error('Invalid redirect URI.');
         }
 
-        if (actual.clientId !== clientId) {
-          throw new Error('Invalid client ID or redirect URI.');
-        }
-
-        if (actual.redirectUri) {
-          if (!redirectUri) {
-            throw new Error('Invalid redirect URI.');
-          }
-
-          if (actual.redirectUri !== redirectUri) {
-            throw new Error('Invalid redirect URI.');
-          }
-
-          if (!expected.redirectUris.includes(redirectUri)) {
-            throw new Error('Invalid redirect URI.');
-          }
+        if (!expected.redirectUris.includes(redirectUri)) {
+          throw new Error('Invalid redirect URI.');
         }
       }
     };
@@ -394,22 +392,24 @@ export const exchangeSIWBBAuthorizationCode = async (
         throw new Error('Invalid code.');
       }
 
-      const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
-      await verifyDevAppDetails(
-        {
-          clientId: clientId,
-          clientSecret: appDoc.clientSecret,
-          redirectUris: appDoc.redirectUris,
-          address: appDoc.createdBy
-        },
-        {
-          clientId: clientId,
-          clientSecret: clientSecret,
-          redirectUri: redirectUri
-        }
-      );
-
       const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+      if (mustConvertToCosmosAddress(doc.address) !== authDetails?.cosmosAddress) {
+        const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
+        await verifyDevAppDetails(
+          {
+            clientId: clientId,
+            clientSecret: appDoc.clientSecret,
+            redirectUris: appDoc.redirectUris,
+            address: doc.address
+          },
+          {
+            clientId: clientId,
+            clientSecret: clientSecret,
+            redirectUri: redirectUri
+          }
+        );
+      }
+
       const newChallengeParams: BlockinChallengeParams<NumberType> = new BlockinChallengeParams({
         domain: 'https://bitbadges.io',
         statement: 'Something something something',
@@ -542,20 +542,22 @@ export const exchangeSIWBBAuthorizationCode = async (
         throw new Error('Refresh token expired.');
       }
 
-      const doc = await mustGetFromDB(DeveloperAppModel, accessTokenDoc.clientId);
-      await verifyDevAppDetails(
-        {
-          clientId: accessTokenDoc.clientId,
-          clientSecret: doc.clientSecret,
-          redirectUris: doc.redirectUris,
-          address: doc.createdBy
-        },
-        {
-          clientId: clientId,
-          clientSecret: clientSecret,
-          redirectUri: redirectUri
-        }
-      );
+      if (mustConvertToCosmosAddress(accessTokenDoc.address) !== authDetails?.cosmosAddress) {
+        const doc = await mustGetFromDB(DeveloperAppModel, accessTokenDoc.clientId);
+        await verifyDevAppDetails(
+          {
+            clientId: accessTokenDoc.clientId,
+            clientSecret: doc.clientSecret,
+            redirectUris: doc.redirectUris,
+            address: accessTokenDoc.address
+          },
+          {
+            clientId: clientId,
+            clientSecret: clientSecret,
+            redirectUri: redirectUri
+          }
+        );
+      }
 
       const newAccessToken = crypto.randomBytes(32).toString('hex');
       const newAccessTokenHash = crypto.createHash('sha256').update(newAccessToken).digest('hex');

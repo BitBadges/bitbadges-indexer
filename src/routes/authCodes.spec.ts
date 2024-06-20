@@ -1,3 +1,4 @@
+import { blsCreateProof, blsSign, generateBls12381G2KeyPair } from '@mattrglobal/bbs-signatures';
 import {
   AttestationDoc,
   BitBadgesApiRoutes,
@@ -11,16 +12,15 @@ import {
   convertToCosmosAddress,
   verifyAttestationsPresentationSignatures
 } from 'bitbadgesjs-sdk';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { ethers } from 'ethers';
 import { Express } from 'express';
 import request from 'supertest';
-import { createExampleReqForAddress } from '../testutil/utils';
-import { generateBls12381G2KeyPair, blsSign, blsCreateProof } from '@mattrglobal/bbs-signatures';
-import { mustGetFromDB, getFromDB, insertToDB } from '../db/db';
+import { getFromDB, insertToDB, mustGetFromDB } from '../db/db';
 import { findInDB } from '../db/queries';
-import crypto from 'crypto';
 import { DeveloperAppModel, OffChainAttestationsModel, SIWBBRequestModel } from '../db/schemas';
+import { createExampleReqForAddress } from '../testutil/utils';
 const app = (global as any).app as Express;
 
 dotenv.config();
@@ -150,7 +150,7 @@ describe('get Siwbb requests', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send({ ...body, clientId: 'invalid' });
+      .send({ ...body, client_id: 'invalid' });
     expect(invalidClientIdRes.status).toBeGreaterThanOrEqual(400);
 
     const res = await request(app)
@@ -171,7 +171,7 @@ describe('get Siwbb requests', () => {
     // expect(invalidSigRes.status).toBe(500);
 
     const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
-    const getResPayload: ExchangeSIWBBAuthorizationCodePayload = { code: siwbbRequestId };
+    const getResPayload: ExchangeSIWBBAuthorizationCodePayload = { grant_type: 'authorization_code', code: siwbbRequestId };
     const getRes = await request(app)
       .post(getResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
@@ -179,7 +179,7 @@ describe('get Siwbb requests', () => {
       .send(getResPayload);
     console.log(getRes);
     expect(getRes.status).toBe(200);
-    // expect(getRes.body.blockin.message).toBeDefined();
+    // expect(getRes.body.message).toBeDefined();
 
     const invalidGetRes = await request(app)
       .post(getResRoute)
@@ -364,15 +364,20 @@ describe('get Siwbb requests', () => {
     expect(siwbbRequestRes.status).toBe(200);
 
     const exchangeSIWBBAuthorizationCodeResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
-    const exchangeSIWBBAuthorizationCodeResPayload: ExchangeSIWBBAuthorizationCodePayload = { code: siwbbRequestRes.body.code };
+    const exchangeSIWBBAuthorizationCodeResPayload: ExchangeSIWBBAuthorizationCodePayload = {
+      grant_type: 'authorization_code',
+      code: siwbbRequestRes.body.code
+    };
+
     const exchangeSIWBBAuthorizationCodeRes = await request(app)
       .post(exchangeSIWBBAuthorizationCodeResRoute)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
       .send(exchangeSIWBBAuthorizationCodeResPayload);
+
     expect(exchangeSIWBBAuthorizationCodeRes.status).toBe(200);
-    expect(exchangeSIWBBAuthorizationCodeRes.body.blockin.attestationsPresentations).toBeDefined();
-    expect(exchangeSIWBBAuthorizationCodeRes.body.blockin.attestationsPresentations.length).toBe(1);
+    expect(exchangeSIWBBAuthorizationCodeRes.body.attestationsPresentations).toBeDefined();
+    expect(exchangeSIWBBAuthorizationCodeRes.body.attestationsPresentations.length).toBe(1);
   });
 
   it('should fail w/ invalid proofs', async () => {
@@ -1361,7 +1366,7 @@ describe('get Siwbb requests', () => {
       .post(route)
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
       .set('x-mock-session', JSON.stringify(createExampleReqForAddress(address).session))
-      .send({ ...body, redirectUri: 'https://bitbadges.io/somethingrandom' });
+      .send({ ...body, redirect_uri: 'https://bitbadges.io/somethingrandom' });
     expect(invalidRedirectUriRes.status).toBeGreaterThanOrEqual(400);
 
     const res = await request(app)
@@ -1379,6 +1384,7 @@ describe('get Siwbb requests', () => {
 
     const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
     const getResPayload: ExchangeSIWBBAuthorizationCodePayload = {
+      grant_type: 'authorization_code',
       code: siwbbRequestId,
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -1391,8 +1397,8 @@ describe('get Siwbb requests', () => {
     console.log(getRes.body);
 
     expect(getRes.status).toBe(200);
-    expect(getRes.body.blockin).toBeDefined();
-    expect(getRes.body.blockin.otherSignIns?.discord).toBeUndefined();
+    expect(getRes.body).toBeDefined();
+    expect(getRes.body.otherSignIns?.discord).toBeUndefined();
 
     console.log('SSSSSSSSSSSSSSSSSSSSSSSSSSS');
     const invalidClientIdPresentedRes = await request(app)
@@ -1450,6 +1456,7 @@ describe('get Siwbb requests', () => {
 
     const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
     const getResPayload: ExchangeSIWBBAuthorizationCodePayload = {
+      grant_type: 'authorization_code',
       code: siwbbRequestId,
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -1464,10 +1471,10 @@ describe('get Siwbb requests', () => {
     console.log(getRes.body);
 
     expect(getRes.status).toBe(200);
-    expect(getRes.body.blockin).toBeDefined();
-    expect(getRes.body.blockin.otherSignIns?.discord?.username).toBe('testuser');
-    expect(getRes.body.blockin.otherSignIns?.github?.username).toBe('testuser');
-    expect(getRes.body.blockin.otherSignIns?.google?.username).toBeUndefined();
+    expect(getRes.body).toBeDefined();
+    expect(getRes.body.otherSignIns?.discord?.username).toBe('testuser');
+    expect(getRes.body.otherSignIns?.github?.username).toBe('testuser');
+    expect(getRes.body.otherSignIns?.google?.username).toBeUndefined();
   });
 
   it('should allow for reuse of BitBadges sign in', async () => {
@@ -1510,6 +1517,7 @@ describe('get Siwbb requests', () => {
 
     const getResRoute = BitBadgesApiRoutes.ExchangeSIWBBAuthorizationCodesRoute();
     const getResPayload: ExchangeSIWBBAuthorizationCodePayload = {
+      grant_type: 'authorization_code',
       code: siwbbRequestId,
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -1522,7 +1530,7 @@ describe('get Siwbb requests', () => {
     console.log(getRes.body);
 
     expect(getRes.status).toBe(200);
-    expect(getRes.body.blockin).toBeDefined();
-    expect(getRes.body.blockin.otherSignIns?.discord).toBeUndefined();
+    expect(getRes.body).toBeDefined();
+    expect(getRes.body.otherSignIns?.discord).toBeUndefined();
   });
 });
