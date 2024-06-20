@@ -418,8 +418,7 @@ app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunctio
         refresh_token: callbackVal.refreshToken,
         expires_at: Date.now() + 1000 * 60 * 60 * 24 * 30
       };
-      console.log(user);
-
+      
       (req.session as BlockinSession<bigint>).twitch = user;
       req.session.save();
 

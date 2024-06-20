@@ -450,7 +450,6 @@ const getAdditionalUserInfo = async (
       }
     } else if (view.viewType === 'claimAlerts') {
       if (bookmark !== undefined) {
-        console.log(authDetails, cosmosAddress);
         const isAuthenticated =
           !!(await checkIfAuthenticated(authReq, res, [{ scopeName: 'Read Claim Alerts' }])) &&
           authDetails &&

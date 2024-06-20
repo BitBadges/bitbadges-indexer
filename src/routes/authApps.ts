@@ -161,7 +161,6 @@ export const updateDeveloperApp = async (
 
     const authDetails = await mustGetAuthDetails(req, res);
     const doc = await mustGetFromDB(DeveloperAppModel, clientId);
-    console.log(doc, authDetails);
     if (doc.createdBy !== authDetails.cosmosAddress) {
       throw new Error('You must be the owner of the app.');
     }
