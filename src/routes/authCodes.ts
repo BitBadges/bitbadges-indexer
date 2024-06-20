@@ -58,15 +58,20 @@ export const rotateSIWBBRequest = async (
       throw new Error('You do not have permission to create requests.');
     }
     const authDetails = await mustGetAuthDetails(req, res);
-    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+
+    const codeHash = crypto.createHash('sha256').update(reqPayload.code).digest('hex');
+    const doc = await mustGetFromDB(SIWBBRequestModel, codeHash);
     if (doc.cosmosAddress !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this SIWBB request.');
     }
 
+    const newCode = crypto.randomBytes(32).toString('hex');
+    const newCodeHash = crypto.createHash('sha256').update(newCode).digest('hex');
     const newDoc: iSIWBBRequestDoc<bigint> = {
       ...doc,
       _id: undefined,
-      _docId: crypto.randomBytes(32).toString('hex')
+      _docId: newCodeHash,
+      code: newCode
     };
 
     //TODO: sessionize
@@ -78,7 +83,7 @@ export const rotateSIWBBRequest = async (
       }
     ]);
 
-    return res.status(200).send({ code: newDoc._docId });
+    return res.status(200).send({ code: newDoc.code });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -237,8 +242,10 @@ export const createSIWBBRequest = async (
     }
 
     const uniqueId = crypto.randomBytes(32).toString('hex');
+    const uniqueIdHash = crypto.createHash('sha256').update(uniqueId).digest('hex');
     await insertToDB(SIWBBRequestModel, {
-      _docId: uniqueId,
+      _docId: uniqueIdHash,
+      code: uniqueId,
       ...reqPayload,
       address: authDetails.address,
       chain: getChainForAddress(authDetails.address),
@@ -392,7 +399,8 @@ export const exchangeSIWBBAuthorizationCode = async (
         throw new Error('Invalid code.');
       }
 
-      const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+      const codeHash = crypto.createHash('sha256').update(reqPayload.code).digest('hex');
+      const doc = await mustGetFromDB(SIWBBRequestModel, codeHash);
       if (mustConvertToCosmosAddress(doc.address) !== authDetails?.cosmosAddress) {
         const appDoc = await mustGetFromDB(DeveloperAppModel, clientId);
         await verifyDevAppDetails(
@@ -500,7 +508,7 @@ export const exchangeSIWBBAuthorizationCode = async (
         };
 
         await insertToDB(AccessTokenModel, token);
-        await deleteMany(AuthorizationCodeModel, [reqPayload.code]);
+        await deleteMany(AuthorizationCodeModel, [codeHash]);
 
         accessTokenToReturn = accessToken;
         refreshTokenToReturn = refreshToken;
@@ -614,7 +622,9 @@ export const deleteSIWBBRequest = async (
       return typiaError(res, validateRes);
     }
     const authDetails = await mustGetAuthDetails(req, res);
-    const doc = await mustGetFromDB(SIWBBRequestModel, reqPayload.code);
+
+    const codeHash = crypto.createHash('sha256').update(reqPayload.code).digest('hex');
+    const doc = await mustGetFromDB(SIWBBRequestModel, codeHash);
     if (doc.cosmosAddress !== authDetails.cosmosAddress) {
       throw new Error('You are not the owner of this SIWBB request.');
     }

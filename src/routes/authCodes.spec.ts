@@ -1376,7 +1376,8 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const doc = await mustGetFromDB(SIWBBRequestModel, res.body.code);
+    const codeHash = crypto.createHash('sha256').update(res.body.code).digest('hex');
+    const doc = await mustGetFromDB(SIWBBRequestModel, codeHash);
     await insertToDB(SIWBBRequestModel, { ...doc, redirectUri });
 
     const siwbbRequestId = res.body.code;
@@ -1448,7 +1449,8 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const doc = await mustGetFromDB(SIWBBRequestModel, res.body.code);
+    const codeHash = crypto.createHash('sha256').update(res.body.code).digest('hex');
+    const doc = await mustGetFromDB(SIWBBRequestModel, codeHash);
     await insertToDB(SIWBBRequestModel, { ...doc, redirectUri });
 
     const siwbbRequestId = res.body.code;
@@ -1509,7 +1511,8 @@ describe('get Siwbb requests', () => {
       .send(body);
     expect(res.status).toBe(200);
 
-    const doc = await mustGetFromDB(SIWBBRequestModel, res.body.code);
+    const codeHash = crypto.createHash('sha256').update(res.body.code).digest('hex');
+    const doc = await mustGetFromDB(SIWBBRequestModel, codeHash);
     await insertToDB(SIWBBRequestModel, { ...doc, redirectUri });
 
     const siwbbRequestId = res.body.code;
