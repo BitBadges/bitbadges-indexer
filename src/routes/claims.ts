@@ -513,7 +513,11 @@ export const completeClaimHandler = async (
       if (profileDoc) {
         if (profileDoc.notifications?.email) {
           if (profileDoc.notifications.emailVerification?.verified) {
-            email = profileDoc.notifications.email;
+            const verifiedAt = Number(profileDoc.notifications.emailVerification.verifiedAt ?? 0n);
+            //Must be verified within last 6 months
+            if (verifiedAt > Date.now() - 1000 * 60 * 60 * 24 * 30 * 6) {
+              email = profileDoc.notifications.email;
+            }
           }
         }
       }
