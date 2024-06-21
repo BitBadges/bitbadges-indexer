@@ -40,6 +40,10 @@ export const createDeveloperApp = async (
       return typiaError(res, validateRes);
     }
 
+    if (!reqPayload.name || !reqPayload.description || !reqPayload.image) {
+      return res.status(400).send({ errorMessage: 'Name, description, and image are required.' });
+    }
+
     const uniqueClientId = crypto.randomBytes(32).toString('hex');
     const uniqueClientSecret = crypto.randomBytes(32).toString('hex');
     const authDetails = reqPayload.name === '__temp' ? undefined : await getAuthDetails(req, res);
