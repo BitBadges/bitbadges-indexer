@@ -866,8 +866,10 @@ export const updateAccountInfo = async (req: AuthenticatedRequest<NumberType>, r
       [
         ...(reqPayload.customPages?.badges ?? []),
         ...(reqPayload.customPages?.lists ?? []),
+        ...(reqPayload.customPages?.attestations ?? []),
         ...(reqPayload.watchlists?.badges ?? []),
-        ...(reqPayload.watchlists?.lists ?? [])
+        ...(reqPayload.watchlists?.lists ?? []),
+        ...(reqPayload.watchlists?.attestations ?? [])
       ]?.find(
         (x) =>
           !x.title ||
