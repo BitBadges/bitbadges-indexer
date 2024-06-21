@@ -13,7 +13,7 @@ if (process.env.TEST_MODE === 'true') {
 }
 
 import axios from 'axios';
-import { SocialConnectionInfo, SocialConnections, type ErrorResponse } from 'bitbadgesjs-sdk';
+import { type ErrorResponse } from 'bitbadgesjs-sdk';
 import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -28,13 +28,16 @@ import https from 'https';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import passport from 'passport';
-import OAuth2Strategy from 'passport-oauth2';
-import querystring from 'querystring';
 import responseTime from 'response-time';
-import { serializeError } from 'serialize-error';
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
-import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitterConfig, twitterOauth } from './auth/oauth';
+import {
+  discordCallbackHandler,
+  githubCallbackHandler,
+  googleCallbackHandler,
+  twitchCallbackHandler,
+  twitterAuthorizeHandler
+} from './auth/oauth';
 import {
   authorizeBlockinRequest,
   checkifSignedInHandler,
@@ -42,13 +45,12 @@ import {
   genericBlockinVerifyHandler,
   getChallenge,
   removeBlockinSessionCookie,
-  verifyBlockinAndGrantSessionCookie,
-  type BlockinSession
+  verifyBlockinAndGrantSessionCookie
 } from './blockin/blockin_handlers';
-import { insertToDB, mustGetFromDB } from './db/db';
+import { insertToDB } from './db/db';
 import { ApiKeyDoc } from './db/docs';
 import { findInDB } from './db/queries';
-import { ApiKeyModel, ProfileModel } from './db/schemas';
+import { ApiKeyModel } from './db/schemas';
 import { OFFLINE_MODE, client } from './indexer-vars';
 import { connectToRpc, poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
@@ -353,9 +355,6 @@ app.use(cookieParser());
 app.use(passport.initialize());
 app.use(passport.session());
 
-const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
-const TWITCH_CLIENT_SECRET = process.env.TWITCH_CLIENT_SECRET;
-
 app.get('/', (req: Request, res: Response) => {
   return res.send({
     message: 'Hello from the BitBadges indexer! See docs.bitbadges.io for documentation.'
@@ -365,189 +364,19 @@ app.get('/', (req: Request, res: Response) => {
 // Status
 app.post('/api/v0/status', getStatusHandler);
 
-passport.use(
-  'twitch',
-  new OAuth2Strategy(
-    {
-      authorizationURL: 'https://id.twitch.tv/oauth2/authorize',
-      tokenURL: 'https://id.twitch.tv/oauth2/token',
-      clientID: TWITCH_CLIENT_ID ?? '',
-      clientSecret: TWITCH_CLIENT_SECRET ?? '',
-      callbackURL: process.env.DEV_MODE === 'true' ? 'http://localhost:3001/auth/twitch/callback' : 'https://api.bitbadges.io/auth/twitch/callback',
-      state: true
-    },
-    function (accessToken: string, refreshToken: string, profile: any, done: any) {
-      profile.accessToken = accessToken;
-      profile.refreshToken = refreshToken;
-
-      done(null, profile);
-    }
-  )
-);
-
 // Set route to start OAuth link, this is where you define scopes to request
 app.get('/auth/twitch', passport.authenticate('twitch', { scope: 'user_read user:read:follows user:read:subscriptions' }));
-app.get('/auth/twitch/callback', (req: Request, res: Response, next: NextFunction) => {
-  passport.authenticate('twitch', async function (err: Error, callbackVal: { accessToken: string; refreshToken: string }) {
-    try {
-      if (err) {
-        return next(err);
-      }
-      if (!callbackVal) {
-        return res.status(401).send('Unauthorized. No user found.');
-      }
-
-      const { accessToken } = callbackVal;
-
-      const options = {
-        url: 'https://api.twitch.tv/helix/users',
-        method: 'GET',
-        headers: {
-          'Client-ID': TWITCH_CLIENT_ID,
-          Accept: 'application/vnd.twitchtv.v5+json',
-          Authorization: 'Bearer ' + accessToken
-        }
-      };
-
-      const resp = await axios.get(options.url, { headers: options.headers });
-      const data = resp.data;
-      const user = {
-        id: data.data[0].id,
-        username: data.data[0].login,
-        access_token: accessToken,
-        refresh_token: callbackVal.refreshToken,
-        expires_at: Date.now() + 1000 * 60 * 60 * 24 * 30
-      };
-      
-      (req.session as BlockinSession<bigint>).twitch = user;
-      req.session.save();
-
-      if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-        const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-        profileDoc.socialConnections = new SocialConnections({
-          ...profileDoc.socialConnections,
-          twitch: new SocialConnectionInfo({
-            username: user.username,
-            id: user.id,
-            lastUpdated: BigInt(Date.now())
-          })
-        });
-        await insertToDB(ProfileModel, profileDoc);
-      }
-
-      return res.status(200).redirect('https://bitbadges.io/connections?redirected=true');
-    } catch (e) {
-      console.error(e);
-      return res.status(500).send({
-        errorMessage: 'Internal server error',
-        error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined
-      });
-    }
-  })(req, res, next);
-});
+app.get('/auth/twitch/callback', twitchCallbackHandler);
 
 app.get('/auth/discord', passport.authenticate('discord', { session: false }));
 app.get('/auth/discord/callback', discordCallbackHandler);
 
-// Twitter authentication route
-app.get('/auth/twitter', async (_req, res) => {
-  try {
-    const getOAuthRequestToken = () => {
-      return new Promise((resolve, reject) => {
-        twitterOauth.getOAuthRequestToken((error, oauthToken) => {
-          if (error) {
-            return reject(error);
-          }
-          resolve(oauthToken);
-        });
-      });
-    };
-
-    const oauthToken = await getOAuthRequestToken();
-
-    // Redirect the user to Twitter authentication page
-    return res.redirect(`https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`);
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message
-    });
-  }
-});
-
-// Twitter callback route
-app.get('/auth/twitter/callback', async (req, res) => {
-  try {
-    const oauthAccessTokenUrl = 'https://api.twitter.com/oauth/access_token';
-    const oauthVerifier = req.query.oauth_verifier;
-
-    const oauthParams = {
-      oauth_consumer_key: twitterConfig.consumerKey,
-      oauth_token: req.query.oauth_token,
-      oauth_verifier: oauthVerifier
-    };
-
-    const oauthRes = await axios.post(oauthAccessTokenUrl, null, {
-      params: oauthParams
-    });
-
-    const data = querystring.parse(oauthRes.data);
-
-    const accessToken = data.oauth_token as string;
-    const accessTokenSecret = data.oauth_token_secret as string;
-
-    // Get user's Twitter profile
-    const userProfileUrl = 'https://api.twitter.com/1.1/account/verify_credentials.json';
-    const profileData = await new Promise((resolve, reject) => {
-      twitterOauth.get(userProfileUrl, accessToken, accessTokenSecret, (error, data) => {
-        if (error) {
-          return reject(error);
-        }
-        resolve(data);
-      });
-    });
-
-    const profile = JSON.parse(profileData as any);
-    const user = {
-      id: profile.id_str,
-      username: profile.screen_name,
-      access_token: accessToken,
-      access_token_secret: accessTokenSecret,
-      refresh_token: '',
-      expires_at: Number.MAX_SAFE_INTEGER
-    };
-
-    (req.session as BlockinSession<bigint>).twitter = user;
-    req.session.save();
-
-    if (req.session && (req.session as BlockinSession<bigint>).cosmosAddress) {
-      const profileDoc = await mustGetFromDB(ProfileModel, (req.session as BlockinSession<bigint>).cosmosAddress!);
-      profileDoc.socialConnections = new SocialConnections({
-        ...profileDoc.socialConnections,
-        twitter: new SocialConnectionInfo({
-          username: user.username,
-          id: user.id,
-          lastUpdated: BigInt(Date.now())
-        })
-      });
-      await insertToDB(ProfileModel, profileDoc);
-    }
-
-    return res.status(200).redirect('https://bitbadges.io/connections?redirected=true');
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({
-      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message
-    });
-  }
-});
+app.get('/auth/twitter', twitterAuthorizeHandler);
+app.get('/auth/twitter/callback', twitchCallbackHandler);
 
 app.get('/auth/github', passport.authenticate('github', { session: false }));
 app.get('/auth/github/callback', githubCallbackHandler);
 
-//also request youtube
 app.get('/auth/google', passport.authenticate('google', { session: false, scope: ['profile', 'email'], accessType: 'offline', prompt: 'consent' }));
 app.get('/auth/google/callback', googleCallbackHandler);
 
