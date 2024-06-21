@@ -98,6 +98,8 @@ export const createGooglePass = async (req: AuthenticatedRequest<NumberType>, re
     const token = jwt.sign(claims, credentials.private_key, { algorithm: 'RS256' });
     const saveUrl = `https://pay.google.com/gp/v/save/${token}`;
 
+    console.log(saveUrl);
+
     return res.send({ saveUrl });
   } catch (e) {
     console.log(e);
