@@ -474,8 +474,8 @@ app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 // Maps
 app.post('/api/v0/maps', getMaps);
 
-app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest([{ scopeName: 'Read Authentication Codes' }]), createPass);
-app.post('/api/v0/siwbbRequest/googleWalletPass', authorizeBlockinRequest([{ scopeName: 'Read Authentication Codes' }]), createGooglePass);
+app.post('/api/v0/siwbbRequest/appleWalletPass', createPass);
+app.post('/api/v0/siwbbRequest/googleWalletPass', createGooglePass);
 
 // Off-Chain Attestation Sigs
 app.post('/api/v0/attestation/fetch', getAttestation);

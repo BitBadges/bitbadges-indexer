@@ -1,14 +1,14 @@
-import { GenerateAppleWalletPassPayload, NumberType, convertToCosmosAddress } from 'bitbadgesjs-sdk';
-import { type Response } from 'express';
-import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
-import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
-import fs from 'fs';
-import path from 'path';
-import { mustGetFromDB } from '../db/db';
-import { SIWBBRequestModel, DeveloperAppModel } from '../db/schemas';
-import typia from 'typia';
+import { GenerateAppleWalletPassPayload, NumberType } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
+import { type Response } from 'express';
+import fs from 'fs';
+import jwt from 'jsonwebtoken';
+import path from 'path';
+import typia from 'typia';
+import { v4 as uuidv4 } from 'uuid';
+import { AuthenticatedRequest } from '../blockin/blockin_handlers';
+import { mustGetFromDB } from '../db/db';
+import { DeveloperAppModel, SIWBBRequestModel } from '../db/schemas';
 import { typiaError } from './search';
 // For running tests (TS bugs out)
 // import { PKPass } from 'passkit-generator';
@@ -36,11 +36,12 @@ export const createGooglePass = async (req: AuthenticatedRequest<NumberType>, re
     }
 
     const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
     const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, codeHash);
-    const authDetails = await mustGetAuthDetails(req, res);
-    if (convertToCosmosAddress(siwbbRequestDoc.address) !== authDetails.cosmosAddress) {
-      return res.status(401).send({ errorMessage: 'Unauthorized' });
-    }
+    // const authDetails = await mustGetAuthDetails(req, res);
+    // if (convertToCosmosAddress(siwbbRequestDoc.address) !== authDetails.cosmosAddress) {
+    //   return res.status(401).send({ errorMessage: 'Unauthorized' });
+    // }
 
     const issuerId = '3388000000022342176';
     const classId = 'BitBadgesPass';
@@ -98,8 +99,6 @@ export const createGooglePass = async (req: AuthenticatedRequest<NumberType>, re
     const token = jwt.sign(claims, credentials.private_key, { algorithm: 'RS256' });
     const saveUrl = `https://pay.google.com/gp/v/save/${token}`;
 
-    console.log(saveUrl);
-
     return res.send({ saveUrl });
   } catch (e) {
     console.log(e);
@@ -118,10 +117,10 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
 
     const codeHash = crypto.createHash('sha256').update(code).digest('hex');
     const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, codeHash);
-    const authDetails = await mustGetAuthDetails(req, res);
-    if (convertToCosmosAddress(siwbbRequestDoc.address) !== authDetails.cosmosAddress) {
-      return res.status(401).send({ errorMessage: 'Unauthorized' });
-    }
+    // const authDetails = await mustGetAuthDetails(req, res);
+    // if (convertToCosmosAddress(siwbbRequestDoc.address) !== authDetails.cosmosAddress) {
+    //   return res.status(401).send({ errorMessage: 'Unauthorized' });
+    // }
 
     const clientDoc = await mustGetFromDB(DeveloperAppModel, siwbbRequestDoc.clientId);
     const name = siwbbRequestDoc.name || clientDoc.name;
