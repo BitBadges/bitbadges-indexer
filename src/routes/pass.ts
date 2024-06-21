@@ -29,9 +29,25 @@ const signerKey = fs.readFileSync(path.join(certDirectory, 'signerKey.key'));
 
 export const createGooglePass = async (req: AuthenticatedRequest<NumberType>, res: Response<any>) => {
   try {
-    const { code } = req.body;
+    const { code } = req.body as unknown as GenerateAppleWalletPassPayload;
+    const validateRes: typia.IValidation<GenerateAppleWalletPassPayload> = typia.validate<GenerateAppleWalletPassPayload>(req.body);
+    if (!validateRes.success) {
+      return typiaError(res, validateRes);
+    }
+
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+    const siwbbRequestDoc = await mustGetFromDB(SIWBBRequestModel, codeHash);
+    const authDetails = await mustGetAuthDetails(req, res);
+    if (convertToCosmosAddress(siwbbRequestDoc.address) !== authDetails.cosmosAddress) {
+      return res.status(401).send({ errorMessage: 'Unauthorized' });
+    }
+
     const issuerId = '3388000000022342176';
     const classId = 'BitBadgesPass';
+
+    const clientDoc = await mustGetFromDB(DeveloperAppModel, siwbbRequestDoc.clientId);
+    const name = siwbbRequestDoc.name || clientDoc.name;
+    // const description = siwbbRequestDoc.description || clientDoc.description;
 
     const objectId = `${issuerId}.${uuidv4()}`;
 
@@ -42,26 +58,32 @@ export const createGooglePass = async (req: AuthenticatedRequest<NumberType>, re
       barcode: {
         type: 'qrCode',
         value: code,
-        alternateText: 'QR code'
+        alternateText: 'QR Code'
       },
-      textModulesData: [
-        {
-          header: 'Name',
-          body: 'Description'
+      logo: {
+        sourceUri: {
+          uri: 'https://avatars.githubusercontent.com/u/86890740'
+        },
+        contentDescription: {
+          defaultValue: {
+            language: 'en-US',
+            value: 'BitBadges Logo'
+          }
         }
-      ],
+      },
       cardTitle: {
         defaultValue: {
           language: 'en',
-          value: "Google I/O '22"
+          value: 'BitBadges Pass'
         }
       },
       header: {
         defaultValue: {
           language: 'en',
-          value: 'Alex McJacobs'
+          value: name
         }
-      }
+      },
+      hexBackgroundColor: '#001529'
     };
 
     const claims = {
