@@ -31,13 +31,7 @@ import passport from 'passport';
 import responseTime from 'response-time';
 import { v4 as uuidv4 } from 'uuid';
 import WebSocket from 'ws';
-import {
-  discordCallbackHandler,
-  githubCallbackHandler,
-  googleCallbackHandler,
-  twitchCallbackHandler,
-  twitterAuthorizeHandler
-} from './auth/oauth';
+import { discordCallbackHandler, githubCallbackHandler, googleCallbackHandler, twitchCallbackHandler, twitterAuthorizeHandler } from './auth/oauth';
 import {
   authorizeBlockinRequest,
   checkifSignedInHandler,
@@ -97,7 +91,7 @@ import {
   getAttestationProof,
   updateAttestation
 } from './routes/offChainSecrets';
-import { createPass } from './routes/pass';
+import { createGooglePass, createPass } from './routes/pass';
 import { createPlugin, deletePlugin, getPlugins, updatePlugin } from './routes/plugins';
 import { getRefreshStatus, refreshMetadata } from './routes/refresh';
 import { addReport } from './routes/reports';
@@ -481,6 +475,7 @@ app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 app.post('/api/v0/maps', getMaps);
 
 app.post('/api/v0/siwbbRequest/appleWalletPass', authorizeBlockinRequest([{ scopeName: 'Read Authentication Codes' }]), createPass);
+app.post('/api/v0/siwbbRequest/googleWalletPass', authorizeBlockinRequest([{ scopeName: 'Read Authentication Codes' }]), createGooglePass);
 
 // Off-Chain Attestation Sigs
 app.post('/api/v0/attestation/fetch', getAttestation);

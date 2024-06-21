@@ -880,7 +880,10 @@ describe('checkIfAuthenticated function', () => {
   });
 
   it('should work w/ stored address lists (non-reserved)', async () => {
-    const addressLists = await findInDB(AddressListModel, { query: { _docId: { $exists: true }, whitelist: true }, limit: 1 });
+    const addressLists = await findInDB(AddressListModel, {
+      query: { _docId: { $exists: true }, whitelist: true, private: { $ne: true } },
+      limit: 1
+    });
     if (!addressLists.length) throw new Error('No address lists found');
 
     const ethWallet = ethers.Wallet.createRandom();
@@ -913,6 +916,7 @@ describe('checkIfAuthenticated function', () => {
     const challengeRes = await request(app)
       .post(BitBadgesApiRoutes.GenericVerifyRoute())
       .set('x-api-key', process.env.BITBADGES_API_KEY ?? '')
+      .set('x-mock-session', JSON.stringify(session.session))
       .send({ message: challenge, signature });
 
     console.log(challengeRes.body);
