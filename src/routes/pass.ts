@@ -135,7 +135,7 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
       },
       {
         serialNumber: passID,
-        description,
+        description: description || ' ',
         organizationName: 'BitBadges',
         backgroundColor: 'rgb(255, 255, 255)',
         foregroundColor: 'rgb(0, 0, 0)'
@@ -154,7 +154,7 @@ export const createPass = async (req: AuthenticatedRequest<NumberType>, res: Res
       pass.auxiliaryFields.push({
         key: 'description',
         label: 'Description',
-        value: description
+        value: description || ' '
       });
     }
     res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
