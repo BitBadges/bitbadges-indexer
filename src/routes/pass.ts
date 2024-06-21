@@ -100,6 +100,7 @@ export const createGooglePass = async (req: AuthenticatedRequest<NumberType>, re
 
     return res.send({ saveUrl });
   } catch (e) {
+    console.log(e);
     console.error(e);
     return res.status(500).send({ errorMessage: e.message });
   }
