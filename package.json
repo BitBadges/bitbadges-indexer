@@ -52,7 +52,7 @@
     "cors": "^2.8.5",
     "discord.js": "^14.12.1",
     "eth-sig-util": "^3.0.1",
-    "ethers": "^5.7.2",
+    "ethers": "^6.0.0",
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.0",
     "express-session": "^1.18.0",
