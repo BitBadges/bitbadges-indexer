@@ -1,7 +1,7 @@
 import { type BalanceArray } from 'bitbadgesjs-sdk';
 import { type AssetConditionGroup, type IChainDriver } from 'blockin';
 import { recoverPersonalSignature } from 'eth-sig-util';
-import { ethers } from 'ethers';
+import { isAddress } from 'ethers';
 import { TextDecoder } from 'node:util';
 import { verifyBitBadgesAssets } from './verifyBitBadgesAssets';
 
@@ -25,7 +25,7 @@ export default class EthDriver implements IChainDriver<bigint> {
   }
 
   isValidAddress(address: string) {
-    return ethers.utils.isAddress(address);
+    return isAddress(address);
   }
 
   async verifySignature(address: string, message: string, signature: string) {

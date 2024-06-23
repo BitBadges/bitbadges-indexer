@@ -554,7 +554,7 @@ export const exchangeSIWBBAuthorizationCode = async (
         const doc = await mustGetFromDB(DeveloperAppModel, accessTokenDoc.clientId);
         await verifyDevAppDetails(
           {
-            clientId: accessTokenDoc.clientId,
+            clientId: accessTokenDoc.clientId, 
             clientSecret: doc.clientSecret,
             redirectUris: doc.redirectUris,
             address: accessTokenDoc.address

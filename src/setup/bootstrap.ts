@@ -23,7 +23,7 @@ import { MsgCreateMap as ProtoMsgCreateMap } from 'bitbadgesjs-sdk/dist/proto/ma
 
 import crypto from 'crypto';
 import env from 'dotenv';
-import { ethers } from 'ethers';
+import { SigningKey, ethers, getBytes, hashMessage } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 import { broadcastTx } from '../testutil/broadcastUtils';
@@ -129,9 +129,9 @@ const message =
 
 const sig = await ethWallet.signMessage(message);
 
-const msgHash = ethers.utils.hashMessage(message);
-const msgHashBytes = ethers.utils.arrayify(msgHash);
-const pubKey = ethers.utils.recoverPublicKey(msgHashBytes, sig);
+const msgHash = hashMessage(message);
+const msgHashBytes = getBytes(msgHash);
+const pubKey = SigningKey.recoverPublicKey(msgHashBytes, sig);
 
 const pubKeyHex = pubKey.substring(2);
 const compressedPublicKey = Secp256k1.compressPubkey(new Uint8Array(Buffer.from(pubKeyHex, 'hex')));

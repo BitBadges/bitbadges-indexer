@@ -13,7 +13,7 @@ import {
 } from 'bitbadgesjs-sdk';
 import { generateEndpointBroadcast } from 'bitbadgesjs-sdk/dist/node-rest-api/broadcast';
 import env from 'dotenv';
-import { ethers } from 'ethers';
+import { SigningKey, ethers, getBytes, hashMessage } from 'ethers';
 
 env.config();
 
@@ -70,9 +70,9 @@ export async function signAndBroadcast(msgs: any[], ethWallet: ethers.Wallet) {
 
     const messageSig = await ethWallet.signMessage(message);
 
-    const msgHash = ethers.utils.hashMessage(message);
-    const msgHashBytes = ethers.utils.arrayify(msgHash);
-    const pubKey = ethers.utils.recoverPublicKey(msgHashBytes, messageSig);
+    const msgHash = hashMessage(message);
+    const msgHashBytes = getBytes(msgHash);
+    const pubKey = SigningKey.recoverPublicKey(msgHashBytes, messageSig);
 
     const pubKeyHex = pubKey.substring(2);
     const compressedPublicKey = Secp256k1.compressPubkey(new Uint8Array(Buffer.from(pubKeyHex, 'hex')));

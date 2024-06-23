@@ -19,7 +19,7 @@ import {
 
 import crypto from 'crypto';
 import env from 'dotenv';
-import { ethers } from 'ethers';
+import { hashMessage, ethers, getBytes, SigningKey  } from 'ethers';
 import { serializeError } from 'serialize-error';
 import { broadcastTx } from './broadcastUtils';
 
@@ -314,9 +314,9 @@ const message =
 
 const sig = await ethWallet.signMessage(message);
 
-const msgHash = ethers.utils.hashMessage(message);
-const msgHashBytes = ethers.utils.arrayify(msgHash);
-const pubKey = ethers.utils.recoverPublicKey(msgHashBytes, sig);
+const msgHash = hashMessage(message);
+const msgHashBytes = getBytes(msgHash);
+const pubKey = SigningKey.recoverPublicKey(msgHashBytes, sig);
 
 const pubKeyHex = pubKey.substring(2);
 const compressedPublicKey = Secp256k1.compressPubkey(new Uint8Array(Buffer.from(pubKeyHex, 'hex')));

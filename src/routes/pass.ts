@@ -27,6 +27,10 @@ const wwdr = fs.readFileSync(path.join(certDirectory, 'wwdr.pem'));
 const signerCert = fs.readFileSync(path.join(certDirectory, 'signerCert.pem'));
 const signerKey = fs.readFileSync(path.join(certDirectory, 'signerKey.key'));
 
+//IMPORTANT: These routes are not gated. We assume that if they have the code, they can request a pass.
+//           This doesn't entirely align with the OAuth flow (where we do not allow unless app owner or user)
+//           but only thing they can learn is name / description.
+
 export const createGooglePass = async (req: AuthenticatedRequest<NumberType>, res: Response<any>) => {
   try {
     const { code } = req.body as unknown as GenerateAppleWalletPassPayload;
