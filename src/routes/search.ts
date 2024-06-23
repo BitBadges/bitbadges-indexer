@@ -501,20 +501,21 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
       ? Promise.resolve([])
       : convertToBitBadgesUserInfo(req, res, profileDocs, allAccounts, true, []);
 
+    const listsWithoutDuplicates = [...listsRes, ...addressListsResponseDocs].filter(
+      (x, idx, self) => self.findIndex((y) => y.listId === x.listId) === idx
+    );
     const addressListsToReturnPromise =
       noAddressLists || [...listsRes, ...addressListsResponseDocs].length === 0
         ? Promise.resolve([])
         : mustGetAddressListsFromDB(
-            [...listsRes, ...addressListsResponseDocs]
-              .filter((x, idx, self) => self.findIndex((y) => y.listId === x.listId) === idx)
-              .map((x) => {
-                return {
-                  listId: x._docId
-                };
-              }),
+            listsWithoutDuplicates.map((x) => {
+              return {
+                listId: x._docId
+              };
+            }),
             true,
             false,
-            [...listsRes, ...addressListsResponseDocs]
+            listsWithoutDuplicates
           );
 
     const [collectionsResponses, accounts, addressListsToReturn] = await Promise.all([
