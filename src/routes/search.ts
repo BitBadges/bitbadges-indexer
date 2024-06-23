@@ -505,11 +505,13 @@ export const searchHandler = async (req: Request, res: Response<iGetSearchSucces
       noAddressLists || [...listsRes, ...addressListsResponseDocs].length === 0
         ? Promise.resolve([])
         : mustGetAddressListsFromDB(
-            [...listsRes, ...addressListsResponseDocs].map((x) => {
-              return {
-                listId: x._docId
-              };
-            }),
+            [...listsRes, ...addressListsResponseDocs]
+              .filter((x, idx, self) => self.findIndex((y) => y.listId === x.listId) === idx)
+              .map((x) => {
+                return {
+                  listId: x._docId
+                };
+              }),
             true,
             false,
             [...listsRes, ...addressListsResponseDocs]
