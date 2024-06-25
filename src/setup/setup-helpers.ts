@@ -40,6 +40,8 @@ import {
   ErrorSchema,
   EthTxCountModel,
   EthTxCountSchema,
+  FaucetModel,
+  FaucetSchema,
   FetchModel,
   FetchSchema,
   FollowDetailsModel,
@@ -459,6 +461,7 @@ export async function initStatus(): Promise<void> {
 }
 
 export async function createIndexesAndViews(): Promise<void> {
+  FaucetSchema.index({ _docId: 1 }, { unique: true });
   DeveloperAppSchema.index({ _docId: 1 }, { unique: true });
   PluginSchema.index({ _docId: 1 }, { unique: true });
   AccessTokenSchema.index({ _docId: 1 }, { unique: true });
@@ -504,6 +507,7 @@ export async function createIndexesAndViews(): Promise<void> {
   PageVisitsSchema.index({ _docId: 1 }, { unique: true });
   OffChainAttestationsSchema.index({ _docId: 1 }, { unique: true });
 
+  await FaucetModel.createIndexes();
   await MapModel.createIndexes();
   await OffChainAttestationsModel.createIndexes();
   await PageVisitsModel.createIndexes();

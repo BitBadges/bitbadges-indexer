@@ -801,7 +801,11 @@ export const simulateClaim = async (req: AuthenticatedRequest<NumberType>, res: 
     const cosmosAddress = mustConvertToCosmosAddress(req.params.cosmosAddress);
 
     await completeClaimHandler(req, claimId, cosmosAddress, '', simulate);
-    return res.status(200).send({ claimAttemptId: 'This is just a simulation. Your ID will be returned here when you complete the claim for real.' });
+
+    //replace all chars with 0
+    const zeroedId = crypto.randomBytes(32).toString('hex').replace(/./g, '0');
+
+    return res.status(200).send({ claimAttemptId: zeroedId });
   } catch (e) {
     console.error(e);
     return res.status(500).send({
@@ -867,6 +871,12 @@ export const getClaimsStatusHandler = async (
       if (process.env.TEST_MODE !== 'true') {
         throw new Error('Invalid claimAttemptId format');
       }
+    }
+
+    //For simulations, return success immediately
+    const randomId = crypto.randomBytes(32).toString('hex').replace(/./g, '0');
+    if (claimAttemptId === randomId) {
+      return res.status(200).json({ success: true, error: '' });
     }
 
     const doc = await ClaimAttemptStatusModel.findOne({ _docId: claimAttemptId });

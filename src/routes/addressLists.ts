@@ -193,6 +193,10 @@ const handleAddressListsUpdateAndCreate = async (
         throw new Error('List ID must start with ' + prefix);
       }
 
+      if (list.addresses.length > 10000) {
+        throw new Error('You can only have up to 10000 addresses in a list.');
+      }
+
       //TODO: Allow duplicates or not?
       // const cosmosAddresses = list.addresses.map((x) => convertToCosmosAddress(x));
       // if (cosmosAddresses.length !== new Set(cosmosAddresses).size) {

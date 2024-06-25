@@ -77,7 +77,7 @@ import {
 import { getBadgeActivity, getCollections } from './routes/collections';
 import { oneTimeSendEmailHandler, oneTimeVerifyEmailHandler, unsubscribeHandler, verifyEmailHandler } from './routes/email';
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
-import { getTokensFromFaucet } from './routes/faucet';
+import { checkIntentStatus, createPaymentIntent, getTokensFromFaucet, successWebhook } from './routes/faucet';
 import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addToIpfsHandler } from './routes/ipfs';
 import { getMaps } from './routes/maps';
@@ -99,6 +99,7 @@ import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, getFilterSuggestionsHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
+import { getAdminDashboard } from './routes/admin';
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000; // Set the default timeout value in milliseconds
 
@@ -302,6 +303,8 @@ app.use(apiKeyHandler);
 // console.log the repsonse
 app.use(responseTime({ suffix: false }));
 
+app.post('/webhook', express.raw({ type: 'application/json' }), successWebhook);
+
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -357,6 +360,7 @@ app.get('/', (req: Request, res: Response) => {
 
 // Status
 app.post('/api/v0/status', getStatusHandler);
+app.get('/api/v0/admin', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getAdminDashboard);
 
 // Set route to start OAuth link, this is where you define scopes to request
 app.get('/auth/twitch', passport.authenticate('twitch', { scope: 'user_read user:read:follows user:read:subscriptions' }));
@@ -452,8 +456,10 @@ app.post('/api/v0/browse', getBrowseCollections);
 app.post('/api/v0/broadcast', broadcastTx);
 app.post('/api/v0/simulate', simulateTx);
 
-// Faucet
-app.post('/api/v0/faucet', authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getTokensFromFaucet);
+// Faucet / Stripe
+app.post('/api/v0/faucet', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), getTokensFromFaucet);
+app.get(`/api/v0/checkout-status/:id`, websiteOnlyCors, checkIntentStatus);
+app.post('/api/v0/stripe/createPaymentIntent', websiteOnlyCors, authorizeBlockinRequest([{ scopeName: 'Full Access' }]), createPaymentIntent);
 
 // Address Lists
 app.post('/api/v0/addressLists/fetch', getAddressLists);
@@ -467,6 +473,7 @@ app.post('/api/v0/claimAlerts', authorizeBlockinRequest([{ scopeName: 'Read Clai
 
 // Follow Protocol
 app.post('/api/v0/follow-protocol', getFollowDetails);
+
 
 // Eth First Tx
 app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);

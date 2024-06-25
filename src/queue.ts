@@ -26,14 +26,15 @@ import CryptoJS from 'crypto-js';
 import Joi from 'joi';
 import mongoose from 'mongoose';
 import { fetchDocsForCacheIfEmpty, flushCachedDocs } from './db/cache';
-import { deleteMany, getFromDB, getManyFromDB, insertToDB, mustGetFromDB } from './db/db';
+import { deleteMany, getFromDB, getManyFromDB, insertMany, insertToDB, mustGetFromDB } from './db/db';
 import { findInDB } from './db/queries';
-import { BalanceModel, ClaimAttemptStatusModel, FetchModel, QueueModel, RefreshModel } from './db/schemas';
+import { BalanceModel, ClaimAttemptStatusModel, FaucetModel, FetchModel, QueueModel, RefreshModel } from './db/schemas';
 import { type DocsCache } from './db/types';
-import { LOAD_BALANCER_ID } from './indexer-vars';
+import { LOAD_BALANCER_ID, client } from './indexer-vars';
 import { getFromIpfs } from './ipfs/ipfs';
 import { sendPushNotification } from './pollutils';
 import { completeClaimHandler } from './routes/claims';
+import { batchSendTokens } from './routes/faucet';
 import { getAddressListsFromDB } from './routes/utils';
 import { cleanBalanceMap } from './utils/dataCleaners';
 import { getLoadBalancerId } from './utils/loadBalancer';
@@ -756,13 +757,18 @@ export const handleQueueItems = async (block: bigint) => {
     const currQueueDoc = queue[0];
     if (currQueueDoc) {
       // We don't add two of the same URI bc that can cause race conditions with the deletes, plus it is redundant (i.e. we only need to fetch once)
-      if (!queueItems.find((x) => x.uri === currQueueDoc.uri)) {
+      if (currQueueDoc.notificationType) {
         queueItems.push(currQueueDoc.clone());
+      } else {
+        if (!queueItems.find((x) => x.uri === currQueueDoc.uri)) {
+          queueItems.push(currQueueDoc.clone());
+        }
       }
     }
     queue.shift();
     numFetchesLeft--;
   }
+
 
   const executeFunc = async (queueObj: QueueDoc<bigint>) => {
     try {
@@ -804,6 +810,8 @@ export const handleQueueItems = async (block: bigint) => {
         sendPushNotification(queueObj.recipientAddress, queueObj.notificationType, queueObj.emailMessage, queueObj.activityDocId, undefined, queueObj)
       );
     } else if (queueObj.notificationType === 'claim') {
+      continue;
+    } else if (queueObj.notificationType === 'faucet') {
       continue;
     } else {
       promises.push(executeFunc(queueObj));
@@ -854,6 +862,85 @@ export const handleQueueItems = async (block: bigint) => {
         });
         await deleteMany(QueueModel, [queueObj._docId]);
       }
+    }
+  }
+
+  const tokenTxs: { amount: number; recipient: string }[] = [];
+  const queueDocsToDeleteFaucet = [];
+  for (const queueObj of queueItems) {
+    if (queueObj.notificationType === 'faucet') {
+      const recipient = queueObj.faucetInfo?.recipient;
+      const amount = queueObj.faucetInfo?.amount;
+      if (!recipient || !amount) {
+        continue;
+      }
+
+      tokenTxs.push({ amount: Number(amount), recipient });
+      queueDocsToDeleteFaucet.push(queueObj);
+    }
+  }
+
+  if (tokenTxs.length) {
+    const result = await batchSendTokens(tokenTxs);
+    const txHash = result.transactionHash;
+
+    let numTries = 0;
+    while (numTries < 30) {
+      try {
+        await Promise.resolve(setTimeout(() => {}, 1000));
+        const tx = await client?.getTx(txHash);
+        if (!tx) {
+          numTries++;
+          break;
+        }
+
+        if (tx?.code) {
+          //Error in transaction - will get rehandled in the next fetch
+          await insertMany(
+            QueueModel,
+            queueDocsToDeleteFaucet.map((x) => ({
+              ...x,
+              lastFetchedAt: BigInt(Date.now()),
+              numRetries: BigInt(x.numRetries + 1n),
+              nextFetchTime: BigInt(BASE_DELAY * Math.pow(2, Number(x.numRetries + 1n))) + BigInt(Date.now()),
+              error: JSON.stringify(tx)
+            }))
+          );
+          break;
+        } else {
+          for (const queueObj of queueDocsToDeleteFaucet) {
+            await FaucetModel.create({
+              _docId: queueObj._docId,
+              recipient: queueObj.faucetInfo?.recipient,
+              amount: queueObj.faucetInfo?.amount,
+              txHash: txHash,
+              intentId: queueObj._docId
+            });
+          }
+          await deleteMany(
+            QueueModel,
+            queueDocsToDeleteFaucet.map((x) => x._docId)
+          );
+          break;
+        }
+      } catch (e) {
+        numTries++;
+        await Promise.resolve(setTimeout(() => {}, 1000));
+      }
+    }
+
+    if (numTries === 30) {
+      //If we exceed max tries, we need manual intervention
+      await insertMany(
+        QueueModel,
+        queueDocsToDeleteFaucet.map((x) => ({
+          ...x,
+          lastFetchedAt: BigInt(Date.now()),
+          numRetries: BigInt(x.numRetries + 1n),
+          nextFetchTime: BigInt(Number.MAX_SAFE_INTEGER), //At this point, it needs manual intervention
+          error: 'Exceeded max number of tries (Tx Hash: ' + txHash + ')'
+        }))
+      );
     }
   }
 };
