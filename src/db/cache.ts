@@ -11,7 +11,10 @@ import {
   type RefreshDoc,
   type StatusDoc,
   convertToCosmosAddress,
-  type MapDoc
+  type MapDoc,
+  NumberifyIfPossible,
+  UintRangeArray,
+  BigIntify
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
@@ -45,7 +48,8 @@ import {
   ListActivityModel,
   ClaimAlertModel,
   ErrorModel,
-  MapModel
+  MapModel,
+  EmptyBlockModel
 } from './schemas';
 import { findInDB } from './queries';
 
@@ -317,6 +321,26 @@ export async function flushCachedDocs(
     const queueDocs = docs.queueDocsToAdd;
     const claimAlertDocs = docs.claimAlertsToAdd;
     const mapDocs = Object.values(docs.maps) as Array<MapDoc<bigint>>;
+    const emptyBlocks = docs.emptyBlocks;
+
+    if (emptyBlocks && emptyBlocks.length) {
+      const currDoc = await EmptyBlockModel.findOne({}).lean().exec();
+      let doc;
+      if (!currDoc) {
+        doc = new EmptyBlockModel({
+          _docId: 'empty-blocks',
+          blocks: emptyBlocks.convert(NumberifyIfPossible)
+        });
+      } else {
+        doc = currDoc;
+        doc.blocks = UintRangeArray.From(currDoc.blocks).convert(BigIntify);
+        doc.blocks.push(...emptyBlocks);
+        doc.blocks = doc.blocks.sortAndMerge();
+        doc.blocks = doc.blocks.convert(NumberifyIfPossible);
+      }
+
+      await EmptyBlockModel.updateOne({ _docId: 'empty-blocks' }, doc, { upsert: true, session });
+    }
 
     // If we have a session, we should not execute all inserts in parallel bc it messes up transactions
     // If not, we can execute all inserts in parallel

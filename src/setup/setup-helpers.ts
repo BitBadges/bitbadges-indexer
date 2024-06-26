@@ -36,6 +36,7 @@ import {
   DeveloperAppModel,
   DeveloperAppSchema,
   DigitalOceanBalancesModel,
+  EmptyBlockModel,
   ErrorModel,
   ErrorSchema,
   EthTxCountModel,
@@ -85,6 +86,7 @@ import {
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(EmptyBlockModel.collection.name);
   await MongoDB.dropCollection(FaucetModel.collection.name);
   await MongoDB.dropCollection(AttestationProofSchemaModel.collection.name);
   await MongoDB.dropCollection(ClaimAttemptStatusModel.collection.name);

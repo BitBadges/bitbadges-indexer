@@ -253,6 +253,21 @@ export const poll = async () => {
       complianceDoc = await mustGetFromDB(ComplianceModel, 'compliance');
     }
 
+    const emptyBlocksCache: DocsCache = {
+      accounts: {},
+      collections: {},
+      refreshes: {},
+      activityToAdd: [],
+      claimAlertsToAdd: [],
+      queueDocsToAdd: [],
+      merkleChallenges: {},
+      addressLists: {},
+      approvalTrackers: {},
+      balances: {},
+      claimBuilderDocs: {},
+      maps: {}
+    };
+
     while (!caughtUp) {
       // We fetch initial status at beginning of block and do not write anything in DB until flush at end of block
       // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
@@ -289,19 +304,31 @@ export const poll = async () => {
         const processing = status.block.height + 1n;
         process.stdout.cursorTo(0);
 
-        const block: Block = await client.getBlock(Number(processing));
+        const block: Block = await client.getBlock(Number(processing)).catch((e) => {
+          console.log(e);
+          throw e;
+        });
 
         process.stdout.write(`Handling block: ${processing} with ${block.txs.length} txs`);
         status.block.timestamp = BigInt(new Date(block.header.time).getTime());
 
-        await handleBlock(block, status, docs, session);
+        await handleBlock(block, status, docs, session, emptyBlocksCache);
 
         status.block.height++;
         status.block.txIndex = 0n;
 
         // Right now, we are banking on all these DB updates succeeding together every time.
         // If there is a failure in the middle, it could be bad.
-        const flushed = await flushCachedDocs(docs, session, status, status.block.height < clientHeight);
+        const skipStatusFlushIfEmptyBlock = status.block.height < clientHeight;
+        const flushed = await flushCachedDocs(
+          {
+            ...docs,
+            emptyBlocks: status.block.height >= clientHeight ? emptyBlocksCache.emptyBlocks : undefined
+          },
+          session,
+          status,
+          skipStatusFlushIfEmptyBlock
+        );
         if (flushed) {
           const status2 = await mustGetFromDB(StatusModel, 'status', session);
           status = status2;
@@ -479,8 +506,23 @@ const getAttributeValueByKey = (attributes: Attribute[], key: string): string | 
   return attributes.find((attribute: Attribute) => attribute.key === key)?.value;
 };
 
-const handleBlock = async (block: Block, status: StatusDoc<bigint>, docs: DocsCache, session: mongoose.ClientSession) => {
+const handleBlock = async (
+  block: Block,
+  status: StatusDoc<bigint>,
+  docs: DocsCache,
+  session: mongoose.ClientSession,
+  emptyBlocksCache: DocsCache
+) => {
   if (block.txs.length > 0) console.log('');
+
+  if (block.txs.length == 0) {
+    if (emptyBlocksCache.emptyBlocks === undefined) {
+      emptyBlocksCache.emptyBlocks = new UintRangeArray<bigint>();
+    }
+
+    emptyBlocksCache.emptyBlocks.push({ start: BigInt(block.header.height), end: BigInt(block.header.height) });
+    emptyBlocksCache.emptyBlocks = emptyBlocksCache.emptyBlocks.sortAndMerge();
+  }
 
   // Handle each tx consecutively
   while (status.block.txIndex < block.txs.length) {

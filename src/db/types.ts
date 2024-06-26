@@ -1,4 +1,5 @@
 import {
+  UintRangeArray,
   type AccountDoc,
   type AddressListDoc,
   type ApprovalTrackerDoc,
@@ -30,6 +31,7 @@ export interface DocsCache {
   claimAlertsToAdd: Array<ClaimAlertDoc<bigint>>;
   claimBuilderDocs: Record<string, ClaimBuilderDoc<bigint> | undefined>;
   maps: Record<string, MapDoc<bigint> | undefined>;
+  emptyBlocks?: UintRangeArray<bigint>;
 }
 
 export type AccountDocs = Record<string, AccountDoc<bigint> | undefined>;
