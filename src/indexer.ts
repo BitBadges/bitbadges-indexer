@@ -678,6 +678,8 @@ export const gracefullyShutdown = async () => {
     console.log('server closed');
   });
 
+  client?.disconnect();
+
   console.log('clearing timer', timer);
   if (timer) clearTimeout(timer);
 
