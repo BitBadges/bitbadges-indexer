@@ -678,13 +678,13 @@ export const gracefullyShutdown = async () => {
     console.log('server closed');
   });
 
-  console.log('clearing timer');
+  console.log('clearing timer', timer);
   clearTimeout(timer);
 
-  console.log('clearing uriPollerTimer');
+  console.log('clearing uriPollerTimer', uriPollerTimer);
   clearTimeout(uriPollerTimer);
 
-  console.log('clearing notificationPollerTimer');
+  console.log('clearing notificationPollerTimer', notificationPollerTimer);
   clearTimeout(notificationPollerTimer);
 
   wsServer?.close(() => {
