@@ -32,5 +32,7 @@ export const ipfsClient = create({
 
 export let client: IndexerStargateClient | undefined = (global as any).client ?? undefined; // global for testing
 export const setClient = (newClient: IndexerStargateClient) => {
+  const prevClient = client;
   client = newClient;
+  prevClient?.disconnect();
 };

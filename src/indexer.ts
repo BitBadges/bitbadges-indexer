@@ -555,6 +555,7 @@ function checkIfConnected() {
   } else {
     console.log(client);
     client?.disconnect();
+    console.log(client);
   }
 }
 
