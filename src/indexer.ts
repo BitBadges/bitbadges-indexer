@@ -700,10 +700,10 @@ export const gracefullyShutdown = async () => {
   setTimeout(() => {
     mongoose.connection.close();
     console.log('mongoose connection closed');
+    process.exit(0);
   }, 10000);
 };
 
 process.on('SIGINT', gracefullyShutdown);
-process.on('SIGTERM', gracefullyShutdown);
 
 export default app;
