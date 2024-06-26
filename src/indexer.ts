@@ -545,13 +545,16 @@ function checkIfConnected() {
   try {
     if (!client) connectToRpc();
   } catch (e) {
-    console.error(e);
+    console.log(e);
   }
 
   console.log('Checking if connected to blockchain...');
   if (!SHUTDOWN) {
     console.log('Setting timer to check if connected to blockchain again in 15 seconds.');
     setTimeout(checkIfConnected, 15000);
+  } else {
+    console.log(client);
+    client?.disconnect();
   }
 }
 
