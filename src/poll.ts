@@ -103,7 +103,6 @@ export async function connectToRpc() {
 
 export const pollUris = async () => {
   try {
-    console.log('Polling URIs');
     // We fetch initial status at beginning of block and do not write anything in DB until end of block
     // IMPORTANT: This is critical because we do not want to double-handle txs if we fail in middle of block
     const status = await getStatus();
@@ -135,7 +134,6 @@ export const pollUris = async () => {
 
 export const pollNotifications = async () => {
   try {
-    console.log('Polling Notifications');
     const transferActivityRes = await findInDB(TransferActivityModel, {
       query: { _notificationsHandled: { $exists: false } },
       limit: 25
@@ -230,7 +228,6 @@ export let complianceDoc: ComplianceDoc<bigint> | undefined;
 
 export const poll = async () => {
   try {
-    console.log('Polling');
     // Connect to the chain client (this is first-time only)
     // This could be in init() but it is here in case indexer is started w/o the chain running
     if (!client) {

@@ -548,22 +548,16 @@ function checkIfConnected() {
     console.log(e);
   }
 
-  console.log('Checking if connected to blockchain...');
   if (!SHUTDOWN) {
-    console.log('Setting timer to check if connected to blockchain again in 15 seconds.');
     setTimeout(checkIfConnected, 15000);
   } else {
-    console.log(client);
     client?.disconnect();
-    console.log(client);
   }
 }
 
 if (process.env.DISABLE_BLOCKCHAIN_POLLER === 'true') {
   //we need to connect the client to the blockchain
   //set up an interval to check if the client is connected
-  console.log('Blockchain poller disabled so will auto-poll the blockchain every 15 seconds to check if connected.');
-
   setTimeout(checkIfConnected, 1);
 }
 
