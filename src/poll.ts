@@ -215,6 +215,7 @@ export const pollNotifications = async () => {
   }
 
   if (SHUTDOWN) {
+    console.log('Shutting down notification poller');
     setNotificationPollerTimer(undefined);
     return;
   }
@@ -346,6 +347,7 @@ export const poll = async () => {
   }
 
   if (SHUTDOWN) {
+    console.log('Shutting down poller');
     setTimer(undefined);
     return;
   }

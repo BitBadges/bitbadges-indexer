@@ -118,11 +118,6 @@ export const setUriPollerTimer = (newTimer: NodeJS.Timer | undefined) => {
   uriPollerTimer = newTimer;
 };
 
-export let heartbeatTimer: NodeJS.Timer | undefined;
-export const setHeartbeatTimer = (newTimer: NodeJS.Timer | undefined) => {
-  heartbeatTimer = newTimer;
-};
-
 export let notificationPollerTimer: NodeJS.Timer | undefined;
 export const setNotificationPollerTimer = (newTimer: NodeJS.Timer | undefined) => {
   notificationPollerTimer = newTimer;
@@ -553,7 +548,9 @@ function checkIfConnected() {
     console.error(e);
   }
 
+  console.log('Checking if connected to blockchain...');
   if (!SHUTDOWN) {
+    console.log('Setting timer to check if connected to blockchain again in 15 seconds.');
     setTimeout(checkIfConnected, 15000);
   }
 }
@@ -675,8 +672,6 @@ wsServer?.on('connection', (ws: WebSocketWithPair) => {
   });
 });
 
-console.log('WebSocket server is running on ws://localhost:8080');
-
 export const gracefullyShutdown = async () => {
   SHUTDOWN = true;
   server?.close(() => {
@@ -688,9 +683,6 @@ export const gracefullyShutdown = async () => {
 
   console.log('clearing uriPollerTimer');
   clearTimeout(uriPollerTimer);
-
-  console.log('clearing heartbeatTimer');
-  clearTimeout(heartbeatTimer);
 
   console.log('clearing notificationPollerTimer');
   clearTimeout(notificationPollerTimer);
