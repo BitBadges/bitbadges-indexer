@@ -680,14 +680,14 @@ export const gracefullyShutdown = async () => {
 
   client?.disconnect();
 
-  console.log('clearing timer', timer);
-  if (timer) clearTimeout(timer);
+  // console.log('clearing timer', timer);
+  // if (timer) clearTimeout(timer);
 
-  console.log('clearing uriPollerTimer', uriPollerTimer);
-  if (uriPollerTimer) clearTimeout(uriPollerTimer);
+  // console.log('clearing uriPollerTimer', uriPollerTimer);
+  // if (uriPollerTimer) clearTimeout(uriPollerTimer);
 
-  console.log('clearing notificationPollerTimer', notificationPollerTimer);
-  if (notificationPollerTimer) clearTimeout(notificationPollerTimer);
+  // console.log('clearing notificationPollerTimer', notificationPollerTimer);
+  // if (notificationPollerTimer) clearTimeout(notificationPollerTimer);
 
   wsServer?.close(() => {
     console.log('WebSocket server closed');
