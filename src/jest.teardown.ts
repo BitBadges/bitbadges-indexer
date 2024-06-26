@@ -1,8 +1,8 @@
 // jest.teardown.js
-// import { gracefullyShutdown } from './indexer';
+import { gracefullyShutdown } from './indexer';
 
 module.exports = async () => {
-  // await gracefullyShutdown();
+  await gracefullyShutdown();
 
   //Send CTRL+C to the process
   process.kill(process.pid, 'SIGINT');

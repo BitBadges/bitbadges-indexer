@@ -85,6 +85,7 @@ import {
 config();
 
 export async function deleteDatabases(): Promise<void> {
+  await MongoDB.dropCollection(FaucetModel.collection.name);
   await MongoDB.dropCollection(AttestationProofSchemaModel.collection.name);
   await MongoDB.dropCollection(ClaimAttemptStatusModel.collection.name);
   await MongoDB.dropCollection(PluginDocHistoryModel.collection.name);
@@ -152,7 +153,7 @@ export async function initStatus(): Promise<void> {
     },
     nextCollectionId: '1',
     gasPrice: 1,
-    lastXGasAmounts: ['1'],
+    lastXGasAmounts: ['0'],
     lastXGasLimits: ['1']
   });
 

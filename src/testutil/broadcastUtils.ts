@@ -41,14 +41,14 @@ export async function signAndBroadcast(msgs: any[], ethWallet: ethers.Wallet) {
     }
 
     const amount = {
-      denom: 'badge',
-      amount: '1000'
+      denom: 'ubadge',
+      amount: '1000000000000'
     };
 
     const fee = {
       amount: [
         {
-          denom: 'badge',
+          denom: 'ubadge',
           amount: '1'
         }
       ],
@@ -91,7 +91,7 @@ export async function signAndBroadcast(msgs: any[], ethWallet: ethers.Wallet) {
       chain,
       sender,
       memo: '',
-      fee: { denom: 'badge', amount: '1', gas: '40000000' }
+      fee: { denom: 'ubadge', amount: '1', gas: '40000000' }
     };
     const txn = createTransactionPayload(txContext, msgs);
     if (!txn.eipToSign) throw new Error('No eip to sign');

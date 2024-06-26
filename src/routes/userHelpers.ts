@@ -60,7 +60,7 @@ export const convertToBitBadgesUserInfo = async (
           ? { resolvedName: prevResolvedName }
           : { resolvedName: '' }
     );
-    promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'badge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'badge'));
+    promises.push(isMint || OFFLINE_MODE ? { amount: '0', denom: 'ubadge' } : client.getBalance(cosmosAccountInfo.cosmosAddress, 'ubadge'));
     promises.push(isMint ? undefined : airdropDocs.find((x) => x && x._docId === cosmosAccountInfo.cosmosAddress));
     promises.push(
       isMint

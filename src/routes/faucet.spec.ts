@@ -40,11 +40,11 @@ describe('faucet works correctly', () => {
     await new Promise((resolve) => setTimeout(resolve, 10000)); //wait for the queue to be processed
 
     for (const address of addresses) {
-      const amounts = await client?.getBalance(address, 'badge');
+      const amounts = await client?.getBalance(address, 'ubadge');
       expect(amounts).toBeDefined();
       expect(Number(amounts?.amount)).toBeGreaterThan(0);
-      expect(amounts?.denom).toBe('badge');
-      expect(Number(amounts?.amount)).toEqual(1000);
+      expect(amounts?.denom).toBe('ubadge');
+      expect(Number(amounts?.amount)).toEqual(1000 * 1e9);
     }
   }, 1000000);
 });

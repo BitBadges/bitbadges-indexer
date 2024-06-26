@@ -183,7 +183,7 @@ const handleMinBadgeQuery = async (body: { cosmosAddress: string; minBalance: nu
 
   const minBalance = BigInt(body.minBalance);
   const account = await getAccountByAddress(undefined, {} as Response, body.cosmosAddress, { fetchBalance: true });
-  if (account.balance && BigInt(account.balance.amount) >= minBalance) {
+  if (account.balance && BigInt(account.balance.amount) / BigInt(1e9) >= minBalance) {
   } else {
     throw new Error('Insufficient balance');
   }

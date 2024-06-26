@@ -520,22 +520,24 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
   // Note: This is rough and not exact because we are rounding
   const NUM_TXS_TO_AVERAGE = 1000;
   if (decodedTx.authInfo.fee) {
-    const gasLimit = decodedTx.authInfo.fee.gasLimit;
+    const gasUsed = indexed.gasUsed;
 
-    for (const coin of decodedTx.authInfo.fee.amount) {
-      const feeAmount = coin.amount;
-      const feeDenom = coin.denom;
+    if (decodedTx.authInfo.fee.amount.length === 1) {
+      for (const coin of decodedTx.authInfo.fee.amount) {
+        const feeAmount = coin.amount;
+        const feeDenom = coin.denom;
 
-      if (feeDenom === 'badge') {
-        status.lastXGasAmounts.push(BigInt(feeAmount));
-        status.lastXGasLimits.push(BigInt(gasLimit.toString()));
+        if (feeDenom === 'ubadge') {
+          status.lastXGasAmounts.push(BigInt(feeAmount));
+          status.lastXGasLimits.push(BigInt(gasUsed.toString()));
 
-        if (status.lastXGasAmounts.length > NUM_TXS_TO_AVERAGE) {
-          status.lastXGasAmounts.shift();
-          status.lastXGasLimits.shift();
+          if (status.lastXGasAmounts.length > NUM_TXS_TO_AVERAGE) {
+            status.lastXGasAmounts.shift();
+            status.lastXGasLimits.shift();
+          }
+
+          status.gasPrice = Number(status.lastXGasAmounts.reduce((a, b) => a + b, 0n)) / Number(status.lastXGasLimits.reduce((a, b) => a + b, 0n));
         }
-
-        status.gasPrice = Number(status.lastXGasAmounts.reduce((a, b) => a + b, 0n)) / Number(status.lastXGasLimits.reduce((a, b) => a + b, 0n));
       }
     }
   }

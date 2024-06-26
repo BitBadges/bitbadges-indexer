@@ -769,7 +769,6 @@ export const handleQueueItems = async (block: bigint) => {
     numFetchesLeft--;
   }
 
-
   const executeFunc = async (queueObj: QueueDoc<bigint>) => {
     try {
       if (Joi.string().uri().validate(queueObj.uri).error) {
@@ -865,7 +864,7 @@ export const handleQueueItems = async (block: bigint) => {
     }
   }
 
-  const tokenTxs: { amount: number; recipient: string }[] = [];
+  const tokenTxs: { amount: bigint; recipient: string }[] = [];
   const queueDocsToDeleteFaucet = [];
   for (const queueObj of queueItems) {
     if (queueObj.notificationType === 'faucet') {
@@ -875,7 +874,7 @@ export const handleQueueItems = async (block: bigint) => {
         continue;
       }
 
-      tokenTxs.push({ amount: Number(amount), recipient });
+      tokenTxs.push({ amount: BigInt(amount), recipient });
       queueDocsToDeleteFaucet.push(queueObj);
     }
   }

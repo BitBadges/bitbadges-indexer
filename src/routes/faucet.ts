@@ -111,7 +111,7 @@ export const successWebhook = async (req: Request, res: Response) => {
           faucetInfo: {
             txHash: '',
             recipient: cosmosAddress,
-            amount: BigInt(amount)
+            amount: BigInt(amount) * BigInt(1e9)
           }
         };
 
@@ -145,7 +145,7 @@ const faucetMutex = new Mutex();
 export const batchSendTokens = async (
   sendTxs: {
     recipient: string;
-    amount: number;
+    amount: NumberType;
   }[],
   memo?: string
 ) => {
@@ -182,7 +182,7 @@ export const batchSendTokens = async (
         toAddress: tx.recipient,
         amount: [
           {
-            denom: 'badge',
+            denom: 'ubadge',
             amount: tx.amount.toString()
           }
         ]
@@ -195,7 +195,7 @@ export const batchSendTokens = async (
   const fee = {
     amount: [
       {
-        denom: 'badge',
+        denom: 'ubadge',
         amount: Math.round(gasPrice * 180000 * msgs.length).toString()
       }
     ],
@@ -252,7 +252,7 @@ export const getTokensFromFaucet = async (
       const result = await batchSendTokens([
         {
           recipient: cosmosAddress,
-          amount: 1000
+          amount: 1000 * 1e9
         }
       ]);
 

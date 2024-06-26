@@ -474,7 +474,6 @@ app.post('/api/v0/claimAlerts', authorizeBlockinRequest([{ scopeName: 'Read Clai
 // Follow Protocol
 app.post('/api/v0/follow-protocol', getFollowDetails);
 
-
 // Eth First Tx
 app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 
@@ -696,12 +695,14 @@ export const gracefullyShutdown = async () => {
   console.log('clearing notificationPollerTimer');
   clearTimeout(notificationPollerTimer);
 
-  await mongoose.connection.close();
-  console.log('mongoose connection closed');
-
   wsServer?.close(() => {
     console.log('WebSocket server closed');
   });
+
+  setTimeout(() => {
+    mongoose.connection.close();
+    console.log('mongoose connection closed');
+  }, 10000);
 };
 
 process.on('SIGINT', gracefullyShutdown);

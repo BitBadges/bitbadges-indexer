@@ -19,7 +19,7 @@ import {
 
 import crypto from 'crypto';
 import env from 'dotenv';
-import { hashMessage, ethers, getBytes, SigningKey  } from 'ethers';
+import { hashMessage, ethers, getBytes, SigningKey } from 'ethers';
 import { serializeError } from 'serialize-error';
 import { broadcastTx } from './broadcastUtils';
 
@@ -221,7 +221,7 @@ async function main() {
         chain,
         sender,
         memo: '',
-        fee: { denom: 'badge', amount: '1', gas: '40000000' }
+        fee: { denom: 'ubadge', amount: '1', gas: '40000000' }
       };
 
       const txn = createTransactionPayload(txContext, msgs);
@@ -283,14 +283,14 @@ if (!signingClient) {
 }
 
 const amount = {
-  denom: 'badge',
-  amount: '100000'
+  denom: 'ubadge',
+  amount: '100000000000000'
 };
 
 const fee = {
   amount: [
     {
-      denom: 'badge',
+      denom: 'ubadge',
       amount: '1'
     }
   ],
