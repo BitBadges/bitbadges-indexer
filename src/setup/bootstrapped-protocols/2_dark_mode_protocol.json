@@ -1,0 +1,50 @@
+{
+  "creator": "cosmos1zd5dsage58jfrgmsu377pk6w0q5zhc67fn4gsl",
+  "mapId": "Dark Mode Protocol",
+  "inheritManagerTimelineFrom": "0",
+  "managerTimeline": [
+    {
+      "manager": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateCriteria": {
+    "managerOnly": false,
+    "collectionId": "0",
+    "creatorOnly": true,
+    "firstComeFirstServe": false
+  },
+  "valueOptions": {
+    "noDuplicates": false,
+    "permanentOnceSet": false,
+    "expectUint": false,
+    "expectBoolean": true,
+    "expectAddress": false,
+    "expectUri": false
+  },
+  "defaultValue": "",
+  "metadataTimeline": [
+    {
+      "metadata": {
+        "uri": "ipfs://QmUwL8c3K9rLPqqhaXC2YYrbk5PZJxfvaQBC2xQpz6Sux3",
+        "customData": ""
+      },
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "permissions": {
+    "canUpdateMetadata": [],
+    "canUpdateManager": [],
+    "canDeleteMap": []
+  }
+}

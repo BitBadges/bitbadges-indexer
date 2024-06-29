@@ -154,7 +154,7 @@ export const fetchUriFromSource = async (uri: string) => {
     const _res = await getFromIpfs(uri.replace('ipfs://', ''));
     res = JSON.parse(_res.file);
   } else {
-    if (uri.includes('localhost') || uri.includes('api.bitbadges.io')) {
+    if ((uri.includes('localhost') && process.env.DEV_MODE !== 'true') || uri.includes('api.bitbadges.io')) {
       throw new Error('Cannot call localhost or BitBadges API.');
     }
 

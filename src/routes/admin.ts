@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { serializeError } from 'serialize-error';
 import { AuthenticatedRequest, mustGetAuthDetails } from '../blockin/blockin_handlers';
 import { findInDB } from '../db/queries';
-import { ErrorModel, QueueModel, ReportModel } from '../db/schemas';
+import { ErrorModel, PluginModel, QueueModel, ReportModel } from '../db/schemas';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
 import { FaucetModel } from '../db/schemas';
@@ -66,6 +66,15 @@ const fetchAllPaymentIntents = async () => {
   return errorIds;
 };
 
+export const getAdminDetails = async (intentError: boolean) => {
+  const reports = await findInDB(ReportModel, { query: {}, limit: 100 });
+  const errorDocs = await findInDB(ErrorModel, { query: {}, limit: 100 });
+  const queueErrors = await findInDB(QueueModel, { query: { error: { $exists: true } }, limit: 100 });
+  const pluginSubmissions = await findInDB(PluginModel, { query: { reviewCompleted: false }, limit: 100 });
+
+  return { reports, errorDocs, queueErrors, pluginSubmissions };
+};
+
 export async function getAdminDashboard(req: AuthenticatedRequest<NumberType>, res: Response) {
   try {
     const cosmosAddress = (await mustGetAuthDetails(req, res)).cosmosAddress;
@@ -82,11 +91,9 @@ export async function getAdminDashboard(req: AuthenticatedRequest<NumberType>, r
       return res.status(200).send({ errorIds });
     }
 
-    const reports = await findInDB(ReportModel, { query: {}, limit: 100 });
-    const errorDocs = await findInDB(ErrorModel, { query: {}, limit: 100 });
-    const queueErrors = await findInDB(QueueModel, { query: { error: { $exists: true } }, limit: 100 });
+    const { reports, errorDocs, queueErrors, pluginSubmissions } = await getAdminDetails(toCheckIntents);
 
-    return res.status(200).json({ reports, errorDocs, queueErrors });
+    return res.status(200).json({ reports, errorDocs, queueErrors, pluginSubmissions });
   } catch (e) {
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,

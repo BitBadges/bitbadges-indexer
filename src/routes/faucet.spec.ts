@@ -44,7 +44,7 @@ describe('faucet works correctly', () => {
       expect(amounts).toBeDefined();
       expect(Number(amounts?.amount)).toBeGreaterThan(0);
       expect(amounts?.denom).toBe('ubadge');
-      expect(Number(amounts?.amount)).toEqual(1000 * 1e9);
+      expect(Number(amounts?.amount)).toEqual(1000);
     }
   }, 1000000);
 });

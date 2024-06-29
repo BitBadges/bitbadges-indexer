@@ -45,8 +45,6 @@ import {
   FaucetSchema,
   FetchModel,
   FetchSchema,
-  FollowDetailsModel,
-  FollowDetailsSchema,
   IPFSTotalsModel,
   IPFSTotalsSchema,
   ListActivityModel,
@@ -125,7 +123,6 @@ export async function deleteDatabases(): Promise<void> {
   await MongoDB.dropCollection(ReportModel.collection.name);
   await MongoDB.dropCollection(ComplianceModel.collection.name);
   await MongoDB.dropCollection(SIWBBRequestModel.collection.name);
-  await MongoDB.dropCollection(FollowDetailsModel.collection.name);
   await MongoDB.dropCollection(ListActivityModel.collection.name);
   await MongoDB.dropCollection(PageVisitsModel.collection.name);
   await MongoDB.dropCollection(OffChainAttestationsModel.collection.name);
@@ -504,7 +501,6 @@ export async function createIndexesAndViews(): Promise<void> {
   ReportSchema.index({ _docId: 1 }, { unique: true });
   ComplianceSchema.index({ _docId: 1 }, { unique: true });
   SIWBBRequestSchema.index({ _docId: 1 }, { unique: true });
-  FollowDetailsSchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ _docId: 1 }, { unique: true });
   ListActivitySchema.index({ timestamp: 1 });
   PageVisitsSchema.index({ _docId: 1 }, { unique: true });
@@ -541,5 +537,4 @@ export async function createIndexesAndViews(): Promise<void> {
   await ReportModel.createIndexes();
   await ComplianceModel.createIndexes();
   await SIWBBRequestModel.createIndexes();
-  await FollowDetailsModel.createIndexes();
 }

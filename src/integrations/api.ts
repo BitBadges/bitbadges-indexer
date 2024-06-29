@@ -68,7 +68,7 @@ export const GenericCustomPluginValidateFunction = async (
       });
     } else {
       if (process.env.TEST_MODE !== 'true') {
-        if (apiCall?.uri.includes('localhost') || apiCall?.uri.includes('api.bitbadges.io')) {
+        if ((apiCall.uri.includes('localhost') && process.env.DEV_MODE !== 'true') || apiCall?.uri.includes('api.bitbadges.io')) {
           throw new Error('Cannot call localhost or BitBadges API.');
         }
       }

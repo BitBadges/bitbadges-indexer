@@ -8,7 +8,7 @@ import typia from 'typia';
 import { insertToDB } from '../db/db';
 import { findInDB } from '../db/queries';
 import { OneTimeEmailModel, ProfileModel } from '../db/schemas';
-import { VerificationEmailHTML } from './users';
+import { SaveForLaterValueHTML, VerificationEmailHTML } from './users';
 
 export const unsubscribeHandler = async (req: Request, res: Response) => {
   try {
@@ -190,6 +190,40 @@ export const verifyEmailHandler = async (req: Request, res: Response) => {
     return res.status(200).send({
       success: true
     });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).send({
+      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
+      errorMessage: e.message
+    });
+  }
+};
+
+export const sendSaveForLaterValue = async (req: Request, res: Response) => {
+  try {
+    typia.assert<string>(req.body.email);
+    typia.assert<string>(req.body.subject);
+    typia.assert<string>(req.body.body);
+    Joi.assert(req.body.email, Joi.string().email());
+
+    const emails: Array<{
+      to: string;
+      from: string;
+      subject: string;
+      html: string;
+    }> = [
+      {
+        to: req.body.email,
+        from: 'info@mail.bitbadges.io',
+        subject: req.body.subject,
+        html: SaveForLaterValueHTML(req.body.body)
+      }
+    ];
+
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : '');
+    await sgMail.send(emails, true);
+
+    return res.status(200).send();
   } catch (e) {
     console.error(e);
     return res.status(500).send({

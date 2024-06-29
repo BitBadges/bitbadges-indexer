@@ -64,8 +64,8 @@ describe('get Siwbb requests', () => {
     const route = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
     const body: CreateDeveloperAppPayload = {
       name: 'test',
-      description: '',
-      image: '',
+      description: 'test',
+      image: 'test',
       redirectUris: ['http://localhost:3000']
     };
 

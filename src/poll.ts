@@ -35,6 +35,7 @@ import * as solana from 'bitbadgesjs-sdk/dist/proto/solana/web3_pb';
 import { ValueStore } from 'bitbadgesjs-sdk/dist/transactions/messages/bitbadges/maps';
 import { type Attribute, type StringEvent } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 
+import sgMail from '@sendgrid/mail';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
 import { IndexerStargateClient } from './chain-client/indexer_stargateclient';
@@ -54,8 +55,10 @@ import {
 import { getStatus } from './db/status';
 import { type DocsCache } from './db/types';
 import { SHUTDOWN, setNotificationPollerTimer, setTimer, setUriPollerTimer } from './indexer';
+import { client, setClient } from './indexer-vars';
+import { NotificationType, sendPushNotification } from './pollutils';
 import { getMapIdForQueueDb, handleQueueItems, pushMapFetchToQueue } from './queue';
-import { initializeFollowProtocol, unsetFollowCollection } from './routes/follows';
+import { getAdminDetails } from './routes/admin';
 import { handleMsgCreateAddressLists } from './tx-handlers/handleMsgCreateAddressLists';
 import { handleMsgCreateCollection } from './tx-handlers/handleMsgCreateCollection';
 import { handleMsgDeleteCollection } from './tx-handlers/handleMsgDeleteCollection';
@@ -66,8 +69,6 @@ import { handleMsgUpdateUserApprovals } from './tx-handlers/handleMsgUpdateUserA
 import { handleNewAccountByAddress } from './tx-handlers/handleNewAccount';
 import { handleTransfers } from './tx-handlers/handleTransfers';
 import { getLoadBalancerId } from './utils/loadBalancer';
-import { NotificationType, sendPushNotification } from './pollutils';
-import { setClient, client } from './indexer-vars';
 
 const pollIntervalMs = Number(process.env.POLL_INTERVAL_MS) || 1_000;
 const uriPollIntervalMs = Number(process.env.URI_POLL_INTERVAL_MS) || 1_000;
@@ -132,8 +133,44 @@ export const pollUris = async () => {
   setUriPollerTimer(newTimer);
 };
 
+//In dev, we often restart so we dont want to spam with emails
+let lastAdminReportSent = process.env.DEV_MODE === 'true' ? Date.now() : 0;
+
 export const pollNotifications = async () => {
   try {
+    if (lastAdminReportSent + 1000 * 60 * 60 * 4 < Date.now()) {
+      const { pluginSubmissions, reports, queueErrors, errorDocs } = await getAdminDetails(false);
+      if (pluginSubmissions.length === 0 && reports.length === 0 && queueErrors.length === 0 && errorDocs.length === 0) {
+      } else {
+        const emails: Array<{
+          to: string;
+          from: string;
+          subject: string;
+          html: string;
+        }> = [
+          {
+            to: 'trevormil@comcast.net',
+            from: 'info@mail.bitbadges.io',
+            subject: 'Admin Report',
+            html: `<p>Admin Report: ${new Date().toISOString()}</p>
+          <p>Plugin Submissions: ${pluginSubmissions.length}</p>
+          <p>Reports: ${reports.length}</p>
+          <p>Queue Errors: ${queueErrors.length}</p>
+          <p>Errors: ${errorDocs.length}</p>
+          <br />
+          <br />
+
+          <p>${JSON.stringify({ pluginSubmissions, reports, queueErrors, errorDocs })}</p>`
+          }
+        ];
+
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY ? process.env.SENDGRID_API_KEY : '');
+        await sgMail.send(emails, true);
+
+        lastAdminReportSent = Date.now();
+      }
+    }
+
     const transferActivityRes = await findInDB(TransferActivityModel, {
       query: { _notificationsHandled: { $exists: false } },
       limit: 25
@@ -743,14 +780,6 @@ const handleTx = async (indexed: IndexedTx, status: StatusDoc<bigint>, docs: Doc
         let finalSetValue = setValueMsg.value;
         if (setValueMsg.options?.useMostRecentCollectionId) {
           finalSetValue = (status.nextCollectionId - 1n).toString();
-        }
-
-        // TODO: Should we only allow initializations to empty collections?
-        if (setValueMsg.mapId === 'BitBadges Follow Protocol' && finalSetValue) {
-          await unsetFollowCollection(setValueMsg.creator);
-          await initializeFollowProtocol(setValueMsg.creator, BigInt(finalSetValue));
-        } else {
-          await unsetFollowCollection(setValueMsg.creator);
         }
 
         const doc = docs.maps[setValueMsg.mapId];

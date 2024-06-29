@@ -93,12 +93,12 @@ export const successWebhook = async (req: Request, res: Response) => {
     // Handle the event
     switch (event.type) {
       case 'payment_intent.succeeded':
-        const paymentIntentSucceeded = event.data.object;
+        const paymentIntent = event.data.object;
 
         //TODO: Handle if this fails?
-        const id = paymentIntentSucceeded.id;
-        const amount = paymentIntentSucceeded.amount;
-        const cosmosAddress = mustConvertToCosmosAddress(paymentIntentSucceeded.metadata.cosmosAddress);
+        const id = paymentIntent.id;
+        const amount = paymentIntent.amount;
+        const cosmosAddress = mustConvertToCosmosAddress(paymentIntent.metadata.cosmosAddress);
         const newQueueDoc: iQueueDoc<bigint> = {
           _docId: id,
           notificationType: 'faucet',

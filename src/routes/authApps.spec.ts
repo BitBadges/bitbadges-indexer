@@ -20,8 +20,8 @@ describe('auth apps', () => {
     const route = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
     const body: CreateDeveloperAppPayload = {
       name: 'test',
-      description: '',
-      image: '',
+      description: 'test',
+      image: 'test',
       redirectUris: ['http://localhost:3000']
     };
 
@@ -108,8 +108,8 @@ describe('auth apps', () => {
     const createRoute = BitBadgesApiRoutes.CRUDDeveloperAppRoute();
     const createPayload: CreateDeveloperAppPayload = {
       name: 'test',
-      description: '',
-      image: '',
+      description: 't',
+      image: 't',
       redirectUris: ['http://localhost:3000']
     };
 

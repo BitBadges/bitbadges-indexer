@@ -75,10 +75,9 @@ import {
   updateClaimHandler
 } from './routes/claims';
 import { getBadgeActivity, getCollections } from './routes/collections';
-import { oneTimeSendEmailHandler, oneTimeVerifyEmailHandler, unsubscribeHandler, verifyEmailHandler } from './routes/email';
+import { oneTimeSendEmailHandler, oneTimeVerifyEmailHandler, sendSaveForLaterValue, unsubscribeHandler, verifyEmailHandler } from './routes/email';
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
 import { checkIntentStatus, createPaymentIntent, getTokensFromFaucet, successWebhook } from './routes/faucet';
-import { getFollowDetails } from './routes/follows';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addToIpfsHandler } from './routes/ipfs';
 import { getMaps } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
@@ -466,9 +465,6 @@ app.delete('/api/v0/addressLists', authorizeBlockinRequest([{ scopeName: 'Delete
 app.post('/api/v0/claimAlerts/send', sendClaimAlert);
 app.post('/api/v0/claimAlerts', authorizeBlockinRequest([{ scopeName: 'Read Claim Alerts' }]), getClaimAlertsForCollection);
 
-// Follow Protocol
-app.post('/api/v0/follow-protocol', getFollowDetails);
-
 // Eth First Tx
 app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 
@@ -505,6 +501,8 @@ app.get('/api/v0/unsubscribe/:token', unsubscribeHandler);
 app.get('/api/v0/verifyEmail/:token', websiteOnlyCors, verifyEmailHandler);
 app.post('/api/v0/oneTimeVerify/send', websiteOnlyCors, oneTimeSendEmailHandler);
 app.post('/api/v0/oneTimeVerify/verify', websiteOnlyCors, oneTimeVerifyEmailHandler);
+
+app.post('/api/v0/sendEmail', websiteOnlyCors, sendSaveForLaterValue);
 
 // Siwbb / Oauth
 app.post('/api/v0/siwbb/token', exchangeSIWBBAuthorizationCode);

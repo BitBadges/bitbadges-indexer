@@ -15,7 +15,6 @@ import {
   ComplianceDoc,
   DeveloperAppDoc,
   FetchDoc,
-  FollowDetailsDoc,
   IPFSTotalsDoc,
   ListActivityDoc,
   MapDoc,
@@ -48,7 +47,6 @@ import {
   type iCollectionDoc,
   type iComplianceDoc,
   type iFetchDoc,
-  type iFollowDetailsDoc,
   type iIPFSTotalsDoc,
   type iListActivityDoc,
   type iMapDoc,
@@ -100,7 +98,6 @@ import {
   ErrorModel,
   EthTxCountModel,
   FetchModel,
-  FollowDetailsModel,
   IPFSTotalsModel,
   ListActivityModel,
   MapModel,
@@ -885,11 +882,6 @@ export function convertDocs<T extends BitBadgesDoc<JSPrimitiveNumberType>, U ext
       convertedDoc = new SIWBBRequestDoc(docToInsert as iSIWBBRequestDoc<NumberType>).convert(convertFunction);
       const validateRes =
         process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validateEquals<iSIWBBRequestDoc<NumberType>>(convertedDoc);
-      if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
-    } else if (model.modelName === FollowDetailsModel.modelName) {
-      convertedDoc = new FollowDetailsDoc(doc as iFollowDetailsDoc<NumberType>).convert(convertFunction);
-      const validateRes =
-        process.env.TYPIA === 'true' ? { success: true, errors: [] } : typia.validateEquals<iFollowDetailsDoc<NumberType>>(convertedDoc);
       if (!validateRes.success) throw new Error('Invalid doc schema: ' + model.modelName + ' : ' + JSON.stringify(validateRes.errors));
     } else if (model.modelName === BrowseModel.modelName) {
       convertedDoc = new BrowseDoc(doc as iBrowseDoc<NumberType>).convert(convertFunction);

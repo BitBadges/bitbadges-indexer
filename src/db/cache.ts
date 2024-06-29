@@ -1,57 +1,55 @@
 import {
+  BigIntify,
+  ListActivityDoc,
+  NumberifyIfPossible,
+  UintRangeArray,
+  convertToCosmosAddress,
   type AccountDoc,
   type AddressListDoc,
   type ApprovalTrackerDoc,
   type BalanceDoc,
+  type ClaimBuilderDoc,
   type CollectionDoc,
-  ListActivityDoc,
+  type MapDoc,
   type MerkleChallengeDoc,
   type NumberType,
-  type ClaimBuilderDoc,
   type RefreshDoc,
-  type StatusDoc,
-  convertToCosmosAddress,
-  type MapDoc,
-  NumberifyIfPossible,
-  UintRangeArray,
-  BigIntify
+  type StatusDoc
 } from 'bitbadgesjs-sdk';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { serializeError } from 'serialize-error';
 // import { handleFollowsByBalanceDocId } from '../routes/follows';
+import { getManyFromDB, insertMany, insertToDB } from './db';
+import {
+  AccountModel,
+  AddressListModel,
+  ApprovalTrackerModel,
+  BalanceModel,
+  ClaimAlertModel,
+  ClaimBuilderModel,
+  CollectionModel,
+  EmptyBlockModel,
+  ErrorModel,
+  ListActivityModel,
+  MapModel,
+  MerkleChallengeModel,
+  QueueModel,
+  RefreshModel,
+  TransferActivityModel
+} from './schemas';
 import { setStatus } from './status';
 import {
   type AccountDocs,
   type AddressListsDocs,
   type ApprovalTrackerDocs,
   type BalanceDocs,
+  type ClaimBuilderDocs,
   type CollectionDocs,
   type DocsCache,
-  type MerkleChallengeDocs,
-  type ClaimBuilderDocs,
-  type MapDocs
+  type MapDocs,
+  type MerkleChallengeDocs
 } from './types';
-import { getManyFromDB, insertMany, insertToDB } from './db';
-import {
-  AccountModel,
-  CollectionModel,
-  BalanceModel,
-  MerkleChallengeModel,
-  ApprovalTrackerModel,
-  AddressListModel,
-  ClaimBuilderModel,
-  TransferActivityModel,
-  QueueModel,
-  FollowDetailsModel,
-  RefreshModel,
-  ListActivityModel,
-  ClaimAlertModel,
-  ErrorModel,
-  MapModel,
-  EmptyBlockModel
-} from './schemas';
-import { findInDB } from './queries';
 
 /**
  * Fetches docs from DB if they are not already in the docs cache
@@ -369,23 +367,6 @@ export async function flushCachedDocs(
     if (balanceDocs.length > 0) {
       if (parallelExecution) promises.push(insertMany(BalanceModel, balanceDocs, session));
       else await insertMany(BalanceModel, balanceDocs, session);
-
-      // Check if any user has this balance as their followingCollectionId
-      // If not, we do not have to handle follows
-      const emptyCollections: bigint[] = [];
-      for (const doc of balanceDocs) {
-        if (emptyCollections.includes(doc.collectionId)) continue;
-
-        const users = await findInDB(FollowDetailsModel, {
-          query: { followingCollectionId: Number(doc.collectionId) }
-        });
-        if (users.length === 0) {
-          emptyCollections.push(doc.collectionId);
-          continue;
-        }
-
-        // await handleFollowsByBalanceDocId(doc._docId, []);
-      }
     }
 
     if (claimDocs.length > 0) {

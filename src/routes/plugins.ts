@@ -132,6 +132,7 @@ export const updatePlugin = async (req: AuthenticatedRequest<NumberType>, res: R
     if (reqPayload.toPublish === false) newDoc.reviewCompleted = false;
     if (reqPayload.approvedUsers !== undefined) newDoc.approvedUsers = reqPayload.approvedUsers.map((user) => convertToCosmosAddress(user));
     if (reqPayload.rotatePluginSecret) newDoc.pluginSecret = crypto.randomBytes(32).toString('hex');
+    if (reqPayload.userInputsSchema !== undefined) newDoc.userInputsSchema = reqPayload.userInputsSchema;
 
     const image = reqPayload.metadata?.image ? await getImage(reqPayload.metadata.image) : reqPayload.metadata?.image;
     if (reqPayload.metadata !== undefined)
@@ -257,7 +258,7 @@ export const createPlugin = async (req: AuthenticatedRequest<NumberType>, res: R
         : undefined,
       publicParamsSchema: [],
       privateParamsSchema: [],
-      userInputsSchema: [],
+      userInputsSchema: reqPayload.userInputsSchema ?? [],
       toPublish: reqPayload.toPublish ?? false,
       requiresSessions: false,
       _docId: reqPayload.pluginId,
