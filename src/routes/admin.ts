@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import dotenv from 'dotenv';
 import { FaucetModel } from '../db/schemas';
 import { getFromDB } from '../db/db';
+import { client } from '../indexer-vars';
 
 dotenv.config();
 
@@ -71,8 +72,9 @@ export const getAdminDetails = async (intentError: boolean) => {
   const errorDocs = await findInDB(ErrorModel, { query: {}, limit: 100 });
   const queueErrors = await findInDB(QueueModel, { query: { error: { $exists: true } }, limit: 100 });
   const pluginSubmissions = await findInDB(PluginModel, { query: { reviewCompleted: false }, limit: 100 });
+  const faucetBalance = await client?.getBalance('cosmos1kx9532ujful8vgg2dht6k544ax4k9qzszjcw04', 'ubadge');
 
-  return { reports, errorDocs, queueErrors, pluginSubmissions };
+  return { reports, errorDocs, queueErrors, pluginSubmissions, faucetBalance };
 };
 
 export async function getAdminDashboard(req: AuthenticatedRequest<NumberType>, res: Response) {
@@ -91,9 +93,9 @@ export async function getAdminDashboard(req: AuthenticatedRequest<NumberType>, r
       return res.status(200).send({ errorIds });
     }
 
-    const { reports, errorDocs, queueErrors, pluginSubmissions } = await getAdminDetails(toCheckIntents);
+    const { reports, errorDocs, queueErrors, pluginSubmissions, faucetBalance } = await getAdminDetails(toCheckIntents);
 
-    return res.status(200).json({ reports, errorDocs, queueErrors, pluginSubmissions });
+    return res.status(200).json({ reports, errorDocs, queueErrors, pluginSubmissions, faucetBalance });
   } catch (e) {
     return res.status(500).send({
       error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,

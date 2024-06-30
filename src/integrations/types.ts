@@ -140,6 +140,7 @@ export const castPluginDocToPlugin = <T extends ClaimIntegrationPluginType>(doc:
           }
 
           return GenericOauthValidateFunction(
+            context,
             publicParams as any,
             privateParams as any,
             {},

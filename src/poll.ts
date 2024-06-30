@@ -139,7 +139,7 @@ let lastAdminReportSent = process.env.DEV_MODE === 'true' ? Date.now() : 0;
 export const pollNotifications = async () => {
   try {
     if (lastAdminReportSent + 1000 * 60 * 60 * 4 < Date.now()) {
-      const { pluginSubmissions, reports, queueErrors, errorDocs } = await getAdminDetails(false);
+      const { pluginSubmissions, reports, queueErrors, errorDocs, faucetBalance } = await getAdminDetails(false);
       if (pluginSubmissions.length === 0 && reports.length === 0 && queueErrors.length === 0 && errorDocs.length === 0) {
       } else {
         const emails: Array<{
@@ -157,6 +157,7 @@ export const pollNotifications = async () => {
           <p>Reports: ${reports.length}</p>
           <p>Queue Errors: ${queueErrors.length}</p>
           <p>Errors: ${errorDocs.length}</p>
+          <p>Faucet Balance: ${JSON.stringify(faucetBalance)}</p>
           <br />
           <br />
 

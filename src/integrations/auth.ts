@@ -1,5 +1,5 @@
 import { type ClaimIntegrationPrivateParamsType, type ClaimIntegrationPublicParamsType } from 'bitbadgesjs-sdk';
-import { type BackendIntegrationPlugin, type ClaimIntegrationCustomBodyType } from './types';
+import { ContextInfo, type BackendIntegrationPlugin, type ClaimIntegrationCustomBodyType } from './types';
 
 export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
   pluginId: 'twitter',
@@ -20,7 +20,16 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, twitterInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, twitterInfo, context.instanceId);
+    return await GenericOauthValidateFunction(
+      context,
+      publicParams,
+      privateParams,
+      customBody,
+      priorState,
+      globalState,
+      twitterInfo,
+      context.instanceId
+    );
   },
   getPublicState: () => {
     return {};
@@ -33,6 +42,7 @@ export const TwitterPluginDetails: BackendIntegrationPlugin<'twitter'> = {
 type OauthType = 'twitter' | 'discord' | 'github' | 'google' | 'email' | 'twitch';
 
 export const GenericOauthValidateFunction = <P extends OauthType>(
+  context: ContextInfo,
   publicParams: ClaimIntegrationPublicParamsType<P>,
   privateParams: ClaimIntegrationPrivateParamsType<P>,
   customBody?: ClaimIntegrationCustomBodyType<P>,
@@ -71,14 +81,17 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
 
   const requiresWhitelistCheck = (params.usernames ?? []).length > 0 || (params.ids ?? []).length > 0;
   let onWhitelist = false;
+  let userIdx = -1;
   if (params.usernames && params.usernames.length > 0) {
     const inList = params.usernames.some((user) => user === oauthInfo.username);
     onWhitelist = inList;
+    userIdx = params.usernames.findIndex((user) => user === oauthInfo.username);
   }
 
   if (params.ids && params.ids.length > 0) {
     const inList = params.ids.some((id) => id === oauthInfo.id);
     onWhitelist = inList;
+    userIdx = params.ids.findIndex((id) => id === oauthInfo.id) + (params.usernames?.length || 0);
   }
 
   if (requiresWhitelistCheck && !onWhitelist) {
@@ -90,7 +103,8 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
     toSet: [
       { $set: { [`state.${instanceId}.ids.${oauthInfo.id}`]: currNumUses + 1 } },
       { $set: { [`state.${instanceId}.usernames.${oauthInfo.username}`]: oauthInfo.id } }
-    ]
+    ],
+    claimNumber: context.isClaimNumberAssigner ? userIdx : undefined
   };
 };
 
@@ -113,7 +127,16 @@ export const GooglePluginDetails: BackendIntegrationPlugin<'google'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, googleInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, googleInfo, context.instanceId);
+    return await GenericOauthValidateFunction(
+      context,
+      publicParams,
+      privateParams,
+      customBody,
+      priorState,
+      globalState,
+      googleInfo,
+      context.instanceId
+    );
   },
   getPublicState: () => {
     return {};
@@ -142,7 +165,16 @@ export const EmailPluginDetails: BackendIntegrationPlugin<'email'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, emailInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, emailInfo, context.instanceId);
+    return await GenericOauthValidateFunction(
+      context,
+      publicParams,
+      privateParams,
+      customBody,
+      priorState,
+      globalState,
+      emailInfo,
+      context.instanceId
+    );
   },
   getPublicState: () => {
     return {};
@@ -171,7 +203,16 @@ export const GitHubPluginDetails: BackendIntegrationPlugin<'github'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, githubInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, context.instanceId);
+    return await GenericOauthValidateFunction(
+      context,
+      publicParams,
+      privateParams,
+      customBody,
+      priorState,
+      globalState,
+      githubInfo,
+      context.instanceId
+    );
   },
   getPublicState: () => {
     return {};
@@ -203,6 +244,7 @@ export const DiscordPluginDetails: BackendIntegrationPlugin<'discord'> = {
     const username = Number(adminInfo.discriminator) ? adminInfo.username + '#' + adminInfo.discriminator : adminInfo.username;
 
     return await GenericOauthValidateFunction(
+      context,
       publicParams,
       privateParams,
       customBody,
@@ -239,7 +281,16 @@ export const TwitchPluginDetails: BackendIntegrationPlugin<'twitch'> = {
     return privateParams;
   },
   validateFunction: async (context, publicParams, privateParams, customBody, priorState, globalState, githubInfo) => {
-    return await GenericOauthValidateFunction(publicParams, privateParams, customBody, priorState, globalState, githubInfo, context.instanceId);
+    return await GenericOauthValidateFunction(
+      context,
+      publicParams,
+      privateParams,
+      customBody,
+      priorState,
+      globalState,
+      githubInfo,
+      context.instanceId
+    );
   },
   getPublicState: () => {
     return {};

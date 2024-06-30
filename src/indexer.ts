@@ -80,7 +80,7 @@ import { oneTimeSendEmailHandler, oneTimeVerifyEmailHandler, sendSaveForLaterVal
 import { getBalancesForEthFirstTx } from './routes/ethFirstTx';
 import { checkIntentStatus, createPaymentIntent, getTokensFromFaucet, successWebhook } from './routes/faucet';
 import { addApprovalDetailsToOffChainStorageHandler, addBalancesToOffChainStorageHandler, addToIpfsHandler } from './routes/ipfs';
-import { getMaps } from './routes/maps';
+import { getMaps, getMapValues } from './routes/maps';
 import { fetchMetadataDirectly } from './routes/metadata';
 import {
   createAttestation,
@@ -471,6 +471,7 @@ app.post('/api/v0/ethFirstTx/:cosmosAddress', getBalancesForEthFirstTx);
 
 // Maps
 app.post('/api/v0/maps', getMaps);
+app.post('/api/v0/mapValues', getMapValues);
 
 app.post('/api/v0/siwbbRequest/appleWalletPass', createPass);
 app.post('/api/v0/siwbbRequest/googleWalletPass', createGooglePass);
@@ -480,10 +481,10 @@ app.post('/api/v0/attestation/fetch', getAttestation);
 app.post('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Create Attestations' }]), createAttestation);
 app.delete('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Delete Attestations' }]), deleteAttestation);
 app.put('/api/v0/attestation', authorizeBlockinRequest([{ scopeName: 'Update Attestations' }]), updateAttestation);
+
 app.post('/api/v0/attestationProof/fetch', getAttestationProof);
 app.post('/api/v0/attestationProof', authorizeBlockinRequest([{ scopeName: 'Create Attestations' }]), createAttestationProof);
 app.delete('/api/v0/attestationProof', authorizeBlockinRequest([{ scopeName: 'Delete Attestations' }]), deleteAttestationProof);
-// app.put('/api/v0/attestationProof', authorizeBlockinRequest([{ scopeName: 'Update Attestations' }]), updateAttestation);
 
 // Auth Apps
 app.post('/api/v0/developerApp/fetch', websiteOnlyCors, getDeveloperApps);
