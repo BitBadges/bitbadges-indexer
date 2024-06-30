@@ -1,4 +1,4 @@
-import { AddressList, BitBadgesAddressList } from 'bitbadgesjs-sdk';
+import { AddressList, BitBadgesAddressList, convertToCosmosAddress } from 'bitbadgesjs-sdk';
 import { mustGetAddressListsFromDB } from '../routes/utils';
 import { type BackendIntegrationPlugin } from './types';
 
@@ -29,6 +29,7 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
     const maxUsesPerUser = publicParams.maxUsesPerAddress;
     const cosmosAddress = context.cosmosAddress;
     const id = cosmosAddress;
+    let userIdx = -1;
 
     if (params.listId) {
       const addressListRes = await mustGetAddressListsFromDB([{ listId: params.listId }], false);
@@ -37,15 +38,25 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
       }
 
       const addressList = new BitBadgesAddressList(addressListRes[0]);
-      if (!addressList.checkAddress(targetUser)) {
+      const idx = addressList.addresses.map((x) => convertToCosmosAddress(x)).indexOf(targetUser);
+      if (idx === -1) {
         return { success: false, error: 'User not in list of whitelisted users.' };
+      }
+
+      if (addressList.whitelist) {
+        userIdx = idx;
       }
     }
 
     if (params.list) {
       const addressList = new AddressList(params.list);
-      if (!addressList.checkAddress(targetUser)) {
+      const idx = addressList.addresses.map((x) => convertToCosmosAddress(x)).indexOf(targetUser);
+      if (idx === -1) {
         return { success: false, error: 'User not in list of whitelisted users.' };
+      }
+
+      if (addressList.whitelist) {
+        userIdx = idx;
       }
     }
 
@@ -57,7 +68,8 @@ export const WhitelistPluginDetails: BackendIntegrationPlugin<'whitelist'> = {
 
     return {
       success: true,
-      toSet: [{ $set: { [`state.${instanceId}.addresses.${cosmosAddress}`]: currNumUses + 1 } }]
+      toSet: [{ $set: { [`state.${instanceId}.addresses.${cosmosAddress}`]: currNumUses + 1 } }],
+      claimNumber: context.isClaimNumberAssigner ? userIdx : undefined
     };
   },
   getPublicState: () => {

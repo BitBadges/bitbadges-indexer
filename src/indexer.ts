@@ -13,7 +13,7 @@ if (process.env.TEST_MODE === 'true') {
 }
 
 import axios from 'axios';
-import { Metadata, UintRangeArray, type ErrorResponse } from 'bitbadgesjs-sdk';
+import { type ErrorResponse } from 'bitbadgesjs-sdk';
 import MongoStore from 'connect-mongo';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -41,13 +41,14 @@ import {
   removeBlockinSessionCookie,
   verifyBlockinAndGrantSessionCookie
 } from './blockin/blockin_handlers';
-import { getFromDB, insertToDB, mustGetFromDB } from './db/db';
+import { insertToDB } from './db/db';
 import { ApiKeyDoc } from './db/docs';
 import { findInDB } from './db/queries';
-import { ApiKeyModel, CollectionModel, FetchModel } from './db/schemas';
+import { ApiKeyModel } from './db/schemas';
 import { OFFLINE_MODE, client } from './indexer-vars';
 import { connectToRpc, poll, pollNotifications, pollUris } from './poll';
 import { createAddressLists, deleteAddressLists, getAddressLists, updateAddressLists } from './routes/addressLists';
+import { getAdminDashboard } from './routes/admin';
 import { createApiKey, deleteApiKey, getApiKeys, rotateApiKey } from './routes/apiKeys';
 import { createDeveloperApp, deleteDeveloperApp, getDeveloperApps, updateDeveloperApp } from './routes/authApps';
 import {
@@ -98,8 +99,6 @@ import { addReview, deleteReview } from './routes/reviews';
 import { filterBadgesInCollectionHandler, getFilterSuggestionsHandler, searchHandler } from './routes/search';
 import { getStatusHandler } from './routes/status';
 import { getAccounts, updateAccountInfo } from './routes/users';
-import { getAdminDashboard } from './routes/admin';
-import { serializeError } from 'serialize-error';
 
 axios.defaults.timeout = process.env.FETCH_TIMEOUT ? Number(process.env.FETCH_TIMEOUT) : 10000; // Set the default timeout value in milliseconds
 
@@ -380,71 +379,6 @@ app.post('/api/v0/report', authorizeBlockinRequest([{ scopeName: 'Report' }]), a
 app.post('/api/v0/search/:searchValue', searchHandler);
 
 // Collections
-app.get('/api/v0/collections/:collectionId/image', async (req: Request, res: Response) => {
-  try {
-    const collectionId = req.params.collectionId;
-    if (!collectionId) {
-      throw new Error('Collection ID not provided.');
-    }
-
-    const collectionDoc = await mustGetFromDB(CollectionModel, collectionId);
-    if (!collectionDoc) {
-      throw new Error('Collection not found.');
-    }
-
-    const metadataUrl = collectionDoc.collectionMetadataTimeline.find((x) => UintRangeArray.From(x.timelineTimes).searchIfExists(BigInt(Date.now())))
-      ?.collectionMetadata.uri;
-    if (!metadataUrl) {
-      throw new Error('Metadata not found for collection.');
-    }
-
-    const metadataDoc = await getFromDB(FetchModel, metadataUrl);
-
-    return res.redirect((metadataDoc?.content as Metadata<bigint>)?.image.replace('ipfs://', 'https://bitbadges-ipfs.infura-ipfs.io/ipfs/'));
-  } catch (e) {
-    console.error(e);
-    res.status(500).send({
-      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error getting collection image'
-    });
-  }
-});
-
-app.get('/api/v0/collections/:collectionId/:badgeId/image', async (req: Request, res: Response) => {
-  try {
-    const collectionId = req.params.collectionId;
-    if (!collectionId) {
-      throw new Error('Collection ID not provided.');
-    }
-
-    const badgeId = BigInt(req.params.badgeId);
-    if (!badgeId) {
-      throw new Error('Badge ID not provided.');
-    }
-
-    const collectionDoc = await mustGetFromDB(CollectionModel, collectionId);
-    if (!collectionDoc) {
-      throw new Error('Collection not found.');
-    }
-
-    const metadataUrl = collectionDoc.badgeMetadataTimeline
-      .find((x) => UintRangeArray.From(x.timelineTimes).searchIfExists(BigInt(Date.now())))
-      ?.badgeMetadata.find((x) => UintRangeArray.From(x.badgeIds).searchIfExists(badgeId))?.uri;
-    if (!metadataUrl) {
-      throw new Error('Metadata not found for collection.');
-    }
-
-    const metadataDoc = await getFromDB(FetchModel, metadataUrl);
-
-    return res.redirect((metadataDoc?.content as Metadata<bigint>)?.image.replace('ipfs://', 'https://bitbadges-ipfs.infura-ipfs.io/ipfs/'));
-  } catch (e) {
-    console.error(e);
-    res.status(500).send({
-      error: process.env.DEV_MODE === 'true' ? serializeError(e) : undefined,
-      errorMessage: e.message || 'Error getting collection image'
-    });
-  }
-});
 
 app.post('/api/v0/collections', getCollections);
 app.post('/api/v0/collection/:collectionId/:badgeId/owners', getOwnersForBadge);

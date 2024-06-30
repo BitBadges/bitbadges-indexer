@@ -1,0 +1,51 @@
+
+{
+  "creator": "cosmos1zd5dsage58jfrgmsu377pk6w0q5zhc67fn4gsl",
+  "mapId": "Alternate Address Protocol",
+  "inheritManagerTimelineFrom": "0",
+  "managerTimeline": [
+    {
+      "manager": "cosmos1kfr2xajdvs46h0ttqadu50nhu8x4v0tcfn4p0x",
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "updateCriteria": {
+    "managerOnly": false,
+    "collectionId": "0",
+    "creatorOnly": true,
+    "firstComeFirstServe": false
+  },
+  "valueOptions": {
+    "noDuplicates": false,
+    "permanentOnceSet": false,
+    "expectUint": false,
+    "expectBoolean": false,
+    "expectAddress": true,
+    "expectUri": false
+  },
+  "defaultValue": "",
+  "metadataTimeline": [
+    {
+      "metadata": {
+        "uri": "ipfs://QmfKboF51SYLpzC2fcdWKsUGse1HmE2CJdY91GaGxo5shw",
+        "customData": ""
+      },
+      "timelineTimes": [
+        {
+          "start": "1",
+          "end": "18446744073709551615"
+        }
+      ]
+    }
+  ],
+  "permissions": {
+    "canUpdateMetadata": [],
+    "canUpdateManager": [],
+    "canDeleteMap": []
+  }
+}

@@ -774,7 +774,8 @@ export const getClaimDetailsForFrontend = async (
       manualDistribution: doc.manualDistribution,
       approach: doc.approach,
       metadata: doc.metadata,
-      seedCode
+      seedCode,
+      assignMethod: doc.assignMethod
     });
   }
 
