@@ -57,6 +57,7 @@ export const rotateSIWBBRequest = async (
     if (!isAuthenticated) {
       throw new Error('You do not have permission to create requests.');
     }
+
     const authDetails = await mustGetAuthDetails(req, res);
 
     const codeHash = crypto.createHash('sha256').update(reqPayload.code).digest('hex');
@@ -119,11 +120,16 @@ export const createSIWBBRequest = async (
     }
 
     const origin = req.headers.origin;
-
     const isAuthenticated = await checkIfAuthenticated(req, res, [{ scopeName: 'Approve Sign In with BitBadges Requests' }]);
+    const isAuthenticatedWithFullAccess = await checkIfAuthenticated(req, res, [{ scopeName: 'Full Access' }]);
     if (!isAuthenticated) {
       throw new Error('You do not have permission to create requests.');
     }
+
+    if (scopes.length > 0 && !isAuthenticatedWithFullAccess) {
+      throw new Error('To approve requests with scopes, you must be signed in with Full Access mode.');
+    }
+
     const authDetails = await mustGetAuthDetails(req, res);
 
     //Dummy params for compatibility
@@ -554,7 +560,7 @@ export const exchangeSIWBBAuthorizationCode = async (
         const doc = await mustGetFromDB(DeveloperAppModel, accessTokenDoc.clientId);
         await verifyDevAppDetails(
           {
-            clientId: accessTokenDoc.clientId, 
+            clientId: accessTokenDoc.clientId,
             clientSecret: doc.clientSecret,
             redirectUris: doc.redirectUris,
             address: accessTokenDoc.address

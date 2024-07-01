@@ -151,7 +151,7 @@ export const pollNotifications = async () => {
           {
             to: 'trevormil@comcast.net',
             from: 'info@mail.bitbadges.io',
-            subject: 'Admin Report',
+            subject: 'Admin Report - ' + (process.env.DEV_MODE === 'true' ? 'DEV' : 'PROD'),
             html: `<p>Admin Report: ${new Date().toISOString()}</p>
           <p>Plugin Submissions: ${pluginSubmissions.length}</p>
           <p>Reports: ${reports.length}</p>
