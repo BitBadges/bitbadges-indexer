@@ -53,56 +53,66 @@ export const GenericOauthValidateFunction = <P extends OauthType>(
 ) => {
   const params = privateParams;
   const maxUsesPerUser = publicParams.maxUsesPerUser || 0;
+  const oauthInfoCopy = { ...oauthInfo };
 
-  if (!oauthInfo) {
+  if (!oauthInfoCopy) {
     return { success: false, error: 'Invalid details. Could not get user.' };
   }
 
-  if (!oauthInfo.username || !oauthInfo.id) {
+  if (!oauthInfoCopy.username || !oauthInfoCopy.id) {
     return { success: false, error: 'Invalid details. Could not get user.' };
   }
 
-  if (oauthInfo.id.includes('[dot]')) {
+  if (oauthInfoCopy.id.includes('[dot]')) {
     return { success: false, error: 'Invalid reserved sequence in ID ([dot])' };
   }
-  // Handle "." in oauthInfo.id
-  oauthInfo.id = oauthInfo.id.replace(/\./g, '[dot]');
+  // Handle "." in oauthInfoCopy.id
+  oauthInfoCopy.id = oauthInfoCopy.id.replace(/\./g, '[dot]');
 
-  if (oauthInfo.username.includes('[dot]')) {
+  if (oauthInfoCopy.username.includes('[dot]')) {
     return { success: false, error: 'Invalid reserved sequence in username ([dot])' };
   }
-  // Handle "." in oauthInfo.username
-  oauthInfo.username = oauthInfo.username.replace(/\./g, '[dot]');
+  // Handle "." in oauthInfoCopy.username
+  oauthInfoCopy.username = oauthInfoCopy.username.replace(/\./g, '[dot]');
 
-  const currNumUses = priorState.ids[oauthInfo.id] || 0;
+  const currNumUses = priorState.ids[oauthInfoCopy.id] || 0;
   if (maxUsesPerUser > 0 && currNumUses >= maxUsesPerUser) {
     return { success: false, error: 'User already exceeded max uses' };
   }
 
-  const requiresWhitelistCheck = (params.usernames ?? []).length > 0 || (params.ids ?? []).length > 0;
-  let onWhitelist = false;
+  const hasSpecificUsers = (params.usernames ?? []).length > 0 || (params.ids ?? []).length > 0;
+  let onList = false;
   let userIdx = -1;
   if (params.usernames && params.usernames.length > 0) {
-    const inList = params.usernames.some((user) => user === oauthInfo.username);
-    onWhitelist = inList;
-    userIdx = params.usernames.findIndex((user) => user === oauthInfo.username);
+    const convertedUsernames = params.usernames.map((user) => user.replace(/\./g, '[dot]'));
+
+    const inList = convertedUsernames.some((user) => user === oauthInfoCopy.username);
+    onList = inList;
+    userIdx = convertedUsernames.findIndex((user) => user === oauthInfoCopy.username);
   }
 
   if (params.ids && params.ids.length > 0) {
-    const inList = params.ids.some((id) => id === oauthInfo.id);
-    onWhitelist = inList;
-    userIdx = params.ids.findIndex((id) => id === oauthInfo.id) + (params.usernames?.length || 0);
+    const convertedIds = params.ids.map((id) => id.replace(/\./g, '[dot]'));
+
+    const inList = convertedIds.some((id) => id === oauthInfoCopy.id);
+    onList = inList;
+    userIdx = convertedIds.findIndex((id) => id === oauthInfoCopy.id) + (params.usernames?.length || 0);
   }
 
-  if (requiresWhitelistCheck && !onWhitelist) {
-    return { success: false, error: 'User not in list of whitelisted users.' };
+  const isBlacklist = publicParams.blacklist || false;
+  if (hasSpecificUsers) {
+    if (!isBlacklist && !onList) {
+      return { success: false, error: 'User not in list of whitelisted users.' };
+    } else if (isBlacklist && onList) {
+      return { success: false, error: 'User is in list of blacklisted users.' };
+    }
   }
 
   return {
     success: true,
     toSet: [
-      { $set: { [`state.${instanceId}.ids.${oauthInfo.id}`]: currNumUses + 1 } },
-      { $set: { [`state.${instanceId}.usernames.${oauthInfo.username}`]: oauthInfo.id } }
+      { $set: { [`state.${instanceId}.ids.${oauthInfoCopy.id}`]: currNumUses + 1 } },
+      { $set: { [`state.${instanceId}.usernames.${oauthInfoCopy.username}`]: oauthInfoCopy.id } }
     ],
     claimNumber: context.isClaimNumberAssigner ? userIdx : undefined
   };
